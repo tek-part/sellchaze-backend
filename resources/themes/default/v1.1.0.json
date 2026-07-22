@@ -1,0 +1,66 @@
+{
+    "key": "default",
+    "name": "Default",
+    "version": "1.1.0",
+    "author": "Sellchase",
+    "category": "general",
+    "min_platform_version": "1.0.0",
+    "max_platform_version": null,
+    "supported_features": ["sections", "seo"],
+    "bundle_url": "builtin:default@1.1.0",
+    "changelog": "Renamed 'primary' to 'brand_primary'; added 'accent' color.",
+    "preview_image": null,
+
+    "settings_schema": [
+        {
+            "id": "colors",
+            "label": "Colors",
+            "fields": [
+                { "id": "brand_primary", "type": "color", "label": "Brand primary", "default": "#2563eb" },
+                { "id": "accent", "type": "color", "label": "Accent", "default": "#f59e0b" },
+                { "id": "background", "type": "color", "label": "Background", "default": "#ffffff" },
+                { "id": "text", "type": "color", "label": "Text", "default": "#0f172a" }
+            ]
+        },
+        {
+            "id": "typography",
+            "label": "Typography",
+            "fields": [
+                { "id": "font", "type": "select", "label": "Font family", "default": "system", "options": ["system", "serif", "mono"] }
+            ]
+        },
+        {
+            "id": "layout",
+            "label": "Layout",
+            "fields": [
+                { "id": "products_per_row", "type": "range", "label": "Products per row", "default": 4, "min": 2, "max": 6 },
+                { "id": "show_categories", "type": "toggle", "label": "Show categories on home", "default": true }
+            ]
+        }
+    ],
+
+    "sections_schema": {
+        "hero": { "label": "Hero", "settings": [
+            { "id": "headline", "type": "text", "label": "Headline", "default": "" },
+            { "id": "show_tagline", "type": "toggle", "label": "Show tagline", "default": true }
+        ]},
+        "category-list": { "label": "Category list", "settings": [
+            { "id": "limit", "type": "number", "label": "Max categories", "default": 12 }
+        ]},
+        "product-grid": { "label": "Product grid", "settings": [
+            { "id": "limit", "type": "number", "label": "Max products", "default": 8 },
+            { "id": "featured_only", "type": "toggle", "label": "Featured only", "default": true }
+        ]},
+        "category-header": { "label": "Category header", "settings": [] },
+        "product-details": { "label": "Product details", "settings": [] },
+        "rich-text": { "label": "Rich text", "settings": [
+            { "id": "content", "type": "richtext", "label": "Content", "default": "" }
+        ]}
+    },
+
+    "templates": {
+        "home": { "sections": [ { "type": "hero" }, { "type": "category-list" }, { "type": "product-grid", "settings": { "limit": 8, "featured_only": true } } ] },
+        "product": { "sections": [ { "type": "product-details" } ] },
+        "category": { "sections": [ { "type": "category-header" }, { "type": "product-grid", "settings": { "featured_only": false } } ] }
+    }
+}

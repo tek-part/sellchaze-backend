@@ -1,0 +1,50 @@
+{
+    "key": "aurora",
+    "name": "Aurora",
+    "version": "1.0.0",
+    "author": "Sellchase Studio",
+    "category": "modern",
+    "description": "A bold, modern storefront theme with large product cards.",
+    "is_marketplace": true,
+    "is_featured": true,
+    "min_platform_version": "1.0.0",
+    "supported_features": ["sections", "seo"],
+    "bundle_url": "builtin:aurora@1.0.0",
+    "changelog": "Initial release.",
+
+    "settings_schema": [
+        {
+            "id": "brand",
+            "label": "Brand",
+            "fields": [
+                { "id": "primary", "type": "color", "label": "Primary", "default": "#7c3aed" },
+                { "id": "headline", "type": "text", "label": "Homepage headline", "default": "Discover more" }
+            ]
+        },
+        {
+            "id": "layout",
+            "label": "Layout",
+            "fields": [
+                { "id": "products_per_row", "type": "range", "label": "Products per row", "default": 3, "min": 2, "max": 5 }
+            ]
+        }
+    ],
+
+    "sections_schema": {
+        "hero": { "label": "Hero", "settings": [
+            { "id": "headline", "type": "text", "label": "Headline", "default": "" }
+        ]},
+        "category-list": { "label": "Category list", "settings": [] },
+        "product-grid": { "label": "Product grid", "settings": [
+            { "id": "featured_only", "type": "toggle", "label": "Featured only", "default": true }
+        ]},
+        "category-header": { "label": "Category header", "settings": [] },
+        "product-details": { "label": "Product details", "settings": [] }
+    },
+
+    "templates": {
+        "home": { "sections": [ { "type": "hero" }, { "type": "product-grid" }, { "type": "category-list" } ] },
+        "product": { "sections": [ { "type": "product-details" } ] },
+        "category": { "sections": [ { "type": "category-header" }, { "type": "product-grid" } ] }
+    }
+}

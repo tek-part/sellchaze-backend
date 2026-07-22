@@ -1,0 +1,216 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Product;
+use App\Models\Store;
+use App\Models\User;
+use App\Services\JwtTokenService;
+use App\Services\Stores\StoreProvisioner;
+use App\Services\StoreService;
+use Database\Seeders\PermissionTableSeeder;
+use Database\Seeders\RolesTableSeeder;
+use Database\Seeders\StorePermissionsSeeder;
+use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
+use Tests\TestCase;
+
+/**
+ * Phase 2 — single-store ownership. Verifies the authoritative rule:
+ * one Merchant = one Store, one Supplier = one Store, Admin manages all.
+ * Covers auto-provisioning, idempotency, the /my-store auto-context, the
+ * service/policy/DB cardinality guards, and employee store inheritance.
+ */
+class SingleStoreOwnershipTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(PermissionTableSeeder::class);
+        $this->seed(RolesTableSeeder::class);
+        $this->seed(StorePermissionsSeeder::class);
+    }
+
+    private function owner(string $role = 'Merchant'): User
+    {
+        $user = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
+        $user->assignRole($role);
+
+        return $user;
+    }
+
+    private function asUser(User $user): self
+    {
+        return $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($user));
+    }
+
+    // ---- Auto-provisioning + /my-store auto-context -------------------------
+
+    public function test_merchant_auto_provisions_a_store_on_first_my_store_access(): void
+    {
+        $merchant = $this->owner('Merchant');
+        $this->assertNull($merchant->store, 'merchant should start with no store');
+
+        $this->asUser($merchant)
+            ->getJson('/api/v1/my-store/catalog/products')
+            ->assertOk();
+
+        $store = $merchant->fresh()->store;
+        $this->assertNotNull($store, 'a store must be auto-provisioned');
+        $this->assertSame('merchant', $store->owner_type);
+        $this->assertSame($merchant->id, (int) $store->owner_user_id);
+    }
+
+    public function test_supplier_auto_provisions_a_supplier_typed_store(): void
+    {
+        $supplier = $this->owner('Supplier');
+
+        $this->asUser($supplier)->getJson('/api/v1/my-store/catalog/products')->assertOk();
+
+        $this->assertSame('supplier', $supplier->fresh()->store->owner_type);
+    }
+
+    public function test_my_store_resolves_to_the_owners_store_and_stays_isolated(): void
+    {
+        $a = $this->owner('Merchant');
+        $b = $this->owner('Merchant');
+        $storeA = app(StoreProvisioner::class)->ensureFor($a);
+        $storeB = app(StoreProvisioner::class)->ensureFor($b);
+
+        Product::create(['store_id' => $storeA->id, 'name' => 'A-Item', 'slug' => 'a-item', 'price' => 10, 'is_active' => true]);
+        Product::create(['store_id' => $storeB->id, 'name' => 'B-Item', 'slug' => 'b-item', 'price' => 10, 'is_active' => true]);
+
+        // A's /my-store only ever sees A's catalog — no id in the URL, no leak.
+        $this->asUser($a)->getJson('/api/v1/my-store/catalog/products')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.name', 'A-Item');
+
+        // A product created through /my-store lands in A's store.
+        $this->asUser($a)->postJson('/api/v1/my-store/catalog/products', ['name' => 'New', 'price' => 5])
+            ->assertCreated();
+        // Count via the explicit forStore() scope — Product::query() carries
+        // the fail-closed StoreScope bound to the last request's CurrentStore.
+        $this->assertSame(2, Product::forStore($storeA)->count());
+        $this->assertSame(1, Product::forStore($storeB)->count());
+    }
+
+    public function test_admin_has_no_own_store_and_is_refused_my_store(): void
+    {
+        $admin = $this->owner('Admin');
+
+        $this->asUser($admin)->getJson('/api/v1/my-store/catalog/products')->assertForbidden();
+        $this->assertNull($admin->fresh()->store);
+    }
+
+    // ---- Provisioner semantics ---------------------------------------------
+
+    public function test_provisioner_is_idempotent(): void
+    {
+        $merchant = $this->owner('Merchant');
+        $provisioner = app(StoreProvisioner::class);
+
+        $first = $provisioner->ensureFor($merchant);
+        $second = $provisioner->ensureFor($merchant);
+
+        $this->assertSame($first->id, $second->id);
+        $this->assertSame(1, Store::query()->where('owner_user_id', $merchant->id)->count());
+    }
+
+    public function test_provisioner_returns_null_for_non_owner_roles(): void
+    {
+        $provisioner = app(StoreProvisioner::class);
+
+        $this->assertNull($provisioner->ensureFor($this->owner('Admin')));
+        $this->assertNull($provisioner->ensureFor($this->owner('Staff')));
+    }
+
+    public function test_employee_inherits_parent_owner_store(): void
+    {
+        $merchant = $this->owner('Merchant');
+        $parentStore = app(StoreProvisioner::class)->ensureFor($merchant);
+
+        $employee = User::factory()->create(['is_active' => true, 'pending_approval' => false, 'parent_user_id' => $merchant->id]);
+        $employee->assignRole('Employee');
+
+        $resolved = app(StoreProvisioner::class)->ensureFor($employee);
+
+        $this->assertNotNull($resolved);
+        $this->assertSame($parentStore->id, $resolved->id);
+        $this->assertSame(1, Store::query()->count(), 'employee must not spawn a second store');
+    }
+
+    // ---- Cardinality guards (service, policy, database) ---------------------
+
+    public function test_service_rejects_a_second_store_for_the_same_owner(): void
+    {
+        $merchant = $this->owner('Merchant');
+        app(StoreProvisioner::class)->ensureFor($merchant);
+
+        // createForOwner is the auth-independent path the provisioner uses; its
+        // one-owner-one-store guard must reject a second store.
+        $this->expectException(ValidationException::class);
+        app(StoreService::class)->createForOwner($merchant, ['name' => 'Second Store']);
+    }
+
+    public function test_policy_allows_first_store_but_blocks_a_second(): void
+    {
+        // The policy resolves the owner via the auth context (as in a real
+        // request), so establish it before checking the gate.
+        $merchant = $this->owner('Merchant');
+        $this->actingAs($merchant);
+        $this->assertTrue($merchant->can('create', Store::class), 'may create the first store');
+
+        app(StoreProvisioner::class)->ensureFor($merchant);
+
+        $this->assertFalse($merchant->can('create', Store::class), 'must never create a second store');
+    }
+
+    public function test_database_unique_constraint_blocks_duplicate_owner(): void
+    {
+        $merchant = $this->owner('Merchant');
+        Store::create(['owner_user_id' => $merchant->id, 'owner_type' => 'merchant', 'name' => 'One', 'slug' => 'one', 'currency' => 'USD', 'status' => 'active']);
+
+        $this->expectException(QueryException::class);
+        Store::create(['owner_user_id' => $merchant->id, 'owner_type' => 'merchant', 'name' => 'Two', 'slug' => 'two', 'currency' => 'USD', 'status' => 'active']);
+    }
+
+    // ---- Consistency: owners are walled off from the multi-store surface -----
+
+    public function test_owner_roles_have_no_multi_store_permissions(): void
+    {
+        foreach (['Merchant', 'Supplier'] as $roleName) {
+            $perms = Role::query()
+                ->where('name', $roleName)->firstOrFail()
+                ->permissions->pluck('name');
+
+            $this->assertEmpty(
+                $perms->filter(fn ($p) => str_starts_with($p, 'stores-')),
+                "{$roleName} must not hold any multi-store (stores-*) permission",
+            );
+            $this->assertContains(
+                'store.products.manage',
+                $perms->all(),
+                "{$roleName} must hold the single-store management matrix",
+            );
+        }
+    }
+
+    public function test_merchant_is_forbidden_from_the_admin_multi_store_list(): void
+    {
+        // Owners (single-store) must never reach the admin /stores list — the
+        // route is gated by permission:stores-list (Admin/Manager only).
+        $merchant = $this->owner('Merchant');
+        $this->asUser($merchant)->getJson('/api/v1/stores')->assertForbidden();
+    }
+
+    public function test_admin_can_reach_the_multi_store_list(): void
+    {
+        $admin = $this->owner('Admin');
+        $this->asUser($admin)->getJson('/api/v1/stores')->assertOk();
+    }
+}

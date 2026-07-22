@@ -1,0 +1,11 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 3
+    paths:
+        - app
+
+    # Analysis only — no code changes are driven by this config.
+    # Raise memory if the 338-file app OOMs during analysis.
+    tmpDir: storage/phpstan

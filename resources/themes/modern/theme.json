@@ -1,0 +1,163 @@
+{
+    "key": "modern",
+    "name": "Modern",
+    "version": "1.0.0",
+    "author": "Sellchase",
+    "category": "general",
+    "description": "A premium, multi-purpose storefront theme with a theme-owned header, footer, announcement bar and fully token-driven design (colors, typography, radius, shadows, layout width) — RTL-ready.",
+    "min_platform_version": "1.0.0",
+    "preview_image": null,
+
+    "settings_schema": [
+        {
+            "id": "colors",
+            "label": "Colors",
+            "fields": [
+                { "id": "primary", "type": "color", "label": "Primary", "default": "#111827" },
+                { "id": "on_primary", "type": "color", "label": "On primary (button text)", "default": "#ffffff" },
+                { "id": "accent", "type": "color", "label": "Accent", "default": "#e11d48" },
+                { "id": "background", "type": "color", "label": "Background", "default": "#ffffff" },
+                { "id": "surface", "type": "color", "label": "Surface", "default": "#f8fafc" },
+                { "id": "text", "type": "color", "label": "Text", "default": "#0f172a" },
+                { "id": "muted", "type": "color", "label": "Muted text", "default": "#64748b" },
+                { "id": "border", "type": "color", "label": "Border", "default": "#e5e7eb" }
+            ]
+        },
+        {
+            "id": "typography",
+            "label": "Typography",
+            "fields": [
+                { "id": "font", "type": "select", "label": "Body font", "default": "system", "options": ["system", "serif", "mono", "rounded"] },
+                { "id": "heading_font", "type": "select", "label": "Heading font", "default": "system", "options": ["system", "serif", "mono", "rounded"] }
+            ]
+        },
+        {
+            "id": "shape",
+            "label": "Buttons & Shape",
+            "fields": [
+                { "id": "radius", "type": "range", "label": "Corner radius", "default": 14, "min": 0, "max": 28 },
+                { "id": "shadow", "type": "select", "label": "Card shadow", "default": "soft", "options": ["none", "soft", "medium", "strong"] }
+            ]
+        },
+        {
+            "id": "layout",
+            "label": "Layout",
+            "fields": [
+                { "id": "container_width", "type": "range", "label": "Container width", "default": 1200, "min": 960, "max": 1440 }
+            ]
+        },
+        {
+            "id": "header",
+            "label": "Header & Footer",
+            "fields": [
+                { "id": "announcement", "type": "text", "label": "Announcement bar text", "default": "" }
+            ]
+        }
+    ],
+
+    "sections_schema": {
+        "hero": {
+            "label": "Hero",
+            "settings": [
+                { "id": "eyebrow", "type": "text", "label": "Eyebrow", "default": "" },
+                { "id": "headline", "type": "text", "label": "Headline", "default": "" },
+                { "id": "subhead", "type": "text", "label": "Sub-headline", "default": "" },
+                { "id": "show_tagline", "type": "toggle", "label": "Show sub-headline", "default": true },
+                { "id": "cta_label", "type": "text", "label": "Button label", "default": "" },
+                { "id": "cta_url", "type": "text", "label": "Button URL", "default": "/products" }
+            ]
+        },
+        "category-list": {
+            "label": "Featured categories",
+            "settings": [
+                { "id": "title", "type": "text", "label": "Title", "default": "" },
+                { "id": "limit", "type": "number", "label": "Max categories", "default": 12 }
+            ]
+        },
+        "product-grid": {
+            "label": "Product grid",
+            "settings": [
+                { "id": "title", "type": "text", "label": "Title", "default": "" },
+                { "id": "limit", "type": "number", "label": "Max products", "default": 8 },
+                { "id": "featured_only", "type": "toggle", "label": "Featured only", "default": true }
+            ]
+        },
+        "category-header": {
+            "label": "Category header",
+            "settings": []
+        },
+        "product-details": {
+            "label": "Product details",
+            "settings": []
+        },
+        "rich-text": {
+            "label": "Rich text",
+            "settings": [
+                { "id": "content", "type": "richtext", "label": "Content", "default": "" }
+            ]
+        },
+        "features": {
+            "label": "Why choose us",
+            "settings": []
+        },
+        "promo-banner": {
+            "label": "Promotional banner",
+            "settings": [
+                { "id": "eyebrow", "type": "text", "label": "Eyebrow", "default": "" },
+                { "id": "title", "type": "text", "label": "Title", "default": "" },
+                { "id": "text", "type": "text", "label": "Text", "default": "" },
+                { "id": "cta_label", "type": "text", "label": "Button label", "default": "" },
+                { "id": "cta_url", "type": "text", "label": "Button URL", "default": "/products" },
+                { "id": "image", "type": "text", "label": "Background image URL", "default": "" }
+            ]
+        },
+        "newsletter": {
+            "label": "Newsletter",
+            "settings": [
+                { "id": "title", "type": "text", "label": "Title", "default": "" },
+                { "id": "subtitle", "type": "text", "label": "Subtitle", "default": "" },
+                { "id": "cta_label", "type": "text", "label": "Button label", "default": "" }
+            ]
+        },
+        "testimonials": {
+            "label": "Testimonials",
+            "settings": [
+                { "id": "title", "type": "text", "label": "Title", "default": "" }
+            ]
+        },
+        "stats": {
+            "label": "Statistics",
+            "settings": []
+        },
+        "catalog": {
+            "label": "Catalog (product listing)",
+            "settings": []
+        }
+    },
+
+    "templates": {
+        "home": {
+            "sections": [
+                { "type": "hero", "settings": { "cta_label": "تسوّق الآن" } },
+                { "type": "features" },
+                { "type": "category-list" },
+                { "type": "product-grid", "settings": { "title": "الأكثر مبيعاً", "limit": 8, "featured_only": true } },
+                { "type": "promo-banner", "settings": { "eyebrow": "عرض حصري", "title": "خصم يصل إلى ٣٠٪", "text": "على تشكيلة مختارة من المنتجات لفترة محدودة.", "cta_label": "اكتشف العروض", "cta_url": "/products" } },
+                { "type": "testimonials" },
+                { "type": "stats" },
+                { "type": "newsletter" }
+            ]
+        },
+        "product": {
+            "sections": [
+                { "type": "product-details" }
+            ]
+        },
+        "category": {
+            "sections": [
+                { "type": "category-header" },
+                { "type": "catalog" }
+            ]
+        }
+    }
+}
