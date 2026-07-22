@@ -22,19 +22,26 @@ return [
     /*
     | Browser origins allowed to call this API.
     |
-    | Set CORS_ALLOWED_ORIGINS on the server to a comma-separated list when you
-    | need more than one — e.g. covering http + https during an SSL migration,
-    | or an apex + www pair:
-    |   CORS_ALLOWED_ORIGINS=http://sellchaze.com,https://sellchaze.com,https://www.sellchaze.com
+    | Precedence: CORS_ALLOWED_ORIGINS (server .env) → FRONTEND_URL (server .env)
+    | → the built-in default below. The default deliberately lists BOTH the
+    | production storefront (http + https, apex + www) and the local dev origin,
+    | so a deployed server is CORS-correct even before anyone sets an env var —
+    | this is what makes the fix ship in the repo rather than depend on a manual
+    | .env edit. Setting CORS_ALLOWED_ORIGINS on the server still overrides it.
     |
-    | When it is unset it falls back to FRONTEND_URL (a single origin, also used
-    | elsewhere for building links), then to the local dev origin. The origin
-    | must match the browser's exactly — scheme included: http and https are
-    | different origins.
+    | The matched origin is reflected back exactly, so a request from
+    | http://sellchaze.com receives Access-Control-Allow-Origin: http://sellchaze.com.
+    | Scheme matters: http and https are different origins.
     */
     'allowed_origins' => array_values(array_filter(array_map(
         'trim',
-        explode(',', (string) env('CORS_ALLOWED_ORIGINS', env('FRONTEND_URL', 'http://localhost:5173'))),
+        explode(',', (string) env(
+            'CORS_ALLOWED_ORIGINS',
+            env(
+                'FRONTEND_URL',
+                'http://sellchaze.com,https://sellchaze.com,http://www.sellchaze.com,https://www.sellchaze.com,http://localhost:5173',
+            ),
+        )),
     ))),
 
     'allowed_origins_patterns' => [],
