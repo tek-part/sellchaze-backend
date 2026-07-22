@@ -1,0 +1,38 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Backend to Production
+        uses: appleboy/ssh-action@v1.2.0
+
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          command_timeout: 30m
+          script_stop: true
+
+          script: |
+            set -e
+
+            cd /home/sellchaze/repos/backend
+
+            git fetch origin
+            git reset --hard origin/main
+
+            /usr/local/bin/composer install --no-dev --optimize-autoloader
+
+            /usr/local/bin/php artisan migrate --force
+
+            /usr/local/bin/php artisan optimize
+
+            /usr/local/bin/php artisan queue:restart || true
