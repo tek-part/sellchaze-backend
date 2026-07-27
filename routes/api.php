@@ -43,7 +43,6 @@ use App\Http\Controllers\Api\SettingsSummaryApiController;
 use App\Http\Controllers\Api\ShippingCompaniesApiController;
 use App\Http\Controllers\Api\StockTransfersApiController;
 use App\Http\Controllers\Api\StoreAnalyticsController;
-use App\Http\Controllers\Api\StoreCategoriesApiController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
 use App\Http\Controllers\Api\Storefront\CartController;
 use App\Http\Controllers\Api\Storefront\CheckoutController;
@@ -56,8 +55,6 @@ use App\Http\Controllers\Api\Storefront\StorefrontProductController;
 use App\Http\Controllers\Api\Storefront\StoreOrderController;
 use App\Http\Controllers\Api\Storefront\WishlistController;
 use App\Http\Controllers\Api\StorefrontContextController;
-use App\Http\Controllers\Api\StorefrontProductsApiController;
-use App\Http\Controllers\Api\StorefrontProductVariantsApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
 use App\Http\Controllers\Api\StorePagesApiController;
 use App\Http\Controllers\Api\StoreReusableSectionsApiController;
@@ -393,26 +390,11 @@ Route::prefix('v1')->group(function () {
                 });
             });
 
-            // ---- Catalog (Phase 3): products & categories ----
-            Route::prefix('catalog')->group(function () {
-                Route::get('products', [StorefrontProductsApiController::class, 'index']);
-                Route::post('products', [StorefrontProductsApiController::class, 'store']);
-                Route::get('products/{product}', [StorefrontProductsApiController::class, 'show'])->whereNumber('product');
-                Route::match(['put', 'post'], 'products/{product}', [StorefrontProductsApiController::class, 'update'])->whereNumber('product');
-                Route::delete('products/{product}', [StorefrontProductsApiController::class, 'destroy'])->whereNumber('product');
-
-                // Product variants (nested under a product; tenant-scoped like the rest).
-                Route::get('products/{product}/variants', [StorefrontProductVariantsApiController::class, 'index'])->whereNumber('product');
-                Route::post('products/{product}/variants', [StorefrontProductVariantsApiController::class, 'store'])->whereNumber('product');
-                Route::match(['put', 'post'], 'products/{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'update'])->whereNumber('product')->whereNumber('variant');
-                Route::delete('products/{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'destroy'])->whereNumber('product')->whereNumber('variant');
-
-                Route::get('categories', [StoreCategoriesApiController::class, 'index']);
-                Route::post('categories', [StoreCategoriesApiController::class, 'store']);
-                Route::get('categories/{category}', [StoreCategoriesApiController::class, 'show'])->whereNumber('category');
-                Route::match(['put', 'post'], 'categories/{category}', [StoreCategoriesApiController::class, 'update'])->whereNumber('category');
-                Route::delete('categories/{category}', [StoreCategoriesApiController::class, 'destroy'])->whereNumber('category');
-            });
+            // ---- Catalog ----
+            // Removed: the per-store catalog CRUD (products/categories/variants) is
+            // superseded by the unified per-owner catalog managed at /products and
+            // /categories. A store surfaces its owner's catalog automatically via
+            // ProductScope, so there is no separate store-scoped catalog to manage.
 
             // ---- Coupons (Phase 6D) ----
             Route::prefix('coupons')->group(function () {

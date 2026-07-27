@@ -43,10 +43,10 @@ class StorefrontRuntimeTest extends TestCase
             'currency' => 'USD', 'status' => 'active',
         ]);
         StoreDomain::create(['store_id' => $store->id, 'host' => "{$slug}.sellchase.com", 'type' => 'subdomain', 'is_primary' => true]);
-        $cat = Category::create(['store_id' => $store->id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
+        $cat = Category::create(['user_id' => $store->owner_user_id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
         foreach ($products as $i => $p) {
             Product::create([
-                'store_id' => $store->id, 'category_id' => $cat->id,
+                'user_id' => $store->owner_user_id, 'category_id' => $cat->id,
                 'name' => $p, 'slug' => Str::slug($p), 'price' => 100 + $i,
                 'is_active' => true, 'is_featured' => true,
             ]);

@@ -27,16 +27,19 @@ class StorefrontApiTest extends TestCase
 
     private function makeStore(string $slug, array $productNames): Store
     {
+        // Unified per-owner catalog: the store surfaces its owner's store-less
+        // catalog (store_id = NULL, user_id = owner), resolved by ProductScope.
+        $ownerId = User::factory()->create()->id;
         $store = Store::create([
-            'owner_user_id' => User::factory()->create()->id,
+            'owner_user_id' => $ownerId,
             'owner_type' => 'merchant', 'name' => ucfirst($slug), 'slug' => $slug,
             'currency' => 'USD', 'status' => 'active',
         ]);
         StoreDomain::create(['store_id' => $store->id, 'host' => "{$slug}.sellchase.com", 'type' => 'subdomain', 'is_primary' => true]);
-        $cat = Category::create(['store_id' => $store->id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
+        $cat = Category::create(['user_id' => $ownerId, 'name' => 'Shoes', 'slug' => "shoes-{$slug}", 'is_active' => true]);
         foreach ($productNames as $i => $name) {
             Product::create([
-                'store_id' => $store->id, 'category_id' => $cat->id,
+                'user_id' => $ownerId, 'category_id' => $cat->id,
                 'name' => $name, 'slug' => Str::slug($name),
                 'price' => 100 + $i, 'is_active' => true, 'is_featured' => true,
             ]);

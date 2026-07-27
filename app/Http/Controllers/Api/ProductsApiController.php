@@ -2,18 +2,23 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\FlushesOwnerStorefront;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Support\ProductImageUrl;
 use App\Models\ProductAttributes;
+use App\Models\ProductMedia;
 use App\Services\ProductDeletionService;
 use App\Services\Rbac\UserScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Facades\Image;
 
 class ProductsApiController extends Controller
 {
+    use FlushesOwnerStorefront;
+
     public function index(Request $request): JsonResponse
     {
         $query = Product::query()->with(['category:id,name,name_en,name_ar']);
@@ -72,6 +77,8 @@ class ProductsApiController extends Controller
             'attribute_ids' => ['nullable', 'array'],
             'attribute_ids.*' => ['integer', 'exists:attributes,id'],
             'image' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192'],
+            'gallery' => ['nullable', 'array'],
+            'gallery.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192'],
         ]);
 
         $product = Product::query()->create([
@@ -93,7 +100,10 @@ class ProductsApiController extends Controller
             ]);
         }
 
-        $product->load(['category:id,name,name_en,name_ar', 'product_attributes.attribute:id,name']);
+        $this->syncGalleryMedia($request, $product);
+
+        $product->load(['category:id,name,name_en,name_ar', 'product_attributes.attribute:id,name', 'media']);
+        $this->flushOwnerStorefront((int) $product->user_id);
 
         return response()->json(['data' => $this->serializeProductWithAttributes($product, $request)], 201, [], JSON_UNESCAPED_UNICODE);
     }
@@ -104,6 +114,7 @@ class ProductsApiController extends Controller
         $product->load([
             'category:id,name,name_en,name_ar',
             'product_attributes.attribute:id,name',
+            'media',
         ]);
 
         return response()->json(['data' => $this->serializeProductWithAttributes($product, $request)], 200, [], JSON_UNESCAPED_UNICODE);
@@ -122,6 +133,9 @@ class ProductsApiController extends Controller
             'attribute_ids.*' => ['integer', 'exists:attributes,id'],
             'image' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192'],
             'remove_image' => ['nullable', 'boolean'],
+            'gallery' => ['nullable', 'array'],
+            'gallery.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192'],
+            'remove_media_ids' => ['nullable'],
         ]);
 
         $product->update([
@@ -148,7 +162,10 @@ class ProductsApiController extends Controller
             ]);
         }
 
-        $product->load(['category:id,name,name_en,name_ar', 'product_attributes.attribute:id,name']);
+        $this->syncGalleryMedia($request, $product);
+
+        $product->load(['category:id,name,name_en,name_ar', 'product_attributes.attribute:id,name', 'media']);
+        $this->flushOwnerStorefront((int) $product->user_id);
 
         return response()->json(['data' => $this->serializeProductWithAttributes($product, $request)], 200, [], JSON_UNESCAPED_UNICODE);
     }
@@ -156,7 +173,9 @@ class ProductsApiController extends Controller
     public function destroy(Request $request, Product $product): JsonResponse
     {
         $this->assertCanManageProduct($request, $product);
+        $ownerId = (int) $product->user_id;
         app(ProductDeletionService::class)->delete($product);
+        $this->flushOwnerStorefront($ownerId);
 
         return response()->json(['message' => 'Deleted.'], 200);
     }
@@ -178,7 +197,9 @@ class ProductsApiController extends Controller
                 && (int) $product->user_id !== UserScope::effectiveMerchantUserId($request->user())) {
                 continue;
             }
+            $ownerId = (int) $product->user_id;
             app(ProductDeletionService::class)->delete($product);
+            $this->flushOwnerStorefront($ownerId);
             $deleted++;
         }
 
@@ -203,6 +224,77 @@ class ProductsApiController extends Controller
             $parsed = array_values(array_filter(array_map('intval', explode(',', $ids)), fn ($n) => $n > 0));
             $request->merge(['attribute_ids' => $parsed]);
         }
+    }
+
+    /**
+     * Apply gallery changes from the request: delete media in remove_media_ids[]
+     * and store any newly uploaded gallery[] files as ordered ProductMedia rows.
+     */
+    private function syncGalleryMedia(Request $request, Product $product): void
+    {
+        $removeIds = $request->input('remove_media_ids', []);
+        if (is_string($removeIds)) {
+            $removeIds = array_filter(array_map('intval', explode(',', $removeIds)));
+        }
+        $removeIds = array_values(array_filter(array_map('intval', (array) $removeIds), fn ($n) => $n > 0));
+
+        if ($removeIds) {
+            foreach ($product->media()->whereIn('id', $removeIds)->get() as $m) {
+                $this->deleteGalleryFile($m->path);
+                $m->delete();
+            }
+        }
+
+        $files = $request->file('gallery', []);
+        if ($files) {
+            $position = (int) ($product->media()->max('position') ?? 0);
+            foreach ((array) $files as $file) {
+                if (! $file) {
+                    continue;
+                }
+                // Stored under public/storage/uploads/... exactly like the cover image,
+                // so it's served without depending on the storage:link symlink.
+                $path = $this->storeGalleryImage($file);
+                ProductMedia::query()->create([
+                    'store_id' => $product->store_id,
+                    'store_product_id' => $product->id,
+                    'type' => 'gallery',
+                    'disk' => 'public',
+                    'path' => $path,
+                    'alt' => $product->name,
+                    'size' => $file->getSize(),
+                    'mime' => $file->getMimeType(),
+                    'position' => ++$position,
+                ]);
+            }
+        }
+    }
+
+    /** Save a gallery image to the public storage dir; returns the disk-relative path. */
+    private function storeGalleryImage($file): string
+    {
+        $filename = md5($file->getClientOriginalName().microtime(true)).'.'.$file->getClientOriginalExtension();
+        $dir = public_path('storage/uploads/products/gallery');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        Image::make($file->getRealPath())->save($dir.'/'.$filename, 90);
+
+        return 'uploads/products/gallery/'.$filename;
+    }
+
+    private function deleteGalleryFile(?string $path): void
+    {
+        if (! $path || str_starts_with($path, 'http')) {
+            return;
+        }
+        // Current convention (public/storage/uploads/...).
+        $full = public_path('storage/'.$path);
+        if (is_file($full)) {
+            @unlink($full);
+        }
+        // Legacy convention (storage/app/public/... via the public disk).
+        Storage::disk('public')->delete($path);
     }
 
     private function storeProductImage($file): string
@@ -307,6 +399,12 @@ class ProductsApiController extends Controller
             ->values()
             ->all();
         $data['attribute_ids'] = collect($data['attributes'])->pluck('id')->values()->all();
+
+        $data['media'] = $product->media
+            ->map(fn (ProductMedia $m) => ['id' => $m->id, 'url' => $m->url()])
+            ->filter(fn ($m) => ! empty($m['url']))
+            ->values()
+            ->all();
 
         return $data;
     }

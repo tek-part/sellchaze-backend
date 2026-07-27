@@ -49,7 +49,7 @@ class StorefrontSeoTest extends TestCase
     public function test_product_seo_includes_offer_structured_data(): void
     {
         $product = Product::create([
-            'store_id' => $this->store->id, 'name' => 'Air Max', 'slug' => 'air-max',
+            'user_id' => $this->store->owner_user_id, 'name' => 'Air Max', 'slug' => 'air-max',
             'price' => 199.99, 'is_active' => true,
         ]);
 
@@ -63,8 +63,8 @@ class StorefrontSeoTest extends TestCase
 
     public function test_category_seo_and_sitemap_and_robots(): void
     {
-        Category::create(['store_id' => $this->store->id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
-        Product::create(['store_id' => $this->store->id, 'name' => 'Air Max', 'slug' => 'air-max', 'price' => 10, 'is_active' => true]);
+        Category::create(['user_id' => $this->store->owner_user_id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
+        Product::create(['user_id' => $this->store->owner_user_id, 'name' => 'Air Max', 'slug' => 'air-max', 'price' => 10, 'is_active' => true]);
 
         $category = Category::query()->first();
         $catSeo = $this->seo->forCategory($this->store, $category);

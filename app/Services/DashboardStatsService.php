@@ -69,7 +69,9 @@ class DashboardStatsService
         $productsCount = $isSupplierOnly
             ? null
             : ($storeWideDashboard ? Product::count() : Product::where('user_id', $effectiveUserId)->count());
-        $categoriesCount = $isSupplierOnly ? null : Category::count();
+        $categoriesCount = $isSupplierOnly
+            ? null
+            : ($storeWideDashboard ? Category::count() : Category::where('user_id', $effectiveUserId)->count());
         $bundlesCount = $isSupplierOnly
             ? null
             : (Schema::hasTable('bundles')

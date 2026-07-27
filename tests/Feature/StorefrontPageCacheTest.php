@@ -2,9 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Concerns\FlushesOwnerStorefront;
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\User;
-use App\Services\StoreCatalog\StorefrontProductService;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Themes\StoreThemeService;
 use App\Services\Themes\ThemeRegistry;
@@ -69,8 +70,18 @@ class StorefrontPageCacheTest extends TestCase
         $gen3 = $this->cache->generation($store->id);
         $this->assertGreaterThan($gen2, $gen3);
 
-        app(CurrentStore::class)->set($store);
-        app(StorefrontProductService::class)->create(['name' => 'Air Max', 'price' => 10]); // catalog flush
+        // A catalog change via the unified /products path flushes the owner's storefront.
+        Product::create(['user_id' => $store->owner_user_id, 'name' => 'Air Max', 'price' => 10, 'is_active' => true]);
+        $flusher = new class
+        {
+            use FlushesOwnerStorefront;
+
+            public function flush(int $ownerId): void
+            {
+                $this->flushOwnerStorefront($ownerId);
+            }
+        };
+        $flusher->flush((int) $store->owner_user_id);
         $gen4 = $this->cache->generation($store->id);
         $this->assertGreaterThan($gen3, $gen4);
     }

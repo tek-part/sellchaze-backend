@@ -37,7 +37,7 @@ class MerchantReviewTest extends TestCase
         $this->seed(RolesTableSeeder::class);
         [$this->ownerA, $this->alpha] = $this->makeStore('alpha');
         [, $this->beta] = $this->makeStore('beta');
-        $this->tee = Product::create(['store_id' => $this->alpha->id, 'name' => 'Tee', 'slug' => 'tee', 'price' => '50.00', 'is_active' => true]);
+        $this->tee = Product::create(['user_id' => $this->alpha->owner_user_id, 'name' => 'Tee', 'slug' => 'tee', 'price' => '50.00', 'is_active' => true]);
     }
 
     /** @return array{0:User,1:Store} */

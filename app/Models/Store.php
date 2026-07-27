@@ -58,20 +58,18 @@ class Store extends Model
         return $this->domains()->where('status', StoreDomain::STATUS_VERIFIED);
     }
 
-    // The FK (store_id = this store) is itself the tenant boundary, so these
-    // relations opt out of the fail-closed StoreScope to remain usable without
-    // a CurrentStore context (e.g. eager loading, counts).
+    // The catalog is unified and store-less: a store simply surfaces its OWNER's
+    // catalog (user_id = owner_user_id). These relations opt out of ProductScope so
+    // they resolve without a CurrentStore context (eager loading, counts).
     public function products(): HasMany
     {
-        return $this->hasMany(Product::class)
-            ->withoutGlobalScope(StoreScope::class)
+        return $this->hasMany(Product::class, 'user_id', 'owner_user_id')
             ->withoutGlobalScope(ProductScope::class);
     }
 
     public function categories(): HasMany
     {
-        return $this->hasMany(Category::class)
-            ->withoutGlobalScope(StoreScope::class)
+        return $this->hasMany(Category::class, 'user_id', 'owner_user_id')
             ->withoutGlobalScope(ProductScope::class);
     }
 

@@ -11,8 +11,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Proves the StoreScope global scope + BelongsToStore trait isolate store-owned
- * models. Store A must never see Store B's products/categories.
+ * Proves the unified per-owner catalog isolation (ProductScope + HasStoreTenancy).
+ *
+ * The catalog is store-less (store_id = NULL) and owned by user_id. A store
+ * surfaces exactly its owner's catalog; two stores with different owners can
+ * never resolve each other's rows.
  */
 class StoreScopeIsolationTest extends TestCase
 {
@@ -46,17 +49,18 @@ class StoreScopeIsolationTest extends TestCase
 
     private function seedCatalog(Store $store, int $count): void
     {
-        $cat = Category::create(['store_id' => $store->id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
+        $ownerId = $store->owner_user_id;
+        $cat = Category::create(['user_id' => $ownerId, 'name' => 'Shoes', 'slug' => "shoes-{$store->slug}", 'is_active' => true]);
         for ($i = 1; $i <= $count; $i++) {
             Product::create([
-                'store_id' => $store->id, 'category_id' => $cat->id,
-                'name' => "{$store->slug} product {$i}", 'slug' => "p{$i}",
+                'user_id' => $ownerId, 'category_id' => $cat->id,
+                'name' => "{$store->slug} product {$i}", 'slug' => "{$store->slug}-p{$i}",
                 'price' => 10 * $i, 'is_active' => true,
             ]);
         }
     }
 
-    public function test_scope_limits_queries_to_the_current_store(): void
+    public function test_scope_limits_queries_to_the_current_stores_owner(): void
     {
         app(CurrentStore::class)->set($this->a);
         $this->assertSame(3, Product::query()->count());
@@ -68,37 +72,37 @@ class StoreScopeIsolationTest extends TestCase
 
     public function test_store_a_cannot_fetch_store_b_product_by_id(): void
     {
-        $bProduct = Product::query()->forStore($this->b)->first();
+        $bProduct = $this->b->products()->first();
 
         app(CurrentStore::class)->set($this->a);
         $this->assertNull(Product::query()->find($bProduct->id), 'Store A resolved a Store B product');
     }
 
-    public function test_trait_autofills_store_id_from_current_store_on_create(): void
+    public function test_trait_autofills_user_id_from_current_stores_owner_on_create(): void
     {
         app(CurrentStore::class)->set($this->a);
         $product = Product::create(['name' => 'New', 'slug' => 'new', 'price' => 5, 'is_active' => true]);
 
-        $this->assertSame($this->a->id, (int) $product->store_id);
+        // Ownership follows the store's owner; the row stays store-less.
+        $this->assertSame((int) $this->a->owner_user_id, (int) $product->user_id);
+        $this->assertNull($product->store_id);
     }
 
-    public function test_explicit_for_store_scope_isolates_without_context(): void
-    {
-        app(CurrentStore::class)->forget();
-        $this->assertSame(3, Product::query()->forStore($this->a)->count());
-        $this->assertSame(5, Product::query()->forStore($this->b)->count());
-    }
-
-    public function test_fail_closed_returns_nothing_without_a_current_store(): void
+    public function test_no_context_spans_the_store_less_b2b_catalog(): void
     {
         app(CurrentStore::class)->forget();
 
-        // No tenant -> no rows at all (fail-closed), despite 8 products existing.
-        $this->assertSame(0, Product::query()->count());
-        $this->assertSame(0, Category::query()->count());
+        // With no tenant the store-less catalog is visible (the B2B surface);
+        // the controllers narrow it by user_id themselves.
+        $this->assertSame(8, Product::query()->count());
+        $this->assertSame(2, Category::query()->count());
+    }
 
-        // But the FK-scoped store relation still works without a context.
+    public function test_store_relation_resolves_its_owner_catalog_without_context(): void
+    {
+        app(CurrentStore::class)->forget();
         $this->assertSame(3, $this->a->products()->count());
         $this->assertSame(5, $this->b->products()->count());
+        $this->assertSame(1, $this->a->categories()->count());
     }
 }

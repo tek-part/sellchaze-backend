@@ -44,7 +44,7 @@ class Category extends Model
     protected $fillable = [
         'name', 'name_en', 'name_ar', 'wigpleasure_category_id',
         // canonical superset (from Category)
-        'store_id', 'parent_id', 'slug', 'description', 'image', 'icon',
+        'user_id', 'store_id', 'parent_id', 'slug', 'description', 'image', 'icon',
         'is_active', 'is_featured', 'position', 'seo_title', 'seo_description', 'translations',
     ];
 

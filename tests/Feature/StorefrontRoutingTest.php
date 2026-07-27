@@ -42,8 +42,8 @@ class StorefrontRoutingTest extends TestCase
             'status' => StoreDomain::STATUS_VERIFIED,
             'is_primary' => true,
         ]);
-        $cat = Category::create(['store_id' => $store->id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
-        Product::create(['store_id' => $store->id, 'category_id' => $cat->id, 'name' => "{$name} One", 'slug' => 'one', 'price' => 10, 'is_active' => true]);
+        $cat = Category::create(['user_id' => $store->owner_user_id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
+        Product::create(['user_id' => $store->owner_user_id, 'category_id' => $cat->id, 'name' => "{$name} One", 'slug' => 'one', 'price' => 10, 'is_active' => true]);
 
         return $store;
     }

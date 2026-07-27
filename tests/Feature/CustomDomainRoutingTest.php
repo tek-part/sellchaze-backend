@@ -55,9 +55,9 @@ class CustomDomainRoutingTest extends TestCase
         ]);
         $this->stores->syncSubdomain($store);
 
-        $cat = Category::create(['store_id' => $store->id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
+        $cat = Category::create(['user_id' => $store->owner_user_id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
         Product::create([
-            'store_id' => $store->id, 'category_id' => $cat->id,
+            'user_id' => $store->owner_user_id, 'category_id' => $cat->id,
             'name' => ucfirst($slug).' One', 'slug' => 'one', 'price' => 10, 'is_active' => true,
         ]);
 

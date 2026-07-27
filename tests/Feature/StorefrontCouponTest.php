@@ -40,7 +40,7 @@ class StorefrontCouponTest extends TestCase
         [$this->ownerA, $this->alpha] = $this->makeStore('alpha');
         [, $this->beta] = $this->makeStore('beta');
         $this->tee = Product::create([
-            'store_id' => $this->alpha->id, 'name' => 'Tee', 'slug' => 'tee', 'price' => '100.00', 'is_active' => true,
+            'user_id' => $this->alpha->owner_user_id, 'name' => 'Tee', 'slug' => 'tee', 'price' => '100.00', 'is_active' => true,
         ]);
     }
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
+use App\Models\Scopes\ProductScope;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\JwtTokenService;
@@ -56,7 +57,7 @@ class SingleStoreOwnershipTest extends TestCase
         $this->assertNull($merchant->store, 'merchant should start with no store');
 
         $this->asUser($merchant)
-            ->getJson('/api/v1/my-store/catalog/products')
+            ->getJson('/api/v1/my-store/coupons')
             ->assertOk();
 
         $store = $merchant->fresh()->store;
@@ -69,7 +70,7 @@ class SingleStoreOwnershipTest extends TestCase
     {
         $supplier = $this->owner('Supplier');
 
-        $this->asUser($supplier)->getJson('/api/v1/my-store/catalog/products')->assertOk();
+        $this->asUser($supplier)->getJson('/api/v1/my-store/coupons')->assertOk();
 
         $this->assertSame('supplier', $supplier->fresh()->store->owner_type);
     }
@@ -78,32 +79,32 @@ class SingleStoreOwnershipTest extends TestCase
     {
         $a = $this->owner('Merchant');
         $b = $this->owner('Merchant');
-        $storeA = app(StoreProvisioner::class)->ensureFor($a);
-        $storeB = app(StoreProvisioner::class)->ensureFor($b);
 
-        Product::create(['store_id' => $storeA->id, 'name' => 'A-Item', 'slug' => 'a-item', 'price' => 10, 'is_active' => true]);
-        Product::create(['store_id' => $storeB->id, 'name' => 'B-Item', 'slug' => 'b-item', 'price' => 10, 'is_active' => true]);
+        // Each owner's /my-store auto-provisions and resolves to their OWN store.
+        $this->asUser($a)->getJson('/api/v1/my-store/coupons')->assertOk();
+        $this->asUser($b)->getJson('/api/v1/my-store/coupons')->assertOk();
 
-        // A's /my-store only ever sees A's catalog — no id in the URL, no leak.
-        $this->asUser($a)->getJson('/api/v1/my-store/catalog/products')
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.name', 'A-Item');
+        $storeA = $a->fresh()->store;
+        $storeB = $b->fresh()->store;
 
-        // A product created through /my-store lands in A's store.
-        $this->asUser($a)->postJson('/api/v1/my-store/catalog/products', ['name' => 'New', 'price' => 5])
-            ->assertCreated();
-        // Count via the explicit forStore() scope — Product::query() carries
-        // the fail-closed StoreScope bound to the last request's CurrentStore.
-        $this->assertSame(2, Product::forStore($storeA)->count());
-        $this->assertSame(1, Product::forStore($storeB)->count());
+        $this->assertNotNull($storeA);
+        $this->assertNotNull($storeB);
+        $this->assertNotSame($storeA->id, $storeB->id, 'each owner gets their own store');
+        $this->assertSame($a->id, (int) $storeA->owner_user_id);
+        $this->assertSame($b->id, (int) $storeB->owner_user_id);
+
+        // The unified catalog is owner-isolated (store-less, keyed on user_id).
+        Product::create(['user_id' => $a->id, 'name' => 'A-Item', 'slug' => 'a-item', 'price' => 10, 'is_active' => true]);
+        Product::create(['user_id' => $b->id, 'name' => 'B-Item', 'slug' => 'b-item', 'price' => 10, 'is_active' => true]);
+        $this->assertSame(1, Product::withoutGlobalScope(ProductScope::class)->where('user_id', $a->id)->count());
+        $this->assertSame(1, Product::withoutGlobalScope(ProductScope::class)->where('user_id', $b->id)->count());
     }
 
     public function test_admin_has_no_own_store_and_is_refused_my_store(): void
     {
         $admin = $this->owner('Admin');
 
-        $this->asUser($admin)->getJson('/api/v1/my-store/catalog/products')->assertForbidden();
+        $this->asUser($admin)->getJson('/api/v1/my-store/coupons')->assertForbidden();
         $this->assertNull($admin->fresh()->store);
     }
 
