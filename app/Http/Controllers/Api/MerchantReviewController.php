@@ -26,6 +26,7 @@ class MerchantReviewController extends Controller
 
         $paginator = ProductReview::query()
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->get('status')))
+            ->when($request->filled('product_id'), fn ($q) => $q->where('store_product_id', $request->integer('product_id')))
             ->with(['product:id,name,slug', 'customer:id,name'])
             ->orderByDesc('id')
             ->paginate($perPage);

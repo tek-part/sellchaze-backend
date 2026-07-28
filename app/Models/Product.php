@@ -46,6 +46,9 @@ use Illuminate\Support\Carbon;
  * @property string|null $weight
  * @property string|null $material
  * @property string|null $warranty
+ * @property string|null $shipping_returns
+ * @property string|null $care_instructions
+ * @property array|null $highlights
  * @property string|null $origin_country
  * @property string|null $manufacturer
  * @property string|null $unit
@@ -87,6 +90,8 @@ class Product extends Model
         'price', 'compare_price', 'cost', 'vat_rate', 'discount_percent', 'currency',
         // logistics
         'weight', 'material', 'warranty', 'origin_country', 'manufacturer', 'unit',
+        // per-product storefront PDP content
+        'shipping_returns', 'care_instructions', 'highlights',
         // inventory
         'stock_quantity', 'reserved_quantity', 'reorder_level',
         // visibility / flags
@@ -121,6 +126,7 @@ class Product extends Model
             'specifications' => 'array',
             'content' => 'array',
             'dimensions' => 'array',
+            'highlights' => 'array',
             'translations' => 'array',
             'is_active' => 'boolean',
             'is_featured' => 'boolean',
@@ -129,6 +135,25 @@ class Product extends Model
             'is_trending' => 'boolean',
             'published_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Public URL for the product cover image. Overrides {@see HasImageUrl} because a dashboard-uploaded
+     * cover is stored as a BARE FILENAME whose file lives under `storage/uploads/products/original/`
+     * (not at the disk root). Absolute URLs and already-pathed values pass through unchanged.
+     */
+    public function imageUrl(): ?string
+    {
+        if (! $this->image) {
+            return null;
+        }
+        if (str_starts_with($this->image, 'http')) {
+            return $this->image;
+        }
+        // Use the public disk (APP_URL host) so the URL is reachable regardless of the request host.
+        $path = str_contains($this->image, '/') ? $this->image : 'uploads/products/original/'.$this->image;
+
+        return \Illuminate\Support\Facades\Storage::disk('public')->url($path);
     }
 
     // ---- Legacy B2B relationships (unchanged) --------------------------------------------------

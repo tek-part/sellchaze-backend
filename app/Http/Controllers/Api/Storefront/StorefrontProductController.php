@@ -24,7 +24,10 @@ class StorefrontProductController extends Controller
     {
         $store = $this->currentStore($request);
         $perPage = min(max((int) $request->get('per_page', 24), 1), 60);
-        $paginator = $this->storefront->products($request->query('category'), $perPage);
+        $allowedFilters = ['best_sellers', 'new_arrivals', 'trending', 'on_sale'];
+        $filter = in_array($request->query('filter'), $allowedFilters, true) ? $request->query('filter') : null;
+        $search = trim((string) $request->query('q')) ?: null;
+        $paginator = $this->storefront->products($request->query('category'), $perPage, $filter, $search);
 
         return response()->json([
             'data' => StorefrontProductResource::collection($paginator->getCollection()),

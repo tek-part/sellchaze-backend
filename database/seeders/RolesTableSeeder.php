@@ -161,11 +161,12 @@ class RolesTableSeeder extends Seeder
             'deliveries-update',
             'verifications-request',
             // Storefront (their single store) — reduced feature set:
-            // overview, catalog, orders, analytics, themes, pages, settings.
+            // overview, catalog, orders, reviews, analytics, themes, pages, settings.
             'store.view',
             'store.products.manage',
             'store.categories.manage',
             'store.orders.manage',
+            'store.reviews.manage',
             'store.analytics.view',
             'store.themes.manage',
             'store.pages.manage',

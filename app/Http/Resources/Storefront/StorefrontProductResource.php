@@ -22,6 +22,7 @@ class StorefrontProductResource extends JsonResource
             'barcode' => $this->barcode,
             'description' => $this->description,
             'short_description' => $this->short_description,
+            'long_description' => $this->long_description,
             'price' => $this->price,
             'compare_price' => $this->compare_price,
             'image' => $this->image,
@@ -36,6 +37,19 @@ class StorefrontProductResource extends JsonResource
             'is_bestseller' => (bool) ($this->is_bestseller ?? false),
             'is_new_arrival' => (bool) ($this->is_new_arrival ?? false),
             'is_trending' => (bool) ($this->is_trending ?? false),
+            // Rich PDP surface — the theme product pages render these tabs/sections when present.
+            'specifications' => $this->specifications ?: null,   // key/value map or list
+            'dimensions' => $this->dimensions ?: null,
+            'highlights' => $this->highlights ?: null,           // string[] of key features
+            'weight' => $this->weight,
+            'material' => $this->material,
+            'warranty' => $this->warranty,
+            'shipping_returns' => $this->shipping_returns,
+            'care_instructions' => $this->care_instructions,
+            'origin_country' => $this->origin_country,
+            'manufacturer' => $this->manufacturer,
+            'unit' => $this->unit,
+            'tags' => $this->tags ?: null,
             'brand' => $this->whenLoaded('brand', fn () => $this->brand?->name),
             'images' => $this->whenLoaded('media', fn () => $this->media
                 ->filter(fn ($m) => in_array($m->type, ['cover', 'gallery'], true))

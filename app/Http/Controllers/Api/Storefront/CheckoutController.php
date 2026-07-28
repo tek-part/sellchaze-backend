@@ -40,6 +40,17 @@ class CheckoutController extends Controller
         $customer = $this->auth->resolve($request);
         $cart = $this->carts->resolve($request, $store, $customer);
 
+        // The storefront cart lives on the client; sync the submitted line items into the server
+        // cart so checkout places exactly what the shopper sees, without a stateful cart round-trip.
+        $items = $request->input('items', []);
+        if (! empty($items)) {
+            $this->carts->clear($cart);
+            foreach ($items as $line) {
+                $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1));
+            }
+            $cart->load('items');
+        }
+
         $order = $this->checkout->place(
             $store,
             $cart,

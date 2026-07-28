@@ -49,13 +49,18 @@ use App\Http\Controllers\Api\Storefront\CheckoutController;
 use App\Http\Controllers\Api\Storefront\CustomerAddressController;
 use App\Http\Controllers\Api\Storefront\CustomerAuthController;
 use App\Http\Controllers\Api\Storefront\ProductReviewController;
+use App\Http\Controllers\Api\Storefront\StorefrontBrandController;
 use App\Http\Controllers\Api\Storefront\StorefrontCategoryController;
+use App\Http\Controllers\Api\Storefront\StorefrontCollectionController;
 use App\Http\Controllers\Api\Storefront\StorefrontController;
+use App\Http\Controllers\Api\Storefront\StorefrontCouponController;
+use App\Http\Controllers\Api\Storefront\StorefrontEngagementController;
 use App\Http\Controllers\Api\Storefront\StorefrontProductController;
 use App\Http\Controllers\Api\Storefront\StoreOrderController;
 use App\Http\Controllers\Api\Storefront\WishlistController;
 use App\Http\Controllers\Api\StorefrontContextController;
 use App\Http\Controllers\Api\StoreMenusApiController;
+use App\Http\Controllers\Api\StoreContentPagesApiController;
 use App\Http\Controllers\Api\StorePagesApiController;
 use App\Http\Controllers\Api\StoreReusableSectionsApiController;
 use App\Http\Controllers\Api\StoresApiController;
@@ -130,13 +135,27 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['resolve.store', 'throttle:60,1'])->get('/storefront/resolve', StorefrontContextController::class);
 
     // Phase 3: public storefront API (host-resolved, store-scoped, read-only).
-    Route::middleware(['resolve.store', 'throttle:60,1'])->prefix('storefront')->group(function () {
+    Route::middleware(['resolve.store', 'throttle:180,1'])->prefix('storefront')->group(function () {
         Route::get('/', [StorefrontController::class, 'index']);
+        Route::get('home', [StorefrontController::class, 'home']);
         Route::get('context', [StorefrontController::class, 'context']);
         Route::get('products', [StorefrontProductController::class, 'index']);
         Route::get('products/{slug}', [StorefrontProductController::class, 'show'])->where('slug', '[a-z0-9\-]+');
         Route::get('categories', [StorefrontCategoryController::class, 'index']);
         Route::get('categories/{slug}', [StorefrontCategoryController::class, 'show'])->where('slug', '[a-z0-9\-]+');
+
+        // ---- Merchandising surfaces (collections / brands / active coupons) ----
+        Route::get('collections', [StorefrontCollectionController::class, 'index']);
+        Route::get('collections/{slug}', [StorefrontCollectionController::class, 'show'])->where('slug', '[a-z0-9\-]+');
+        Route::get('brands', [StorefrontBrandController::class, 'index']);
+        Route::get('coupons', [StorefrontCouponController::class, 'index']);
+
+        // ---- Engagement capture (newsletter opt-in / contact form) — guest-friendly ----
+        Route::post('newsletter', [StorefrontEngagementController::class, 'subscribe']);
+        Route::post('contact', [StorefrontEngagementController::class, 'contact']);
+
+        // ---- Editable system pages (about/contact/faq/shipping/returns/blog) ----
+        Route::get('content/{key}', [StoreContentPagesApiController::class, 'storefront'])->where('key', '[a-z0-9\-]+');
 
         // ---- Phase 6: public product reviews (approved only + average summary) ----
         Route::get('products/{slug}/reviews', [ProductReviewController::class, 'index'])->where('slug', '[a-z0-9\-]+');
@@ -456,6 +475,11 @@ Route::prefix('v1')->group(function () {
             Route::post('pages/{page}/preview', [$pages, 'preview'])->whereNumber('page');
             Route::get('pages/{page}/revisions', [$pages, 'revisions'])->whereNumber('page');
             Route::post('pages/{page}/revisions/{revision}/restore', [$pages, 'restoreRevision'])->whereNumber('page')->whereNumber('revision');
+
+            // ---- Content pages (fixed system pages: about/contact/faq/shipping/returns/blog) ----
+            $content = StoreContentPagesApiController::class;
+            Route::get('content', [$content, 'index']);
+            Route::put('content/{key}', [$content, 'update'])->where('key', '[a-z0-9\-]+');
 
             $reusable = StoreReusableSectionsApiController::class;
             Route::get('reusable-sections', [$reusable, 'index']);

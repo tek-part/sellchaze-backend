@@ -2,6 +2,8 @@
 
 namespace App\Services\Stores;
 
+use App\Models\Product;
+use App\Models\Scopes\ProductScope;
 use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Services\StoreService;
@@ -136,6 +138,50 @@ class StoreDomainResolver
     }
 
     private function resolveContextUncached(string $host): ?ResolvedStore
+    {
+        $ctx = $this->resolveContextStrict($host);
+        if ($ctx !== null) {
+            return $ctx;
+        }
+
+        // Local-dev convenience ONLY: a bare `localhost`/`127.0.0.1` has no store subdomain, so the
+        // storefront could never resolve a tenant in development. In the local environment we fall
+        // back to a demo store so `npm run dev` on http://localhost works without host juggling.
+        // Configurable via STOREFRONT_DEV_STORE (slug or id); never active outside `local`.
+        return $this->devFallbackStore($host);
+    }
+
+    private function devFallbackStore(string $host): ?ResolvedStore
+    {
+        if (! app()->environment('local')) {
+            return null;
+        }
+
+        $configured = config('sellchase.storefront.dev_store');
+        $store = null;
+        if ($configured) {
+            $store = is_numeric($configured)
+                ? Store::query()->find($configured)
+                : Store::query()->where('slug', $configured)->first();
+        }
+
+        // Otherwise prefer a store whose owner actually has an active catalogue, so the dev
+        // storefront isn't an empty shell; fall back to the first store as a last resort.
+        if ($store === null) {
+            $store = Store::query()->get()->first(function (Store $s): bool {
+                return $s->owner_user_id !== null && Product::query()
+                    ->withoutGlobalScope(ProductScope::class)
+                    ->where('user_id', $s->owner_user_id)
+                    ->whereNull('store_id')
+                    ->where('is_active', true)
+                    ->exists();
+            }) ?? Store::query()->orderBy('id')->first();
+        }
+
+        return $store !== null ? new ResolvedStore($store, $host, $host, false) : null;
+    }
+
+    private function resolveContextStrict(string $host): ?ResolvedStore
     {
         // 1) Authoritative: an explicit store_domains row (subdomain or custom).
         //    Only VERIFIED rows are servable — an unproven domain resolves to nothing.

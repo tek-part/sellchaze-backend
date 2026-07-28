@@ -3,8 +3,11 @@
 namespace App\Services\Storefront;
 
 use App\Models\Category;
+use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\Store;
+use App\Models\StoreBrand;
+use App\Models\StoreCollection;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -67,7 +70,13 @@ class StorefrontService
                     'image_url' => $c->imageUrl(),
                     'products_count' => (int) $c->products_count,
                 ])->all(),
-                'featured_collections' => [], // placeholder (Phase 4+)
+                'featured_collections' => $this->collections(6)->map(fn (StoreCollection $c) => [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'slug' => $c->slug,
+                    'image_url' => $c->imageUrl(),
+                    'products_count' => (int) ($c->products_count ?? 0),
+                ])->all(),
                 'store_info' => [
                     'name' => $store->name,
                     'email' => $store->email,
@@ -79,16 +88,92 @@ class StorefrontService
         });
     }
 
-    public function products(?string $categorySlug, int $perPage): LengthAwarePaginator
+    /**
+     * Paginated storefront products with optional category, merchandising filter
+     * (best_sellers|new_arrivals|trending|on_sale — driven by real product flags),
+     * and free-text search over name/short_description/sku.
+     */
+    public function products(?string $categorySlug, int $perPage, ?string $filter = null, ?string $search = null): LengthAwarePaginator
     {
-        return Product::query()
+        $query = Product::query()
             ->where('is_active', true)
             ->when($categorySlug, function ($q) use ($categorySlug) {
                 $q->whereHas('category', fn ($c) => $c->where('slug', $categorySlug)->where('is_active', true));
             })
+            ->when($filter === 'best_sellers', fn ($q) => $q->where('is_bestseller', true))
+            ->when($filter === 'new_arrivals', fn ($q) => $q->where('is_new_arrival', true))
+            ->when($filter === 'trending', fn ($q) => $q->where('is_trending', true))
+            ->when($filter === 'on_sale', fn ($q) => $q->where(function ($w) {
+                $w->whereColumn('compare_price', '>', 'price')
+                    ->orWhere('discount_percent', '>', 0);
+            }))
+            ->when($search !== null && $search !== '', function ($q) use ($search) {
+                $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%';
+                $q->where(fn ($w) => $w->where('name', 'like', $like)
+                    ->orWhere('short_description', 'like', $like)
+                    ->orWhere('sku', 'like', $like));
+            })
+            ->with('category:id,name,slug');
+
+        // Merchandising rows sort by their signal; everything else by curated position.
+        match ($filter) {
+            'best_sellers' => $query->orderByDesc('sales_count')->orderByDesc('id'),
+            'new_arrivals' => $query->orderByDesc('published_at')->orderByDesc('id'),
+            'trending' => $query->orderByDesc('views_count')->orderByDesc('id'),
+            'on_sale' => $query->orderByDesc('discount_percent')->orderByDesc('id'),
+            default => $query->orderBy('position')->orderByDesc('id'),
+        };
+
+        return $query->paginate($perPage);
+    }
+
+    /** @return Collection<int, StoreCollection> */
+    public function collections(int $limit = 12): Collection
+    {
+        return StoreCollection::query()
+            ->where('is_active', true)
+            ->withCount('products')
+            ->orderBy('position')->orderBy('id')
+            ->limit($limit)->get();
+    }
+
+    public function collection(string $slug): ?StoreCollection
+    {
+        return StoreCollection::query()
+            ->where('is_active', true)
+            ->where('slug', $slug)
+            ->first();
+    }
+
+    public function collectionProducts(StoreCollection $collection, int $perPage): LengthAwarePaginator
+    {
+        return $collection->products()
+            ->where('is_active', true)
             ->with('category:id,name,slug')
-            ->orderBy('position')->orderByDesc('id')
             ->paginate($perPage);
+    }
+
+    /** @return Collection<int, StoreBrand> */
+    public function brands(int $limit = 24): Collection
+    {
+        return StoreBrand::query()
+            ->where('is_active', true)
+            ->withCount('products')
+            ->orderByDesc('is_featured')->orderBy('position')->orderBy('name')
+            ->limit($limit)->get();
+    }
+
+    /** Active, currently-valid coupons — a public-safe subset for "current offers" strips. */
+    public function coupons(int $limit = 8): Collection
+    {
+        $now = now();
+
+        return Coupon::query()
+            ->where('is_active', true)
+            ->where(fn ($q) => $q->whereNull('starts_at')->orWhere('starts_at', '<=', $now))
+            ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>=', $now))
+            ->orderByDesc('id')
+            ->limit($limit)->get();
     }
 
     public function product(string $slug): ?Product

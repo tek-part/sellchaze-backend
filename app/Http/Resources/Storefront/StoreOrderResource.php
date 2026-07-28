@@ -16,6 +16,11 @@ class StoreOrderResource extends JsonResource
         return [
             'id' => $this->id,
             'order_number' => $this->order_number,
+            // Aliases the storefront view-models read (number/total/shipping).
+            'number' => $this->order_number,
+            'total' => $this->grand_total,
+            'shipping' => $this->shipping_total,
+            'items_count' => $this->whenLoaded('items', fn () => $this->items->sum('quantity')),
             'status' => $this->status,
             'currency' => $this->currency,
             'customer_name' => $this->customer_name,
@@ -34,6 +39,7 @@ class StoreOrderResource extends JsonResource
                 'store_product_id' => $item->store_product_id,
                 'name' => $item->name,
                 'unit_price' => $item->unit_price,
+                'price' => $item->unit_price,
                 'quantity' => $item->quantity,
                 'line_total' => $item->line_total,
             ])->values()),

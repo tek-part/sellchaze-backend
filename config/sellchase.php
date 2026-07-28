@@ -114,6 +114,13 @@ return [
         'homepage_cache_ttl' => (int) env('SELLCHASE_STOREFRONT_HOMEPAGE_CACHE_TTL', 60),
 
         /**
+         * Local-dev only: which store a bare localhost host resolves to (slug or id). When empty,
+         * the resolver auto-picks the first store that has an active catalogue. Never used outside
+         * the `local` environment. See StoreDomainResolver::devFallbackStore().
+         */
+        'dev_store' => env('STOREFRONT_DEV_STORE'),
+
+        /**
          * Phase 4B: React SSR runtime endpoint (Node service). When null/empty,
          * the storefront renders via the Blade section fallback (Hybrid).
          */
