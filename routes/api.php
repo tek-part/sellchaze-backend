@@ -480,6 +480,7 @@ Route::prefix('v1')->group(function () {
             $content = StoreContentPagesApiController::class;
             Route::get('content', [$content, 'index']);
             Route::put('content/{key}', [$content, 'update'])->where('key', '[a-z0-9\-]+');
+            Route::post('content/upload-image', [$content, 'uploadImage']);
 
             $reusable = StoreReusableSectionsApiController::class;
             Route::get('reusable-sections', [$reusable, 'index']);

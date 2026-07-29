@@ -11,6 +11,7 @@ use App\Support\StoreContent\ContentPageSchema;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Intervention\Image\Facades\Image;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -29,6 +30,34 @@ class StoreContentPagesApiController extends Controller
         }
 
         return $store;
+    }
+
+    /**
+     * Dashboard: upload an image used by a content field (hero/editorial/blog cover, …).
+     * Stores under public/storage/uploads/content and returns the absolute URL the field saves.
+     */
+    public function uploadImage(Request $request): JsonResponse
+    {
+        $this->scopedStore();
+        $request->validate([
+            'image' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192'],
+        ]);
+
+        $file = $request->file('image');
+        $filename = md5($file->getClientOriginalName().microtime(true)).'.'.$file->getClientOriginalExtension();
+        $dir = public_path('storage/uploads/content');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        Image::make($file->getRealPath())
+            ->resize(1600, 1600, function ($constraint) {
+                $constraint->aspectRatio();
+                $constraint->upsize();
+            })
+            ->save($dir.'/'.$filename, 88);
+
+        return response()->json(['url' => url('/storage/uploads/content/'.$filename)]);
     }
 
     /** Dashboard: the full set of system pages with their schema + current data. */

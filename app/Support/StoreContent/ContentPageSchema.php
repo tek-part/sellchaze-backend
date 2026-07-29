@@ -205,7 +205,7 @@ class ContentPageSchema
                         ['key' => 'slug', 'type' => 'text', 'label' => 'cpf_slug'],
                         ['key' => 'excerpt', 'type' => 'textarea', 'label' => 'cpf_excerpt'],
                         ['key' => 'image', 'type' => 'image', 'label' => 'cpf_image'],
-                        ['key' => 'date', 'type' => 'text', 'label' => 'cpf_date'],
+                        ['key' => 'date', 'type' => 'date', 'label' => 'cpf_date'],
                         ['key' => 'body', 'type' => 'richtext', 'label' => 'cpf_body'],
                     ]],
                 ],
