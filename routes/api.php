@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\FeedController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\PostCommentController;
 use App\Http\Controllers\Api\SubscriptionController;
+use App\Http\Controllers\Api\MeSectorController;
 use App\Http\Controllers\Api\QuotationsApiController;
 use App\Http\Controllers\Api\RolesApiController;
 use App\Http\Controllers\Api\SettingsSummaryApiController;
@@ -251,6 +252,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/subscription', [SubscriptionController::class, 'me']);
         Route::get('/plans', [SubscriptionController::class, 'plans']);
         Route::post('/me/subscription', [SubscriptionController::class, 'subscribe']);
+
+        // ---- Supplier's own directory sectors (one or many + primary) ----
+        Route::get('/me/sectors', [MeSectorController::class, 'index']);
+        Route::put('/me/sectors', [MeSectorController::class, 'update']);
 
         Route::get('/orders', [OrdersApiController::class, 'index']);
         Route::middleware('permission:orders-create')->post('/orders', [OrdersApiController::class, 'store']);
