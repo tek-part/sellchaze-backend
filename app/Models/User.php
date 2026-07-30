@@ -39,6 +39,7 @@ class User extends Authenticatable
         'is_verified',
         'verified_at',
         'verified_by_user_id',
+        'primary_sector_id',
     ];
 
     /**
@@ -143,6 +144,24 @@ class User extends Authenticatable
         return $this->belongsToMany(User::class, 'merchant_supplier', 'supplier_id', 'merchant_id')
             ->withPivot(['status', 'invited_by_user_id'])
             ->withTimestamps();
+    }
+
+    /**
+     * Sectors this supplier/merchant is listed under in the public directory (one or many).
+     *
+     * @return BelongsToMany<Sector, $this>
+     */
+    public function sectors(): BelongsToMany
+    {
+        return $this->belongsToMany(Sector::class, 'supplier_sector', 'user_id', 'sector_id')
+            ->withPivot('is_primary')
+            ->withTimestamps();
+    }
+
+    /** The supplier's primary sector (drives "your sector first" feed ordering). @return BelongsTo<Sector, $this> */
+    public function primarySector(): BelongsTo
+    {
+        return $this->belongsTo(Sector::class, 'primary_sector_id');
     }
 
     /** @return BelongsTo<User, $this> */

@@ -37,6 +37,11 @@ use App\Http\Controllers\Api\PartnersApiController;
 use App\Http\Controllers\Api\ProductsApiController;
 use App\Http\Controllers\Api\PublicContactApiController;
 use App\Http\Controllers\Api\PublicProfileApiController;
+use App\Http\Controllers\Api\SuppliersDirectoryController;
+use App\Http\Controllers\Api\FeedController;
+use App\Http\Controllers\Api\PostController;
+use App\Http\Controllers\Api\PostCommentController;
+use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\QuotationsApiController;
 use App\Http\Controllers\Api\RolesApiController;
 use App\Http\Controllers\Api\SettingsSummaryApiController;
@@ -123,6 +128,15 @@ Route::prefix('v1')->group(function () {
     Route::get('/public/profile/{username}', [PublicProfileApiController::class, 'show']);
     Route::get('/public/profile/{username}/products', [PublicProfileApiController::class, 'products']);
     Route::post('/public/contact', [PublicContactApiController::class, 'store'])->middleware('throttle:60,1');
+
+    // Public Supplier Directory (sellchaze.com/suppliers) — sector hub, industry & specialty pages.
+    Route::get('/public/sectors', [SuppliersDirectoryController::class, 'index']);
+    Route::get('/public/directory/stats', [SuppliersDirectoryController::class, 'stats']);
+    Route::get('/public/suppliers', [SuppliersDirectoryController::class, 'suppliers']);
+    Route::get('/public/sectors/{sector}', [SuppliersDirectoryController::class, 'sector'])
+        ->where('sector', '[a-z0-9\-]+');
+    Route::get('/public/sectors/{sector}/{specialty}', [SuppliersDirectoryController::class, 'specialty'])
+        ->where(['sector' => '[a-z0-9\-]+', 'specialty' => '[a-z0-9\-]+']);
 
     // Public Blog API (unauthenticated).
     Route::get('/public/articles', [ArticlesApiController::class, 'publicIndex']);
@@ -219,6 +233,24 @@ Route::prefix('v1')->group(function () {
         Route::get('/notifications', [NotificationsApiController::class, 'index']);
         Route::post('/notifications/{id}/read', [NotificationsApiController::class, 'markRead']);
         Route::post('/notifications/read-all', [NotificationsApiController::class, 'markAllRead']);
+
+        // ---- Community feed / wall (all registered users) ----
+        Route::get('/feed', [FeedController::class, 'index']);
+        Route::post('/posts', [PostController::class, 'store']);
+        Route::get('/posts/{post}', [PostController::class, 'show'])->whereNumber('post');
+        Route::delete('/posts/{post}', [PostController::class, 'destroy'])->whereNumber('post');
+        Route::post('/posts/{post}/like', [PostController::class, 'like'])->whereNumber('post');
+        Route::delete('/posts/{post}/like', [PostController::class, 'unlike'])->whereNumber('post');
+        Route::post('/posts/{post}/share', [PostController::class, 'share'])->whereNumber('post');
+        Route::get('/posts/{post}/comments', [PostCommentController::class, 'index'])->whereNumber('post');
+        Route::post('/posts/{post}/comments', [PostCommentController::class, 'store'])->whereNumber('post');
+        Route::delete('/posts/{post}/comments/{comment}', [PostCommentController::class, 'destroy'])
+            ->whereNumber('post')->whereNumber('comment');
+
+        // ---- Subscription plan + monthly posting quota ----
+        Route::get('/me/subscription', [SubscriptionController::class, 'me']);
+        Route::get('/plans', [SubscriptionController::class, 'plans']);
+        Route::post('/me/subscription', [SubscriptionController::class, 'subscribe']);
 
         Route::get('/orders', [OrdersApiController::class, 'index']);
         Route::middleware('permission:orders-create')->post('/orders', [OrdersApiController::class, 'store']);

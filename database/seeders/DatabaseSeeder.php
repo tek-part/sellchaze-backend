@@ -24,6 +24,8 @@ class DatabaseSeeder extends Seeder
             EmailSettingsSeeder::class,
             GoogleSettingsSeeder::class,
             EmailTemplatesSeeder::class,
+            SectorsSeeder::class,
+            PlansSeeder::class,
         ]);
     }
 }
