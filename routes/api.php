@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\AttributesApiController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BundlesApiController;
 use App\Http\Controllers\Api\CategoriesApiController;
+use App\Http\Controllers\Api\ChatApiController;
 use App\Http\Controllers\Api\CouponsApiController;
 use App\Http\Controllers\Api\CurrencySettingsApiController;
 use App\Http\Controllers\Api\DashboardApiController;
@@ -222,6 +223,8 @@ Route::prefix('v1')->group(function () {
         Route::put('/auth/password', [AuthController::class, 'changePassword']);
         Route::post('/auth/me/avatar', [AuthController::class, 'uploadAvatar']);
         Route::delete('/auth/me/avatar', [AuthController::class, 'deleteAvatar']);
+        Route::post('/auth/me/cover', [AuthController::class, 'uploadCover']);
+        Route::delete('/auth/me/cover', [AuthController::class, 'deleteCover']);
         Route::post('/auth/google/connect', [AuthController::class, 'connectGoogle']);
         Route::delete('/auth/google/disconnect', [AuthController::class, 'disconnectGoogle']);
         Route::get('/auth/login-history', [AuthController::class, 'loginHistory']);
@@ -306,6 +309,17 @@ Route::prefix('v1')->group(function () {
         Route::middleware('permission:tickets-manage')->group(function () {
             Route::post('/tickets/bulk-destroy', [TicketsApiController::class, 'bulkDestroy']);
             Route::post('/tickets/{ticket}/actions', [TicketsApiController::class, 'storeAction']);
+        });
+
+        // Direct user-to-user chat (Pusher broadcasting). Distinct from the Wavex
+        // WhatsApp inbox — this is internal member↔member messaging.
+        Route::prefix('chat')->group(function () {
+            Route::get('/unread-count', [ChatApiController::class, 'unreadCount']);
+            Route::get('/conversations', [ChatApiController::class, 'index']);
+            Route::post('/conversations', [ChatApiController::class, 'store']);
+            Route::get('/conversations/{id}/messages', [ChatApiController::class, 'messages'])->whereNumber('id');
+            Route::post('/conversations/{id}/messages', [ChatApiController::class, 'send'])->whereNumber('id');
+            Route::post('/conversations/{id}/read', [ChatApiController::class, 'read'])->whereNumber('id');
         });
 
         Route::middleware('permission:products-list')->group(function () {

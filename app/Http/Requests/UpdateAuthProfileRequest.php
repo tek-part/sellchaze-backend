@@ -42,6 +42,7 @@ class UpdateAuthProfileRequest extends FormRequest
             'profile.birthdate' => ['nullable', 'date'],
             'profile.social_media' => ['nullable', 'string'],
             'profile.cover_photo' => ['nullable', 'string', 'max:255'],
+            'profile.cover_color' => ['nullable', 'string', 'max:32'],
             'profile.website' => ['nullable', 'string', 'max:255'],
             'profile.tagline' => ['nullable', 'string', 'max:191'],
             'profile.is_public' => ['sometimes', 'boolean'],

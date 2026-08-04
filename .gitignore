@@ -20,3 +20,5 @@ yarn-error.log
 
 # PHPStan analysis cache (build output — phpstan.neon tmpDir)
 /storage/phpstan
+
+/database/database.sqlite

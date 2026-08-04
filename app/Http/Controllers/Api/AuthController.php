@@ -235,6 +235,60 @@ class AuthController extends Controller
         ]);
     }
 
+    public function uploadCover(Request $request): JsonResponse
+    {
+        $request->validate([
+            'cover' => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:6144'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+        $file = $request->file('cover');
+
+        $filename = md5($file->getClientOriginalName().microtime(true)).'.'.$file->getClientOriginalExtension();
+        $originalPath = public_path('storage/uploads/users/original');
+        if (! is_dir($originalPath)) {
+            mkdir($originalPath, 0755, true);
+        }
+
+        // Cover banner — wide crop, capped for fast loading.
+        Image::make($file->getRealPath())
+            ->fit(1600, 480, function ($constraint) {
+                $constraint->upsize();
+            })
+            ->save($originalPath.'/'.$filename, 85);
+
+        // Setting an image clears any solid colour.
+        UserProfileSync::sync($user->fresh(), ['cover_photo' => $filename, 'cover_color' => null]);
+        $user->load('roles', 'permissions', 'profile');
+
+        return response()->json([
+            'message' => __('Cover updated successfully.'),
+            'user' => new UserResource($user),
+        ]);
+    }
+
+    public function deleteCover(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $cover = $user->profile?->cover_photo;
+        if ($cover && ! str_starts_with((string) $cover, 'http')) {
+            $original = public_path('storage/uploads/users/original/'.$cover);
+            if (is_file($original)) {
+                @unlink($original);
+            }
+        }
+
+        UserProfileSync::sync($user->fresh(), ['cover_photo' => null]);
+        $user->load('roles', 'permissions', 'profile');
+
+        return response()->json([
+            'message' => __('Cover removed.'),
+            'user' => new UserResource($user),
+        ]);
+    }
+
     public function connectGoogle(ConnectGoogleRequest $request): JsonResponse
     {
         /** @var User $user */

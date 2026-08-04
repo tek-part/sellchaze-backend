@@ -10,6 +10,7 @@ class Profile extends Model
         'biography',
         'photo',
         'cover_photo',
+        'cover_color',
         'website',
         'tagline',
         'is_public',
