@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\PublicContactApiController;
 use App\Http\Controllers\Api\PublicProfileApiController;
 use App\Http\Controllers\Api\SuppliersDirectoryController;
 use App\Http\Controllers\Api\FeedController;
+use App\Http\Controllers\Api\FinancingRequestController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\PostCommentController;
 use App\Http\Controllers\Api\SubscriptionController;
@@ -252,6 +253,13 @@ Route::prefix('v1')->group(function () {
         Route::delete('/posts/{post}/comments/{comment}', [PostCommentController::class, 'destroy'])
             ->whereNumber('post')->whereNumber('comment');
 
+        // ---- Financing requests (factory funding board) ----
+        // Any registered user may raise a request and browse the approved board.
+        Route::post('/financing-requests', [FinancingRequestController::class, 'store']);
+        Route::get('/financing-requests', [FinancingRequestController::class, 'board']);
+        Route::get('/me/financing-requests', [FinancingRequestController::class, 'mine']);
+        Route::get('/financing-requests/{id}', [FinancingRequestController::class, 'show'])->whereNumber('id');
+
         // ---- Subscription plan (billing tiers) + monthly posting quota ----
         Route::get('/me/subscription', [SubscriptionController::class, 'me']);
         Route::get('/plans', [SubscriptionController::class, 'plans']);
@@ -374,6 +382,12 @@ Route::prefix('v1')->group(function () {
             Route::get('/admin/verifications', [VerificationsApiController::class, 'index']);
             Route::post('/admin/verifications/{id}/approve', [VerificationsApiController::class, 'approve'])->whereNumber('id');
             Route::post('/admin/verifications/{id}/reject', [VerificationsApiController::class, 'reject'])->whereNumber('id');
+        });
+
+        // Financing requests — admin moderation (approve/reject/fund/close).
+        Route::middleware('role:Admin|Manager')->group(function () {
+            Route::get('/admin/financing-requests', [FinancingRequestController::class, 'adminIndex']);
+            Route::post('/admin/financing-requests/{id}/review', [FinancingRequestController::class, 'review'])->whereNumber('id');
         });
 
         Route::middleware('permission:attributes-list')->group(function () {
