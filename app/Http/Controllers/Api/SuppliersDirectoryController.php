@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Unauthenticated endpoints backing the public Supplier Directory (sellchaze.com/suppliers) at three
@@ -112,6 +113,44 @@ class SuppliersDirectoryController extends Controller
         return response()->json($this->platformStats());
     }
 
+    /**
+     * Cities that currently have directory-eligible suppliers, with counts.
+     * City landing pages are generated from this list, so a city page only ever
+     * exists once a supplier from that city has registered — no thin pages.
+     * Optionally scoped to a sector (?sector=slug).
+     */
+    public function cities(Request $request): JsonResponse
+    {
+        $this->applyLocale($request);
+
+        $sectorIds = null;
+        if ($slug = $request->query('sector')) {
+            $node = Sector::query()->where('slug', $slug)->first();
+            $sectorIds = $node ? $node->children()->pluck('id')->push($node->id)->all() : [-1];
+        }
+
+        $rows = $this->eligibleSuppliers($sectorIds)
+            ->join('profiles', 'profiles.user_id', '=', 'users.id')
+            ->whereNotNull('profiles.city')
+            ->where('profiles.city', '<>', '')
+            ->select('profiles.city', DB::raw('COUNT(DISTINCT users.id) as suppliers_count'))
+            ->groupBy('profiles.city')
+            ->orderByDesc('suppliers_count')
+            ->get();
+
+        $cities = $rows
+            ->map(fn ($r) => [
+                'city' => $r->city,
+                'slug' => Str::slug($r->city),
+                'suppliers_count' => (int) $r->suppliers_count,
+            ])
+            ->filter(fn ($c) => $c['slug'] !== '')
+            ->values()
+            ->all();
+
+        return response()->json(['cities' => $cities]);
+    }
+
     // ---------------------------------------------------------------- helpers
 
     /** @param array<int, string> $extra */
@@ -173,6 +212,18 @@ class SuppliersDirectoryController extends Controller
 
         if ($request->boolean('verified')) {
             $q->where('is_verified', true);
+        }
+        // City landing pages ("<specialty> suppliers in <city>"): matched on the
+        // profile's city, slugified so the URL segment stays clean.
+        if ($city = trim((string) $request->query('city', ''))) {
+            $q->whereExists(function ($sub) use ($city) {
+                $sub->select(DB::raw(1))->from('profiles')
+                    ->whereColumn('profiles.user_id', 'users.id')
+                    ->whereRaw(
+                        "LOWER(REPLACE(REPLACE(TRIM(profiles.city), ' ', '-'), '_', '-')) = ?",
+                        [Str::slug($city)]
+                    );
+            });
         }
         if ($term = trim((string) $request->query('q', ''))) {
             $q->where(function (Builder $w) use ($term) {

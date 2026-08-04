@@ -138,6 +138,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/public/sectors', [SuppliersDirectoryController::class, 'index']);
     Route::get('/public/directory/stats', [SuppliersDirectoryController::class, 'stats']);
     Route::get('/public/suppliers', [SuppliersDirectoryController::class, 'suppliers']);
+    Route::get('/public/cities', [SuppliersDirectoryController::class, 'cities']);
     Route::get('/public/sectors/{sector}', [SuppliersDirectoryController::class, 'sector'])
         ->where('sector', '[a-z0-9\-]+');
     Route::get('/public/sectors/{sector}/{specialty}', [SuppliersDirectoryController::class, 'specialty'])
