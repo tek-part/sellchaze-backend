@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\PublicProfileApiController;
 use App\Http\Controllers\Api\SuppliersDirectoryController;
 use App\Http\Controllers\Api\FeedController;
 use App\Http\Controllers\Api\FinancingRequestController;
+use App\Http\Controllers\Api\InvestmentOpportunityController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\PostCommentController;
 use App\Http\Controllers\Api\SubscriptionController;
@@ -260,6 +261,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/financing-requests', [FinancingRequestController::class, 'mine']);
         Route::get('/financing-requests/{id}', [FinancingRequestController::class, 'show'])->whereNumber('id');
 
+        // ---- Investment & partnership opportunities ----
+        Route::post('/opportunities', [InvestmentOpportunityController::class, 'store']);
+        Route::get('/opportunities', [InvestmentOpportunityController::class, 'board']);
+        Route::get('/me/opportunities', [InvestmentOpportunityController::class, 'mine']);
+        Route::get('/opportunities/{id}', [InvestmentOpportunityController::class, 'show'])->whereNumber('id');
+
         // ---- Subscription plan (billing tiers) + monthly posting quota ----
         Route::get('/me/subscription', [SubscriptionController::class, 'me']);
         Route::get('/plans', [SubscriptionController::class, 'plans']);
@@ -384,10 +391,12 @@ Route::prefix('v1')->group(function () {
             Route::post('/admin/verifications/{id}/reject', [VerificationsApiController::class, 'reject'])->whereNumber('id');
         });
 
-        // Financing requests — admin moderation (approve/reject/fund/close).
+        // Financing requests + investment opportunities — admin moderation.
         Route::middleware('role:Admin|Manager')->group(function () {
             Route::get('/admin/financing-requests', [FinancingRequestController::class, 'adminIndex']);
             Route::post('/admin/financing-requests/{id}/review', [FinancingRequestController::class, 'review'])->whereNumber('id');
+            Route::get('/admin/opportunities', [InvestmentOpportunityController::class, 'adminIndex']);
+            Route::post('/admin/opportunities/{id}/review', [InvestmentOpportunityController::class, 'review'])->whereNumber('id');
         });
 
         Route::middleware('permission:attributes-list')->group(function () {
