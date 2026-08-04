@@ -22,16 +22,23 @@ use Illuminate\Support\Str;
  */
 class SitemapGenerator
 {
-    /** Static, always-present routes. */
+    /**
+     * Static, always-present routes.
+     *
+     * Public pages only — anything behind authentication (/pricing, /feed, the
+     * dashboard) is disallowed in robots.txt, so listing it here would tell
+     * Google to index a page we simultaneously ask it not to crawl.
+     */
     private const STATIC_PATHS = [
         ['/', '1.0', 'daily'],
         ['/suppliers', '0.9', 'daily'],
-        ['/pricing', '0.5', 'monthly'],
+        ['/directory', '0.6', 'weekly'],
         ['/features', '0.5', 'monthly'],
         ['/about', '0.4', 'monthly'],
         ['/contact', '0.4', 'monthly'],
-        ['/terms', '0.3', 'yearly'],
-        ['/privacy', '0.3', 'yearly'],
+        ['/blog', '0.5', 'weekly'],
+        ['/legal/terms', '0.3', 'yearly'],
+        ['/legal/privacy', '0.3', 'yearly'],
     ];
 
     public function siteUrl(): string
@@ -191,15 +198,32 @@ class SitemapGenerator
     }
 
     /**
-     * Tell Google the sitemap changed. Best-effort: a failed ping must never
-     * surface to the user or break the request that triggered it.
+     * Notify search engines that the sitemap changed.
+     *
+     * Google retired its /ping endpoint in 2023 — it now discovers sitemaps from
+     * the Sitemap: line in robots.txt and recrawls on its own schedule, so there
+     * is nothing to call there. IndexNow (Bing, Yandex, Seznam) is still live and
+     * is used when a key is configured; without one this is a no-op rather than
+     * a request we know will fail.
+     *
+     * Best-effort throughout: indexing must never break the request that
+     * triggered it.
      */
     public function ping(): bool
     {
-        $sitemap = $this->siteUrl().'/sitemap.xml';
+        $key = (string) config('sellchase.indexnow_key', '');
+        if ($key === '') {
+            return false;
+        }
+
+        $host = parse_url($this->siteUrl(), PHP_URL_HOST);
 
         try {
-            $response = Http::timeout(5)->get('https://www.google.com/ping', ['sitemap' => $sitemap]);
+            $response = Http::timeout(5)->get('https://api.indexnow.org/indexnow', [
+                'url' => $this->siteUrl().'/sitemap.xml',
+                'key' => $key,
+                'host' => $host,
+            ]);
 
             return $response->successful();
         } catch (\Throwable $e) {

@@ -14,6 +14,13 @@ return [
      */
     'sitemap_path' => env('SELLCHASE_SITEMAP_PATH'),
 
+    /**
+     * IndexNow key (Bing/Yandex/Seznam) used to announce sitemap changes.
+     * Google no longer accepts pings — it reads the Sitemap: line in robots.txt.
+     * Unset = no ping is attempted.
+     */
+    'indexnow_key' => env('SELLCHASE_INDEXNOW_KEY'),
+
     'jwt' => [
         'secret' => env('JWT_SECRET') ?: '',
         'access_ttl_minutes' => (int) env('JWT_ACCESS_TTL_MINUTES', 1440),

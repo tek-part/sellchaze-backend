@@ -17,6 +17,14 @@ class Kernel extends ConsoleKernel
         // Phase 4E: publish scheduled storefront pages when their time arrives.
         $schedule->command('store-pages:publish-due')->everyMinute()->withoutOverlapping();
 
+        // Rebuild the public sitemap and notify Google. Joining a sector already
+        // triggers this inline; the nightly run is the safety net that also picks
+        // up profile, product and city changes.
+        $schedule->command('sitemap:generate --ping')
+            ->dailyAt('02:30')
+            ->withoutOverlapping()
+            ->onOneServer();
+
         // ---- Custom domains (Sprint 2) ----------------------------------
         // Each command only DISPATCHES jobs, so these finish in milliseconds
         // regardless of how many domains exist; the queue does the real work.
