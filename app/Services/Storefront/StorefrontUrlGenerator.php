@@ -40,7 +40,7 @@ class StorefrontUrlGenerator
     /** Tenant base domain (e.g. "sellchase.com" in prod, "localhost" in dev). */
     public function baseDomain(): string
     {
-        return strtolower((string) config('sellchase.storefront.base_domain', 'sellchase.com'));
+        return strtolower((string) config('sellchase.storefront.base_domain', 'sellchaze.com'));
     }
 
     /** Scheme for owner-facing, directly-openable links in the active environment. */

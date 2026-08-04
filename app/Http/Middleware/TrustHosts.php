@@ -57,7 +57,7 @@ class TrustHosts extends Middleware
      */
     public function hosts()
     {
-        $base = preg_quote(strtolower((string) config('sellchase.storefront.base_domain', 'sellchase.com')), '#');
+        $base = preg_quote(strtolower((string) config('sellchase.storefront.base_domain', 'sellchaze.com')), '#');
 
         return [
             '^(.+\.)?'.$base.'$',

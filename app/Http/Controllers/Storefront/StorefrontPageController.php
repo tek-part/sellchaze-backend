@@ -58,7 +58,7 @@ class StorefrontPageController extends Controller
     {
         $host = strtolower($host);
         $appHost = strtolower((string) (parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'localhost'));
-        $base = strtolower((string) config('sellchase.storefront.base_domain', 'sellchase.com'));
+        $base = strtolower((string) config('sellchase.storefront.base_domain', 'sellchaze.com'));
 
         return in_array($host, [$appHost, $base, 'localhost', '127.0.0.1'], true);
     }

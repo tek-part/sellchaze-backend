@@ -268,7 +268,7 @@ class StoreService
 
     public function baseDomain(): string
     {
-        return strtolower((string) config('sellchase.storefront.base_domain', 'sellchase.com'));
+        return strtolower((string) config('sellchase.storefront.base_domain', 'sellchaze.com'));
     }
 
     /**

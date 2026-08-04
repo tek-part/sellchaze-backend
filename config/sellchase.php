@@ -25,7 +25,7 @@ return [
      * e.g. base_domain "sellchase.com" => "nike.sellchase.com".
      */
     'storefront' => [
-        'base_domain' => strtolower(env('SELLCHASE_STOREFRONT_BASE_DOMAIN', 'sellchase.com')),
+        'base_domain' => strtolower(env('SELLCHASE_STOREFRONT_BASE_DOMAIN', 'sellchaze.com')),
 
         /*
          | StorefrontUrlGenerator inputs — deliberately decoupled from APP_URL.

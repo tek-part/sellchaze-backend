@@ -116,7 +116,7 @@ class StoresApiController extends Controller
             'currency' => $store->currency,
             'status' => $store->status,
             'subdomain_host' => $safe(fn () => $store->slug
-                ? strtolower((string) $store->slug).'.'.config('sellchase.storefront.base_domain', 'sellchase.com')
+                ? strtolower((string) $store->slug).'.'.config('sellchase.storefront.base_domain', 'sellchaze.com')
                 : null),
             'created_at' => $store->created_at,
             'updated_at' => $store->updated_at,
