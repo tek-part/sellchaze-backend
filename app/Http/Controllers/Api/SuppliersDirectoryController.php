@@ -114,6 +114,51 @@ class SuppliersDirectoryController extends Controller
     }
 
     /**
+     * "Similar suppliers" for a supplier profile: other eligible suppliers that
+     * share a sector, preferring the same city. Powers the internal-linking
+     * block on every supplier page (directory → sector → city → supplier).
+     */
+    public function similar(Request $request, string $username): JsonResponse
+    {
+        $this->applyLocale($request);
+
+        $user = User::query()
+            ->whereHas('profile', fn ($q) => $q->where('username', $username))
+            ->with('profile')
+            ->first();
+
+        if (! $user) {
+            return response()->json(['suppliers' => []]);
+        }
+
+        $sectorIds = DB::table('supplier_sector')->where('user_id', $user->id)->pluck('sector_id')->all();
+        if ($sectorIds === []) {
+            return response()->json(['suppliers' => []]);
+        }
+
+        $city = $user->profile?->city;
+        $limit = (int) min(12, max(3, (int) $request->query('limit', 6)));
+
+        $rows = $this->eligibleSuppliers($sectorIds)
+            ->where('users.id', '<>', $user->id)
+            ->with(['profile', 'primarySector'])
+            ->withCount('products')
+            // Same city first, then verified, then newest — a stable, useful order.
+            ->orderByRaw(
+                'CASE WHEN EXISTS (SELECT 1 FROM profiles p WHERE p.user_id = users.id AND p.city = ?) THEN 0 ELSE 1 END',
+                [$city]
+            )
+            ->orderByDesc('is_verified')
+            ->orderByDesc('users.created_at')
+            ->limit($limit)
+            ->get();
+
+        return response()->json([
+            'suppliers' => $rows->map(fn (User $u) => $this->supplierCard($u))->values()->all(),
+        ]);
+    }
+
+    /**
      * Cities that currently have directory-eligible suppliers, with counts.
      * City landing pages are generated from this list, so a city page only ever
      * exists once a supplier from that city has registered — no thin pages.

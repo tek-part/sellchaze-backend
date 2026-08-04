@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\SuppliersDirectoryController;
 use App\Http\Controllers\Api\FeedController;
 use App\Http\Controllers\Api\FinancingRequestController;
 use App\Http\Controllers\Api\InvestmentOpportunityController;
+use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\PostCommentController;
 use App\Http\Controllers\Api\SubscriptionController;
@@ -139,6 +140,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/public/directory/stats', [SuppliersDirectoryController::class, 'stats']);
     Route::get('/public/suppliers', [SuppliersDirectoryController::class, 'suppliers']);
     Route::get('/public/cities', [SuppliersDirectoryController::class, 'cities']);
+    Route::get('/public/suppliers/{username}/similar', [SuppliersDirectoryController::class, 'similar'])
+        ->where('username', '[A-Za-z0-9_\-\.]+');
     Route::get('/public/sectors/{sector}', [SuppliersDirectoryController::class, 'sector'])
         ->where('sector', '[a-z0-9\-]+');
     Route::get('/public/sectors/{sector}/{specialty}', [SuppliersDirectoryController::class, 'specialty'])
@@ -254,6 +257,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/posts/{post}/comments', [PostCommentController::class, 'store'])->whereNumber('post');
         Route::delete('/posts/{post}/comments/{comment}', [PostCommentController::class, 'destroy'])
             ->whereNumber('post')->whereNumber('comment');
+
+        // ---- Onboarding checklist (5 steps, derived from real state) ----
+        Route::get('/me/onboarding', [OnboardingController::class, 'show']);
 
         // ---- Financing requests (factory funding board) ----
         // Any registered user may raise a request and browse the approved board.
