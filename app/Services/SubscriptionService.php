@@ -10,22 +10,24 @@ use App\Models\User;
 /**
  * Resolves a user's effective plan and enforces the monthly feed-posting quota.
  *
- * A user with no active subscription defaults to the free plan (3 posts/month). The paid plan is
- * unlimited. Usage is counted from the posts table for the current calendar month — no counter to
- * keep in sync. This is the single seam Phase 3 adds on top of the Phase 2 feed.
+ * Plans are billing/commerce tiers (starter/professional/business). A user with
+ * no live subscription defaults to the lowest tier. The optional feed-posting
+ * limit lives in the plan's `quotas` map under `posts_monthly` (null = unlimited),
+ * so tiers without that key leave posting open. Usage is counted from the posts
+ * table for the current calendar month — no counter to keep in sync.
  */
 class SubscriptionService
 {
-    private ?Plan $freePlan = null;
+    private ?Plan $defaultPlan = null;
 
-    /** The user's currently effective plan (active/trialing subscription, else the free default). */
+    /** The user's currently effective plan (active/trialing subscription, else the default tier). */
     public function planFor(User $user): Plan
     {
         $sub = Subscription::query()
             ->where('user_id', $user->id)
             ->whereIn('status', ['active', 'trialing'])
             ->where(function ($q) {
-                $q->whereNull('ends_at')->orWhere('ends_at', '>', now());
+                $q->whereNull('current_period_end')->orWhere('current_period_end', '>', now());
             })
             ->latest('id')
             ->with('plan')
@@ -35,7 +37,7 @@ class SubscriptionService
             return $sub->plan;
         }
 
-        return $this->free();
+        return $this->default();
     }
 
     public function monthlyPostCount(User $user): int
@@ -51,15 +53,18 @@ class SubscriptionService
     public function quota(User $user, ?string $locale = null): array
     {
         $plan = $this->planFor($user);
-        $limit = $plan->post_limit_monthly;              // null = unlimited
+        $limit = $plan->postLimitMonthly();             // null = unlimited
         $used = $this->monthlyPostCount($user);
 
         return [
             'plan' => [
                 'slug' => $plan->slug,
                 'name' => $plan->nameLocalized($locale),
-                'price' => (float) $plan->price,
+                'price_monthly' => (float) $plan->price_monthly,
+                'price_yearly' => (float) $plan->price_yearly,
                 'currency' => $plan->currency,
+                'features' => $plan->features,
+                'quotas' => $plan->quotas,
             ],
             'limit' => $limit,
             'used' => $used,
@@ -71,37 +76,48 @@ class SubscriptionService
 
     public function canPost(User $user): bool
     {
-        $plan = $this->planFor($user);
-        if ($plan->post_limit_monthly === null) {
+        $limit = $this->planFor($user)->postLimitMonthly();
+        if ($limit === null) {
             return true;
         }
 
-        return $this->monthlyPostCount($user) < $plan->post_limit_monthly;
+        return $this->monthlyPostCount($user) < $limit;
     }
 
-    /** Activate a plan for the user (manual — until billing is wired). */
-    public function subscribe(User $user, Plan $plan): Subscription
+    /**
+     * Activate a plan for the user. Until a payment gateway is wired this creates
+     * the subscription directly (manual/admin activation); a real integration
+     * would create it only after a successful charge.
+     */
+    public function subscribe(User $user, Plan $plan, string $cycle = 'monthly'): Subscription
     {
-        // Retire any previous active subscription.
+        // Retire any previous live subscription.
         Subscription::query()
             ->where('user_id', $user->id)
             ->whereIn('status', ['active', 'trialing'])
-            ->update(['status' => 'cancelled', 'ends_at' => now()]);
+            ->update(['status' => 'cancelled', 'cancelled_at' => now()]);
 
         $trialing = $plan->trial_days > 0;
+        $now = now();
+        $periodEnd = $cycle === 'yearly' ? $now->copy()->addYear() : $now->copy()->addMonth();
 
         return Subscription::create([
             'user_id' => $user->id,
             'plan_id' => $plan->id,
             'status' => $trialing ? 'trialing' : 'active',
-            'started_at' => now(),
-            'trial_ends_at' => $trialing ? now()->addDays($plan->trial_days) : null,
-            'ends_at' => null,
+            'billing_cycle' => $cycle === 'yearly' ? 'yearly' : 'monthly',
+            'trial_ends_at' => $trialing ? $now->copy()->addDays($plan->trial_days) : null,
+            'current_period_start' => $now,
+            'current_period_end' => $trialing ? $now->copy()->addDays($plan->trial_days) : $periodEnd,
         ]);
     }
 
-    private function free(): Plan
+    /** The default (lowest) tier used when a user has no live subscription. */
+    private function default(): Plan
     {
-        return $this->freePlan ??= Plan::query()->where('slug', 'free_trial')->firstOrFail();
+        return $this->defaultPlan ??= Plan::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->firstOrFail();
     }
 }

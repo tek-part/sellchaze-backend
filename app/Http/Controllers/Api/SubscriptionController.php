@@ -31,15 +31,18 @@ class SubscriptionController extends Controller
     {
         $locale = $this->resolveLocale($request);
 
-        $plans = Plan::query()->where('is_active', true)->orderBy('position')->get()
+        $plans = Plan::query()->where('is_active', true)->orderBy('sort_order')->get()
             ->map(fn (Plan $p) => [
                 'slug' => $p->slug,
                 'name' => $p->nameLocalized($locale),
-                'post_limit_monthly' => $p->post_limit_monthly,
-                'unlimited' => $p->isUnlimited(),
-                'price' => (float) $p->price,
+                'description' => ($locale === 'ar' ? $p->description_ar : $p->description_en),
+                'price_monthly' => (float) $p->price_monthly,
+                'price_yearly' => (float) $p->price_yearly,
                 'currency' => $p->currency,
                 'trial_days' => $p->trial_days,
+                'is_featured' => (bool) $p->is_featured,
+                'features' => $p->features,
+                'quotas' => $p->quotas,
             ])->values()->all();
 
         return response()->json(['data' => $plans]);
@@ -49,10 +52,11 @@ class SubscriptionController extends Controller
     {
         $data = $request->validate([
             'plan' => ['required', 'string', 'exists:plans,slug'],
+            'cycle' => ['nullable', 'in:monthly,yearly'],
         ]);
 
         $plan = Plan::query()->where('slug', $data['plan'])->where('is_active', true)->firstOrFail();
-        $subscriptions->subscribe($request->user(), $plan);
+        $subscriptions->subscribe($request->user(), $plan, $data['cycle'] ?? 'monthly');
 
         return response()->json([
             'message' => 'Plan activated.',

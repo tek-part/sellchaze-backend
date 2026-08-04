@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\GatewaysApiController;
 use App\Http\Controllers\Api\GoogleSettingsApiController;
 use App\Http\Controllers\Api\ImpersonationApiController;
 use App\Http\Controllers\Api\InventoryApiController;
+use App\Http\Controllers\Api\InvoicesApiController;
 use App\Http\Controllers\Api\LedgerApiController;
 use App\Http\Controllers\Api\MarketplaceThemesController;
 use App\Http\Controllers\Api\MerchantOrderController;
@@ -251,10 +252,14 @@ Route::prefix('v1')->group(function () {
         Route::delete('/posts/{post}/comments/{comment}', [PostCommentController::class, 'destroy'])
             ->whereNumber('post')->whereNumber('comment');
 
-        // ---- Subscription plan + monthly posting quota ----
+        // ---- Subscription plan (billing tiers) + monthly posting quota ----
         Route::get('/me/subscription', [SubscriptionController::class, 'me']);
         Route::get('/plans', [SubscriptionController::class, 'plans']);
         Route::post('/me/subscription', [SubscriptionController::class, 'subscribe']);
+
+        // ---- Billing invoices (read-only ledger for the account) ----
+        Route::get('/me/invoices', [InvoicesApiController::class, 'index']);
+        Route::get('/me/invoices/{invoice}', [InvoicesApiController::class, 'show'])->whereNumber('invoice');
 
         // ---- Supplier's own directory sectors (one or many + primary) ----
         Route::get('/me/sectors', [MeSectorController::class, 'index']);
