@@ -6,6 +6,7 @@ use App\Listeners\RecordMailLog;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Mail\Events\MessageSent;
 
 class EventServiceProvider extends ServiceProvider
@@ -21,6 +22,9 @@ class EventServiceProvider extends ServiceProvider
         ],
         MessageSent::class => [
             RecordMailLog::class,
+        ],
+        MessageSending::class => [
+            \App\Listeners\AddAntiSpamMailHeaders::class,
         ],
     ];
 

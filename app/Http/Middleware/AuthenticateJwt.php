@@ -6,6 +6,7 @@ use App\Models\AuthSession;
 use App\Services\JwtTokenService;
 use Closure;
 use Illuminate\Http\Request;
+use Throwable;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthenticateJwt
@@ -21,8 +22,16 @@ class AuthenticateJwt
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
-        $jwt = JwtTokenService::fromConfig();
-        $user = $jwt->validateAccessToken($token);
+        try {
+            $jwt = JwtTokenService::fromConfig();
+            $user = $jwt->validateAccessToken($token);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => __('Authentication service unavailable.'),
+            ], 503);
+        }
         if (! $user) {
             return response()->json(['message' => 'Invalid or expired token.'], 401);
         }

@@ -13,9 +13,18 @@ class DashboardApiController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
         $stats = (new DashboardStatsService($user))->build();
 
-        $recentOrders = OrderSummaryResource::collection($stats['recent_orders'])->resolve($request);
+        try {
+            $recentOrders = OrderSummaryResource::collection($stats['recent_orders'])->resolve($request);
+        } catch (\Throwable $e) {
+            report($e);
+            $recentOrders = [];
+        }
 
         return response()->json([
             'is_admin' => $stats['is_admin'],

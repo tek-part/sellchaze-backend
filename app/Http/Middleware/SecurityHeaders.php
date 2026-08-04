@@ -24,6 +24,8 @@ class SecurityHeaders
         'X-Content-Type-Options' => 'nosniff',
         'Referrer-Policy' => 'strict-origin-when-cross-origin',
         'Permissions-Policy' => 'geolocation=(), microphone=(), camera=()',
+        'Cross-Origin-Opener-Policy' => 'unsafe-none',
+        'Cross-Origin-Embedder-Policy' => 'unsafe-none',
     ];
 
     /**

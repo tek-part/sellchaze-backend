@@ -68,8 +68,59 @@ class StoresApiController extends Controller
     public function current(Request $request): JsonResponse
     {
         $store = $request->attributes->get('store');
+        if (! $store instanceof Store) {
+            return response()->json(['message' => 'Store not found.'], 404);
+        }
 
-        return response()->json(['data' => new StoreResource($store)], 200, [], JSON_UNESCAPED_UNICODE);
+        try {
+            return response()->json(['data' => new StoreResource($store)], 200, [], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'data' => $this->safeStorePayload($store),
+            ], 200, [], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * Build a best-effort store payload when the full resource fails.
+     *
+     * @param mixed $store
+     * @return array<string, mixed>
+     */
+    private function safeStorePayload($store): array
+    {
+        $safe = static function (callable $fn) {
+            try {
+                return $fn();
+            } catch (\Throwable $e) {
+                report($e);
+                return null;
+            }
+        };
+
+        return [
+            'id' => $store->id,
+            'owner_user_id' => $store->owner_user_id,
+            'owner_type' => $store->owner_type,
+            'name' => $store->name,
+            'slug' => $store->slug,
+            'description' => $store->description,
+            'logo' => $store->logo,
+            'logo_url' => $safe(fn () => $store->logoUrl()),
+            'banner' => $store->banner,
+            'banner_url' => $safe(fn () => $store->bannerUrl()),
+            'email' => $store->email,
+            'phone' => $store->phone,
+            'currency' => $store->currency,
+            'status' => $store->status,
+            'subdomain_host' => $safe(fn () => $store->slug
+                ? strtolower((string) $store->slug).'.'.config('sellchase.storefront.base_domain', 'sellchase.com')
+                : null),
+            'created_at' => $store->created_at,
+            'updated_at' => $store->updated_at,
+        ];
     }
 
     public function show(Request $request, Store $store): JsonResponse

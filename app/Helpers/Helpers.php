@@ -473,8 +473,11 @@ if (!function_exists('generateProfle')) {
             $user       = User::find($user_id);
         }
         else {
-            $user_id    = Auth::user()->id;
-            $user       = Auth::user();
+            $user = Auth::user();
+            if (! $user) {
+                return false;
+            }
+            $user_id    = $user->id;
         }
 
         $profile = Profile::where('user_id', $user_id)->first();
@@ -620,7 +623,12 @@ if (!function_exists('countOrders')) {
      * @phpstan-return int
      */
     function countOrders($type = null){
-        $user_id = Auth::user()->id;
+        $user = Auth::user();
+        if (! $user) {
+            return 0;
+        }
+
+        $user_id = $user->id;
 
         if($type == null) {
             $orders = Order::count();
@@ -655,8 +663,13 @@ if (!function_exists('OrderSupplierCheck')) {
      * @phpstan-return bool
      */
     function OrderSupplierCheck($order_id, $user_id = null){
-        if($user_id == null)
-            $user_id = Auth::user()->id;
+        if($user_id == null) {
+            $user = Auth::user();
+            if (! $user) {
+                return false;
+            }
+            $user_id = $user->id;
+        }
   
         $order_supplier = OrderSuppliers::where('order_id', $order_id)->where('supplier', $user_id)->first();
 
@@ -679,8 +692,13 @@ if (!function_exists('getUserInfo')) {
      * @phpstan-return \App\Models\User|\Illuminate\Database\Eloquent\Collection<int, \App\Models\User>|false
      */
     function getUserInfo($user_id = null){
-        if($user_id == null)
-            $user_id = Auth::user()->id;
+        if($user_id == null) {
+            $user = Auth::user();
+            if (! $user) {
+                return false;
+            }
+            $user_id = $user->id;
+        }
 
         $user = User::find($user_id);
 
@@ -705,10 +723,15 @@ if (!function_exists('invited')) {
      * @phpstan-return mixed
      */
     function invited($user_id = null, $return_id = false){
-        if($user_id == null)
-            $user_id = Auth::user()->id; // 1
+        $user = Auth::user();
+        if($user_id == null) {
+            if (! $user) {
+                return false;
+            }
+            $user_id = $user->id; // 1
+        }
 
-        $invitation = Invitation::where('receiver_user_id', Auth::user()->id)->first();
+        $invitation = Invitation::where('receiver_user_id', $user ? $user->id : 0)->first();
 
         $user = User::find($user_id);
 

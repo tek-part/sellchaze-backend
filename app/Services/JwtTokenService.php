@@ -23,13 +23,13 @@ class JwtTokenService
 
     public static function fromConfig(): self
     {
-        $secret = (string) config('sellchase.jwt.secret', '');
+        $secret = self::normalizeSecret((string) config('sellchase.jwt.secret', ''));
         if ($secret === '') {
             $key = config('app.key', '');
             if (is_string($key) && str_starts_with($key, 'base64:')) {
                 $secret = (string) base64_decode(substr($key, 7), true);
             } elseif (is_string($key)) {
-                $secret = $key;
+                $secret = self::normalizeSecret($key);
             }
         }
         if ($secret === '') {
@@ -37,6 +37,25 @@ class JwtTokenService
         }
 
         return new self($secret);
+    }
+
+    private static function normalizeSecret(string $secret): string
+    {
+        $secret = trim($secret);
+        if ($secret === '' || $secret === 'base64:') {
+            return '';
+        }
+
+        if (! str_starts_with($secret, 'base64:')) {
+            return $secret;
+        }
+
+        $decoded = base64_decode(substr($secret, 7), true);
+        if ($decoded === false) {
+            return '';
+        }
+
+        return $decoded;
     }
 
     /**

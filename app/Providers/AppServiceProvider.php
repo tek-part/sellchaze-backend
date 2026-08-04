@@ -12,6 +12,7 @@ use App\Services\EmailTemplateService;
 use Auth;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Database\Schema\Builder;
+use Illuminate\Support\Facades\File;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Route;
@@ -35,7 +36,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(\App\Support\AttributeBadgeCache::class);
 
         // Theme settings migrations registry (Phase 4D, Task 4).
-        $this->app->singleton(\App\Services\Themes\ThemeSettingsMigrator::class);
+        if (class_exists(\App\Services\Themes\ThemeSettingsMigrator::class)) {
+            $this->app->singleton(\App\Services\Themes\ThemeSettingsMigrator::class);
+        }
 
         // SSL provider registry. A singleton so providers registered at runtime
         // via extend() are visible to every later resolution.
@@ -52,6 +55,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        $this->ensureFileCacheWritable();
+
         ResetPassword::createUrlUsing(function ($notifiable, string $token) {
             $base = rtrim((string) config('sellchase.frontend_url', env('FRONTEND_URL', 'http://localhost:5173')), '/');
 
@@ -68,10 +73,12 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Phase 4D: Default theme 1.0.0 -> 1.1.0 renames "primary" to "brand_primary".
-        app(\App\Services\Themes\ThemeSettingsMigrator::class)->register(
-            'default', '1.0.0', '1.1.0',
-            \App\Services\Themes\ThemeSettingsMigrator::rename(['primary' => 'brand_primary']),
-        );
+        if (class_exists(\App\Services\Themes\ThemeSettingsMigrator::class)) {
+            app(\App\Services\Themes\ThemeSettingsMigrator::class)->register(
+                'default', '1.0.0', '1.1.0',
+                \App\Services\Themes\ThemeSettingsMigrator::rename(['primary' => 'brand_primary']),
+            );
+        }
 
         // Use Bootstrap 5 for pagination views
         Paginator::useBootstrapFive();
@@ -83,7 +90,7 @@ class AppServiceProvider extends ServiceProvider
         app(BootstrapDefault::class)->init();
 
         // Apply settings from database (overrides .env when set)
-        if (Schema::hasTable('settings')) {
+        if ($this->hasSettingsTable()) {
             $googleClientId = Setting::get('google_client_id');
             if ($googleClientId !== null && $googleClientId !== '') {
                 Config::set('services.google.client_id', $googleClientId);
@@ -163,7 +170,7 @@ class AppServiceProvider extends ServiceProvider
                 $siteTitle = config('app.name');
                 $siteLogo = asset('logo.png');
                 $siteDescription = '';
-                if (Schema::hasTable('settings')) {
+                if ($this->hasSettingsTable()) {
                     $siteTitle = Setting::get('site_title') ?: config('app.name');
                     $logoPath = Setting::get('site_logo');
                     $siteLogo = $logoPath ? asset('storage/'.$logoPath) : asset('logo.png');
@@ -255,5 +262,37 @@ class AppServiceProvider extends ServiceProvider
                 $view->with('orders_notifications', null)->with('quotations_notifications', null);
             }
         });
+    }
+
+    private function hasSettingsTable(): bool
+    {
+        try {
+            return Schema::hasTable('settings');
+        } catch (\Throwable $e) {
+            report($e);
+            return false;
+        }
+    }
+
+    private function ensureFileCacheWritable(): void
+    {
+        if (! app()->runningInConsole()) {
+            $cacheData = storage_path('framework/cache/data');
+
+            if (! File::isDirectory($cacheData)) {
+                try {
+                    File::makeDirectory($cacheData, 0775, true, true);
+                } catch (\Throwable) {
+                    return;
+                }
+            } elseif (! is_writable($cacheData)) {
+                @chmod($cacheData, 0775);
+            }
+
+            // Keep cache directory roots writable even when background jobs or cleanup
+            // scripts remove deeper entries unexpectedly.
+            @chmod(storage_path('framework/cache'), 0775);
+            @chmod(storage_path('framework/cache/data'), 0775);
+        }
     }
 }

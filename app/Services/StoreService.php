@@ -97,10 +97,21 @@ class StoreService
         }
 
         $store->save();
-        $this->syncSubdomain($store);
 
-        // Phase 4A: attach the active theme install (no-op if no Default theme yet).
-        app(\App\Services\Themes\StoreThemeService::class)->installAndActivateDefault($store);
+        // Provisioning dependencies are best-effort here: domain/theme setup failures
+        // should not prevent the store row from being created.
+        try {
+            $this->syncSubdomain($store);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        try {
+            // Phase 4A: attach the active theme install (no-op if no Default theme yet).
+            app(\App\Services\Themes\StoreThemeService::class)->installAndActivateDefault($store);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return $store;
     }
