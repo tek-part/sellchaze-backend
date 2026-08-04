@@ -12,7 +12,7 @@ class UserProfileSync
     public static function sync(User $user, array $profileData): void
     {
         $keys = [
-            'username', 'biography', 'photo', 'cover_photo', 'website', 'tagline', 'is_public',
+            'username', 'biography', 'photo', 'cover_photo', 'cover_color', 'website', 'tagline', 'is_public',
             'company', 'country', 'city', 'address',
             'gender', 'phone', 'whatsapp', 'birthdate', 'social_media',
         ];
