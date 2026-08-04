@@ -7,6 +7,13 @@ return [
     /** SPA origin for Google Cloud Console “Authorized JavaScript origins” (Sign in with Google). */
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
 
+    /**
+     * Absolute path of the public sitemap.xml the SPA serves. The backend
+     * regenerates it from live directory data so suppliers who register after
+     * the last frontend build still get indexed. Unset = generation disabled.
+     */
+    'sitemap_path' => env('SELLCHASE_SITEMAP_PATH'),
+
     'jwt' => [
         'secret' => env('JWT_SECRET') ?: '',
         'access_ttl_minutes' => (int) env('JWT_ACCESS_TTL_MINUTES', 1440),

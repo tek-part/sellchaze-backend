@@ -82,6 +82,20 @@ class MeSectorController extends Controller
         Cache::forget('directory.sector_counts');
         Cache::forget('directory.stats');
 
+        // Joining (or moving between) sectors changes which public pages exist,
+        // so rebuild the sitemap and let Google know. Deferred until after the
+        // response, and best-effort: indexing must never fail the user's save.
+        app()->terminating(function () {
+            try {
+                $generator = app(\App\Services\Seo\SitemapGenerator::class);
+                if ($generator->generate() !== null) {
+                    $generator->ping();
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::info('Sitemap refresh failed: '.$e->getMessage());
+            }
+        });
+
         return response()->json([
             'message' => 'Sectors updated.',
             'selected' => $ids,
