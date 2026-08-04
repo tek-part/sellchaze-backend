@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\PublicProfileApiController;
 use App\Http\Controllers\Api\SuppliersDirectoryController;
 use App\Http\Controllers\Api\FeedController;
 use App\Http\Controllers\Api\FinancingRequestController;
+use App\Http\Controllers\Api\FollowController;
 use App\Http\Controllers\Api\InvestmentOpportunityController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PostController;
@@ -260,6 +261,12 @@ Route::prefix('v1')->group(function () {
 
         // ---- Onboarding checklist (5 steps, derived from real state) ----
         Route::get('/me/onboarding', [OnboardingController::class, 'show']);
+
+        // ---- Company following + community suggestions ----
+        Route::post('/follows', [FollowController::class, 'store']);
+        Route::delete('/follows/{user}', [FollowController::class, 'destroy'])->whereNumber('user');
+        Route::get('/me/following', [FollowController::class, 'following']);
+        Route::get('/me/follow-suggestions', [FollowController::class, 'suggestions']);
 
         // ---- Financing requests (factory funding board) ----
         // Any registered user may raise a request and browse the approved board.
