@@ -1,0 +1,162 @@
+{
+    "key": "verde",
+    "name": "Verde",
+    "version": "1.0.0",
+    "author": "Sellchase",
+    "category": "food",
+    "description": "A fresh, warm theme for food, agriculture and natural-product suppliers: appetising imagery, generous whitespace, story-first sections and a soft green palette — RTL-ready.",
+    "min_platform_version": "1.0.0",
+    "preview_image": null,
+
+    "settings_schema": [
+        {
+            "id": "colors",
+            "label": "Colors",
+            "fields": [
+                { "id": "primary", "type": "color", "label": "Primary", "default": "#15803d" },
+                { "id": "on_primary", "type": "color", "label": "On primary (button text)", "default": "#ffffff" },
+                { "id": "accent", "type": "color", "label": "Accent", "default": "#ca8a04" },
+                { "id": "background", "type": "color", "label": "Background", "default": "#fffdf7" },
+                { "id": "surface", "type": "color", "label": "Surface", "default": "#f4f7f0" },
+                { "id": "text", "type": "color", "label": "Text", "default": "#14261a" },
+                { "id": "muted", "type": "color", "label": "Muted text", "default": "#6b7f70" },
+                { "id": "border", "type": "color", "label": "Border", "default": "#e2e9dd" }
+            ]
+        },
+        {
+            "id": "typography",
+            "label": "Typography",
+            "fields": [
+                { "id": "font", "type": "select", "label": "Body font", "default": "system", "options": ["system", "serif", "mono", "rounded"] },
+                { "id": "heading_font", "type": "select", "label": "Heading font", "default": "serif", "options": ["system", "serif", "mono", "rounded"] }
+            ]
+        },
+        {
+            "id": "shape",
+            "label": "Buttons & Shape",
+            "fields": [
+                { "id": "radius", "type": "range", "label": "Corner radius", "default": 20, "min": 0, "max": 28 },
+                { "id": "shadow", "type": "select", "label": "Card shadow", "default": "soft", "options": ["none", "soft", "medium", "strong"] }
+            ]
+        },
+        {
+            "id": "layout",
+            "label": "Layout",
+            "fields": [
+                { "id": "container_width", "type": "range", "label": "Container width", "default": 1120, "min": 960, "max": 1440 }
+            ]
+        },
+        {
+            "id": "header",
+            "label": "Header & Footer",
+            "fields": [
+                { "id": "announcement", "type": "text", "label": "Announcement bar text", "default": "" }
+            ]
+        }
+    ],
+
+    "sections_schema": {
+        "hero": {
+            "label": "Hero",
+            "settings": [
+                { "id": "eyebrow", "type": "text", "label": "Eyebrow", "default": "" },
+                { "id": "headline", "type": "text", "label": "Headline", "default": "" },
+                { "id": "subhead", "type": "text", "label": "Sub-headline", "default": "" },
+                { "id": "show_tagline", "type": "toggle", "label": "Show sub-headline", "default": true },
+                { "id": "cta_label", "type": "text", "label": "Button label", "default": "" },
+                { "id": "cta_url", "type": "text", "label": "Button URL", "default": "/products" }
+            ]
+        },
+        "category-list": {
+            "label": "Featured categories",
+            "settings": [
+                { "id": "title", "type": "text", "label": "Title", "default": "" },
+                { "id": "limit", "type": "number", "label": "Max categories", "default": 8 }
+            ]
+        },
+        "product-grid": {
+            "label": "Product grid",
+            "settings": [
+                { "id": "title", "type": "text", "label": "Title", "default": "" },
+                { "id": "limit", "type": "number", "label": "Max products", "default": 8 },
+                { "id": "featured_only", "type": "toggle", "label": "Featured only", "default": true }
+            ]
+        },
+        "category-header": {
+            "label": "Category header",
+            "settings": []
+        },
+        "product-details": {
+            "label": "Product details",
+            "settings": []
+        },
+        "rich-text": {
+            "label": "Rich text",
+            "settings": [
+                { "id": "content", "type": "richtext", "label": "Content", "default": "" }
+            ]
+        },
+        "features": {
+            "label": "Why choose us",
+            "settings": []
+        },
+        "promo-banner": {
+            "label": "Promotional banner",
+            "settings": [
+                { "id": "eyebrow", "type": "text", "label": "Eyebrow", "default": "" },
+                { "id": "title", "type": "text", "label": "Title", "default": "" },
+                { "id": "text", "type": "text", "label": "Text", "default": "" },
+                { "id": "cta_label", "type": "text", "label": "Button label", "default": "" },
+                { "id": "cta_url", "type": "text", "label": "Button URL", "default": "/products" },
+                { "id": "image", "type": "text", "label": "Background image URL", "default": "" }
+            ]
+        },
+        "newsletter": {
+            "label": "Newsletter",
+            "settings": [
+                { "id": "title", "type": "text", "label": "Title", "default": "" },
+                { "id": "subtitle", "type": "text", "label": "Subtitle", "default": "" },
+                { "id": "cta_label", "type": "text", "label": "Button label", "default": "" }
+            ]
+        },
+        "testimonials": {
+            "label": "Testimonials",
+            "settings": [
+                { "id": "title", "type": "text", "label": "Title", "default": "" }
+            ]
+        },
+        "stats": {
+            "label": "Statistics",
+            "settings": []
+        },
+        "catalog": {
+            "label": "Catalog (product listing)",
+            "settings": []
+        }
+    },
+
+    "templates": {
+        "home": {
+            "sections": [
+                { "type": "hero", "settings": { "eyebrow": "من المزرعة إلى السوق", "cta_label": "تصفّح المنتجات", "cta_url": "/products" } },
+                { "type": "category-list" },
+                { "type": "product-grid", "settings": { "title": "منتجات مختارة", "limit": 8, "featured_only": true } },
+                { "type": "rich-text" },
+                { "type": "features" },
+                { "type": "testimonials" },
+                { "type": "newsletter" }
+            ]
+        },
+        "product": {
+            "sections": [
+                { "type": "product-details" }
+            ]
+        },
+        "category": {
+            "sections": [
+                { "type": "category-header" },
+                { "type": "catalog" }
+            ]
+        }
+    }
+}

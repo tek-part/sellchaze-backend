@@ -20,6 +20,8 @@ class ThemeSeeder extends Seeder
         $registry->registerFromFile(resource_path('themes/default/v1.1.0.json'));   // Phase 4D: 2nd version
         $registry->registerFromFile(resource_path('themes/aurora/theme.json'));      // Phase 4D: 2nd theme
         $registry->registerFromFile(resource_path('themes/modern/theme.json'));      // Theme 01: premium theme-driven
+        $registry->registerFromFile(resource_path('themes/atlas/theme.json'));       // Industrial/B2B
+        $registry->registerFromFile(resource_path('themes/verde/theme.json'));       // Food & agriculture
 
         $installer = app(StoreThemeService::class);
         Store::query()
