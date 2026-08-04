@@ -28,7 +28,11 @@ class GenerateSitemapCommand extends Command
         $this->info("Sitemap written: {$count} URLs → ".$generator->outputPath());
 
         if ($this->option('ping')) {
-            $this->info($generator->ping() ? 'Google pinged.' : 'Google ping failed (ignored).');
+            // IndexNow (Bing/Yandex/Seznam). Google dropped its ping endpoint in
+            // 2023 and now discovers the sitemap from robots.txt.
+            $this->info($generator->ping()
+                ? 'IndexNow notified.'
+                : 'IndexNow not notified (no key configured, or the request failed — ignored).');
         }
 
         return self::SUCCESS;

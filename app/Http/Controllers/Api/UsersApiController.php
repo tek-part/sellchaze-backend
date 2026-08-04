@@ -10,7 +10,6 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\NotificationChannelResolver;
-use App\Services\Stores\StoreProvisioner;
 use App\Services\UserProfileSync;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,7 +17,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
-use Spatie\Permission\PermissionRegistrar;
 
 class UsersApiController extends Controller
 {
@@ -282,19 +280,9 @@ class UsersApiController extends Controller
             ]);
         }
 
-        $guard = config('auth.defaults.guard', 'web');
-        Role::findOrCreate($role, $guard);
-        $user->syncRoles([$role]);
-        $user->pending_approval = false;
-        $user->registration_role = null;
-        $user->save();
-
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
-
-        // One Merchant/Supplier = one Store: provision on approval (no-op for Staff).
-        app(StoreProvisioner::class)->ensureFor($user->fresh());
-
-        ActivityLogger::log('staff_user.registration_approved', $user, ['role' => $role]);
+        // Same path self-service sign-up uses, so approval can never drift from it.
+        app(\App\Services\Users\RegistrationApprover::class)
+            ->approve($user, $role, 'staff_user.registration_approved');
     }
 
     private function normalizeStaffOrSupplierRole(?string $role): ?string

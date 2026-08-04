@@ -452,6 +452,12 @@ class AuthController extends Controller
             'registration_role' => ['required', Rule::in(['Staff', 'Supplier', 'Merchant'])],
         ]);
 
+        $approver = app(\App\Services\Users\RegistrationApprover::class);
+        // Merchants and Suppliers are customers onboarding themselves, so they
+        // start using the platform right away. Staff carries internal access and
+        // still waits for an administrator.
+        $selfService = $approver->isSelfServiceRole($data['registration_role']);
+
         $user = User::query()->create([
             'name' => $data['name'],
             'email' => $data['email'],
@@ -470,14 +476,25 @@ class AuthController extends Controller
             'online' => 1,
         ]);
 
+        if ($selfService) {
+            $approver->approve(
+                $user,
+                (string) $approver->normalizeRole($data['registration_role']),
+                'user.self_registered',
+            );
+            $user->refresh();
+        }
+
         $user->load('roles', 'permissions', 'profile');
         $jwt = JwtTokenService::fromConfig();
         $sessionId = (string) Str::uuid();
         $meta = $this->requestMeta($request);
 
         return response()->json([
-            'pending_approval' => true,
-            'message' => __('Your registration was received. An administrator must approve your account before you can sign in.'),
+            'pending_approval' => ! $selfService,
+            'message' => $selfService
+                ? __('Welcome aboard! Your account is ready.')
+                : __('Your registration was received. An administrator must approve your account before you can sign in.'),
             'access_token' => $jwt->issueAccessToken($user, $sessionId),
             'refresh_token' => $jwt->issueRefreshToken($user, $sessionId, $meta),
             'token_type' => 'Bearer',
