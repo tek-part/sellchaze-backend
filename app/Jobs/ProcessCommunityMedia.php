@@ -64,7 +64,7 @@ class ProcessCommunityMedia implements ShouldQueue
 
     private function processVideo(MediaAsset $asset, string $path): void
     {
-        $ffprobe = (string) env('FFPROBE_BIN', 'ffprobe');
+        $ffprobe = (string) config('community.ffprobe_bin');
         $probe = new Process([$ffprobe, '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,duration,codec_name,bit_rate', '-of', 'json', $path]);
         $probe->setTimeout(60);
         $probe->run();
@@ -79,7 +79,7 @@ class ProcessCommunityMedia implements ShouldQueue
             ])->save();
         }
 
-        $ffmpeg = (string) env('FFMPEG_BIN', 'ffmpeg');
+        $ffmpeg = (string) config('community.ffmpeg_bin');
         $base = 'community/variants/'.$asset->uuid;
         Storage::disk($asset->disk)->makeDirectory($base);
         $posterKey = $base.'/poster.jpg';
@@ -93,7 +93,7 @@ class ProcessCommunityMedia implements ShouldQueue
 
         // Always create a browser-safe MP4. Phones frequently upload HEVC even
         // inside an .mp4 container, which Chrome/Firefox cannot reliably play.
-        $videoCodec = (string) env('FFMPEG_H264_ENCODER', 'libopenh264');
+        $videoCodec = (string) config('community.ffmpeg_h264_encoder');
         $webKey = $base.'/web.mp4';
         $webPath = Storage::disk($asset->disk)->path($webKey);
         $web = new Process([$ffmpeg, '-y', '-i', $path, '-vf', 'scale=1280:-2:force_original_aspect_ratio=decrease', '-c:v', $videoCodec, '-b:v', '2500k', '-maxrate', '3200k', '-bufsize', '5000k', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', $webPath]);

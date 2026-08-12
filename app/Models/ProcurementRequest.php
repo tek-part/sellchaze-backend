@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property Carbon|null $response_deadline
+ * @property int|null $target_sector_id
  */
 class ProcurementRequest extends Model
 {

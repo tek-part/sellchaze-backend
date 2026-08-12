@@ -109,12 +109,6 @@ parameters:
 			path: app/Http/Controllers/Api/ChatApiController.php
 
 		-
-			message: '#^Anonymous function has an unused use \$me\.$#'
-			identifier: closure.unusedUse
-			count: 1
-			path: app/Http/Controllers/Api/ChatApiController.php
-
-		-
 			message: '#^Relation ''latestMessage'' is not found in App\\Models\\Conversation model\.$#'
 			identifier: larastan.relationExistence
 			count: 1

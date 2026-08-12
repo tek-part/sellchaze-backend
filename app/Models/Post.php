@@ -4,10 +4,12 @@ namespace App\Models;
 
 use App\Services\FeedCache;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * A single feed/wall post. See the create_posts_table migration for field semantics.
@@ -24,6 +26,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $comments_count
  * @property int $shares_count
  * @property string $status
+ * @property Carbon|null $published_at
+ * @property Carbon|null $scheduled_at
+ * @property CommunityGroup|null $communityGroup
+ * @property Collection<int, MediaAsset> $media
  */
 class Post extends Model
 {
@@ -117,6 +123,7 @@ class Post extends Model
         return $this->hasMany(PostReaction::class);
     }
 
+    /** @return BelongsToMany<MediaAsset, $this> */
     public function media(): BelongsToMany
     {
         return $this->belongsToMany(MediaAsset::class, 'post_media')
@@ -130,6 +137,7 @@ class Post extends Model
         return $this->belongsToMany(Hashtag::class, 'post_hashtag');
     }
 
+    /** @return BelongsTo<CommunityGroup, $this> */
     public function communityGroup(): BelongsTo
     {
         return $this->belongsTo(CommunityGroup::class);

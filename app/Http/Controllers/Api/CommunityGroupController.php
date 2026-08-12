@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CommunityGroup;
+use App\Models\Post;
 use App\Support\Feed\PostPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,7 +55,7 @@ class CommunityGroupController extends Controller
     {
         $joined = $group->members()->where('users.id', $request->user()->id)->wherePivot('status', 'active')->exists();
         abort_if($group->privacy === 'private' && ! $joined, 403);
-        $posts = $group->posts()->published()->withFeedRelations()->orderByDesc('published_at')->cursorPaginate(12);
+        $posts = $group->posts()->where('status', 'published')->with(Post::FEED_RELATIONS)->orderByDesc('published_at')->cursorPaginate(12);
 
         return response()->json(['data' => [...$this->card($group->load('sector')), 'joined' => $joined, 'posts' => collect($posts->items())->map(fn ($p) => PostPresenter::card($p, $request->user()->id))->all(), 'next_cursor' => $posts->nextCursor()?->encode()]]);
     }

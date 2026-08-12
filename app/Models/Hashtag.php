@@ -14,6 +14,7 @@ class Hashtag extends Model
         return ['trend_score' => 'float'];
     }
 
+    /** @return BelongsToMany<Post, $this> */
     public function posts(): BelongsToMany
     {
         return $this->belongsToMany(Post::class, 'post_hashtag');

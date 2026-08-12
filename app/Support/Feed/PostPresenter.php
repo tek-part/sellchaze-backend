@@ -34,7 +34,7 @@ class PostPresenter
             'comments_enabled' => (bool) ($post->comments_enabled ?? true),
             'location_name' => $post->location_name,
             'group' => $post->communityGroup ? ['id' => $post->communityGroup->id, 'name' => $post->communityGroup->name, 'slug' => $post->communityGroup->slug] : null,
-            'media' => $post->relationLoaded('media') ? $post->media->map(fn ($asset) => [...MediaPresenter::asset($asset), 'position' => $asset->pivot->position, 'role' => $asset->pivot->role, 'alt_text' => $asset->pivot->alt_text])->values()->all() : [],
+            'media' => $post->relationLoaded('media') ? $post->media->map(fn ($asset) => [...MediaPresenter::asset($asset), 'position' => $asset->pivot->getAttribute('position'), 'role' => $asset->pivot->getAttribute('role'), 'alt_text' => $asset->pivot->getAttribute('alt_text')])->values()->all() : [],
             'created_at' => ($post->published_at ?? $post->created_at)?->toIso8601String(),
             'author' => $author ? [
                 'id' => $author->id,

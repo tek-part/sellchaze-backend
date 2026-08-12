@@ -6,6 +6,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * @property string $profile
+ * @property string $disk
+ * @property string $object_key
+ * @property string $mime
+ * @property int|null $width
+ * @property int|null $height
+ * @property string $url
+ */
 class MediaVariant extends Model
 {
     protected $fillable = ['media_asset_id', 'profile', 'disk', 'object_key', 'mime', 'size_bytes', 'width', 'height', 'bitrate', 'metadata'];

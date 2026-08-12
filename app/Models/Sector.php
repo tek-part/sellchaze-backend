@@ -27,6 +27,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $is_active
  * @property-read int|null $suppliers_count
  */
+/**
+ * @property string $name
+ */
 class Sector extends Model
 {
     protected $hidden = ['updated_at'];

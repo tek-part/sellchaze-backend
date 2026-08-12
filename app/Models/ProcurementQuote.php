@@ -7,6 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+/**
+ * @property int $version
+ * @property string|null $delivery_terms
+ */
 class ProcurementQuote extends Model
 {
     use HasUuids;
