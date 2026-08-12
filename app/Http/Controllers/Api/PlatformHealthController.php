@@ -74,4 +74,3 @@ class PlatformHealthController extends Controller
         }
     }
 }
-

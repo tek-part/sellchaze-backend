@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V2;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
+use App\Models\OrganizationFollow;
 use Illuminate\Http\Request;
 
 class OrganizationDiscoveryController extends Controller
@@ -35,7 +36,7 @@ class OrganizationDiscoveryController extends Controller
     public function show(Request $request, Organization $organization)
     {
         abort_unless($organization->status === 'active', 404);
-        $following = \App\Models\OrganizationFollow::query()
+        $following = OrganizationFollow::query()
             ->where('organization_id', $organization->id)
             ->where('user_id', $request->user()->id)
             ->exists();
@@ -58,7 +59,7 @@ class OrganizationDiscoveryController extends Controller
             'certificates' => $organization->certificates ?? [],
             'is_verified' => (bool) $organization->is_verified,
             'following' => $following,
-            'followers_count' => \App\Models\OrganizationFollow::query()->where('organization_id', $organization->id)->count(),
+            'followers_count' => OrganizationFollow::query()->where('organization_id', $organization->id)->count(),
         ]]);
     }
 }

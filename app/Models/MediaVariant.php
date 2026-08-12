@@ -9,7 +9,19 @@ use Illuminate\Support\Facades\Storage;
 class MediaVariant extends Model
 {
     protected $fillable = ['media_asset_id', 'profile', 'disk', 'object_key', 'mime', 'size_bytes', 'width', 'height', 'bitrate', 'metadata'];
-    protected function casts(): array { return ['metadata' => 'array']; }
-    public function asset(): BelongsTo { return $this->belongsTo(MediaAsset::class, 'media_asset_id'); }
-    public function getUrlAttribute(): string { return Storage::disk($this->disk)->url($this->object_key); }
+
+    protected function casts(): array
+    {
+        return ['metadata' => 'array'];
+    }
+
+    public function asset(): BelongsTo
+    {
+        return $this->belongsTo(MediaAsset::class, 'media_asset_id');
+    }
+
+    public function getUrlAttribute(): string
+    {
+        return Storage::disk($this->disk)->url($this->object_key);
+    }
 }

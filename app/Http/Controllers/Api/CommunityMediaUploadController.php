@@ -43,6 +43,7 @@ class CommunityMediaUploadController extends Controller
                 'chunk_size' => $chunkSize, 'total_chunks' => $total,
                 'status' => 'uploading', 'expires_at' => now()->addHours((int) config('community.upload_ttl_hours')),
             ]);
+
             return [$asset, $upload];
         });
 
@@ -52,6 +53,7 @@ class CommunityMediaUploadController extends Controller
     public function show(Request $request, MediaUpload $upload): JsonResponse
     {
         $this->authorizeUpload($request, $upload);
+
         return response()->json(['data' => $this->uploadPayload($upload->load('parts'), $upload->asset)]);
     }
 
@@ -73,6 +75,7 @@ class CommunityMediaUploadController extends Controller
             $upload->parts()->updateOrCreate(['part_number' => $part], ['size_bytes' => $file->getSize(), 'checksum_sha256' => $checksum, 'temporary_path' => $path]);
             $upload->update(['uploaded_chunks' => $upload->parts()->count(), 'status' => 'uploading']);
         });
+
         return response()->json(['part_number' => $part, 'checksum_sha256' => $checksum, 'uploaded_chunks' => $upload->refresh()->uploaded_chunks, 'total_chunks' => $upload->total_chunks]);
     }
 
@@ -80,32 +83,50 @@ class CommunityMediaUploadController extends Controller
     {
         $this->authorizeUpload($request, $upload);
         $upload->load(['parts' => fn ($q) => $q->orderBy('part_number'), 'asset']);
-        if ($upload->status === 'completed') return response()->json(['data' => MediaPresenter::asset($upload->asset->load('variants'))]);
+        if ($upload->status === 'completed') {
+            return response()->json(['data' => MediaPresenter::asset($upload->asset->load('variants'))]);
+        }
         abort_unless($upload->parts->count() === $upload->total_chunks, 422, 'Upload is incomplete.');
 
         $tmpDir = storage_path('app/community-assembly');
-        if (! is_dir($tmpDir)) mkdir($tmpDir, 0775, true);
+        if (! is_dir($tmpDir)) {
+            mkdir($tmpDir, 0775, true);
+        }
         $tmp = $tmpDir.'/'.$upload->id.'.upload';
         $out = fopen($tmp, 'wb');
         try {
             foreach ($upload->parts as $part) {
                 $in = Storage::disk(config('community.chunk_disk'))->readStream($part->temporary_path);
-                if (! $in) throw new \RuntimeException('Missing upload chunk '.$part->part_number);
-                stream_copy_to_stream($in, $out); fclose($in);
+                if (! $in) {
+                    throw new \RuntimeException('Missing upload chunk '.$part->part_number);
+                }
+                stream_copy_to_stream($in, $out);
+                fclose($in);
             }
-        } finally { fclose($out); }
+        } finally {
+            fclose($out);
+        }
 
         $asset = $upload->asset;
-        if (filesize($tmp) !== (int) $asset->size_bytes) { @unlink($tmp); return response()->json(['message' => 'Assembled file size mismatch.'], 422); }
+        if (filesize($tmp) !== (int) $asset->size_bytes) {
+            @unlink($tmp);
+
+            return response()->json(['message' => 'Assembled file size mismatch.'], 422);
+        }
         $checksum = hash_file('sha256', $tmp);
-        if ($asset->checksum_sha256 && ! hash_equals(strtolower($asset->checksum_sha256), $checksum)) { @unlink($tmp); return response()->json(['message' => 'File checksum mismatch.'], 422); }
+        if ($asset->checksum_sha256 && ! hash_equals(strtolower($asset->checksum_sha256), $checksum)) {
+            @unlink($tmp);
+
+            return response()->json(['message' => 'File checksum mismatch.'], 422);
+        }
         $detected = (new \finfo(FILEINFO_MIME_TYPE))->file($tmp) ?: $asset->mime;
         abort_unless(in_array($detected, config('community.allowed_mimes'), true), 422, 'Unsupported file content.');
         $extension = $this->extensionFor($detected);
         $key = 'community/'.$asset->kind.'/'.now()->format('Y/m').'/'.$asset->uuid.'.'.$extension;
         $read = fopen($tmp, 'rb');
         Storage::disk($asset->disk)->put($key, $read, ['visibility' => 'public']);
-        fclose($read); @unlink($tmp);
+        fclose($read);
+        @unlink($tmp);
 
         DB::transaction(function () use ($upload, $asset, $key, $checksum, $detected) {
             $asset->update(['object_key' => $key, 'checksum_sha256' => $checksum, 'mime' => $detected, 'status' => 'uploaded']);
@@ -123,6 +144,7 @@ class CommunityMediaUploadController extends Controller
         abort_if($upload->status === 'completed', 409, 'Completed uploads cannot be cancelled.');
         Storage::disk(config('community.chunk_disk'))->deleteDirectory('community-chunks/'.$upload->id);
         $upload->asset()->delete();
+
         return response()->json(['message' => 'Upload cancelled.']);
     }
 
@@ -130,12 +152,20 @@ class CommunityMediaUploadController extends Controller
     {
         return ['upload_id' => $upload->id, 'asset' => MediaPresenter::asset($asset), 'chunk_size' => $upload->chunk_size, 'total_chunks' => $upload->total_chunks, 'uploaded_parts' => $upload->parts->pluck('part_number')->values(), 'expires_at' => $upload->expires_at?->toIso8601String()];
     }
-    private function authorizeUpload(Request $request, MediaUpload $upload): void { abort_unless((int) $upload->user_id === (int) $request->user()->id, 403); }
+
+    private function authorizeUpload(Request $request, MediaUpload $upload): void
+    {
+        abort_unless((int) $upload->user_id === (int) $request->user()->id, 403);
+    }
+
     private function authorizeOrganization(Request $request, ?int $organizationId): void
     {
-        if (! $organizationId) return;
+        if (! $organizationId) {
+            return;
+        }
         abort_unless($request->user()->organizationMemberships()->where('organization_id', $organizationId)->where('status', 'active')->exists(), 403);
     }
+
     private function extensionFor(string $mime): string
     {
         return ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif', 'video/mp4' => 'mp4', 'video/webm' => 'webm', 'video/quicktime' => 'mov', 'application/pdf' => 'pdf'][$mime] ?? 'bin';

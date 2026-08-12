@@ -170,7 +170,7 @@ class ChatApiController extends Controller
         // unread messages BEFORE this one (to email only on the first new message).
         $recipients = $conversation->participants
             ->where('user_id', '!=', $me->id)
-            ->map(function ($p) use ($conversation, $me) {
+            ->map(function ($p) use ($conversation) {
                 $hadUnread = Message::query()
                     ->where('conversation_id', $conversation->id)
                     ->where('user_id', '!=', $p->user_id)
@@ -202,7 +202,7 @@ class ChatApiController extends Controller
                 }
             }
         } catch (\Throwable $e) {
-            Log::warning('Chat notification failed: ' . $e->getMessage());
+            Log::warning('Chat notification failed: '.$e->getMessage());
         }
 
         return response()->json([

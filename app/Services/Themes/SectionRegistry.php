@@ -103,8 +103,12 @@ class SectionRegistry
         }
 
         $css = implode('', $rules['desktop']);
-        if ($rules['tablet']) $css .= '@media(max-width:1023px){'.implode('', $rules['tablet']).'}';
-        if ($rules['mobile']) $css .= '@media(max-width:639px){'.implode('', $rules['mobile']).'}';
+        if ($rules['tablet']) {
+            $css .= '@media(max-width:1023px){'.implode('', $rules['tablet']).'}';
+        }
+        if ($rules['mobile']) {
+            $css .= '@media(max-width:639px){'.implode('', $rules['mobile']).'}';
+        }
 
         return $css;
     }

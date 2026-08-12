@@ -73,6 +73,7 @@ class ArticlesApiController extends Controller
         if (! $name) {
             return null;
         }
+
         return asset('storage/uploads/articles/'.$variant.'/'.$name);
     }
 
@@ -92,6 +93,7 @@ class ArticlesApiController extends Controller
                 break;
             }
         }
+
         return $candidate;
     }
 
@@ -140,6 +142,7 @@ class ArticlesApiController extends Controller
             $out['meta_title'] = $l['meta_title'];
             $out['meta_description'] = $l['meta_description'];
         }
+
         return $out;
     }
 
@@ -150,6 +153,7 @@ class ArticlesApiController extends Controller
             return $q;
         }
         $hdr = strtolower((string) $request->header('Accept-Language', ''));
+
         return str_starts_with($hdr, 'ar') ? 'ar' : 'en';
     }
 
@@ -163,6 +167,7 @@ class ArticlesApiController extends Controller
         $clean = preg_replace('#\son[a-z]+\s*=\s*"[^"]*"#i', '', (string) $clean);
         $clean = preg_replace("#\son[a-z]+\s*=\s*'[^']*'#i", '', (string) $clean);
         $clean = preg_replace('#javascript\s*:#i', '', (string) $clean);
+
         return $clean;
     }
 
@@ -198,6 +203,7 @@ class ArticlesApiController extends Controller
     public function adminShow(int $id): JsonResponse
     {
         $a = Article::with('author:id,name')->findOrFail($id);
+
         return response()->json(['data' => $this->serializeAdmin($a)]);
     }
 

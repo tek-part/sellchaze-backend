@@ -5,7 +5,7 @@ namespace App\Services\Storefront;
 class ResponsiveImageUrl
 {
     /** @return array{src:string,srcset:?string,sizes:string,widths:list<int>}|null */
-    public function for(string|null $source, array $widths = [320, 640, 960, 1280]): ?array
+    public function for(?string $source, array $widths = [320, 640, 960, 1280]): ?array
     {
         if (! filled($source)) {
             return null;

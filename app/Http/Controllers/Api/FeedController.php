@@ -4,12 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\ResolvesLocale;
 use App\Http\Controllers\Controller;
-use App\Models\Post;
-use App\Models\Sector;
-use App\Models\UserSafetyRelation;
 use App\Models\Follow;
 use App\Models\OrganizationFollow;
+use App\Models\Post;
 use App\Models\PostReaction;
+use App\Models\Sector;
+use App\Models\UserSafetyRelation;
 use App\Services\FeedCache;
 use App\Support\Feed\PostPresenter;
 use Illuminate\Database\Eloquent\Builder;

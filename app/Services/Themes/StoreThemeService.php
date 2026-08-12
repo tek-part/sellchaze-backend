@@ -104,8 +104,7 @@ class StoreThemeService
         array $settings,
         ?int $actorId = null,
         string $source = 'manual',
-    ): StoreTheme
-    {
+    ): StoreTheme {
         $version = ThemeVersion::query()->find($install->theme_version_id);
         $schema = $version->settings_schema ?? [];
 

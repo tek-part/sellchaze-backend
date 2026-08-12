@@ -44,7 +44,7 @@ jobs:
             APP_DIR=/home/sellchaze/public_html/api.sellchaze.com
 
             case "$DEPLOY_SHA" in
-              (*[!0-9a-f]*|'') echo "Invalid deployment SHA" >&2; exit 1 ;;
+              ''|*[!0-9a-f]*) echo "Invalid deployment SHA" >&2; exit 1 ;;
             esac
 
             cd "$APP_DIR"

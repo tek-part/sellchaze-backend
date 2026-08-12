@@ -3,17 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\CommunityGroup;
+use App\Models\Follow;
+use App\Models\Hashtag;
+use App\Models\MediaAsset;
 use App\Models\OrganizationMembership;
 use App\Models\Post;
 use App\Models\PostLike;
+use App\Models\PostReaction;
 use App\Models\PostSave;
 use App\Models\PostShare;
 use App\Models\Product;
-use App\Models\MediaAsset;
-use App\Models\Hashtag;
-use App\Models\CommunityGroup;
-use App\Models\Follow;
-use App\Models\PostReaction;
 use App\Services\FeedCache;
 use App\Services\SubscriptionService;
 use App\Support\Feed\PostPresenter;
@@ -84,7 +84,9 @@ class PostController extends Controller
         if (! empty($data['community_group_id'])) {
             $group = CommunityGroup::query()->findOrFail($data['community_group_id']);
             $isMember = $group->members()->where('users.id', $user->id)->wherePivot('status', 'active')->exists();
-            if (! $isMember) return response()->json(['message' => 'Join the group before publishing in it.'], 403);
+            if (! $isMember) {
+                return response()->json(['message' => 'Join the group before publishing in it.'], 403);
+            }
             $data['audience'] = 'group';
         }
 
@@ -140,7 +142,9 @@ class PostController extends Controller
         }
         $this->syncHashtags($post, $data['hashtags'] ?? [], $body);
 
-        if ($post->community_group_id) CommunityGroup::query()->whereKey($post->community_group_id)->increment('posts_count');
+        if ($post->community_group_id) {
+            CommunityGroup::query()->whereKey($post->community_group_id)->increment('posts_count');
+        }
 
         $post->load(Post::FEED_RELATIONS);
 
@@ -152,7 +156,9 @@ class PostController extends Controller
         if ($post->status !== 'published' && $post->user_id !== $request->user()?->id) {
             return response()->json(['message' => 'Not found'], 404);
         }
-        if (! $this->canView($request, $post)) return response()->json(['message' => 'Not found'], 404);
+        if (! $this->canView($request, $post)) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
         $post->load(Post::FEED_RELATIONS);
         $post->setAttribute('liked', PostLike::query()->where('post_id', $post->id)->where('user_id', $request->user()?->id)->exists());
 
@@ -228,6 +234,7 @@ class PostController extends Controller
         $data = $request->validate(['type' => ['required', Rule::in(['celebrate', 'insightful', 'support', 'interested'])]]);
         PostReaction::query()->updateOrCreate(['post_id' => $post->id, 'user_id' => $request->user()->id], ['type' => $data['type']]);
         app(FeedCache::class)->flush();
+
         return response()->json(['reaction' => $data['type'], 'summary' => $post->reactions()->selectRaw('type, count(*) as total')->groupBy('type')->pluck('total', 'type')]);
     }
 
@@ -235,6 +242,7 @@ class PostController extends Controller
     {
         PostReaction::query()->where('post_id', $post->id)->where('user_id', $request->user()->id)->delete();
         app(FeedCache::class)->flush();
+
         return response()->json(['reaction' => null, 'summary' => $post->reactions()->selectRaw('type, count(*) as total')->groupBy('type')->pluck('total', 'type')]);
     }
 
@@ -256,10 +264,19 @@ class PostController extends Controller
     private function canView(Request $request, Post $post): bool
     {
         $viewer = $request->user();
-        if ((int) $post->user_id === (int) $viewer->id || $post->audience === 'public') return true;
-        if ($post->audience === 'followers') return Follow::query()->where('follower_id', $viewer->id)->where('followed_id', $post->user_id)->exists();
-        if ($post->audience === 'sector') return $post->sector_id && in_array((int) $post->sector_id, $viewer->sectors()->pluck('sectors.id')->map(fn ($id) => (int) $id)->push((int) $viewer->primary_sector_id)->all(), true);
-        if ($post->audience === 'group' && $post->community_group_id) return CommunityGroup::query()->whereKey($post->community_group_id)->whereHas('members', fn ($q) => $q->where('users.id', $viewer->id)->where('community_group_memberships.status', 'active'))->exists();
+        if ((int) $post->user_id === (int) $viewer->id || $post->audience === 'public') {
+            return true;
+        }
+        if ($post->audience === 'followers') {
+            return Follow::query()->where('follower_id', $viewer->id)->where('followed_id', $post->user_id)->exists();
+        }
+        if ($post->audience === 'sector') {
+            return $post->sector_id && in_array((int) $post->sector_id, $viewer->sectors()->pluck('sectors.id')->map(fn ($id) => (int) $id)->push((int) $viewer->primary_sector_id)->all(), true);
+        }
+        if ($post->audience === 'group' && $post->community_group_id) {
+            return CommunityGroup::query()->whereKey($post->community_group_id)->whereHas('members', fn ($q) => $q->where('users.id', $viewer->id)->where('community_group_memberships.status', 'active'))->exists();
+        }
+
         return false;
     }
 
@@ -269,6 +286,7 @@ class PostController extends Controller
         $labels = collect([...$explicit, ...($matches[1] ?? [])])->map(fn ($tag) => ltrim(trim((string) $tag), '#'))->filter()->unique(fn ($tag) => mb_strtolower($tag))->take(10);
         $ids = $labels->map(function (string $label) {
             $slug = mb_strtolower(preg_replace('/[^\p{L}\p{N}_-]+/u', '-', $label), 'UTF-8');
+
             return Hashtag::query()->firstOrCreate(['slug' => trim($slug, '-')], ['label' => $label])->id;
         });
         $post->hashtags()->sync($ids->all());

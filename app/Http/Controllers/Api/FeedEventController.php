@@ -15,8 +15,11 @@ class FeedEventController extends Controller
         $accepted = 0;
         foreach ($data['events'] as $event) {
             $row = FeedEvent::query()->firstOrCreate(['event_uuid' => $event['event_uuid']], [...$event, 'user_id' => $request->user()->id]);
-            if ($row->wasRecentlyCreated) $accepted++;
+            if ($row->wasRecentlyCreated) {
+                $accepted++;
+            }
         }
+
         return response()->json(['accepted' => $accepted]);
     }
 }

@@ -4,8 +4,8 @@ namespace App\Support\Feed;
 
 use App\Models\Post;
 use App\Models\PostComment;
-use App\Support\ProductImageUrl;
 use App\Support\Community\MediaPresenter;
+use App\Support\ProductImageUrl;
 
 /**
  * Serialises feed posts and comments into the shape the frontend consumes. Kept as a small support

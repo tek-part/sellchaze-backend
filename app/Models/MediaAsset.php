@@ -16,9 +16,20 @@ class MediaAsset extends Model
         return ['metadata' => 'array', 'size_bytes' => 'integer', 'processed_at' => 'datetime'];
     }
 
-    public function user(): BelongsTo { return $this->belongsTo(User::class); }
-    public function organization(): BelongsTo { return $this->belongsTo(Organization::class); }
-    public function variants(): HasMany { return $this->hasMany(MediaVariant::class); }
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
+    public function variants(): HasMany
+    {
+        return $this->hasMany(MediaVariant::class);
+    }
 
     public function getUrlAttribute(): ?string
     {

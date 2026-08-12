@@ -19,6 +19,7 @@ use App\Http\Middleware\RedirectIfAuthenticated;
 use App\Http\Middleware\ResolveOwnStore;
 use App\Http\Middleware\ResolveStoreFromHost;
 use App\Http\Middleware\RestrictPendingApiUser;
+use App\Http\Middleware\ScopeOrganizationRoute;
 use App\Http\Middleware\ScopeToStore;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
@@ -133,7 +134,7 @@ class Kernel extends HttpKernel
         'admin' => IsAdmin::class,
         'api.key' => ApiKeyMiddleware::class,
         'jwt.auth' => AuthenticateJwt::class,
-        'scope.organization.route' => \App\Http\Middleware\ScopeOrganizationRoute::class,
+        'scope.organization.route' => ScopeOrganizationRoute::class,
         'pending.restrict' => RestrictPendingApiUser::class,
         'idempotent' => EnsureIdempotentRequest::class,
         'resolve.store' => ResolveStoreFromHost::class,

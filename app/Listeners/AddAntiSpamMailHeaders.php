@@ -20,12 +20,12 @@ class AddAntiSpamMailHeaders
             $headers = $message->getHeaders();
 
             $domain = 'sellchaze.com';
-            $supportMail = 'info@' . $domain;
-            $unsubMail = 'unsubscribe@' . $domain;
-            $unsubUrl = 'https://' . $domain . '/unsubscribe';
+            $supportMail = 'info@'.$domain;
+            $unsubMail = 'unsubscribe@'.$domain;
+            $unsubUrl = 'https://'.$domain.'/unsubscribe';
 
             if (! $headers->has('List-Unsubscribe')) {
-                $headers->addTextHeader('List-Unsubscribe', '<mailto:' . $unsubMail . '>, <' . $unsubUrl . '>');
+                $headers->addTextHeader('List-Unsubscribe', '<mailto:'.$unsubMail.'>, <'.$unsubUrl.'>');
             }
             if (! $headers->has('List-Unsubscribe-Post')) {
                 $headers->addTextHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
@@ -40,7 +40,7 @@ class AddAntiSpamMailHeaders
                 if (method_exists($headers, 'addIdHeader')) {
                     $headers->addIdHeader('Message-ID', $messageId);
                 } else {
-                    $headers->addTextHeader('Message-ID', '<' . $messageId . '>');
+                    $headers->addTextHeader('Message-ID', '<'.$messageId.'>');
                 }
             }
 

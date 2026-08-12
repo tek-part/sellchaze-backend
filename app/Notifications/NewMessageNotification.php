@@ -18,9 +18,7 @@ class NewMessageNotification extends Notification
 {
     use Queueable;
 
-    public function __construct(public Message $message, public bool $email = false)
-    {
-    }
+    public function __construct(public Message $message, public bool $email = false) {}
 
     public function via(object $notifiable): array
     {
@@ -43,7 +41,7 @@ class NewMessageNotification extends Notification
     {
         $base = rtrim((string) config('sellchase.frontend_url', env('FRONTEND_URL', 'https://sellchaze.com')), '/');
 
-        return $base . '/chat?c=' . $this->message->conversation_id;
+        return $base.'/chat?c='.$this->message->conversation_id;
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -53,9 +51,9 @@ class NewMessageNotification extends Notification
 
         return (new MailMessage)
             ->subject("New message from {$name} · Sellchaze")
-            ->greeting('Hello ' . ($notifiable->name ?? '') . ',')
+            ->greeting('Hello '.($notifiable->name ?? '').',')
             ->line("You received a new message from {$name}:")
-            ->line('"' . $preview . '"')
+            ->line('"'.$preview.'"')
             ->action('Open conversation', $this->chatUrl())
             ->line('You are receiving this because you have a Sellchaze account.');
     }

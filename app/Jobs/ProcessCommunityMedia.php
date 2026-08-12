@@ -16,19 +16,27 @@ class ProcessCommunityMedia implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $timeout = 900;
 
-    public function __construct(public int $assetId) { $this->onQueue('media'); }
+    public function __construct(public int $assetId)
+    {
+        $this->onQueue('media');
+    }
 
     public function handle(): void
     {
         $asset = MediaAsset::query()->find($this->assetId);
-        if (! $asset || ! $asset->object_key || ! Storage::disk($asset->disk)->exists($asset->object_key)) return;
+        if (! $asset || ! $asset->object_key || ! Storage::disk($asset->disk)->exists($asset->object_key)) {
+            return;
+        }
 
         $asset->update(['status' => 'processing', 'failure_reason' => null]);
         try {
             $path = Storage::disk($asset->disk)->path($asset->object_key);
-            if ($asset->kind === 'image') $this->processImage($asset, $path);
+            if ($asset->kind === 'image') {
+                $this->processImage($asset, $path);
+            }
             if ($asset->kind === 'video') {
                 try {
                     $this->processVideo($asset, $path);
@@ -49,7 +57,9 @@ class ProcessCommunityMedia implements ShouldQueue
     private function processImage(MediaAsset $asset, string $path): void
     {
         $info = @getimagesize($path);
-        if ($info) $asset->forceFill(['width' => $info[0], 'height' => $info[1], 'metadata' => [...($asset->metadata ?? []), 'orientation' => $info[0] >= $info[1] ? 'landscape' : 'portrait']])->save();
+        if ($info) {
+            $asset->forceFill(['width' => $info[0], 'height' => $info[1], 'metadata' => [...($asset->metadata ?? []), 'orientation' => $info[0] >= $info[1] ? 'landscape' : 'portrait']])->save();
+        }
     }
 
     private function processVideo(MediaAsset $asset, string $path): void

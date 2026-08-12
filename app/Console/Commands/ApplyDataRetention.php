@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 class ApplyDataRetention extends Command
 {
     protected $signature = 'operations:retention {--pretend : Count eligible records without deleting them}';
+
     protected $description = 'Apply configured retention windows to operational and audit data';
 
     public function handle(): int
@@ -22,9 +23,12 @@ class ApplyDataRetention extends Command
         ];
         foreach ($targets as $name => $query) {
             $count = (clone $query)->count();
-            if (! $this->option('pretend') && $count > 0) $query->delete();
+            if (! $this->option('pretend') && $count > 0) {
+                $query->delete();
+            }
             $this->line("{$name}: {$count}".($this->option('pretend') ? ' eligible' : ' deleted'));
         }
+
         return self::SUCCESS;
     }
 }

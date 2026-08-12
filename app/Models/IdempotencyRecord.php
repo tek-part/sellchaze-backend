@@ -33,4 +33,3 @@ class IdempotencyRecord extends Model
         ];
     }
 }
-

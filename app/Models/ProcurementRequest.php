@@ -5,11 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 /**
- * @property \Illuminate\Support\Carbon|null $response_deadline
+ * @property Carbon|null $response_deadline
  */
 class ProcurementRequest extends Model
 {
@@ -49,8 +51,8 @@ class ProcurementRequest extends Model
         return $this->belongsTo(Organization::class, 'target_supplier_organization_id');
     }
 
-    /** @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<Organization, $this> */
-    public function selectedSupplierOrganizations(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    /** @return BelongsToMany<Organization, $this> */
+    public function selectedSupplierOrganizations(): BelongsToMany
     {
         return $this->belongsToMany(Organization::class, 'procurement_request_suppliers', 'procurement_request_id', 'supplier_organization_id')->withTimestamps();
     }
