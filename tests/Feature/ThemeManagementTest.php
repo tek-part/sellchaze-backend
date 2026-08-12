@@ -204,6 +204,70 @@ class ThemeManagementTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('settings');
     }
 
+    public function test_theme_autosave_creates_deduplicated_revisions_and_can_restore(): void
+    {
+        $this->asOwnerA()->postJson("/api/v1/stores/{$this->storeA->id}/themes/install", [
+            'theme_id' => $this->minimalThemeId,
+        ])->assertCreated();
+
+        $this->asOwnerA()->putJson("/api/v1/stores/{$this->storeA->id}/themes/settings", [
+            'theme_id' => $this->minimalThemeId,
+            'settings' => ['accent' => '#111111'],
+            'source' => 'autosave',
+        ])->assertOk();
+        $this->asOwnerA()->putJson("/api/v1/stores/{$this->storeA->id}/themes/settings", [
+            'theme_id' => $this->minimalThemeId,
+            'settings' => ['accent' => '#222222'],
+            'source' => 'autosave',
+        ])->assertOk();
+        $this->asOwnerA()->putJson("/api/v1/stores/{$this->storeA->id}/themes/settings", [
+            'theme_id' => $this->minimalThemeId,
+            'settings' => ['accent' => '#222222'],
+            'source' => 'autosave',
+        ])->assertOk();
+
+        $history = $this->asOwnerA()
+            ->getJson("/api/v1/stores/{$this->storeA->id}/themes/{$this->minimalThemeId}/revisions")
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+        $oldestRevisionId = $history->json('data.1.id');
+
+        $this->asOwnerA()->postJson("/api/v1/stores/{$this->storeA->id}/themes/{$this->minimalThemeId}/revisions/{$oldestRevisionId}/restore")
+            ->assertOk()
+            ->assertJsonPath('data.settings.accent', '#111111');
+        $this->assertDatabaseHas('store_theme_revisions', [
+            'store_id' => $this->storeA->id,
+            'source' => 'restore',
+        ]);
+
+        $this->asOwnerB()
+            ->getJson("/api/v1/stores/{$this->storeA->id}/themes/{$this->minimalThemeId}/revisions")
+            ->assertForbidden();
+    }
+
+    public function test_my_store_dynamic_theme_routes_keep_the_injected_store_parameter_first(): void
+    {
+        $this->asOwnerA()
+            ->getJson("/api/v1/my-store/themes/{$this->defaultThemeId}")
+            ->assertOk()
+            ->assertJsonPath('theme.id', $this->defaultThemeId);
+
+        $this->asOwnerA()->putJson('/api/v1/my-store/themes/settings', [
+            'theme_id' => $this->defaultThemeId,
+            'settings' => ['primary' => '#123456', 'products_per_row' => 4],
+            'source' => 'manual',
+        ])->assertOk();
+
+        $history = $this->asOwnerA()
+            ->getJson("/api/v1/my-store/themes/{$this->defaultThemeId}/revisions")
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+
+        $this->asOwnerA()
+            ->postJson("/api/v1/my-store/themes/{$this->defaultThemeId}/revisions/{$history->json('data.0.id')}/restore")
+            ->assertOk();
+    }
+
     public function test_theme_history_is_recorded(): void
     {
         $this->asOwnerA()->postJson("/api/v1/stores/{$this->storeA->id}/themes/install", ['theme_id' => $this->minimalThemeId]);

@@ -1,4 +1,4 @@
-# Sellchase Visual Identity Brief / بريف الهوية البصرية ولوجو Sellchase
+# Sellchaze Visual Identity Brief / بريف الهوية البصرية ولوجو Sellchaze
 
 ---
 
@@ -6,7 +6,7 @@
 
 ## الغرض من البريف
 
-وثيقة تعريفية توجّه المصمم أو وكالة التصميم لإنشاء هوية بصرية ولوجو احترافي للموقع **Sellchase**، مع ضمان تناسق الشكل والمضمون مع طبيعة المشروع.
+وثيقة تعريفية توجّه المصمم أو وكالة التصميم لإنشاء هوية بصرية ولوجو احترافي للموقع **Sellchaze**، مع ضمان تناسق الشكل والمضمون مع طبيعة المشروع.
 
 ---
 
@@ -14,7 +14,7 @@
 
 | العنصر | القيمة |
 |--------|--------|
-| **اسم الموقع** | Sellchase |
+| **اسم الموقع** | Sellchaze |
 | **نوع المنصة** | نظام إدارة الطلبات والتسعير B2B |
 | **الوظائف الرئيسية** | طلبات صادرة/واردة، عروض أسعار، صفقات، رصيد، منتجات، موردين |
 
@@ -61,7 +61,7 @@
 
 1. استبدال ملفات اللوجو في `public/assets/media/logos/` أو مسار الثيم
 2. تحديث `config/settings.php` و `KT_THEME_ASSETS` إذا لزم الأمر
-3. تحديث `APP_NAME` في `.env` إلى `Sellchase` إن رغبت
+3. تحديث `APP_NAME` في `.env` إلى `Sellchaze` إن رغبت
 4. تحديث Favicon في `config/settings.php`
 
 ---
@@ -71,7 +71,7 @@
 - تجنب التفاصيل المعقدة (اللوجو سيُعرض بحجم صغير)
 - وضوح اللوجو على خلفية فاتحة وداكنة
 - توافق مع هوية B2B احترافية
-- إمكانية الاستخدام مع كلمة "Sellchase" أو كرمز منفصل
+- إمكانية الاستخدام مع كلمة "Sellchaze" أو كرمز منفصل
 
 ---
 
@@ -81,7 +81,7 @@
 
 ## Purpose of the Brief
 
-A reference document to guide the designer or design agency in creating a professional visual identity and logo for **Sellchase**, ensuring alignment between form and content with the project's nature.
+A reference document to guide the designer or design agency in creating a professional visual identity and logo for **Sellchaze**, ensuring alignment between form and content with the project's nature.
 
 ---
 
@@ -89,7 +89,7 @@ A reference document to guide the designer or design agency in creating a profes
 
 | Item | Value |
 |------|-------|
-| **Site Name** | Sellchase |
+| **Site Name** | Sellchaze |
 | **Platform Type** | B2B Order & Quotation Management System |
 | **Core Features** | Orders in/out, Quotations, Deals, Balance, Products, Suppliers |
 
@@ -136,7 +136,7 @@ After receiving the logo and visual identity:
 
 1. Replace logo files in `public/assets/media/logos/` or theme path
 2. Update `config/settings.php` and `KT_THEME_ASSETS` if needed
-3. Update `APP_NAME` in `.env` to `Sellchase` if desired
+3. Update `APP_NAME` in `.env` to `Sellchaze` if desired
 4. Update Favicon in `config/settings.php`
 
 ---
@@ -146,4 +146,4 @@ After receiving the logo and visual identity:
 - Avoid fine detail (logo will appear at small sizes)
 - Logo must be clear on both light and dark backgrounds
 - Align with a professional B2B identity
-- Usable with the word "Sellchase" or as a standalone symbol
+- Usable with the word "Sellchaze" or as a standalone symbol

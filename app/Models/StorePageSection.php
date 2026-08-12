@@ -6,17 +6,19 @@ use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/** @property bool $is_visible */
 class StorePageSection extends Model
 {
     use BelongsToStore;
 
     protected $fillable = [
-        'store_page_id', 'store_id', 'type', 'settings', 'reusable_section_id', 'position',
+        'store_page_id', 'store_id', 'type', 'settings', 'reusable_section_id', 'position', 'is_visible',
     ];
 
     protected $casts = [
         'settings' => 'array',
         'position' => 'integer',
+        'is_visible' => 'boolean',
     ];
 
     /** @return BelongsTo<StorePage, $this> */

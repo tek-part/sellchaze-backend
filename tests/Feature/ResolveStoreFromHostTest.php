@@ -72,4 +72,20 @@ class ResolveStoreFromHostTest extends TestCase
         $this->getJson('http://sellchase.com/api/v1/storefront/resolve')
             ->assertNotFound();
     }
+
+    public function test_draft_and_suspended_stores_are_never_publicly_resolved(): void
+    {
+        $store = Store::query()->where('slug', 'nike')->firstOrFail();
+
+        $store->update(['status' => 'draft']);
+        $this->getJson('http://nike.sellchase.com/api/v1/storefront/resolve')->assertNotFound();
+
+        $store->update(['status' => 'suspended']);
+        $this->getJson('http://nike.sellchase.com/api/v1/storefront/resolve')->assertNotFound();
+
+        $store->update(['status' => 'active']);
+        $this->getJson('http://nike.sellchase.com/api/v1/storefront/resolve')
+            ->assertOk()
+            ->assertJsonPath('data.slug', 'nike');
+    }
 }

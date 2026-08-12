@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
+use App\Models\UserSafetyRelation;
 use App\Notifications\NewMessageNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,7 +25,10 @@ class ChatApiController extends Controller
 
         $conversations = Conversation::query()
             ->whereHas('participants', fn ($q) => $q->where('user_id', $me->id))
-            ->with(['latestMessage', 'users:id,name,avatar'])
+            ->with([
+                'latestMessage', 'users:id,name,avatar',
+                'buyerOrganization:id,name,slug', 'supplierOrganization:id,name,slug',
+            ])
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
             ->get();
@@ -53,6 +57,12 @@ class ChatApiController extends Controller
                 ] : null,
                 'unread' => $unread,
                 'last_message_at' => $c->last_message_at?->toIso8601String(),
+                'context' => $c->type === 'procurement' ? [
+                    'procurement_request_id' => $c->procurement_request_id,
+                    'procurement_order_id' => $c->procurement_order_id,
+                    'buyer_organization' => $c->buyerOrganization,
+                    'supplier_organization' => $c->supplierOrganization,
+                ] : null,
             ];
         });
 
@@ -84,6 +94,16 @@ class ChatApiController extends Controller
 
         if ((int) $data['user_id'] === (int) $me->id) {
             return response()->json(['message' => 'Cannot start a conversation with yourself'], 422);
+        }
+
+        $blocked = UserSafetyRelation::query()
+            ->where('type', 'block')
+            ->where(function ($query) use ($me, $data): void {
+                $query->where(fn ($pair) => $pair->where('actor_user_id', $me->id)->where('target_user_id', $data['user_id']))
+                    ->orWhere(fn ($pair) => $pair->where('actor_user_id', $data['user_id'])->where('target_user_id', $me->id));
+            })->exists();
+        if ($blocked) {
+            return response()->json(['message' => 'Conversation is unavailable.'], 403);
         }
 
         $conversation = Conversation::between($me->id, (int) $data['user_id']);
@@ -135,6 +155,15 @@ class ChatApiController extends Controller
     {
         $me = $request->user();
         $conversation = $this->authorizeMember($id, $me->id);
+        $otherIds = $conversation->participants()->where('user_id', '!=', $me->id)->pluck('user_id');
+        $blocked = UserSafetyRelation::query()->where('type', 'block')
+            ->where(function ($query) use ($me, $otherIds): void {
+                $query->where(fn ($pair) => $pair->where('actor_user_id', $me->id)->whereIn('target_user_id', $otherIds))
+                    ->orWhere(fn ($pair) => $pair->whereIn('actor_user_id', $otherIds)->where('target_user_id', $me->id));
+            })->exists();
+        if ($blocked) {
+            return response()->json(['message' => 'Conversation is unavailable.'], 403);
+        }
         $data = $request->validate(['body' => 'required|string|max:5000']);
 
         // Recipients = the other participants. Capture whether each already had

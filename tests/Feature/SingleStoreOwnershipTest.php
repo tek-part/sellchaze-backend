@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Organization;
 use App\Models\Product;
 use App\Models\Scopes\ProductScope;
 use App\Models\Store;
@@ -12,7 +13,6 @@ use App\Services\StoreService;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Database\Seeders\StorePermissionsSeeder;
-use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
@@ -145,7 +145,7 @@ class SingleStoreOwnershipTest extends TestCase
         $this->assertSame(1, Store::query()->count(), 'employee must not spawn a second store');
     }
 
-    // ---- Cardinality guards (service, policy, database) ---------------------
+    // ---- Legacy cardinality guards + v2-compatible database ----------------
 
     public function test_service_rejects_a_second_store_for_the_same_owner(): void
     {
@@ -171,13 +171,19 @@ class SingleStoreOwnershipTest extends TestCase
         $this->assertFalse($merchant->can('create', Store::class), 'must never create a second store');
     }
 
-    public function test_database_unique_constraint_blocks_duplicate_owner(): void
+    public function test_database_allows_company_to_have_multiple_stores_for_same_owner(): void
     {
         $merchant = $this->owner('Merchant');
-        Store::create(['owner_user_id' => $merchant->id, 'owner_type' => 'merchant', 'name' => 'One', 'slug' => 'one', 'currency' => 'USD', 'status' => 'active']);
+        $organization = Organization::create(['name' => 'Multi Store Co', 'slug' => 'multi-store-co']);
+        $organization->memberships()->create([
+            'user_id' => $merchant->id, 'role' => 'owner', 'status' => 'active', 'joined_at' => now(),
+        ]);
 
-        $this->expectException(QueryException::class);
-        Store::create(['owner_user_id' => $merchant->id, 'owner_type' => 'merchant', 'name' => 'Two', 'slug' => 'two', 'currency' => 'USD', 'status' => 'active']);
+        Store::create(['organization_id' => $organization->id, 'owner_user_id' => $merchant->id, 'owner_type' => 'merchant', 'is_primary' => true, 'name' => 'One', 'slug' => 'one', 'currency' => 'USD', 'status' => 'active']);
+        Store::create(['organization_id' => $organization->id, 'owner_user_id' => $merchant->id, 'owner_type' => 'merchant', 'is_primary' => false, 'name' => 'Two', 'slug' => 'two', 'currency' => 'USD', 'status' => 'active']);
+
+        $this->assertSame(2, $organization->stores()->count());
+        $this->assertSame('One', $merchant->fresh()->store->name, 'v1 resolves the primary store');
     }
 
     // ---- Consistency: owners are walled off from the multi-store surface -----

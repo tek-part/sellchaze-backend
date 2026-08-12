@@ -1,13 +1,28 @@
 name: Deploy Backend
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: [Backend Quality]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: production
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
 
     steps:
       - name: Deploy Backend to Production
@@ -17,14 +32,20 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
           port: 22
           command_timeout: 30m
           script_stop: true
+          envs: DEPLOY_SHA
 
           script: |
             set -e
 
             APP_DIR=/home/sellchaze/public_html/api.sellchaze.com
+
+            case "$DEPLOY_SHA" in
+              (*[!0-9a-f]*|'') echo "Invalid deployment SHA" >&2; exit 1 ;;
+            esac
 
             cd "$APP_DIR"
             if [ ! -d .git ]; then
@@ -32,8 +53,9 @@ jobs:
               git remote add origin https://github.com/tek-part/sellchaze-backend.git
             fi
 
-            git fetch origin main
-            git reset --hard origin/main
+            git fetch --prune origin main
+            git cat-file -e "${DEPLOY_SHA}^{commit}"
+            git reset --hard "$DEPLOY_SHA"
 
             /usr/local/bin/composer install --no-dev --optimize-autoloader
 

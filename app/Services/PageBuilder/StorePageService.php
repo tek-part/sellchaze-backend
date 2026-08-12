@@ -73,7 +73,7 @@ class StorePageService
      * are all expressed by the incoming layout). Unsupported section types are dropped
      * (graceful degradation) — validated against the active theme sections_schema.
      *
-     * @param  array<int,array{type:string,settings?:array,reusable_section_id?:int}>  $sections
+     * @param  array<int,array{type:string,settings?:array,reusable_section_id?:int,is_visible?:bool}>  $sections
      */
     public function syncSections(StorePage $page, array $sections, ?int $actorId = null): StorePage
     {
@@ -96,6 +96,7 @@ class StorePageService
                     'settings' => $section['settings'] ?? [],
                     'reusable_section_id' => $section['reusable_section_id'] ?? null,
                     'position' => $position++,
+                    'is_visible' => $section['is_visible'] ?? true,
                 ]);
             }
         });
@@ -107,9 +108,34 @@ class StorePageService
 
     public function publish(StorePage $page): StorePage
     {
-        $page->status = 'published';
-        $page->published_at = now();
-        $page->save();
+        DB::transaction(function () use ($page): void {
+            $page->load('sections');
+            $snapshot = [
+                'page' => $page->only(['title', 'slug', 'template', 'locale', 'seo']),
+                'sections' => $page->sections->map(fn (StorePageSection $section) => [
+                    'type' => $section->type,
+                    'settings' => $section->settings,
+                    'reusable_section_id' => $section->reusable_section_id,
+                    'is_visible' => (bool) $section->is_visible,
+                    'position' => $section->position,
+                ])->values()->all(),
+            ];
+            $json = json_encode($snapshot, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $version = (int) DB::table('store_page_publications')->where('store_page_id', $page->id)->max('version') + 1;
+            DB::table('store_page_publications')->insert([
+                'store_page_id' => $page->id,
+                'store_id' => $page->store_id,
+                'version' => $version,
+                'snapshot' => $json,
+                'checksum' => hash('sha256', $json),
+                'published_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $page->status = 'published';
+            $page->published_at = now();
+            $page->save();
+        });
         $this->flush($page->store_id);
 
         return $page;
@@ -155,6 +181,7 @@ class StorePageService
                 'page' => $page->only(['title', 'slug', 'status', 'template', 'locale', 'seo']),
                 'sections' => $page->sections->map(fn (StorePageSection $s) => [
                     'type' => $s->type, 'settings' => $s->settings, 'reusable_section_id' => $s->reusable_section_id,
+                    'is_visible' => (bool) $s->is_visible,
                 ])->all(),
             ],
         ]);
@@ -179,6 +206,7 @@ class StorePageService
                     'settings' => $section['settings'] ?? [],
                     'reusable_section_id' => $section['reusable_section_id'] ?? null,
                     'position' => $position++,
+                    'is_visible' => $section['is_visible'] ?? true,
                 ]);
             }
         });

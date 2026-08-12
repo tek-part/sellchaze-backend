@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\ActivityLogsApiController;
 use App\Http\Controllers\Api\AdminDashboardApiController;
+use App\Http\Controllers\Api\AdminModerationController;
 use App\Http\Controllers\Api\AdminReportsApiController;
 use App\Http\Controllers\Api\AdminThemesController;
 use App\Http\Controllers\Api\ArticlesApiController;
@@ -14,47 +15,53 @@ use App\Http\Controllers\Api\CouponsApiController;
 use App\Http\Controllers\Api\CurrencySettingsApiController;
 use App\Http\Controllers\Api\DashboardApiController;
 use App\Http\Controllers\Api\DealsApiController;
-use App\Http\Controllers\Api\DomainMetricsApiController;
 use App\Http\Controllers\Api\DeliveriesApiController;
+use App\Http\Controllers\Api\DomainMetricsApiController;
 use App\Http\Controllers\Api\EmailLogsApiController;
 use App\Http\Controllers\Api\EmailSettingsApiController;
 use App\Http\Controllers\Api\EmailTemplatesApiController;
 use App\Http\Controllers\Api\EmployeesApiController;
+use App\Http\Controllers\Api\FeedController;
+use App\Http\Controllers\Api\FeedEventController;
+use App\Http\Controllers\Api\CommunityGroupController;
+use App\Http\Controllers\Api\CommunityMediaUploadController;
+use App\Http\Controllers\Api\CommunityReelController;
+use App\Http\Controllers\Api\FinancingRequestController;
+use App\Http\Controllers\Api\FollowController;
 use App\Http\Controllers\Api\GatewaysApiController;
 use App\Http\Controllers\Api\GoogleSettingsApiController;
 use App\Http\Controllers\Api\ImpersonationApiController;
 use App\Http\Controllers\Api\InventoryApiController;
+use App\Http\Controllers\Api\InvestmentOpportunityController;
 use App\Http\Controllers\Api\InvoicesApiController;
 use App\Http\Controllers\Api\LedgerApiController;
 use App\Http\Controllers\Api\MarketplaceThemesController;
 use App\Http\Controllers\Api\MerchantOrderController;
 use App\Http\Controllers\Api\MerchantReviewController;
 use App\Http\Controllers\Api\MerchantsApiController;
+use App\Http\Controllers\Api\MeSectorController;
 use App\Http\Controllers\Api\MonitoringApiController;
 use App\Http\Controllers\Api\NotificationsApiController;
+use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\OrderApiController;
 use App\Http\Controllers\Api\OrderQuotationsApiController;
 use App\Http\Controllers\Api\OrdersApiController;
+use App\Http\Controllers\Api\OrganizationFollowController;
 use App\Http\Controllers\Api\PartnersApiController;
+use App\Http\Controllers\Api\PlatformHealthController;
+use App\Http\Controllers\Api\PostCommentController;
+use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\ProductsApiController;
 use App\Http\Controllers\Api\PublicContactApiController;
 use App\Http\Controllers\Api\PublicProfileApiController;
-use App\Http\Controllers\Api\SuppliersDirectoryController;
-use App\Http\Controllers\Api\FeedController;
-use App\Http\Controllers\Api\FinancingRequestController;
-use App\Http\Controllers\Api\FollowController;
-use App\Http\Controllers\Api\InvestmentOpportunityController;
-use App\Http\Controllers\Api\OnboardingController;
-use App\Http\Controllers\Api\PostController;
-use App\Http\Controllers\Api\PostCommentController;
-use App\Http\Controllers\Api\SubscriptionController;
-use App\Http\Controllers\Api\MeSectorController;
 use App\Http\Controllers\Api\QuotationsApiController;
 use App\Http\Controllers\Api\RolesApiController;
 use App\Http\Controllers\Api\SettingsSummaryApiController;
 use App\Http\Controllers\Api\ShippingCompaniesApiController;
+use App\Http\Controllers\Api\SocialSafetyController;
 use App\Http\Controllers\Api\StockTransfersApiController;
 use App\Http\Controllers\Api\StoreAnalyticsController;
+use App\Http\Controllers\Api\StoreContentPagesApiController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
 use App\Http\Controllers\Api\Storefront\CartController;
 use App\Http\Controllers\Api\Storefront\CheckoutController;
@@ -72,14 +79,28 @@ use App\Http\Controllers\Api\Storefront\StoreOrderController;
 use App\Http\Controllers\Api\Storefront\WishlistController;
 use App\Http\Controllers\Api\StorefrontContextController;
 use App\Http\Controllers\Api\StoreMenusApiController;
-use App\Http\Controllers\Api\StoreContentPagesApiController;
 use App\Http\Controllers\Api\StorePagesApiController;
 use App\Http\Controllers\Api\StoreReusableSectionsApiController;
 use App\Http\Controllers\Api\StoresApiController;
 use App\Http\Controllers\Api\StoreThemesApiController;
+use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SuppliersApiController;
+use App\Http\Controllers\Api\SuppliersDirectoryController;
 use App\Http\Controllers\Api\TicketsApiController;
 use App\Http\Controllers\Api\UsersApiController;
+use App\Http\Controllers\Api\V2\OrganizationAuditExportController;
+use App\Http\Controllers\Api\V2\OrganizationConnectionController;
+use App\Http\Controllers\Api\V2\OrganizationController;
+use App\Http\Controllers\Api\V2\OrganizationDiscoveryController;
+use App\Http\Controllers\Api\V2\OrganizationMembershipController;
+use App\Http\Controllers\Api\V2\OrganizationStoreController;
+use App\Http\Controllers\Api\V2\OrganizationStorePublishingController;
+use App\Http\Controllers\Api\V2\OrganizationSubscriptionController;
+use App\Http\Controllers\Api\V2\PlanCatalogController;
+use App\Http\Controllers\Api\V2\ProcurementConversationController;
+use App\Http\Controllers\Api\V2\ProcurementOrderController;
+use App\Http\Controllers\Api\V2\ProcurementQuoteController;
+use App\Http\Controllers\Api\V2\ProcurementRequestController;
 use App\Http\Controllers\Api\VerificationsApiController;
 use App\Http\Controllers\Api\WarehousesApiController;
 use App\Http\Controllers\Api\Wavex\WavexCampaignsApiController;
@@ -102,8 +123,86 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
+Route::get('/health/live', [PlatformHealthController::class, 'live'])
+    ->middleware('throttle:60,1');
+Route::get('/health/ready', [PlatformHealthController::class, 'ready'])
+    ->middleware('throttle:60,1');
+
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
+});
+
+/*
+|--------------------------------------------------------------------------
+| API v2 — organization-scoped contracts
+|--------------------------------------------------------------------------
+|
+| v1 remains available during the incremental migration. Every tenant-owned
+| v2 resource is nested under an organization so authorization cannot rely on
+| a user-supplied organization_id in the request body.
+|
+*/
+Route::prefix('v2')->middleware(['jwt.auth', 'pending.restrict'])->group(function () {
+    Route::get('plans', PlanCatalogController::class);
+    Route::get('organizations', [OrganizationController::class, 'index']);
+    Route::get('directory/organizations', [OrganizationDiscoveryController::class, 'index']);
+    Route::get('directory/organizations/{organization:slug}', [OrganizationDiscoveryController::class, 'show']);
+    Route::post('organizations', [OrganizationController::class, 'store']);
+    Route::get('organizations/{organization}', [OrganizationController::class, 'show']);
+    Route::patch('organizations/{organization}', [OrganizationController::class, 'update']);
+    Route::get('organizations/{organization}/audit-export', OrganizationAuditExportController::class)
+        ->middleware('scope.organization.route');
+    Route::post('organizations/{organization}/posts', [PostController::class, 'store'])
+        ->name('v2.organization.posts.store')->middleware(['scope.organization.route', 'throttle:20,1']);
+    Route::prefix('organizations/{organization}/connections')->group(function () {
+        Route::get('/', [OrganizationConnectionController::class, 'index']);
+        Route::post('/', [OrganizationConnectionController::class, 'store'])->middleware('idempotent');
+        Route::post('{connection}/accept', [OrganizationConnectionController::class, 'accept'])->middleware('idempotent');
+        Route::post('{connection}/reject', [OrganizationConnectionController::class, 'reject'])->middleware('idempotent');
+    });
+
+    Route::get('organizations/{organization}/memberships', [OrganizationMembershipController::class, 'index']);
+    Route::post('organizations/{organization}/memberships', [OrganizationMembershipController::class, 'store']);
+    Route::patch('organizations/{organization}/memberships/{membership}', [OrganizationMembershipController::class, 'update']);
+    Route::delete('organizations/{organization}/memberships/{membership}', [OrganizationMembershipController::class, 'destroy']);
+
+    Route::get('organizations/{organization}/stores', [OrganizationStoreController::class, 'index']);
+    Route::post('organizations/{organization}/stores', [OrganizationStoreController::class, 'store']);
+    Route::get('organizations/{organization}/stores/{store}/readiness', [OrganizationStorePublishingController::class, 'readiness']);
+    Route::post('organizations/{organization}/stores/{store}/publish', [OrganizationStorePublishingController::class, 'publish']);
+    Route::post('organizations/{organization}/stores/{store}/unpublish', [OrganizationStorePublishingController::class, 'unpublish']);
+    Route::middleware(['scope.organization.route', 'store.scope'])->prefix('organizations/{organization}/stores/{store}')->group(function () {
+        Route::get('themes', [StoreThemesApiController::class, 'index']);
+        Route::post('themes/install', [StoreThemesApiController::class, 'install']);
+        Route::post('themes/activate', [StoreThemesApiController::class, 'activate']);
+        Route::post('themes/rollback', [StoreThemesApiController::class, 'rollback']);
+        Route::put('themes/settings', [StoreThemesApiController::class, 'settings']);
+        Route::put('themes/custom-css', [StoreThemesApiController::class, 'customCss']);
+        Route::get('page-drafts', [StorePagesApiController::class, 'index']);
+        Route::post('page-drafts', [StorePagesApiController::class, 'store']);
+        Route::get('page-drafts/schema', [StorePagesApiController::class, 'schema']);
+        Route::get('page-drafts/{page}', [StorePagesApiController::class, 'show']);
+        Route::put('page-drafts/{page}', [StorePagesApiController::class, 'update']);
+        Route::put('page-drafts/{page}/sections', [StorePagesApiController::class, 'syncSections']);
+        Route::post('page-drafts/{page}/preview', [StorePagesApiController::class, 'preview']);
+        Route::post('page-drafts/{page}/publications', [StorePagesApiController::class, 'publish']);
+        Route::get('page-drafts/{page}/revisions', [StorePagesApiController::class, 'revisions']);
+        Route::post('page-drafts/{page}/revisions/{revision}/restore', [StorePagesApiController::class, 'restoreRevision']);
+    });
+    Route::get('organizations/{organization}/subscription', [OrganizationSubscriptionController::class, 'show']);
+    Route::post('organizations/{organization}/subscription', [OrganizationSubscriptionController::class, 'store']);
+    Route::get('procurement/requests', [ProcurementRequestController::class, 'index']);
+    Route::post('procurement/requests', [ProcurementRequestController::class, 'store'])->middleware('idempotent');
+    Route::get('procurement/requests/{procurementRequest}', [ProcurementRequestController::class, 'show']);
+    Route::get('procurement/requests/{procurementRequest}/audit', [ProcurementRequestController::class, 'audit']);
+    Route::get('procurement/requests/{procurementRequest}/quotes/compare', [ProcurementQuoteController::class, 'compare']);
+    Route::post('procurement/requests/{procurementRequest}/quotes', [ProcurementQuoteController::class, 'store'])->middleware('idempotent');
+    Route::patch('procurement/requests/{procurementRequest}/quotes/{procurementQuote}', [ProcurementQuoteController::class, 'update'])->middleware('idempotent');
+    Route::post('procurement/requests/{procurementRequest}/quotes/{procurementQuote}/accept', [ProcurementQuoteController::class, 'accept'])->middleware('idempotent');
+    Route::post('procurement/requests/{procurementRequest}/conversation', [ProcurementConversationController::class, 'store'])->middleware('idempotent');
+    Route::get('procurement/orders', [ProcurementOrderController::class, 'index']);
+    Route::get('procurement/orders/{procurementOrder}', [ProcurementOrderController::class, 'show']);
+    Route::patch('procurement/orders/{procurementOrder}', [ProcurementOrderController::class, 'update']);
 });
 
 /** Wigpleasure → Sellchase: single-store sync; merchant resolved in OrderSyncService (no API key). */
@@ -156,10 +255,10 @@ Route::prefix('v1')->group(function () {
 
     // Phase 2: resolve the current Host to a store (subdomain-based). Storefront
     // rendering itself is Phase 3 — this only proves/exposes host resolution.
-    Route::middleware(['resolve.store', 'throttle:60,1'])->get('/storefront/resolve', StorefrontContextController::class);
+    Route::middleware(['resolve.store', 'throttle:storefront-read'])->get('/storefront/resolve', StorefrontContextController::class);
 
     // Phase 3: public storefront API (host-resolved, store-scoped, read-only).
-    Route::middleware(['resolve.store', 'throttle:180,1'])->prefix('storefront')->group(function () {
+    Route::middleware(['resolve.store', 'throttle:storefront-read'])->prefix('storefront')->group(function () {
         Route::get('/', [StorefrontController::class, 'index']);
         Route::get('home', [StorefrontController::class, 'home']);
         Route::get('context', [StorefrontController::class, 'context']);
@@ -242,22 +341,43 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/dashboard', DashboardApiController::class);
 
-        Route::get('/notifications', [NotificationsApiController::class, 'index']);
+        Route::get('/notifications', [NotificationsApiController::class, 'index'])->middleware('throttle:tenant-read');
         Route::post('/notifications/{id}/read', [NotificationsApiController::class, 'markRead']);
         Route::post('/notifications/read-all', [NotificationsApiController::class, 'markAllRead']);
 
         // ---- Community feed / wall (all registered users) ----
-        Route::get('/feed', [FeedController::class, 'index']);
-        Route::post('/posts', [PostController::class, 'store']);
+        Route::get('/feed', [FeedController::class, 'index'])->middleware('throttle:tenant-read');
+        Route::get('/reels', [CommunityReelController::class, 'index'])->middleware('throttle:tenant-read');
+        Route::post('/feed/events', [FeedEventController::class, 'batch'])->middleware('throttle:120,1');
+        Route::post('/posts', [PostController::class, 'store'])->middleware('throttle:20,1');
         Route::get('/posts/{post}', [PostController::class, 'show'])->whereNumber('post');
         Route::delete('/posts/{post}', [PostController::class, 'destroy'])->whereNumber('post');
         Route::post('/posts/{post}/like', [PostController::class, 'like'])->whereNumber('post');
         Route::delete('/posts/{post}/like', [PostController::class, 'unlike'])->whereNumber('post');
         Route::post('/posts/{post}/share', [PostController::class, 'share'])->whereNumber('post');
+        Route::post('/posts/{post}/save', [PostController::class, 'save'])->whereNumber('post');
+        Route::delete('/posts/{post}/save', [PostController::class, 'unsave'])->whereNumber('post');
+        Route::post('/posts/{post}/reaction', [PostController::class, 'react'])->whereNumber('post');
+        Route::delete('/posts/{post}/reaction', [PostController::class, 'unreact'])->whereNumber('post');
         Route::get('/posts/{post}/comments', [PostCommentController::class, 'index'])->whereNumber('post');
-        Route::post('/posts/{post}/comments', [PostCommentController::class, 'store'])->whereNumber('post');
+        Route::post('/posts/{post}/comments', [PostCommentController::class, 'store'])->whereNumber('post')->middleware('throttle:60,1');
         Route::delete('/posts/{post}/comments/{comment}', [PostCommentController::class, 'destroy'])
             ->whereNumber('post')->whereNumber('comment');
+
+        Route::prefix('community/media/uploads')->group(function () {
+            Route::post('/', [CommunityMediaUploadController::class, 'initiate'])->middleware('throttle:20,1');
+            Route::get('{upload}', [CommunityMediaUploadController::class, 'show']);
+            Route::post('{upload}/parts/{part}', [CommunityMediaUploadController::class, 'part'])->whereNumber('part')->middleware('throttle:240,1');
+            Route::post('{upload}/complete', [CommunityMediaUploadController::class, 'complete'])->middleware('idempotent');
+            Route::delete('{upload}', [CommunityMediaUploadController::class, 'destroy']);
+        });
+        Route::prefix('community/groups')->group(function () {
+            Route::get('/', [CommunityGroupController::class, 'index']);
+            Route::post('/', [CommunityGroupController::class, 'store'])->middleware('idempotent');
+            Route::get('{group}', [CommunityGroupController::class, 'show'])->whereNumber('group');
+            Route::post('{group}/join', [CommunityGroupController::class, 'join'])->whereNumber('group');
+            Route::delete('{group}/join', [CommunityGroupController::class, 'leave'])->whereNumber('group');
+        });
 
         // ---- Onboarding checklist (5 steps, derived from real state) ----
         Route::get('/me/onboarding', [OnboardingController::class, 'show']);
@@ -267,6 +387,13 @@ Route::prefix('v1')->group(function () {
         Route::delete('/follows/{user}', [FollowController::class, 'destroy'])->whereNumber('user');
         Route::get('/me/following', [FollowController::class, 'following']);
         Route::get('/me/follow-suggestions', [FollowController::class, 'suggestions']);
+        Route::post('/organizations/{organization}/follow', [OrganizationFollowController::class, 'store'])->whereNumber('organization');
+        Route::delete('/organizations/{organization}/follow', [OrganizationFollowController::class, 'destroy'])->whereNumber('organization');
+        Route::post('/users/{user}/{type}', [SocialSafetyController::class, 'relate'])
+            ->whereNumber('user')->whereIn('type', ['block', 'mute']);
+        Route::delete('/users/{user}/{type}', [SocialSafetyController::class, 'unrelate'])
+            ->whereNumber('user')->whereIn('type', ['block', 'mute']);
+        Route::post('/reports', [SocialSafetyController::class, 'report'])->middleware('throttle:10,1');
 
         // ---- Financing requests (factory funding board) ----
         // Any registered user may raise a request and browse the approved board.
@@ -352,7 +479,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/conversations', [ChatApiController::class, 'index']);
             Route::post('/conversations', [ChatApiController::class, 'store']);
             Route::get('/conversations/{id}/messages', [ChatApiController::class, 'messages'])->whereNumber('id');
-            Route::post('/conversations/{id}/messages', [ChatApiController::class, 'send'])->whereNumber('id');
+            Route::post('/conversations/{id}/messages', [ChatApiController::class, 'send'])->whereNumber('id')->middleware('throttle:60,1');
             Route::post('/conversations/{id}/read', [ChatApiController::class, 'read'])->whereNumber('id');
         });
 
@@ -554,6 +681,9 @@ Route::prefix('v1')->group(function () {
                 // POST alias mirrors store settings and works behind proxies
                 // that do not preserve PUT requests.
                 Route::match(['put', 'post'], 'settings', [StoreThemesApiController::class, 'settings']);
+                Route::match(['put', 'post'], 'custom-css', [StoreThemesApiController::class, 'customCss']);
+                Route::get('{theme}/revisions', [StoreThemesApiController::class, 'revisions'])->whereNumber('theme');
+                Route::post('{theme}/revisions/{revision}/restore', [StoreThemesApiController::class, 'restoreRevision'])->whereNumber('theme')->whereNumber('revision');
                 Route::get('{theme}', [StoreThemesApiController::class, 'show'])->whereNumber('theme');
             });
 
@@ -608,6 +738,9 @@ Route::prefix('v1')->group(function () {
 
         // ---- Admin theme administration (Phase 4D): publishing + assets ----
         Route::middleware('role:Admin')->group(function () {
+            Route::get('/admin/moderation/reports', [AdminModerationController::class, 'index']);
+            Route::post('/admin/moderation/reports/{report}/review', [AdminModerationController::class, 'review'])->whereNumber('report');
+            Route::post('/admin/organizations/{organization}/verification', [AdminModerationController::class, 'verifyOrganization'])->whereNumber('organization');
             Route::get('/admin/themes', [AdminThemesController::class, 'index']);
             Route::get('/admin/themes/{theme}/history', [AdminThemesController::class, 'history'])->whereNumber('theme');
             Route::post('/admin/themes/{theme}/transition', [AdminThemesController::class, 'transition'])->whereNumber('theme');

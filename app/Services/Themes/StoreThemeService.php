@@ -5,6 +5,7 @@ namespace App\Services\Themes;
 use App\Models\Store;
 use App\Models\StoreTheme;
 use App\Models\StoreThemeActivation;
+use App\Models\StoreThemeRevision;
 use App\Models\Theme;
 use App\Models\ThemeVersion;
 use App\Services\Storefront\StorefrontPageCache;
@@ -98,13 +99,19 @@ class StoreThemeService
     }
 
     /** Validate + persist settings for an install; refresh caches if it is active. */
-    public function updateSettings(StoreTheme $install, array $settings): StoreTheme
+    public function updateSettings(
+        StoreTheme $install,
+        array $settings,
+        ?int $actorId = null,
+        string $source = 'manual',
+    ): StoreTheme
     {
         $version = ThemeVersion::query()->find($install->theme_version_id);
         $schema = $version->settings_schema ?? [];
 
         $install->settings = $this->validator->coerce($settings, $schema);
         $install->save();
+        $this->recordRevision($install, $actorId, $source);
 
         if ($install->status === 'active') {
             $install->store?->forceFill(['theme_settings' => $install->settings])->save(); // triggers page-cache flush
@@ -116,6 +123,34 @@ class StoreThemeService
         }
 
         return $install;
+    }
+
+    public function restoreRevision(StoreTheme $install, StoreThemeRevision $revision, ?int $actorId = null): StoreTheme
+    {
+        if ($revision->store_theme_id !== $install->id || $revision->store_id !== $install->store_id) {
+            throw new RuntimeException('Theme revision does not belong to this install.');
+        }
+
+        return $this->updateSettings($install, $revision->settings ?? [], $actorId, 'restore');
+    }
+
+    private function recordRevision(StoreTheme $install, ?int $actorId, string $source): void
+    {
+        $settings = $install->settings ?? [];
+        ksort($settings);
+        $checksum = hash('sha256', json_encode($settings, JSON_THROW_ON_ERROR));
+        $latestChecksum = $install->revisions()->latest('id')->value('checksum');
+        if ($latestChecksum === $checksum) {
+            return;
+        }
+        $install->revisions()->create([
+            'store_id' => $install->store_id,
+            'theme_version_id' => $install->theme_version_id,
+            'created_by_user_id' => $actorId,
+            'source' => $source,
+            'settings' => $settings,
+            'checksum' => $checksum,
+        ]);
     }
 
     /**

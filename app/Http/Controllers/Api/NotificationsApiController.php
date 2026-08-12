@@ -44,7 +44,12 @@ class NotificationsApiController extends Controller
 
     public function markAllRead(Request $request): JsonResponse
     {
-        $request->user()->unreadNotifications->markAsRead();
+        $unread = $request->user()->unreadNotifications();
+        // Avoid hydrating every notification and avoid an empty UPDATE (which
+        // still takes a write lock on SQLite and creates needless DB traffic).
+        if ((clone $unread)->limit(1)->exists()) {
+            $unread->update(['read_at' => now()]);
+        }
 
         return response()->json([
             'message' => __('All notifications marked as read.'),

@@ -32,8 +32,10 @@
     @foreach(($seo['twitter'] ?? []) as $name => $content)<meta name="{{ $name }}" content="{{ $content }}">@endforeach
     @if(!empty($seo['json_ld']))<script type="application/ld+json">{!! json_encode($seo['json_ld'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>@endif
     @include('storefront.themes.modern._styles', ['s' => $s])
+    @if(!empty($theme['custom_css']))<style data-store-custom-css>{!! $theme['custom_css'] !!}</style>@endif
+    @if(!empty($theme['responsive_css']))<style data-responsive-section-css>{!! $theme['responsive_css'] !!}</style>@endif
 </head>
-<body data-rendered-by="blade" data-theme="{{ $theme['key'] ?? '' }}" data-theme-version="{{ $theme['version'] ?? '' }}">
+<body id="storefront-root" data-rendered-by="blade" data-theme="{{ $theme['key'] ?? '' }}" data-theme-version="{{ $theme['version'] ?? '' }}">
     @if($chrome)
     <input id="mod-search" class="mod-toggle" type="checkbox" aria-hidden="true">
     <input id="mod-cart" class="mod-toggle" type="checkbox" aria-hidden="true">
@@ -102,5 +104,6 @@
         </div>
     </footer>
     @endif
+    @include('storefront.studio-bridge')
 </body>
 </html>

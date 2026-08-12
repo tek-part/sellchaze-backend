@@ -52,6 +52,15 @@ class ThemeManifestValidationTest extends TestCase
         $this->assertSame([], $this->registry->validate($manifest));
     }
 
+    public function test_all_react_storefront_manifests_are_valid_and_keyed_consistently(): void
+    {
+        foreach (['luxury-fashion', 'voltage', 'hearth', 'rouge'] as $key) {
+            $manifest = json_decode(file_get_contents(resource_path("themes/storefront/{$key}.json")), true);
+            $this->assertSame($key, $manifest['key']);
+            $this->assertSame([], $this->registry->validate($manifest), "Invalid manifest: {$key}");
+        }
+    }
+
     public function test_missing_required_field_is_rejected(): void
     {
         $manifest = $this->validManifest();

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * A user's subscription to a plan (billing lifecycle). Matches the live
@@ -16,10 +17,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $plan_id
  * @property string $status
  * @property string $billing_cycle
- * @property \Illuminate\Support\Carbon|null $trial_ends_at
- * @property \Illuminate\Support\Carbon|null $current_period_start
- * @property \Illuminate\Support\Carbon|null $current_period_end
- * @property \Illuminate\Support\Carbon|null $cancelled_at
+ * @property Carbon|null $trial_ends_at
+ * @property Carbon|null $current_period_start
+ * @property Carbon|null $current_period_end
+ * @property Carbon|null $cancelled_at
  * @property string|null $gateway_slug
  * @property string|null $gateway_subscription_id
  * @property string|null $gateway_customer_id
@@ -31,7 +32,7 @@ class Subscription extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'user_id', 'plan_id', 'status', 'billing_cycle', 'trial_ends_at',
+        'organization_id', 'user_id', 'plan_id', 'status', 'billing_cycle', 'trial_ends_at',
         'current_period_start', 'current_period_end', 'cancelled_at',
         'gateway_slug', 'gateway_subscription_id', 'gateway_customer_id',
         'last_invoice_id', 'metadata',
@@ -58,6 +59,11 @@ class Subscription extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 
     /** @return HasMany<Invoice, $this> */

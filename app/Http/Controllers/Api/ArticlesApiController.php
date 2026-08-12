@@ -420,9 +420,9 @@ class ArticlesApiController extends Controller
         $site = rtrim((string) config('sellchase.frontend_url', env('FRONTEND_URL', 'https://b2b-sellcahase.wigpleasure.com')), '/');
         $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n";
         $xml .= '<rss version="2.0"><channel>';
-        $xml .= '<title>Sellchase Blog</title>';
+        $xml .= '<title>Sellchaze Blog</title>';
         $xml .= '<link>'.htmlspecialchars($site.'/blog', ENT_XML1).'</link>';
-        $xml .= '<description>Latest articles from Sellchase</description>';
+        $xml .= '<description>Latest articles from Sellchaze</description>';
         foreach ($articles as $a) {
             $l = $a->localized($lang);
             $xml .= '<item>';

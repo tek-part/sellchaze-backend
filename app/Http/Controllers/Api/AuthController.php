@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Organizations\OnboardSelfServiceAccountAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ChangePasswordRequest;
 use App\Http\Requests\ConnectGoogleRequest;
@@ -16,10 +17,12 @@ use App\Notifications\LoginAlertNotification;
 use App\Services\ActivityLogger;
 use App\Services\JwtTokenService;
 use App\Services\UserProfileSync;
+use App\Services\Users\RegistrationApprover;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Password;
@@ -29,6 +32,7 @@ use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
 use Intervention\Image\Facades\Image;
 use Laravel\Socialite\Facades\Socialite;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -450,39 +454,62 @@ class AuthController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', PasswordRule::defaults()],
             'registration_role' => ['required', Rule::in(['Staff', 'Supplier', 'Merchant'])],
+            'company_name' => ['nullable', 'string', 'max:160'],
+            'store_name' => ['nullable', 'string', 'max:160'],
         ]);
 
-        $approver = app(\App\Services\Users\RegistrationApprover::class);
+        $approver = app(RegistrationApprover::class);
         // Merchants and Suppliers are customers onboarding themselves, so they
         // start using the platform right away. Staff carries internal access and
         // still waits for an administrator.
         $selfService = $approver->isSelfServiceRole($data['registration_role']);
 
-        $user = User::query()->create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-            'email_verified_at' => now(),
-            'pending_approval' => true,
-            'registration_role' => $data['registration_role'],
-        ]);
+        DB::beginTransaction();
+        try {
+            $user = User::query()->create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'email_verified_at' => now(),
+                'pending_approval' => true,
+                'registration_role' => $data['registration_role'],
+            ]);
 
-        Profile::query()->create([
-            'user_id' => $user->id,
-            'username' => 'user_'.$user->id,
-            'gender' => 'male',
-            'active' => 0,
-            'private' => 0,
-            'online' => 1,
-        ]);
+            Profile::query()->create([
+                'user_id' => $user->id,
+                'username' => 'user_'.$user->id,
+                'gender' => 'male',
+                'active' => 0,
+                'private' => 0,
+                'online' => 1,
+            ]);
 
-        if ($selfService) {
-            $approver->approve(
-                $user,
-                (string) $approver->normalizeRole($data['registration_role']),
-                'user.self_registered',
-            );
-            $user->refresh();
+            if ($selfService) {
+                $approver->approve(
+                    $user,
+                    (string) $approver->normalizeRole($data['registration_role']),
+                    'user.self_registered',
+                );
+                $user->refresh();
+            }
+
+            $onboarding = null;
+            if ($selfService) {
+                $created = app(OnboardSelfServiceAccountAction::class)->execute(
+                    $user,
+                    trim((string) ($data['company_name'] ?? '')) ?: $user->name,
+                    trim((string) ($data['store_name'] ?? '')) ?: ($data['company_name'] ?? $user->name),
+                );
+                $onboarding = [
+                    'organization_id' => $created['organization']->id,
+                    'store_id' => $created['store']->id,
+                    'next' => "/stores/{$created['store']->id}/onboarding?organization={$created['organization']->id}",
+                ];
+            }
+            DB::commit();
+        } catch (Throwable $exception) {
+            DB::rollBack();
+            throw $exception;
         }
 
         $user->load('roles', 'permissions', 'profile');
@@ -500,6 +527,7 @@ class AuthController extends Controller
             'token_type' => 'Bearer',
             'expires_in' => JwtTokenService::accessTokenExpiresInSeconds(),
             'user' => new UserResource($user),
+            'onboarding' => $onboarding,
         ], 201);
     }
 
@@ -558,7 +586,7 @@ class AuthController extends Controller
             $identity = $this->resolveGoogleIdentity($data);
         } catch (ValidationException $e) {
             throw $e;
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return response()->json(['message' => __('Google authentication failed.')], 422);
         }
 

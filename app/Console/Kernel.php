@@ -14,6 +14,21 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
+        $schedule->command('outbox:publish --limit=200')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        $schedule->command('idempotency:prune')
+            ->dailyAt('01:45')
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        $schedule->command('operations:retention')
+            ->dailyAt('03:30')
+            ->withoutOverlapping()
+            ->onOneServer();
+
         // Phase 4E: publish scheduled storefront pages when their time arrives.
         $schedule->command('store-pages:publish-due')->everyMinute()->withoutOverlapping();
 

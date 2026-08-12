@@ -5,6 +5,7 @@ namespace App\Support\Feed;
 use App\Models\Post;
 use App\Models\PostComment;
 use App\Support\ProductImageUrl;
+use App\Support\Community\MediaPresenter;
 
 /**
  * Serialises feed posts and comments into the shape the frontend consumes. Kept as a small support
@@ -23,9 +24,17 @@ class PostPresenter
         return [
             'id' => $post->id,
             'type' => $post->type,
+            'format' => $post->format ?? 'post',
+            'lifecycle_status' => $post->lifecycle_status ?? 'published',
+            'audience' => $post->audience ?? 'public',
             'body' => $post->body,
             'attachments' => $post->attachments ?? [],
             'meta' => $post->meta ?? null,
+            'cta' => $post->cta_type ? ['type' => $post->cta_type, 'label' => $post->cta_label, 'url' => $post->cta_url] : null,
+            'comments_enabled' => (bool) ($post->comments_enabled ?? true),
+            'location_name' => $post->location_name,
+            'group' => $post->communityGroup ? ['id' => $post->communityGroup->id, 'name' => $post->communityGroup->name, 'slug' => $post->communityGroup->slug] : null,
+            'media' => $post->relationLoaded('media') ? $post->media->map(fn ($asset) => [...MediaPresenter::asset($asset), 'position' => $asset->pivot->position, 'role' => $asset->pivot->role, 'alt_text' => $asset->pivot->alt_text])->values()->all() : [],
             'created_at' => ($post->published_at ?? $post->created_at)?->toIso8601String(),
             'author' => $author ? [
                 'id' => $author->id,
@@ -37,6 +46,14 @@ class PostPresenter
                     ? asset('storage/uploads/users/original/'.$profile->photo)
                     : (! empty($author->avatar) ? $author->avatar : null),
             ] : null,
+            'acting_as' => $post->organization ? [
+                'type' => 'organization',
+                'id' => $post->organization->id,
+                'name' => $post->organization->name,
+                'slug' => $post->organization->slug,
+                'logo_url' => $post->organization->logo_url,
+                'is_verified' => (bool) $post->organization->is_verified,
+            ] : ['type' => 'user'],
             'sector' => $post->sector ? [
                 'slug' => $post->sector->slug,
                 'name' => $post->sector->nameLocalized($locale),
@@ -53,6 +70,9 @@ class PostPresenter
                 'shares' => (int) $post->shares_count,
             ],
             'liked' => (bool) ($post->liked ?? false),
+            'saved' => (bool) ($post->saved ?? false),
+            'reaction' => $post->getAttribute('viewer_reaction'),
+            'reaction_summary' => collect(['celebrate', 'insightful', 'support', 'interested'])->mapWithKeys(fn ($type) => [$type => (int) ($post->getAttribute($type.'_reactions_count') ?? 0)])->all(),
             'can_delete' => $viewerId !== null && $viewerId === (int) $post->user_id,
         ];
     }

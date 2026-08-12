@@ -11,11 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Proves the unified per-owner catalog isolation (ProductScope + HasStoreTenancy).
- *
- * The catalog is store-less (store_id = NULL) and owned by user_id. A store
- * surfaces exactly its owner's catalog; two stores with different owners can
- * never resolve each other's rows.
+ * Proves independent B2B and per-store catalog isolation.
  */
 class StoreScopeIsolationTest extends TestCase
 {
@@ -50,10 +46,10 @@ class StoreScopeIsolationTest extends TestCase
     private function seedCatalog(Store $store, int $count): void
     {
         $ownerId = $store->owner_user_id;
-        $cat = Category::create(['user_id' => $ownerId, 'name' => 'Shoes', 'slug' => "shoes-{$store->slug}", 'is_active' => true]);
+        $cat = Category::query()->withoutGlobalScopes()->create(['store_id' => $store->id, 'user_id' => $ownerId, 'name' => 'Shoes', 'slug' => "shoes-{$store->slug}", 'is_active' => true]);
         for ($i = 1; $i <= $count; $i++) {
-            Product::create([
-                'user_id' => $ownerId, 'category_id' => $cat->id,
+            Product::query()->withoutGlobalScopes()->create([
+                'store_id' => $store->id, 'user_id' => $ownerId, 'category_id' => $cat->id,
                 'name' => "{$store->slug} product {$i}", 'slug' => "{$store->slug}-p{$i}",
                 'price' => 10 * $i, 'is_active' => true,
             ]);
@@ -83,19 +79,18 @@ class StoreScopeIsolationTest extends TestCase
         app(CurrentStore::class)->set($this->a);
         $product = Product::create(['name' => 'New', 'slug' => 'new', 'price' => 5, 'is_active' => true]);
 
-        // Ownership follows the store's owner; the row stays store-less.
+        // Both owner and store are derived from the active store context.
         $this->assertSame((int) $this->a->owner_user_id, (int) $product->user_id);
-        $this->assertNull($product->store_id);
+        $this->assertSame($this->a->id, $product->store_id);
     }
 
     public function test_no_context_spans_the_store_less_b2b_catalog(): void
     {
         app(CurrentStore::class)->forget();
 
-        // With no tenant the store-less catalog is visible (the B2B surface);
-        // the controllers narrow it by user_id themselves.
-        $this->assertSame(8, Product::query()->count());
-        $this->assertSame(2, Category::query()->count());
+        // Store catalogs never leak into the store-less B2B surface.
+        $this->assertSame(0, Product::query()->count());
+        $this->assertSame(0, Category::query()->count());
     }
 
     public function test_store_relation_resolves_its_owner_catalog_without_context(): void
@@ -104,5 +99,24 @@ class StoreScopeIsolationTest extends TestCase
         $this->assertSame(3, $this->a->products()->count());
         $this->assertSame(5, $this->b->products()->count());
         $this->assertSame(1, $this->a->categories()->count());
+    }
+
+    public function test_two_stores_owned_by_the_same_user_keep_independent_catalogs(): void
+    {
+        $second = Store::create([
+            'owner_user_id' => $this->a->owner_user_id,
+            'owner_type' => 'merchant',
+            'name' => 'Nike Outlet',
+            'slug' => 'nike-outlet',
+            'currency' => 'USD',
+            'status' => 'active',
+        ]);
+        $this->seedCatalog($second, 2);
+
+        app(CurrentStore::class)->set($this->a);
+        $this->assertSame(3, Product::query()->count());
+        app(CurrentStore::class)->set($second);
+        $this->assertSame(2, Product::query()->count());
+        $this->assertFalse(Product::query()->where('store_id', $this->a->id)->exists());
     }
 }

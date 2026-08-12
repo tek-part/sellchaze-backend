@@ -6,8 +6,9 @@ use App\Models\AuthSession;
 use App\Services\JwtTokenService;
 use Closure;
 use Illuminate\Http\Request;
-use Throwable;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class AuthenticateJwt
 {
@@ -42,8 +43,13 @@ class AuthenticateJwt
 
         auth()->setUser($user);
         $request->setUserResolver(fn () => $user);
+        $request->attributes->set('jwt_organization_id', $jwt->accessOrganizationId($token));
         $sessionId = $jwt->accessSessionId($token);
-        if (is_string($sessionId) && $sessionId !== '') {
+        // Session telemetry must not turn every authenticated GET into a database
+        // write. Touch at most once per five-minute window; revocation remains
+        // governed by the short-lived access token and refresh-session checks.
+        if (is_string($sessionId) && $sessionId !== ''
+            && Cache::add('auth_session_touch:'.$sessionId, true, now()->addMinutes(5))) {
             AuthSession::query()
                 ->where('id', $sessionId)
                 ->whereNull('revoked_at')

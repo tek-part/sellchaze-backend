@@ -10,7 +10,7 @@
     $id = (string) ($p['id'] ?? 0);
     $sku = 'SC-' . str_pad($id, 5, '0', STR_PAD_LEFT);
     $specs = [
-        ['العلامة التجارية', $p['category']['name'] ?? 'SellChase'],
+        ['العلامة التجارية', $p['category']['name'] ?? 'Sellchaze'],
         ['الحالة', 'جديد'],
         ['رقم المنتج (SKU)', $sku],
         ['الباركود', '628' . str_pad($id, 10, '0', STR_PAD_LEFT)],

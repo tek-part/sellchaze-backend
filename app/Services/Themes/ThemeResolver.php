@@ -56,6 +56,7 @@ class ThemeResolver
             'sections_schema' => $version->sections_schema ?? [],
             'templates' => $version->templates ?? [],
             'bundle_url' => $version->bundle_url,
+            'custom_css' => $active?->custom_css,
         ];
     }
 
@@ -77,6 +78,7 @@ class ThemeResolver
             'sections_schema' => $version->sections_schema ?? [],
             'templates' => $version->templates ?? [],
             'bundle_url' => $version->bundle_url,
+            'custom_css' => $install->custom_css,
         ];
     }
 
@@ -94,6 +96,7 @@ class ThemeResolver
             'sections_schema' => $version->sections_schema ?? [],
             'templates' => $version->templates ?? [],
             'bundle_url' => $version->bundle_url,
+            'custom_css' => null,
         ];
     }
 
@@ -122,6 +125,7 @@ class ThemeResolver
                 'category' => ['sections' => [['type' => 'category-header'], ['type' => 'product-grid']]],
             ],
             'bundle_url' => null,
+            'custom_css' => null,
         ];
     }
 }

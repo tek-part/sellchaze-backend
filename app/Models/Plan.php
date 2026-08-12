@@ -54,6 +54,18 @@ class Plan extends Model
         return $this->hasMany(Subscription::class);
     }
 
+    /** @return HasMany<PlanEntitlement, $this> */
+    public function entitlementValues(): HasMany
+    {
+        return $this->hasMany(PlanEntitlement::class);
+    }
+
+    /** @return HasMany<PlanPrice, $this> */
+    public function prices(): HasMany
+    {
+        return $this->hasMany(PlanPrice::class);
+    }
+
     public function scopeActive($q)
     {
         return $q->where('is_active', true);

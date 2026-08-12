@@ -30,6 +30,9 @@ class PostCommentController extends Controller
 
     public function store(Request $request, Post $post): JsonResponse
     {
+        if (! $post->comments_enabled) {
+            return response()->json(['message' => 'Comments are disabled for this post.'], 422);
+        }
         $data = $request->validate([
             'body' => ['required', 'string', 'max:5000'],
             'parent_id' => ['nullable', 'integer', 'exists:post_comments,id'],

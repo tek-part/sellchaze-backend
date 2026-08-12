@@ -88,7 +88,7 @@ class CheckoutController extends Controller
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
             'coupon' => ['code' => $coupon->code, 'type' => $coupon->type, 'value' => $coupon->value],
-            'totals' => $this->pricing->totals($subtotal, $discount),
+            'totals' => $this->pricing->forStore($store, $subtotal, $discount),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -103,7 +103,7 @@ class CheckoutController extends Controller
 
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
-            'totals' => $this->pricing->totals($cart->subtotal()),
+            'totals' => $this->pricing->forStore($store, $cart->subtotal()),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 }

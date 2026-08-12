@@ -41,13 +41,14 @@ class StorefrontContextBuilder
         // an N+1 where each reusable section would otherwise lazy-load on render.
         $page->loadMissing('sections.reusable');
 
-        $rawSections = $page->sections->map(fn (StorePageSection $s) => $this->expandSection($s))->all();
+        $rawSections = $page->sections->where('is_visible', true)->map(fn (StorePageSection $s) => $this->expandSection($s))->all();
         $pageSections = $this->sections->resolveSections($theme['sections_schema'], $rawSections);
+        $responsiveCss = $this->sections->responsiveCss($theme['sections_schema'], $pageSections);
 
         return [
             'store' => $this->storeSummary($store),
             'seo' => $this->seo->forPage($store, $page),
-            'theme' => $this->themeBlock($theme),
+            'theme' => [...$this->themeBlock($theme), 'responsive_css' => $responsiveCss],
             'page' => [
                 'template' => $page->template,
                 'slug' => $page->slug,
@@ -63,12 +64,13 @@ class StorefrontContextBuilder
     {
         if ($section->reusable_section_id && $section->reusable) {
             return [
+                'id' => (string) $section->id,
                 'type' => $section->reusable->type,
                 'settings' => array_merge($section->reusable->settings ?? [], $section->settings ?? []),
             ];
         }
 
-        return ['type' => $section->type, 'settings' => $section->settings ?? []];
+        return ['id' => (string) $section->id, 'type' => $section->type, 'settings' => $section->settings ?? []];
     }
 
     private function commonData(Store $store): array
@@ -103,6 +105,7 @@ class StorefrontContextBuilder
             'theme_version_id' => $theme['theme_version_id'],
             'bundle_url' => $theme['bundle_url'] ?? null,
             'settings' => $theme['settings'],
+            'custom_css' => $theme['custom_css'] ?? null,
         ];
     }
 

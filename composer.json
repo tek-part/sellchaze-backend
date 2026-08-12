@@ -5,26 +5,26 @@
     "keywords": ["framework", "laravel"],
     "license": "MIT",
     "require": {
-        "php": "^8.1",
-        "guzzlehttp/guzzle": "^7.2",
+        "php": "^8.2",
+        "guzzlehttp/guzzle": "^7.15.2 || ^8.0.1",
         "intervention/image": "^2.5",
-        "laravel-notification-channels/telegram": "^5.0",
-        "laravel/framework": "^11.0",
+        "laravel-notification-channels/telegram": "^7.0",
+        "laravel/framework": "^12.66",
         "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.25",
-        "laravel/tinker": "^2.8",
+        "laravel/tinker": "^3.0",
         "openspout/openspout": "^4.28",
-        "predis/predis": "^2.3",
+        "predis/predis": "3.0",
         "pusher/pusher-php-server": "^7.2",
+        "rinvex/countries": "^9.0",
+        "spatie/laravel-html": "^3.7",
+        "spatie/laravel-permission": "^6.0",
         "symfony/clock": "^7.0",
         "symfony/css-selector": "^7.0",
         "symfony/event-dispatcher": "^7.0",
         "symfony/string": "^7.0",
         "symfony/translation": "^7.0",
-        "symfony/yaml": "^7.0",
-        "rinvex/countries": "^9.0",
-        "spatie/laravel-html": "^3.7",
-        "spatie/laravel-permission": "^6.0"
+        "symfony/yaml": "^7.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",
@@ -32,8 +32,8 @@
         "laravel/pint": "^1.0",
         "laravel/sail": "^1.18",
         "mockery/mockery": "^1.4.4",
-        "nunomaduro/collision": "^8.1",
-        "phpunit/phpunit": "^10.0",
+        "nunomaduro/collision": "^8.9",
+        "phpunit/phpunit": "^11.5.50",
         "spatie/laravel-ignition": "^2.0"
     },
     "autoload": {
@@ -49,6 +49,8 @@
         }
     },
     "scripts": {
+        "performance": "@php scripts/performance-load.php",
+        "performance:cluster": "node scripts/performance-cluster.mjs",
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"

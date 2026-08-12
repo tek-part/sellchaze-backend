@@ -1,0 +1,487 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:role\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Console/Commands/SellchaseRepairOrderSuppliersCommand.php
+
+		-
+			message: '#^Cannot access property \$name on int\<0, max\>\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Console/Commands/SellchaseRepairOrderSuppliersCommand.php
+
+		-
+			message: '#^Function str_replace invoked with 2 parameters, 3\-4 required\.$#'
+			identifier: arguments.count
+			count: 1
+			path: app/Core/Theme.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Order\:\:\$count\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Events/DashboardStatsUpdated.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Order\:\:\$date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Events/DashboardStatsUpdated.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Message\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Events/MessageSent.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 6
+			path: app/Helpers/Helpers.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$profile\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Helpers/Helpers.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\User\>\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Helpers/Helpers.php
+
+		-
+			message: '#^Function generateProfle\(\) should return Illuminate\\Http\\Response but return statement is missing\.$#'
+			identifier: return.missing
+			count: 1
+			path: app/Helpers/Helpers.php
+
+		-
+			message: '#^Function generateProfle\(\) should return Illuminate\\Http\\Response but returns false\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Helpers/Helpers.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Order\:\:\$c\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/AdminReportsApiController.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Http/Controllers/Api/ArticlesApiController.php
+
+		-
+			message: '#^Call to an undefined method Laravel\\Socialite\\Contracts\\Provider\:\:stateless\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Api/AuthController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Conversation\:\:\$latestMessage\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/ChatApiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Conversation\:\:\$participants\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/ChatApiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Conversation\:\:\$users\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/ChatApiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Message\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/ChatApiController.php
+
+		-
+			message: '#^Anonymous function has an unused use \$me\.$#'
+			identifier: closure.unusedUse
+			count: 1
+			path: app/Http/Controllers/Api/ChatApiController.php
+
+		-
+			message: '#^Relation ''latestMessage'' is not found in App\\Models\\Conversation model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Api/ChatApiController.php
+
+		-
+			message: '#^Relation ''participants'' is not found in App\\Models\\Conversation model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/Api/ChatApiController.php
+
+		-
+			message: '#^Relation ''user'' is not found in App\\Models\\Message model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Api/ChatApiController.php
+
+		-
+			message: '#^Relation ''users'' is not found in App\\Models\\Conversation model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Api/ChatApiController.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Http/Controllers/Api/GoogleSettingsApiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Invoice\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/InvoicesApiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\User\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/MerchantsApiController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Http/Controllers/Api/PartnersApiController.php
+
+		-
+			message: '#^Call to static method create\(\) on an unknown class App\\Models\\Ticket\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Http/Controllers/Api/PublicContactApiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\User\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/SuppliersApiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\User\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/SuppliersApiController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Relations\\Pivot\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/SuppliersApiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\User\:\:\$city\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/SuppliersDirectoryController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$slug\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/SuppliersDirectoryController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:nameLocalized\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Api/SuppliersDirectoryController.php
+
+		-
+			message: '#^PHPDoc tag @param references unknown parameter\: \$extra$#'
+			identifier: parameter.notFound
+			count: 1
+			path: app/Http/Controllers/Api/SuppliersDirectoryController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TicketAction\:\:\$performer\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/TicketsApiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TicketMessage\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Api/TicketsApiController.php
+
+		-
+			message: '#^Cannot access property \$email on int\<0, max\>\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/TicketsApiController.php
+
+		-
+			message: '#^Cannot access property \$name on int\<0, max\>\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/TicketsApiController.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/Api/Wavex/WavexSettingsApiController.php
+
+		-
+			message: '#^Call to an undefined static method Illuminate\\Support\\Facades\\Auth\:\:User\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Http/Controllers/AttributeController.php
+
+		-
+			message: '#^Property App\\Models\\Profile\:\:\$active \(bool\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Http/Controllers/Auth/AuthenticatedSessionController.php
+
+		-
+			message: '#^Property App\\Models\\Profile\:\:\$online \(bool\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 3
+			path: app/Http/Controllers/Auth/AuthenticatedSessionController.php
+
+		-
+			message: '#^Property App\\Models\\Profile\:\:\$private \(bool\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Http/Controllers/Auth/AuthenticatedSessionController.php
+
+		-
+			message: '#^Property App\\Models\\Profile\:\:\$online \(bool\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Http/Controllers/Auth/GoogleAuthController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/BalanceController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Order\:\:\$count\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Order\:\:\$date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/NotificationController.php
+
+		-
+			message: '#^Property App\\Models\\OrderSuppliers\:\:\$seen \(bool\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Http/Controllers/OrderController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/ProductController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/ProfileController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\User\>\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ProfileController.php
+
+		-
+			message: '#^Property App\\Models\\Profile\:\:\$active \(bool\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 2
+			path: app/Http/Controllers/ProfileController.php
+
+		-
+			message: '#^Property App\\Models\\Profile\:\:\$online \(bool\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Http/Controllers/ProfileController.php
+
+		-
+			message: '#^Property App\\Models\\Profile\:\:\$private \(bool\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 2
+			path: app/Http/Controllers/ProfileController.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 5
+			path: app/Http/Controllers/SettingsController.php
+
+		-
+			message: '#^Call to static method where\(\) on an unknown class App\\Models\\ProductAtttributes\.$#'
+			identifier: class.notFound
+			count: 2
+			path: app/Http/Controllers/UserController.php
+
+		-
+			message: '#^Property App\\Models\\Profile\:\:\$active \(bool\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 2
+			path: app/Http/Controllers/UserController.php
+
+		-
+			message: '#^Method App\\Http\\Middleware\\Authenticate\:\:redirectTo\(\) should return string\|null but return statement is missing\.$#'
+			identifier: return.missing
+			count: 1
+			path: app/Http/Middleware/Authenticate.php
+
+		-
+			message: '#^Cannot access property \$profile on object\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Http/Requests/UpdateStaffUserRequest.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Storefront\\ProductReviewResource\:\:\$cons\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Storefront/ProductReviewResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Storefront\\ProductReviewResource\:\:\$pros\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Storefront/ProductReviewResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Storefront\\StorefrontProductVariantResource\:\:\$compare_price\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Storefront/StorefrontProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Storefront\\StorefrontProductVariantResource\:\:\$image\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Storefront/StorefrontProductVariantResource.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Jobs/ProcessWavexCampaignStepJob.php
+
+		-
+			message: '#^Relation ''participants'' is not found in App\\Models\\Conversation model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Models/Conversation.php
+
+		-
+			message: '#^Cannot call method isPast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/Invitation.php
+
+		-
+			message: '#^Unsafe usage of new static\(\)\.$#'
+			identifier: new.static
+			count: 1
+			path: app/Models/Invitation.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Message\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Notifications/NewMessageNotification.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Notifications/NewMessageNotification.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 1
+			path: app/Notifications/UserCreated.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 2
+			path: app/Providers/AppServiceProvider.php
+
+		-
+			message: '#^Call to static method directive\(\) on an unknown class App\\Providers\\Blade\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Providers/ViewServiceProvider.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Order\:\:\$count\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/DashboardStatsService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Order\:\:\$date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/DashboardStatsService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TicketMessage\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/EmailTemplateService.php
+
+		-
+			message: '#^Variable \$payload on left side of \?\? is never defined\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/Services/OrderSyncService.php
+
+		-
+			message: '#^Property App\\Models\\StorePage\:\:\$publish_at \(Carbon\\Carbon\|null\) does not accept DateTimeInterface\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Services/PageBuilder/StorePageService.php
+
+		-
+			message: '#^Cannot access property \$timestamp on string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Support/Wavex/ThreadMessageNormalizer.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Support/Wavex/ThreadMessageNormalizer.php

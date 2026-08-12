@@ -7,7 +7,7 @@
     $total = $d['total'] ?? count($products);
     $pmin = $d['price_min'] ?? 0;
     $pmax = $d['price_max'] ?? 0;
-    $brands = ['SellChase', 'Aura', 'Lumen', 'Nova', 'Verde'];
+    $brands = ['Sellchaze', 'Aura', 'Lumen', 'Nova', 'Verde'];
     $sorts = ['الأحدث', 'الأكثر مبيعاً', 'السعر: من الأقل', 'السعر: من الأعلى', 'الأعلى تقييماً'];
     $chips = array_values(array_filter([$cat['name'] ?? null, '★★★★☆ فأكثر', 'حتى ' . $pmax . ' ' . $cur]));
 @endphp

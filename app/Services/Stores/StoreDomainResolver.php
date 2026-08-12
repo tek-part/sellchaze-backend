@@ -128,7 +128,7 @@ class StoreDomainResolver
         }
 
         $store = Store::find($payload['store_id']);
-        if ($store === null) {
+        if ($store === null || $store->status !== 'active') {
             Cache::forget(self::cacheKey($host)); // store vanished; drop stale mapping
 
             return null;
@@ -161,21 +161,21 @@ class StoreDomainResolver
         $store = null;
         if ($configured) {
             $store = is_numeric($configured)
-                ? Store::query()->find($configured)
-                : Store::query()->where('slug', $configured)->first();
+                ? Store::query()->where('status', 'active')->find($configured)
+                : Store::query()->where('status', 'active')->where('slug', $configured)->first();
         }
 
         // Otherwise prefer a store whose owner actually has an active catalogue, so the dev
         // storefront isn't an empty shell; fall back to the first store as a last resort.
         if ($store === null) {
-            $store = Store::query()->get()->first(function (Store $s): bool {
+            $store = Store::query()->where('status', 'active')->get()->first(function (Store $s): bool {
                 return $s->owner_user_id !== null && Product::query()
                     ->withoutGlobalScope(ProductScope::class)
                     ->where('user_id', $s->owner_user_id)
                     ->whereNull('store_id')
                     ->where('is_active', true)
                     ->exists();
-            }) ?? Store::query()->orderBy('id')->first();
+            }) ?? Store::query()->where('status', 'active')->orderBy('id')->first();
         }
 
         return $store !== null ? new ResolvedStore($store, $host, $host, false) : null;
@@ -192,7 +192,7 @@ class StoreDomainResolver
                 return null; // never serve a reserved label, even if a row exists
             }
             $store = $domain->store;
-            if ($store === null) {
+            if ($store === null || $store->status !== 'active') {
                 return null;
             }
             $canonical = $this->canonicalHostFor($store) ?? $host;
@@ -205,7 +205,7 @@ class StoreDomainResolver
         if ($label === null || $this->isReservedLabel($label)) {
             return null;
         }
-        $store = Store::query()->where('slug', $label)->first();
+        $store = Store::query()->where('status', 'active')->where('slug', $label)->first();
         if ($store === null) {
             return null;
         }

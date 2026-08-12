@@ -49,7 +49,7 @@ class AddAntiSpamMailHeaders
             }
 
             if (! $headers->has('X-Mailer')) {
-                $headers->addTextHeader('X-Mailer', 'Sellchase-Platform/1.0');
+                $headers->addTextHeader('X-Mailer', 'Sellchaze-Platform/1.0');
             }
 
             if (! $headers->has('Auto-Submitted')) {

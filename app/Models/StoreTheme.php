@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A per-store theme install. Intentionally NOT using BelongsToStore/StoreScope:
@@ -41,5 +42,11 @@ class StoreTheme extends Model
     public function version(): BelongsTo
     {
         return $this->belongsTo(ThemeVersion::class, 'theme_version_id');
+    }
+
+    /** @return HasMany<StoreThemeRevision, $this> */
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(StoreThemeRevision::class);
     }
 }

@@ -14,7 +14,7 @@ Location (first-party): `resources/themes/{key}/theme.json`.
 | `key` | string | ✅ | Unique slug, `^[a-z0-9-]+$`. Immutable identity. |
 | `name` | string | ✅ | Display name. |
 | `version` | string | ✅ | Semver `MAJOR.MINOR.PATCH`. Immutable once published. |
-| `author` | string | — | e.g. `Sellchase`. |
+| `author` | string | — | e.g. `Sellchaze`. |
 | `category` | string | — | Grouping for the (future) marketplace. |
 | `min_platform_version` | string | — | Semver compatibility floor. |
 | `preview_image` | string\|null | — | Preview asset URL. |

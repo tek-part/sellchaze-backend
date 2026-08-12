@@ -43,10 +43,10 @@ class StorefrontRuntimeTest extends TestCase
             'currency' => 'USD', 'status' => 'active',
         ]);
         StoreDomain::create(['store_id' => $store->id, 'host' => "{$slug}.sellchase.com", 'type' => 'subdomain', 'is_primary' => true]);
-        $cat = Category::create(['user_id' => $store->owner_user_id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
+        $cat = Category::create(['store_id' => $store->id, 'user_id' => $store->owner_user_id, 'name' => 'Shoes', 'slug' => 'shoes', 'is_active' => true]);
         foreach ($products as $i => $p) {
             Product::create([
-                'user_id' => $store->owner_user_id, 'category_id' => $cat->id,
+                'store_id' => $store->id, 'user_id' => $store->owner_user_id, 'category_id' => $cat->id,
                 'name' => $p, 'slug' => Str::slug($p), 'price' => 100 + $i,
                 'is_active' => true, 'is_featured' => true,
             ]);
@@ -64,6 +64,15 @@ class StorefrontRuntimeTest extends TestCase
             ->assertJsonPath('theme.key', 'default')
             ->assertJsonPath('page.template', 'home')
             ->assertJsonStructure(['store', 'seo', 'theme' => ['settings'], 'page' => ['sections'], 'data']);
+    }
+
+    public function test_storefront_bootstrap_returns_the_active_theme_and_settings(): void
+    {
+        $this->getJson('http://nike.sellchase.com/api/v1/storefront')
+            ->assertOk()
+            ->assertJsonPath('theme.key', 'default')
+            ->assertJsonPath('theme.version', '1.0.0')
+            ->assertJsonStructure(['theme' => ['settings']]);
     }
 
     public function test_context_api_is_tenant_isolated(): void
@@ -137,6 +146,33 @@ class StorefrontRuntimeTest extends TestCase
             ->assertOk() // still renders — never a 500
             ->assertSee('data-rendered-by="blade"', false)
             ->assertSee('Air Max');
+    }
+
+    public function test_sanitized_custom_css_is_rendered_inside_the_scoped_server_shell(): void
+    {
+        $store = Store::query()->where('slug', 'nike')->firstOrFail();
+        $store->activeStoreTheme()->firstOrFail()->update([
+            'custom_css' => '#storefront-root .card{border-radius:24px}',
+        ]);
+
+        $this->get('http://nike.sellchase.com/')
+            ->assertOk()
+            ->assertSee('id="storefront-root"', false)
+            ->assertSee('data-store-custom-css', false)
+            ->assertSee('#storefront-root .card{border-radius:24px}', false);
+    }
+
+    public function test_public_storefront_emits_edge_cache_and_invalidation_contract_headers(): void
+    {
+        $response = $this->get('http://nike.sellchase.com/')->assertOk();
+        $cacheControl = (string) $response->headers->get('Cache-Control');
+        foreach (['public', 'max-age=60', 's-maxage=300', 'stale-while-revalidate=86400', 'stale-if-error=86400'] as $directive) {
+            $this->assertStringContainsString($directive, $cacheControl);
+        }
+        $response->assertHeader('Vary', 'Accept-Encoding, Accept-Language');
+        $this->assertStringContainsString('store-', (string) $response->headers->get('Surrogate-Key'));
+        $this->assertMatchesRegularExpression('/^"[a-f0-9]{64}"$/', (string) $response->headers->get('ETag'));
+        $response->assertHeader('X-Storefront-Renderer', 'blade-fallback');
     }
 
     // ---- Task 2: reusable sections eager-loaded (no N+1 on public render) ----

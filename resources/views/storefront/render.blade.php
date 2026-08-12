@@ -21,7 +21,7 @@
     @if(!empty($seo['json_ld']))
         <script type="application/ld+json">{!! json_encode($seo['json_ld'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
     @endif
-    <style>
+    <style data-critical-css="fallback">
         body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;color:#0f172a;background:#f8fafc}
         .wrap{max-width:960px;margin:0 auto;padding:24px}
         header{border-bottom:1px solid #e2e8f0;background:#fff}
@@ -29,9 +29,12 @@
         .card{border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:14px}
         .muted{color:#64748b;font-size:14px}.price{font-weight:600}
         a{color:#2563eb;text-decoration:none}nav a{margin-inline-end:16px}
+        [data-studio-selected="true"]{outline:2px solid #0d8795;outline-offset:2px}
     </style>
+    @if(!empty($theme['custom_css']))<style data-store-custom-css>{!! $theme['custom_css'] !!}</style>@endif
+    @if(!empty($theme['responsive_css']))<style data-responsive-section-css>{!! $theme['responsive_css'] !!}</style>@endif
 </head>
-<body data-rendered-by="blade" data-theme="{{ $theme['key'] }}" data-theme-version="{{ $theme['version'] }}">
+<body id="storefront-root" data-rendered-by="blade" data-theme="{{ $theme['key'] }}" data-theme-version="{{ $theme['version'] }}">
     <header>
         <div class="wrap">
             <h1 style="margin:0">{{ $store->name }}</h1>
@@ -49,7 +52,7 @@
     </header>
     <main class="wrap">
         @foreach($context['page']['sections'] as $section)
-            @includeIf('storefront.sections.'.$section['type'], ['section' => $section, 'ctx' => $context, 'store' => $store, 'data' => $data])
+            <div data-studio-section-id="{{ $section['id'] ?? '' }}">@includeIf('storefront.sections.'.$section['type'], ['section' => $section, 'ctx' => $context, 'store' => $store, 'data' => $data])</div>
         @endforeach
     </main>
     @php($footerMenu = $context['navigation']['footer'] ?? [])
@@ -62,5 +65,6 @@
         <hr style="border:none;border-top:1px solid #e2e8f0">
         <p>{{ $store->name }} @if($store->email)· {{ $store->email }}@endif @if($store->phone)· {{ $store->phone }}@endif</p>
     </footer>
+    @include('storefront.studio-bridge')
 </body>
 </html>

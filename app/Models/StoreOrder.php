@@ -9,6 +9,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Phase 5: a storefront order. Separate from the legacy B2B Order model.
+ *
+ * @property string $subtotal
+ * @property string $shipping_total
+ * @property string $discount_total
+ * @property string $tax_total
+ * @property string $grand_total
  */
 class StoreOrder extends Model
 {
@@ -19,7 +25,7 @@ class StoreOrder extends Model
     protected $fillable = [
         'store_id', 'store_customer_id', 'order_number', 'status', 'currency',
         'customer_name', 'customer_email', 'customer_phone', 'shipping_address',
-        'subtotal', 'shipping_total', 'discount_total', 'grand_total', 'notes',
+        'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'notes',
         'placed_at', 'cancelled_at',
     ];
 
@@ -28,6 +34,7 @@ class StoreOrder extends Model
         'subtotal' => 'decimal:2',
         'shipping_total' => 'decimal:2',
         'discount_total' => 'decimal:2',
+        'tax_total' => 'decimal:2',
         'grand_total' => 'decimal:2',
         'placed_at' => 'datetime',
         'cancelled_at' => 'datetime',

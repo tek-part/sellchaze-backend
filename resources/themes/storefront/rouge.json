@@ -1,0 +1,40 @@
+{
+  "key": "rouge",
+  "name": "Rouge — Luminous Beauty",
+  "version": "1.0.0",
+  "author": "Sellchaze Studio",
+  "category": "beauty",
+  "description": "Editorial luxury beauty with rouge, gilded-rose and luminous porcelain tones.",
+  "is_marketplace": true,
+  "is_featured": true,
+  "min_platform_version": "1.0.0",
+  "supported_features": ["rtl", "dark-mode", "wishlist", "reviews", "lookbook", "instagram"],
+  "bundle_url": "builtin:rouge@1.0.0",
+  "changelog": "Initial Sellchaze storefront release.",
+  "settings_schema": [
+    {"id":"appearance","label":"Appearance","fields":[
+      {"id":"color_scheme","type":"select","label":"Colour scheme","default":"light","options":["light","dark","auto"]},
+      {"id":"primary_color","type":"color","label":"Rouge","default":"#B23052"},
+      {"id":"accent_color","type":"color","label":"Gilded rose","default":"#C79A6D"},
+      {"id":"sale_color","type":"color","label":"Sale colour","default":"#E4577E"},
+      {"id":"glow_enabled","type":"toggle","label":"Aura glow","default":true}
+    ]},
+    {"id":"commerce","label":"Commerce","fields":[
+      {"id":"product_card_shades","type":"toggle","label":"Product shade dots","default":true},
+      {"id":"free_ship_threshold","type":"number","label":"Free shipping threshold","default":50,"min":0,"max":500}
+    ]},
+    {"id":"layout","label":"Layout","fields":[
+      {"id":"container_width","type":"range","label":"Content width","default":1440,"min":1200,"max":1600}
+    ]}
+  ],
+  "sections_schema": {
+    "hero":{"label":"Hero","settings":[{"id":"section_spacing","type":"range","label":"Vertical spacing","default":88,"min":0,"max":240,"step":4,"responsive":true,"css_property":"padding-block"}]},"category-list":{"label":"Categories","settings":[]},
+    "product-grid":{"label":"Products","settings":[]},"category-header":{"label":"Category header","settings":[]},
+    "product-details":{"label":"Product details","settings":[]}
+  },
+  "templates": {
+    "home":{"sections":[{"type":"hero"},{"type":"product-grid"},{"type":"category-list"}]},
+    "product":{"sections":[{"type":"product-details"}]},
+    "category":{"sections":[{"type":"category-header"},{"type":"product-grid"}]}
+  }
+}

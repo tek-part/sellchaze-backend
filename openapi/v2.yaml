@@ -1,0 +1,731 @@
+openapi: 3.1.0
+info:
+  title: Sellchaze API
+  version: 2.0.0-alpha.1
+  description: Organization-scoped API. API v1 remains compatible during migration.
+servers:
+  - url: /api/v2
+security:
+  - bearerAuth: []
+paths:
+  /directory/organizations:
+    get:
+      operationId: discoverOrganizations
+      summary: Discover active companies outside the authenticated user's memberships
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: type, in: query, schema: { type: string, enum: [business, factory, distributor, merchant, supplier] } }
+      responses:
+        '200': { description: Paginated company discovery results }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /directory/organizations/{organization}:
+    parameters:
+      - name: organization
+        in: path
+        required: true
+        description: Organization slug
+        schema: { type: string }
+    get:
+      operationId: getPublicOrganizationProfile
+      summary: Get a public company profile and the authenticated user's follow state
+      responses:
+        '200': { description: Public company profile }
+        '404': { description: Organization is inactive or missing }
+  /plans:
+    get:
+      operationId: listPlans
+      summary: List active company plans, prices and entitlements
+      responses:
+        '200': { description: Plan catalog }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /organizations:
+    get:
+      operationId: listOrganizations
+      summary: List organizations for the authenticated member
+      responses:
+        '200':
+          description: Paginated organizations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationCollection'
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      operationId: createOrganization
+      summary: Create a company and owner membership atomically
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Organization' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      operationId: getOrganization
+      responses:
+        '200':
+          description: Organization
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Organization' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    patch:
+      operationId: updateOrganization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrganizationInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Organization' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization}/memberships:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      operationId: listOrganizationMemberships
+      responses:
+        '200': { description: Paginated memberships }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: addOrganizationMember
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email }
+                role: { type: string, enum: [admin, manager, member] }
+                permissions: { type: array, items: { type: string } }
+                store_ids: { type: array, items: { type: integer } }
+      responses:
+        '201': { description: Member added }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization}/connections:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      operationId: listOrganizationConnections
+      summary: List incoming and outgoing business relationships for a company
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [pending, accepted, rejected] } }
+        - { name: per_page, in: query, schema: { type: integer, minimum: 5, maximum: 50, default: 20 } }
+      responses:
+        '200': { description: Paginated organization connections }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: requestOrganizationConnection
+      summary: Request a business relationship with another company
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_organization_id]
+              properties:
+                target_organization_id: { type: integer }
+                message: { type: [string, 'null'], maxLength: 1000 }
+      responses:
+        '201': { description: Connection request created }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization}/connections/{connection}/accept:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - { name: connection, in: path, required: true, schema: { type: integer } }
+    post:
+      operationId: acceptOrganizationConnection
+      summary: Accept an incoming business relationship request
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Connection accepted and ConnectionAccepted event recorded }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization}/connections/{connection}/reject:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - { name: connection, in: path, required: true, schema: { type: integer } }
+    post:
+      operationId: rejectOrganizationConnection
+      summary: Reject an incoming business relationship request
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Connection rejected }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization}/stores:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      operationId: listOrganizationStores
+      responses:
+        '200': { description: Paginated stores }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createOrganizationStore
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              properties:
+                name: { type: string, maxLength: 160 }
+                slug: { type: string, maxLength: 160, pattern: '^[A-Za-z0-9_-]+$' }
+                description: { type: [string, 'null'] }
+                email: { type: [string, 'null'], format: email }
+                phone: { type: [string, 'null'] }
+                currency: { type: string, maxLength: 8 }
+      responses:
+        '201': { description: Store created }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization}/memberships/{membership}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - name: membership
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    patch:
+      operationId: updateOrganizationMembership
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { type: string, enum: [admin, manager, member] }
+                status: { type: string, enum: [active, suspended] }
+                permissions: { type: [array, 'null'], items: { type: string } }
+                store_ids: { type: [array, 'null'], items: { type: integer } }
+      responses:
+        '200': { description: Membership updated }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      operationId: removeOrganizationMembership
+      responses:
+        '204': { description: Membership removed }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization}/stores/{store}/readiness:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StoreId'
+    get:
+      operationId: getOrganizationStoreReadiness
+      summary: Check profile, domain, theme, and catalog launch requirements
+      responses:
+        '200': { description: Store launch readiness checks }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Store is outside the organization }
+  /organizations/{organization}/stores/{store}/publish:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StoreId'
+    post:
+      operationId: publishOrganizationStore
+      summary: Publish a launch-ready store to its verified host
+      responses:
+        '200': { description: Store published }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization}/stores/{store}/unpublish:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StoreId'
+    post:
+      operationId: unpublishOrganizationStore
+      summary: Remove a store from public resolution without deleting it
+      responses:
+        '200': { description: Store returned to draft }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /organizations/{organization}/subscription:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      operationId: getOrganizationSubscription
+      summary: Resolve the company's effective plan, features, quotas and usage
+      responses:
+        '200': { description: Effective entitlements }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: subscribeOrganization
+      summary: Activate an editable catalog plan for a company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan, billing_cycle]
+              properties:
+                plan: { type: string }
+                billing_cycle: { type: string, enum: [monthly, yearly] }
+      responses:
+        '201': { description: Subscription activated }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization}/posts:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    post:
+      operationId: createOrganizationPost
+      summary: Publish a social post as the organization after permission checks
+      responses:
+        '201': { description: Organization post created }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization}/audit-export:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - { name: from, in: query, schema: { type: string, format: date } }
+      - { name: to, in: query, schema: { type: string, format: date } }
+    get:
+      operationId: exportOrganizationAudit
+      summary: Stream the organization procurement audit trail as CSV
+      responses:
+        '200': { description: CSV audit export }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /organizations/{organization}/stores/{store}/themes:
+    parameters: &organizationStoreParameters
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StoreId'
+    get:
+      operationId: listOrganizationStoreThemes
+      responses: { '200': { description: Installed and available themes } }
+  /organizations/{organization}/stores/{store}/themes/install:
+    parameters: *organizationStoreParameters
+    post:
+      operationId: installOrganizationStoreTheme
+      responses: { '201': { description: Theme installed }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /organizations/{organization}/stores/{store}/themes/activate:
+    parameters: *organizationStoreParameters
+    post:
+      operationId: activateOrganizationStoreTheme
+      responses: { '200': { description: Theme activated }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /organizations/{organization}/stores/{store}/themes/rollback:
+    parameters: *organizationStoreParameters
+    post:
+      operationId: rollbackOrganizationStoreTheme
+      responses: { '200': { description: Previous activation restored }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /organizations/{organization}/stores/{store}/themes/settings:
+    parameters: *organizationStoreParameters
+    put:
+      operationId: updateOrganizationStoreThemeSettings
+      responses: { '200': { description: Schema-valid theme settings saved }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /organizations/{organization}/stores/{store}/themes/custom-css:
+    parameters: *organizationStoreParameters
+    put:
+      operationId: updateOrganizationStoreThemeCss
+      responses: { '200': { description: Scoped and sanitized custom CSS saved }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /organizations/{organization}/stores/{store}/page-drafts:
+    parameters: *organizationStoreParameters
+    get:
+      operationId: listOrganizationStorePageDrafts
+      responses: { '200': { description: Page drafts } }
+    post:
+      operationId: createOrganizationStorePageDraft
+      responses: { '201': { description: Page draft created }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /organizations/{organization}/stores/{store}/page-drafts/schema:
+    parameters: *organizationStoreParameters
+    get:
+      operationId: getOrganizationStorePageSchema
+      responses: { '200': { description: Active theme section schema } }
+  /organizations/{organization}/stores/{store}/page-drafts/{page}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StoreId'
+      - $ref: '#/components/parameters/PageId'
+    get:
+      operationId: getOrganizationStorePageDraft
+      responses: { '200': { description: Page draft } }
+    put:
+      operationId: updateOrganizationStorePageDraft
+      responses: { '200': { description: Page draft updated }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /organizations/{organization}/stores/{store}/page-drafts/{page}/sections:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StoreId'
+      - $ref: '#/components/parameters/PageId'
+    put:
+      operationId: replaceOrganizationStorePageSections
+      responses: { '200': { description: Validated section layout saved }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /organizations/{organization}/stores/{store}/page-drafts/{page}/preview:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StoreId'
+      - $ref: '#/components/parameters/PageId'
+    post:
+      operationId: previewOrganizationStorePageDraft
+      responses: { '200': { description: Signed preview URL } }
+  /organizations/{organization}/stores/{store}/page-drafts/{page}/publications:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StoreId'
+      - $ref: '#/components/parameters/PageId'
+    post:
+      operationId: publishOrganizationStorePageDraft
+      responses: { '200': { description: Immutable publication created } }
+  /organizations/{organization}/stores/{store}/page-drafts/{page}/revisions:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StoreId'
+      - $ref: '#/components/parameters/PageId'
+    get:
+      operationId: listOrganizationStorePageRevisions
+      responses: { '200': { description: Page revisions } }
+  /organizations/{organization}/stores/{store}/page-drafts/{page}/revisions/{revision}/restore:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StoreId'
+      - $ref: '#/components/parameters/PageId'
+      - { name: revision, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    post:
+      operationId: restoreOrganizationStorePageRevision
+      responses: { '200': { description: Revision restored } }
+  /procurement/requests:
+    get:
+      operationId: listProcurementRequests
+      summary: List published RFQs and requests owned by the member's companies
+      responses:
+        '200': { description: Paginated procurement requests }
+    post:
+      operationId: createProcurementRequest
+      summary: Create a draft or published company RFQ
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProcurementRequestInput' }
+      responses:
+        '201': { description: Procurement request created }
+        '409': { description: Idempotency key is in-flight or was reused with a different payload }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /procurement/requests/{procurementRequest}:
+    parameters:
+      - $ref: '#/components/parameters/ProcurementRequestId'
+    get:
+      operationId: getProcurementRequest
+      responses:
+        '200': { description: Request with visible supplier quotes }
+        '404': { description: Request is private or does not exist }
+  /procurement/requests/{procurementRequest}/quotes:
+    parameters:
+      - $ref: '#/components/parameters/ProcurementRequestId'
+    post:
+      operationId: submitProcurementQuote
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProcurementQuoteInput' }
+      responses:
+        '201': { description: Quote submitted }
+        '409': { description: Idempotency key is in-flight or was reused with a different payload }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /procurement/requests/{procurementRequest}/quotes/compare:
+    parameters:
+      - $ref: '#/components/parameters/ProcurementRequestId'
+    get:
+      operationId: compareProcurementQuotes
+      summary: Compare supplier quotes by amount, lead time, validity, terms and version
+      responses:
+        '200': { description: Comparable supplier quote matrix }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /procurement/requests/{procurementRequest}/quotes/{procurementQuote}:
+    parameters:
+      - $ref: '#/components/parameters/ProcurementRequestId'
+      - name: procurementQuote
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: reviseProcurementQuote
+      summary: Create an immutable revision and update a submitted quote
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProcurementQuoteInput' }
+      responses:
+        '200': { description: Quote revised }
+        '409': { description: Idempotency key conflict }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /procurement/requests/{procurementRequest}/audit:
+    parameters:
+      - $ref: '#/components/parameters/ProcurementRequestId'
+    get:
+      operationId: getProcurementAuditTrail
+      summary: Get the party-scoped immutable RFQ, quote and order audit timeline
+      responses:
+        '200': { description: Chronological audit entries }
+        '404': { description: RFQ is outside the member's organizations }
+  /procurement/requests/{procurementRequest}/quotes/{procurementQuote}/accept:
+    parameters:
+      - $ref: '#/components/parameters/ProcurementRequestId'
+      - name: procurementQuote
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: acceptProcurementQuote
+      summary: Atomically award one quote, reject competitors, and create a procurement order
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Quote accepted and RFQ awarded }
+        '409': { description: Idempotency key is in-flight or was reused with a different payload }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /procurement/requests/{procurementRequest}/conversation:
+    parameters:
+      - $ref: '#/components/parameters/ProcurementRequestId'
+    post:
+      operationId: createProcurementConversation
+      summary: Start or join the company-scoped conversation for an RFQ supplier
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [supplier_organization_id]
+              properties:
+                supplier_organization_id: { type: integer, minimum: 1 }
+      responses:
+        '200': { description: Existing conversation returned }
+        '201': { description: Procurement conversation created }
+        '409': { description: Idempotency key is in-flight or was reused with a different payload }
+        '404': { description: RFQ or company context is outside the member's scope }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /procurement/orders:
+    get:
+      operationId: listProcurementOrders
+      summary: List orders where a member company is the buyer or supplier
+      responses:
+        '200': { description: Paginated procurement orders }
+  /procurement/orders/{procurementOrder}:
+    parameters:
+      - $ref: '#/components/parameters/ProcurementOrderId'
+    get:
+      operationId: getProcurementOrder
+      summary: Get the accepted quote and RFQ snapshot for an order party
+      responses:
+        '200': { description: Procurement order detail }
+        '404': { description: Order is outside the member's companies }
+    patch:
+      operationId: updateProcurementOrderStatus
+      summary: Advance the buyer/supplier controlled fulfillment lifecycle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProcurementOrderStatusInput' }
+      responses:
+        '200': { description: Procurement order status updated }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: URL-safe client-generated key (8-128 characters), retained for 24 hours
+      schema: { type: string, minLength: 8, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' }
+    OrganizationId:
+      name: organization
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    ProcurementRequestId:
+      name: procurementRequest
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ProcurementOrderId:
+      name: procurementOrder
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    StoreId:
+      name: store
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    PageId:
+      name: page
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+  schemas:
+    Attachment:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri, maxLength: 2048 }
+        name: { type: [string, 'null'], maxLength: 255 }
+        type: { type: [string, 'null'], enum: [image, video, document, null] }
+    ProcurementRequestInput:
+      type: object
+      required: [organization_id, title, quantity, unit]
+      properties:
+        organization_id: { type: integer, minimum: 1 }
+        target_supplier_organization_id: { type: [integer, 'null'], minimum: 1 }
+        target_supplier_organization_ids:
+          type: array
+          maxItems: 50
+          items: { type: integer, minimum: 1 }
+        target_sector_id: { type: [integer, 'null'], minimum: 1 }
+        store_id: { type: [integer, 'null'], minimum: 1 }
+        title: { type: string, maxLength: 180 }
+        description: { type: [string, 'null'], maxLength: 10000 }
+        quantity: { type: number, exclusiveMinimum: 0 }
+        unit: { type: string, maxLength: 40 }
+        budget: { type: [number, 'null'], minimum: 0 }
+        currency: { type: string, maxLength: 8 }
+        status: { type: string, enum: [draft, published] }
+        response_deadline: { type: [string, 'null'], format: date-time }
+        items:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [name, quantity, unit]
+            properties:
+              name: { type: string }
+              quantity: { type: number, exclusiveMinimum: 0 }
+              unit: { type: string }
+              specifications: { type: object }
+        attachments:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/Attachment' }
+        metadata: { type: [object, 'null'] }
+    ProcurementQuoteInput:
+      type: object
+      required: [supplier_organization_id, amount]
+      properties:
+        supplier_organization_id: { type: integer, minimum: 1 }
+        amount: { type: number, minimum: 0 }
+        currency: { type: string, maxLength: 8 }
+        lead_time_days: { type: [integer, 'null'], minimum: 0 }
+        valid_until: { type: [string, 'null'], format: date }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+        delivery_terms: { type: [string, 'null'], maxLength: 10000 }
+        attachments:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/Attachment' }
+    ProcurementOrderStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [in_fulfillment, shipped, completed, cancelled] }
+    OrganizationInput:
+      type: object
+      properties:
+        name: { type: string, maxLength: 160 }
+        slug: { type: string, maxLength: 160 }
+        legal_name: { type: [string, 'null'], maxLength: 200 }
+        type: { type: string, enum: [business, factory, distributor, merchant, supplier] }
+        country_code: { type: [string, 'null'], minLength: 2, maxLength: 2 }
+        default_locale: { type: string, enum: [ar, en] }
+        default_currency: { type: string, maxLength: 8 }
+        timezone: { type: string }
+        headline: { type: [string, 'null'], maxLength: 240 }
+        about: { type: [string, 'null'], maxLength: 10000 }
+        website: { type: [string, 'null'], format: uri }
+        logo_url: { type: [string, 'null'], format: uri }
+        cover_url: { type: [string, 'null'], format: uri }
+        locations: { type: [array, 'null'], items: { type: object } }
+        capabilities: { type: [array, 'null'], items: { type: string } }
+        featured_products: { type: [array, 'null'], items: { type: object } }
+        certificates: { type: [array, 'null'], items: { type: object } }
+    Organization:
+      type: object
+      required: [id, name, slug, status, default_locale, default_currency, timezone]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        legal_name: { type: [string, 'null'] }
+        type: { type: string }
+        status: { type: string }
+        country_code: { type: [string, 'null'] }
+        default_locale: { type: string }
+        default_currency: { type: string }
+        timezone: { type: string }
+        membership:
+          type: [object, 'null']
+          properties:
+            role: { type: string }
+            status: { type: string }
+            permissions: { type: [array, 'null'], items: { type: string } }
+            store_ids: { type: [array, 'null'], items: { type: integer } }
+    OrganizationCollection:
+      type: object
+      required: [data, links, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Organization' } }
+        links: { type: object }
+        meta: { type: object }
+  responses:
+    Unauthenticated:
+      description: Authentication required
+    Forbidden:
+      description: Membership or role does not permit this operation
+    ValidationError:
+      description: Validation failed

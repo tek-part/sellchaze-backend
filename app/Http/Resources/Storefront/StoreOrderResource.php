@@ -30,6 +30,7 @@ class StoreOrderResource extends JsonResource
             'subtotal' => $this->subtotal,
             'shipping_total' => $this->shipping_total,
             'discount_total' => $this->discount_total,
+            'tax_total' => $this->tax_total,
             'grand_total' => $this->grand_total,
             'notes' => $this->notes,
             'placed_at' => $this->placed_at,

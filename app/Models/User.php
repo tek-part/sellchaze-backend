@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
@@ -17,6 +18,12 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::saved(fn (User $user) => Cache::forget('jwt_access_user:'.$user->id));
+        static::deleted(fn (User $user) => Cache::forget('jwt_access_user:'.$user->id));
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -83,7 +90,29 @@ class User extends Authenticatable
      */
     public function store(): HasOne
     {
-        return $this->hasOne(Store::class, 'owner_user_id');
+        return $this->hasOne(Store::class, 'owner_user_id')
+            ->orderByDesc('is_primary')
+            ->orderBy('id');
+    }
+
+    /** @return HasMany<Store, $this> */
+    public function stores(): HasMany
+    {
+        return $this->hasMany(Store::class, 'owner_user_id');
+    }
+
+    /** @return HasMany<OrganizationMembership, $this> */
+    public function organizationMemberships(): HasMany
+    {
+        return $this->hasMany(OrganizationMembership::class);
+    }
+
+    /** @return BelongsToMany<Organization, $this> */
+    public function organizations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class, 'organization_memberships')
+            ->withPivot(['role', 'status', 'permissions', 'store_ids', 'joined_at'])
+            ->withTimestamps();
     }
 
     /** @return HasMany<AuthSession, $this> */

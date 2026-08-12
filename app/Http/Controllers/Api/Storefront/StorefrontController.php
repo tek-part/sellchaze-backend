@@ -13,7 +13,9 @@ use App\Models\Store;
 use App\Models\StoreContentPage;
 use App\Services\Storefront\StorefrontContextBuilder;
 use App\Services\Storefront\StorefrontService;
+use App\Services\CurrencyRateService;
 use App\Services\Storefront\StoreSeoService;
+use App\Services\Themes\ThemeResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,16 +27,25 @@ class StorefrontController extends Controller
         private readonly StorefrontService $storefront,
         private readonly StoreSeoService $seo,
         private readonly StorefrontContextBuilder $builder,
+        private readonly ThemeResolver $themes,
+        private readonly CurrencyRateService $currencyRates,
     ) {}
 
     /** GET /storefront — homepage payload + SEO for the resolved store. */
     public function index(Request $request): JsonResponse
     {
         $store = $this->currentStore($request);
+        $theme = $this->themes->resolve($store);
 
         return response()->json([
             'store' => $this->storeSummary($store),
             'seo' => $this->seo->forStore($store),
+            'theme' => $theme === null ? null : [
+                'key' => $theme['key'],
+                'version' => $theme['version'],
+                'settings' => $theme['settings'],
+                'custom_css' => $theme['custom_css'] ?? null,
+            ],
             'homepage' => $this->storefront->homepage($store),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
@@ -111,11 +122,25 @@ class StorefrontController extends Controller
 
     private function storeSummary(Store $store): array
     {
+        $baseCurrency = strtoupper((string) ($store->currency ?: 'USD'));
+        $supported = collect($store->supported_currencies ?? [$baseCurrency])
+            ->map(fn ($code) => strtoupper((string) $code))->push($baseCurrency)->unique()->values();
+        $multipliers = $supported->mapWithKeys(function (string $currency) use ($baseCurrency): array {
+            $rate = $this->currencyRates->conversionMultiplier($baseCurrency, $currency);
+
+            return $rate === null ? [] : [$currency => $rate];
+        })->all();
+
         return [
             'id' => $store->id,
             'name' => $store->name,
             'slug' => $store->slug,
-            'currency' => $store->currency,
+            'currency' => $baseCurrency,
+            'supported_currencies' => array_keys($multipliers),
+            'currency_multipliers' => $multipliers,
+            'default_locale' => $store->default_locale,
+            'supported_locales' => $store->supported_locales ?? [$store->default_locale ?: 'en'],
+            'timezone' => $store->timezone,
             'status' => $store->status,
             'logo_url' => $store->logoUrl(),
             'banner_url' => $store->bannerUrl(),

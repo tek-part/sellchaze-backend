@@ -47,7 +47,38 @@ class RouteServiceProvider extends ServiceProvider
     {
         // SPA + Wavex polls/lists can burst; keep abuse protection without blocking normal use.
         RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute(180)->by($request->user()?->id ?: $request->ip());
+            return Limit::perMinute((int) config('performance.api_ip_per_minute', 1200))
+                ->by('api-ip:'.$request->ip());
+        });
+
+        // Applied after jwt.auth. A noisy company is capped independently while
+        // a second company behind the same office/NAT address keeps its quota.
+        RateLimiter::for('tenant-read', function (Request $request) {
+            $user = $request->user();
+            $organizationId = $request->attributes->get('jwt_organization_id');
+            if (! $organizationId) {
+                $organizationId = $user?->organizationMemberships()
+                    ->where('status', 'active')
+                    ->orderBy('id')
+                    ->value('organization_id');
+            }
+            $tenantKey = $organizationId ? 'org:'.$organizationId : 'user:'.($user?->id ?: $request->ip());
+
+            return Limit::perMinute((int) config('performance.tenant_read_per_minute', 300))
+                ->by('tenant-read:'.$tenantKey);
+        });
+
+        // ResolveStoreFromHost runs first, so the bucket is based on the real
+        // store identity rather than a spoofable Host string.
+        RateLimiter::for('storefront-read', function (Request $request) {
+            $storeId = $request->attributes->get('store')?->id;
+
+            return [
+                Limit::perMinute((int) config('performance.storefront_read_per_minute', 600))
+                    ->by('storefront:'.($storeId ?: 'unknown:'.$request->ip())),
+                Limit::perMinute((int) config('performance.storefront_ip_per_minute', 1800))
+                    ->by('storefront-ip:'.$request->ip()),
+            ];
         });
 
         /*

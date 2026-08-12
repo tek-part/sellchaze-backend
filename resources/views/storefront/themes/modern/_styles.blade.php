@@ -35,7 +35,7 @@
     ];
     $root = ':root{'.collect($tok)->map(fn ($v, $k) => "--{$k}:{$v}")->implode(';').'}';
 @endphp
-<style>
+<style data-critical-css="modern">
 {!! $root !!}
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;padding:0}

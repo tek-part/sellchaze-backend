@@ -83,6 +83,7 @@ class StorePagesApiController extends Controller
             'sections.*.type' => ['required', 'string', 'max:40'],
             'sections.*.settings' => ['nullable', 'array'],
             'sections.*.reusable_section_id' => ['nullable', 'integer'],
+            'sections.*.is_visible' => ['nullable', 'boolean'],
         ]);
         $model = $this->service->syncSections($model, $data['sections'], $request->user()?->id);
 
@@ -186,6 +187,7 @@ class StorePagesApiController extends Controller
             $out['sections'] = $page->sections->map(fn ($s) => [
                 'id' => $s->id, 'type' => $s->type, 'settings' => $s->settings,
                 'reusable_section_id' => $s->reusable_section_id, 'position' => $s->position,
+                'is_visible' => (bool) $s->is_visible,
             ])->values();
         }
 

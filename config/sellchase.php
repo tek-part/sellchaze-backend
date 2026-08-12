@@ -2,7 +2,7 @@
 
 return [
 
-    'name' => env('APP_NAME', 'Sellchase'),
+    'name' => env('APP_NAME', 'Sellchaze'),
 
     /** SPA origin for Google Cloud Console “Authorized JavaScript origins” (Sign in with Google). */
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
@@ -143,6 +143,13 @@ return [
 
         /** Full-page cache TTL (seconds). */
         'page_cache_ttl' => (int) env('SELLCHASE_STOREFRONT_PAGE_CACHE_TTL', 300),
+
+        /** Provider-neutral responsive image URL adapter. Empty URL preserves originals. */
+        'images' => [
+            'transformer_url' => env('SELLCHASE_IMAGE_TRANSFORMER_URL'),
+            'signing_secret' => env('SELLCHASE_IMAGE_TRANSFORMER_SECRET'),
+            'quality' => (int) env('SELLCHASE_IMAGE_QUALITY', 82),
+        ],
     ],
 
     /**

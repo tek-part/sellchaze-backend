@@ -49,6 +49,7 @@ class StorefrontEngagementTest extends TestCase
     private function makeProduct(Store $store, string $slug, string $price): Product
     {
         return Product::create([
+            'store_id' => $store->id,
             'user_id' => $store->owner_user_id, 'name' => ucfirst($slug), 'slug' => $slug, 'price' => $price, 'is_active' => true,
         ]);
     }

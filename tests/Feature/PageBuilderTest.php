@@ -117,6 +117,21 @@ class PageBuilderTest extends TestCase
         ]])->assertOk()->assertJsonCount(2, 'data.sections');
     }
 
+    public function test_hidden_sections_are_saved_but_excluded_from_the_public_render_context(): void
+    {
+        $id = $this->createPage(['slug' => 'visibility']);
+        $this->ownerA()->putJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/sections", ['sections' => [
+            ['type' => 'hero', 'settings' => ['headline' => 'Visible'], 'is_visible' => true],
+            ['type' => 'product-grid', 'is_visible' => false],
+        ]])->assertOk()->assertJsonPath('data.sections.1.is_visible', false);
+        $this->ownerA()->postJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/publish")->assertOk();
+
+        $context = app(\App\Services\Storefront\StorefrontContextBuilder::class)
+            ->buildPage($this->storeA, StorePage::query()->findOrFail($id));
+        $this->assertCount(1, $context['page']['sections']);
+        $this->assertSame('hero', $context['page']['sections'][0]['type']);
+    }
+
     public function test_builder_schema_endpoint_returns_theme_section_types(): void
     {
         $this->ownerA()->getJson("/api/v1/stores/{$this->storeA->id}/pages/schema")
@@ -129,6 +144,7 @@ class PageBuilderTest extends TestCase
         $id = $this->createPage();
         $this->ownerA()->postJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/publish")->assertOk()->assertJsonPath('data.status', 'published');
         $this->assertTrue(StorePage::find($id)->isPubliclyVisible());
+        $this->assertDatabaseHas('store_page_publications', ['store_page_id' => $id, 'store_id' => $this->storeA->id, 'version' => 1]);
 
         $this->ownerA()->postJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/unpublish")->assertOk()->assertJsonPath('data.status', 'draft');
         $this->assertFalse(StorePage::find($id)->isPubliclyVisible());

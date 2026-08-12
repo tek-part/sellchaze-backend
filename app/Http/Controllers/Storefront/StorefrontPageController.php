@@ -45,7 +45,7 @@ class StorefrontPageController extends Controller
             abort_unless($this->isAppHost($request->getHost()), 404, 'Store not found.');
 
             return response()->json([
-                'app' => 'Sellchase API',
+                'app' => 'Sellchaze API',
                 'api' => url('/api/v1'),
                 'frontend' => 'Run the React app separately (see frontend/README.md).',
             ]);
@@ -101,7 +101,7 @@ class StorefrontPageController extends Controller
                 ->header('X-Robots-Tag', 'noindex, nofollow');
         }
 
-        return response($this->renderer->render($request, $context));
+        return $this->publicResponse($this->renderer->render($request, $context), $context);
     }
 
     /**
@@ -168,7 +168,7 @@ class StorefrontPageController extends Controller
             return response($this->renderer->renderFresh($context))->header('X-Robots-Tag', 'noindex, nofollow');
         }
 
-        return response($this->renderer->render($request, $context));
+        return $this->publicResponse($this->renderer->render($request, $context), $context);
     }
 
     public function sitemap(Request $request): Response
@@ -187,5 +187,18 @@ class StorefrontPageController extends Controller
         abort_unless($store instanceof Store, 404, 'Store not found.');
 
         return $store;
+    }
+
+    private function publicResponse(string $html, array $context): Response
+    {
+        $etag = '"'.hash('sha256', $html).'"';
+
+        return response($html)->withHeaders([
+            'Cache-Control' => 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400, stale-if-error=86400',
+            'ETag' => $etag,
+            'Vary' => 'Accept-Encoding, Accept-Language',
+            'Surrogate-Key' => 'store-'.($context['store']['id'] ?? 0).' theme-'.($context['theme']['theme_version_id'] ?? 0),
+            'X-Storefront-Renderer' => str_contains($html, 'data-rendered-by="blade"') ? 'blade-fallback' : 'ssr',
+        ]);
     }
 }

@@ -120,6 +120,7 @@ class StoreDomain extends Model
         static::deleted($forget);
     }
 
+    /** @return BelongsTo<Store, $this> */
     public function store(): BelongsTo
     {
         return $this->belongsTo(Store::class);

@@ -1,5 +1,7 @@
 includes:
     - vendor/larastan/larastan/extension.neon
+    # Legacy debt is explicit and can only shrink; new errors fail CI.
+    - phpstan-baseline.neon
 
 parameters:
     level: 3

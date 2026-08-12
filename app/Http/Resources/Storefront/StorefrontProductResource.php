@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Storefront;
 
 use App\Models\Product;
+use App\Services\Storefront\ResponsiveImageUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -13,6 +14,8 @@ class StorefrontProductResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $imageUrl = $this->imageUrl();
+
         return [
             'id' => $this->id,
             'store_id' => $this->store_id,
@@ -26,7 +29,8 @@ class StorefrontProductResource extends JsonResource
             'price' => $this->price,
             'compare_price' => $this->compare_price,
             'image' => $this->image,
-            'image_url' => $this->imageUrl(),
+            'image_url' => $imageUrl,
+            'image_responsive' => app(ResponsiveImageUrl::class)->for($imageUrl),
             'is_active' => $this->is_active,
             'is_featured' => $this->is_featured,
             'position' => $this->position,

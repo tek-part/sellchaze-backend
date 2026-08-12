@@ -37,6 +37,17 @@ class CurrencyRateService
         return round($amount * $rateToUsd, 6);
     }
 
+    public function conversionMultiplier(?string $fromCurrency, ?string $toCurrency): ?float
+    {
+        $from = $this->getEffectiveRateToUsd($fromCurrency);
+        $to = $this->getEffectiveRateToUsd($toCurrency);
+        if ($from === null || $to === null || $to <= 0) {
+            return null;
+        }
+
+        return round($from / $to, 8);
+    }
+
     public function upsertManualRate(string $currencyCode, float $rateToUsd): CurrencyRate
     {
         $code = $this->normalizeCode($currencyCode);

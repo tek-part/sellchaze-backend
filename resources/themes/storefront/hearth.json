@@ -1,0 +1,45 @@
+{
+  "key": "hearth",
+  "name": "Hearth — Home & Living",
+  "version": "1.0.0",
+  "author": "Sellchaze Studio",
+  "category": "home-living",
+  "description": "Warm, tactile home retail with terracotta and sage accents.",
+  "is_marketplace": true,
+  "is_featured": false,
+  "min_platform_version": "1.0.0",
+  "supported_features": ["rtl", "dark-mode", "wishlist", "newsletter", "lookbook"],
+  "bundle_url": "builtin:hearth@1.0.0",
+  "changelog": "Initial Sellchaze storefront release.",
+  "settings_schema": [
+    {"id":"appearance","label":"Appearance","fields":[
+      {"id":"color_scheme","type":"select","label":"Colour scheme","default":"light","options":["light","dark","auto"]},
+      {"id":"primary_color","type":"color","label":"Terracotta","default":"#B5573A"},
+      {"id":"accent_color","type":"color","label":"Sage","default":"#6E7B54"},
+      {"id":"heading_font","type":"select","label":"Heading font","default":"fraunces","options":["fraunces","recoleta","dm-serif"]},
+      {"id":"body_font","type":"select","label":"Body font","default":"general-sans","options":["general-sans","hanken","inter"]},
+      {"id":"corner_style","type":"select","label":"Corners","default":"soft","options":["soft","softer","sharp"]}
+    ]},
+    {"id":"layout","label":"Layout","fields":[
+      {"id":"container_width","type":"range","label":"Content width","default":1360,"min":1240,"max":1560},
+      {"id":"sticky_header","type":"toggle","label":"Sticky header","default":true},
+      {"id":"show_search","type":"toggle","label":"Show search","default":true},
+      {"id":"show_boards","type":"toggle","label":"Show boards","default":true}
+    ]},
+    {"id":"commerce","label":"Commerce","fields":[
+      {"id":"free_ship_threshold","type":"number","label":"Free delivery threshold","default":0,"min":0},
+      {"id":"show_swatches","type":"toggle","label":"Show swatches","default":true},
+      {"id":"show_dimensions","type":"toggle","label":"Show dimensions","default":true}
+    ]}
+  ],
+  "sections_schema": {
+    "hero":{"label":"Hero","settings":[{"id":"section_spacing","type":"range","label":"Vertical spacing","default":80,"min":0,"max":240,"step":4,"responsive":true,"css_property":"padding-block"}]},"category-list":{"label":"Categories","settings":[]},
+    "product-grid":{"label":"Products","settings":[]},"category-header":{"label":"Category header","settings":[]},
+    "product-details":{"label":"Product details","settings":[]}
+  },
+  "templates": {
+    "home":{"sections":[{"type":"hero"},{"type":"category-list"},{"type":"product-grid"}]},
+    "product":{"sections":[{"type":"product-details"}]},
+    "category":{"sections":[{"type":"category-header"},{"type":"product-grid"}]}
+  }
+}

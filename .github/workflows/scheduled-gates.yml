@@ -1,0 +1,57 @@
+name: Backend Scheduled Gates
+
+on:
+  schedule:
+    - cron: '17 2 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-scheduled-gates
+  cancel-in-progress: true
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, curl, intl
+          coverage: none
+          tools: composer:v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: cp .env.example .env && php artisan key:generate
+      - name: Prepare shared SQLite database
+        shell: bash
+        run: |
+          touch database/performance.sqlite
+          echo "DB_CONNECTION=sqlite" >> "$GITHUB_ENV"
+          echo "DB_DATABASE=$GITHUB_WORKSPACE/database/performance.sqlite" >> "$GITHUB_ENV"
+      - run: php artisan migrate:fresh --force
+      - run: composer performance:cluster
+      - name: Upload performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-performance-${{ github.run_id }}
+          path: storage/app/performance/latest.json
+          if-no-files-found: error
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+      - run: composer audit --locked

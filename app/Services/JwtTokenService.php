@@ -13,6 +13,11 @@ use Illuminate\Support\Str;
  */
 class JwtTokenService
 {
+    private ?string $decodedToken = null;
+
+    /** @var array<string, mixed>|null */
+    private ?array $decodedPayload = null;
+
     public function __construct(
         private string $secret
     ) {
@@ -86,6 +91,13 @@ class JwtTokenService
         if ($sessionId) {
             $payload['sid'] = $sessionId;
         }
+        $organizationId = $user->organizationMemberships()
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->value('organization_id');
+        if ($organizationId) {
+            $payload['oid'] = (int) $organizationId;
+        }
 
         return $this->encode($payload);
     }
@@ -149,7 +161,7 @@ class JwtTokenService
             return null;
         }
 
-        return User::query()->find($id);
+        return Cache::remember('jwt_access_user:'.$id, now()->addSeconds(30), fn () => User::query()->find($id));
     }
 
     public function accessSessionId(string $token): ?string
@@ -162,6 +174,14 @@ class JwtTokenService
         $sid = (string) ($payload['sid'] ?? '');
 
         return $sid !== '' ? $sid : null;
+    }
+
+    public function accessOrganizationId(string $token): ?int
+    {
+        $payload = $this->decode($token);
+        $organizationId = (int) ($payload['oid'] ?? 0);
+
+        return $organizationId > 0 ? $organizationId : null;
     }
 
     /**
@@ -270,6 +290,12 @@ class JwtTokenService
      */
     private function decode(string $token): ?array
     {
+        if ($this->decodedToken === $token) {
+            return $this->decodedPayload;
+        }
+        $this->decodedToken = $token;
+        $this->decodedPayload = null;
+
         $parts = explode('.', $token);
         if (count($parts) !== 3) {
             return null;
@@ -287,7 +313,7 @@ class JwtTokenService
             return null;
         }
 
-        return $payload;
+        return $this->decodedPayload = $payload;
     }
 
     private function b64url(string $data): string

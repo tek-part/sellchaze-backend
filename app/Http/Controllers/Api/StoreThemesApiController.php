@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Models\StoreTheme;
 use App\Models\StoreThemeActivation;
+use App\Models\StoreThemeRevision;
 use App\Models\Theme;
 use App\Services\Themes\StoreThemeService;
 use App\Services\Themes\ThemeRegistry;
 use App\Services\Themes\ThemeSettingsValidator;
+use App\Services\Themes\CustomCssSanitizer;
+use App\Services\Storefront\StorefrontPageCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -66,6 +69,7 @@ class StoreThemesApiController extends Controller
                 'id' => $install->id,
                 'status' => $install->status,
                 'settings' => $install->settings,
+                'custom_css' => $install->custom_css,
             ] : null,
             'is_active' => $install?->status === 'active',
         ], 200, [], JSON_UNESCAPED_UNICODE);
@@ -181,6 +185,7 @@ class StoreThemesApiController extends Controller
         $data = $request->validate([
             'theme_id' => ['required', 'integer'],
             'settings' => ['required', 'array'],
+            'source' => ['nullable', 'in:manual,autosave'],
         ]);
 
         $install = StoreTheme::query()->where('store_id', $store->id)->where('theme_id', $data['theme_id'])->firstOrFail();
@@ -190,9 +195,62 @@ class StoreThemesApiController extends Controller
             return response()->json(['message' => 'Invalid settings.', 'errors' => ['settings' => $errors]], 422);
         }
 
-        $install = $this->service->updateSettings($install, $data['settings']);
+        $install = $this->service->updateSettings(
+            $install,
+            $data['settings'],
+            $request->user()?->id,
+            $data['source'] ?? 'manual',
+        );
 
         return response()->json(['data' => $this->installArray($install)], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function revisions(Request $request, Store $store, int $theme): JsonResponse
+    {
+        $install = StoreTheme::query()
+            ->where('store_id', $store->id)
+            ->where('theme_id', $theme)
+            ->firstOrFail();
+        $rows = $install->revisions()
+            ->with('createdBy:id,name')
+            ->latest('id')
+            ->limit(100)
+            ->get()
+            ->map(fn (StoreThemeRevision $revision) => [
+                'id' => $revision->id,
+                'source' => $revision->source,
+                'settings' => $revision->settings,
+                'created_by' => $revision->createdBy?->name,
+                'created_at' => $revision->created_at,
+            ]);
+
+        return response()->json(['data' => $rows]);
+    }
+
+    public function customCss(Request $request, Store $store, CustomCssSanitizer $sanitizer): JsonResponse
+    {
+        $data = $request->validate(['theme_id' => ['required', 'integer'], 'custom_css' => ['nullable', 'string', 'max:50000']]);
+        $install = StoreTheme::query()->where('store_id', $store->id)->where('theme_id', $data['theme_id'])->firstOrFail();
+        $install->update(['custom_css' => $sanitizer->sanitize($data['custom_css'] ?? '')]);
+        app(StorefrontPageCache::class)->flushStore($store->id);
+
+        return response()->json(['data' => ['custom_css' => $install->custom_css]]);
+    }
+
+    public function restoreRevision(
+        Request $request,
+        Store $store,
+        int $theme,
+        int $revision,
+    ): JsonResponse {
+        $install = StoreTheme::query()
+            ->where('store_id', $store->id)
+            ->where('theme_id', $theme)
+            ->firstOrFail();
+        $model = $install->revisions()->whereKey($revision)->firstOrFail();
+        $restored = $this->service->restoreRevision($install, $model, $request->user()?->id);
+
+        return response()->json(['data' => $this->installArray($restored)]);
     }
 
     private function findInstall(Request $request, Store $store): StoreTheme
@@ -210,6 +268,7 @@ class StoreThemesApiController extends Controller
             'theme_version_id' => $install->theme_version_id,
             'status' => $install->status,
             'settings' => $install->settings,
+            'custom_css' => $install->custom_css,
         ];
     }
 }

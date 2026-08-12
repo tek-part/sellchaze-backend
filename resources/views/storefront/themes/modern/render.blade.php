@@ -8,6 +8,6 @@
 
 @section('content')
     @foreach(($context['page']['sections'] ?? []) as $section)
-        @includeIf('storefront.themes.modern.sections.'.$section['type'], ['section' => $section, 'ctx' => $context, 'store' => (object) $context['store']])
+        <div data-studio-section-id="{{ $section['id'] ?? '' }}">@includeIf('storefront.themes.modern.sections.'.$section['type'], ['section' => $section, 'ctx' => $context, 'store' => (object) $context['store']])</div>
     @endforeach
 @endsection

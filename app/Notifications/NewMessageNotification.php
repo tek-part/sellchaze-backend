@@ -48,16 +48,16 @@ class NewMessageNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $name = $this->sender()?->name ?? 'A Sellchase user';
+        $name = $this->sender()?->name ?? 'A Sellchaze user';
         $preview = Str::limit((string) $this->message->body, 160);
 
         return (new MailMessage)
-            ->subject("New message from {$name} · Sellchase")
+            ->subject("New message from {$name} · Sellchaze")
             ->greeting('Hello ' . ($notifiable->name ?? '') . ',')
             ->line("You received a new message from {$name}:")
             ->line('"' . $preview . '"')
             ->action('Open conversation', $this->chatUrl())
-            ->line('You are receiving this because you have a Sellchase account.');
+            ->line('You are receiving this because you have a Sellchaze account.');
     }
 
     public function toArray(object $notifiable): array

@@ -6,6 +6,7 @@ use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\User;
 use App\Services\Rbac\UserScope;
+use App\Services\Themes\StoreThemeService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -81,6 +82,7 @@ class StoreService
         $store = new Store;
         $store->owner_user_id = $ownerId;
         $store->owner_type = $ownerType;
+        $store->is_primary = true;
         $store->name = $data['name'];
         $store->slug = $this->uniqueSlug($data['slug'] ?? $data['name']);
         $store->description = $data['description'] ?? null;
@@ -108,7 +110,7 @@ class StoreService
 
         try {
             // Phase 4A: attach the active theme install (no-op if no Default theme yet).
-            app(\App\Services\Themes\StoreThemeService::class)->installAndActivateDefault($store);
+            app(StoreThemeService::class)->installAndActivateDefault($store);
         } catch (\Throwable $e) {
             report($e);
         }
@@ -139,6 +141,17 @@ class StoreService
         }
         if (! empty($data['currency'])) {
             $store->currency = strtoupper($data['currency']);
+        }
+        foreach (['default_locale', 'timezone', 'tax_enabled', 'tax_rate', 'tax_prices_include', 'shipping_enabled', 'shipping_flat_rate', 'shipping_free_over'] as $field) {
+            if (array_key_exists($field, $data)) {
+                $store->{$field} = $data[$field];
+            }
+        }
+        if (array_key_exists('supported_locales', $data)) {
+            $store->supported_locales = array_values(array_unique($data['supported_locales']));
+        }
+        if (array_key_exists('supported_currencies', $data)) {
+            $store->supported_currencies = array_values(array_unique(array_map('strtoupper', $data['supported_currencies'])));
         }
         if (! empty($data['status'])) {
             $store->status = $data['status'];

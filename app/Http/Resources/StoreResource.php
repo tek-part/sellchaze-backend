@@ -19,8 +19,10 @@ class StoreResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'organization_id' => $this->organization_id,
             'owner_user_id' => $this->owner_user_id,
             'owner_type' => $this->owner_type,
+            'is_primary' => (bool) $this->is_primary,
             'name' => $this->name,
             'slug' => $this->slug,
             'description' => $this->description,
@@ -31,6 +33,20 @@ class StoreResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'currency' => $this->currency,
+            'default_locale' => $this->default_locale,
+            'supported_locales' => $this->supported_locales ?? [$this->default_locale ?: 'en'],
+            'supported_currencies' => $this->supported_currencies ?? [$this->currency ?: 'USD'],
+            'timezone' => $this->timezone,
+            'tax' => [
+                'enabled' => (bool) $this->tax_enabled,
+                'rate' => $this->tax_rate,
+                'prices_include_tax' => (bool) $this->tax_prices_include,
+            ],
+            'shipping' => [
+                'enabled' => (bool) $this->shipping_enabled,
+                'flat_rate' => $this->shipping_flat_rate,
+                'free_over' => $this->shipping_free_over,
+            ],
             'status' => $this->status,
             'subdomain_host' => $this->safeCall(fn () => $urls->tenantHost($this->resource)),
             // Owner-facing, directly-openable link for the active environment
@@ -56,6 +72,7 @@ class StoreResource extends JsonResource
             return $fn();
         } catch (Throwable $e) {
             report($e);
+
             return $fallback;
         }
     }

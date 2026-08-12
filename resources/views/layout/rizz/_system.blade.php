@@ -5,7 +5,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>{{ $title ?? config('app.name', 'SELLCHASE') }}</title>
+    <title>{{ $title ?? config('app.name', 'SELLCHAZE') }}</title>
     @if (app()->getLocale() === 'ar')
         @include('layout.rizz.partials._fonts-ar-google')
     @endif
