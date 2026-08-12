@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Follow;
 use App\Models\OrganizationFollow;
 use App\Models\Post;
-use App\Models\PostReaction;
 use App\Models\Profile;
 use App\Models\Sector;
 use App\Models\UserSafetyRelation;

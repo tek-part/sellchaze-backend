@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\ResolvesLocale;
+use App\Http\Controllers\Controller;
 use App\Models\CommunityGroup;
 use App\Models\Follow;
 use App\Models\Hashtag;

@@ -69,9 +69,9 @@ class PublicProfileApiController extends Controller
                 'tagline' => $profile->tagline,
                 'biography' => $profile->biography,
                 'photo' => $profile->photo
-                    ? asset('storage/uploads/users/original/' . $profile->photo)
+                    ? asset('storage/uploads/users/original/'.$profile->photo)
                     : (! empty($user->avatar) ? $user->avatar : null),
-                'cover_photo' => $profile->cover_photo ? asset('storage/uploads/users/original/' . $profile->cover_photo) : null,
+                'cover_photo' => $profile->cover_photo ? asset('storage/uploads/users/original/'.$profile->cover_photo) : null,
                 'website' => $profile->website,
                 'company' => $profile->company,
                 'country' => $profile->country,
