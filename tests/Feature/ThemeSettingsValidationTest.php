@@ -25,6 +25,7 @@ class ThemeSettingsValidationTest extends TestCase
                 ['id' => 'per_row', 'type' => 'range', 'default' => 4, 'min' => 2, 'max' => 6],
                 ['id' => 'show', 'type' => 'toggle', 'default' => true],
                 ['id' => 'font', 'type' => 'select', 'default' => 'system', 'options' => ['system', 'serif']],
+                ['id' => 'announcement', 'type' => 'text', 'default' => ''],
             ]],
         ];
     }
@@ -62,5 +63,11 @@ class ThemeSettingsValidationTest extends TestCase
     public function test_valid_settings_have_no_strict_errors(): void
     {
         $this->assertSame([], $this->validator->errors(['per_row' => 4, 'show' => true, 'font' => 'serif'], $this->schema()));
+    }
+
+    public function test_empty_default_accepts_null_from_http_empty_string_conversion(): void
+    {
+        $this->assertSame([], $this->validator->errors(['announcement' => null], $this->schema()));
+        $this->assertSame('', $this->validator->coerce(['announcement' => null], $this->schema())['announcement']);
     }
 }

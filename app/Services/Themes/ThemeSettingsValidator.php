@@ -36,6 +36,14 @@ class ThemeSettingsValidator
             $value = $settings[$id];
             $type = $field['type'] ?? 'text';
 
+            // Laravel's ConvertEmptyStringsToNull middleware turns an empty
+            // text/url value into null before this validator runs. A nullable
+            // or empty-string default explicitly permits that empty value; the
+            // coerce pass below restores the schema's canonical default.
+            if ($value === null && in_array($field['default'] ?? null, [null, ''], true)) {
+                continue;
+            }
+
             $ok = match ($type) {
                 'toggle' => is_bool($value),
                 'number', 'range' => is_numeric($value),
