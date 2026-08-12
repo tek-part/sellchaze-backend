@@ -42,8 +42,10 @@ jobs:
             set -e
 
             APP_DIR=/home/sellchaze/public_html/api.sellchaze.com
+            PHP_BIN=/opt/cpanel/ea-php83/root/usr/bin/php
 
             printf '%s\n' "$DEPLOY_SHA" | grep -Eq '^[0-9a-f]{40}$'
+            test -x "$PHP_BIN"
 
             cd "$APP_DIR"
             if [ ! -d .git ]; then
@@ -55,10 +57,10 @@ jobs:
             git cat-file -e "${DEPLOY_SHA}^{commit}"
             git reset --hard "$DEPLOY_SHA"
 
-            /usr/local/bin/composer install --no-dev --optimize-autoloader
+            "$PHP_BIN" /usr/local/bin/composer install --no-dev --optimize-autoloader
 
-            /usr/local/bin/php artisan migrate --force
+            "$PHP_BIN" artisan migrate --force
 
-            /usr/local/bin/php artisan optimize
+            "$PHP_BIN" artisan optimize
 
-            /usr/local/bin/php artisan queue:restart || true
+            "$PHP_BIN" artisan queue:restart || true
