@@ -24,9 +24,15 @@ jobs:
           script: |
             set -e
 
-            cd /home/sellchaze/repos/backend
+            APP_DIR=/home/sellchaze/public_html/api.sellchaze.com
 
-            git fetch origin
+            cd "$APP_DIR"
+            if [ ! -d .git ]; then
+              git init
+              git remote add origin https://github.com/tek-part/sellchaze-backend.git
+            fi
+
+            git fetch origin main
             git reset --hard origin/main
 
             /usr/local/bin/composer install --no-dev --optimize-autoloader
