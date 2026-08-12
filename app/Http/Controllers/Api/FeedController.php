@@ -8,6 +8,7 @@ use App\Models\Follow;
 use App\Models\OrganizationFollow;
 use App\Models\Post;
 use App\Models\PostReaction;
+use App\Models\Profile;
 use App\Models\Sector;
 use App\Models\UserSafetyRelation;
 use App\Services\FeedCache;
@@ -74,6 +75,12 @@ class FeedController extends Controller
         }
         if ($request->filled('group')) {
             $q->where('community_group_id', $request->integer('group'));
+        }
+        // ?author={username} → that member's wall (the in-platform profile page).
+        // Runs through the same visibility pipeline as every other filter.
+        if ($request->filled('author')) {
+            $authorId = Profile::query()->where('username', $request->string('author'))->value('user_id');
+            $q->where('user_id', $authorId ?? -1)->orderByDesc('published_at');
         }
 
         if ($sectorSlug = $request->query('sector')) {

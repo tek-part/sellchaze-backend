@@ -44,7 +44,7 @@ class PostController extends Controller
 
         $data = $request->validate([
             'type' => ['required', Rule::in(Post::TYPES)],
-            'format' => ['nullable', Rule::in(['post', 'reel'])],
+            'format' => ['nullable', Rule::in(['post', 'reel', 'carousel'])],
             'body' => ['nullable', 'string', 'max:20000'],
             'product_id' => ['nullable', 'integer', 'exists:products,id'],
             'sector_id' => ['nullable', 'integer', 'exists:sectors,id'],
@@ -105,6 +105,10 @@ class PostController extends Controller
             if (($data['format'] ?? 'post') === 'reel' && ! $media->contains(fn (MediaAsset $asset) => $asset->kind === 'video')) {
                 return response()->json(['message' => 'A reel requires a video.'], 422);
             }
+        }
+        // A carousel is a swipeable image album — it needs at least two images.
+        if (($data['format'] ?? 'post') === 'carousel' && $media->filter(fn (MediaAsset $asset) => $asset->kind === 'image')->count() < 2) {
+            return response()->json(['message' => 'A carousel requires at least two images.'], 422);
         }
 
         // Only allow attaching a product the author actually owns.
