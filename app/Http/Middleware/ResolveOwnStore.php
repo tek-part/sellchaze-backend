@@ -40,7 +40,17 @@ class ResolveOwnStore
 
         $this->currentStore->set($store);
         $request->attributes->set('store', $store);
-        $request->route()?->setParameter('store', $store);
+
+        $route = $request->route();
+        if ($route !== null) {
+            // The owner URL omits {store}. Appending it after an existing child
+            // parameter (for example {theme} or {domain}) makes Laravel invoke
+            // shared controller methods in the wrong positional order. Prepend
+            // the synthetic store binding so it matches /stores/{store}/... .
+            (function ($value): void {
+                $this->parameters = ['store' => $value] + $this->parameters;
+            })->call($route, $store);
+        }
 
         return $next($request);
     }

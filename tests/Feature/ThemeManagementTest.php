@@ -96,6 +96,30 @@ class ThemeManagementTest extends TestCase
         return $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($this->storeB->owner));
     }
 
+    public function test_owner_nested_routes_keep_the_resolved_store_before_child_ids(): void
+    {
+        $this->asOwnerA()
+            ->getJson("/api/v1/my-store/themes/{$this->defaultThemeId}")
+            ->assertOk()
+            ->assertJsonPath('theme.id', $this->defaultThemeId)
+            ->assertJsonPath('is_active', true);
+
+        $domain = StoreDomain::create([
+            'store_id' => $this->storeA->id,
+            'host' => 'owner-route-order.example.com',
+            'type' => 'custom',
+            'status' => 'pending',
+            'is_primary' => false,
+        ]);
+
+        $this->asOwnerA()
+            ->postJson("/api/v1/my-store/domains/{$domain->id}")
+            ->assertOk()
+            ->assertJsonPath('deleted', true);
+
+        $this->assertDatabaseMissing('store_domains', ['id' => $domain->id]);
+    }
+
     public function test_install_and_activate_theme(): void
     {
         $this->asOwnerA()->postJson("/api/v1/stores/{$this->storeA->id}/themes/install", ['theme_id' => $this->minimalThemeId])
