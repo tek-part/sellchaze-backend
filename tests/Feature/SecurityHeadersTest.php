@@ -22,4 +22,3 @@ class SecurityHeadersTest extends TestCase
         );
     }
 }
-

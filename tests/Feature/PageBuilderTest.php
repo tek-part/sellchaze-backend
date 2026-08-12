@@ -8,6 +8,7 @@ use App\Models\StorePage;
 use App\Models\StorePageSection;
 use App\Models\User;
 use App\Services\JwtTokenService;
+use App\Services\Storefront\StorefrontContextBuilder;
 use App\Services\Themes\StoreThemeService;
 use App\Services\Themes\ThemeRegistry;
 use Database\Seeders\PermissionTableSeeder;
@@ -126,7 +127,7 @@ class PageBuilderTest extends TestCase
         ]])->assertOk()->assertJsonPath('data.sections.1.is_visible', false);
         $this->ownerA()->postJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/publish")->assertOk();
 
-        $context = app(\App\Services\Storefront\StorefrontContextBuilder::class)
+        $context = app(StorefrontContextBuilder::class)
             ->buildPage($this->storeA, StorePage::query()->findOrFail($id));
         $this->assertCount(1, $context['page']['sections']);
         $this->assertSame('hero', $context['page']['sections'][0]['type']);

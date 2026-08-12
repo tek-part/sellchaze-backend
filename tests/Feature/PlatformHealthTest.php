@@ -33,4 +33,3 @@ class PlatformHealthTest extends TestCase
             ->assertJsonPath('checks.outbox', true);
     }
 }
-

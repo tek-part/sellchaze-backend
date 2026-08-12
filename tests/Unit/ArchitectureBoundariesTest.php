@@ -62,4 +62,3 @@ class ArchitectureBoundariesTest extends TestCase
         self::assertSame([], $violations, implode(PHP_EOL, $violations));
     }
 }
-

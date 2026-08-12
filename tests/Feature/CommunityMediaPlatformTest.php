@@ -29,7 +29,9 @@ class CommunityMediaPlatformTest extends TestCase
 
     public function test_chunked_upload_can_resume_complete_and_attach_to_post(): void
     {
-        Storage::fake('local'); Storage::fake('public'); Queue::fake();
+        Storage::fake('local');
+        Storage::fake('public');
+        Queue::fake();
         config(['community.chunk_size' => 16]);
         $user = $this->user('uploader@example.com');
         $file = UploadedFile::fake()->image('catalog.png', 20, 20);
@@ -59,7 +61,9 @@ class CommunityMediaPlatformTest extends TestCase
 
     public function test_groups_reels_events_and_audience_rules_work_together(): void
     {
-        $owner = $this->user('group-owner@example.com'); $member = $this->user('group-member@example.com'); $outsider = $this->user('group-outsider@example.com');
+        $owner = $this->user('group-owner@example.com');
+        $member = $this->user('group-member@example.com');
+        $outsider = $this->user('group-outsider@example.com');
         $group = $this->asUser($owner)->withHeader('Idempotency-Key', (string) Str::uuid())->postJson('/api/v1/community/groups', [
             'name' => 'Packaging Exporters', 'description' => 'Export opportunities', 'privacy' => 'private',
         ])->assertCreated()->json('data');
