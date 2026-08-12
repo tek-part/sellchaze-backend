@@ -45,6 +45,7 @@ class PostPresenter
                 'photo' => $profile?->photo
                     ? asset('storage/uploads/users/original/'.$profile->photo)
                     : (! empty($author->avatar) ? $author->avatar : null),
+                'role' => $author->communityRole(),
             ] : null,
             'acting_as' => $post->organization ? [
                 'type' => 'organization',
@@ -74,11 +75,13 @@ class PostPresenter
             'reaction' => $post->getAttribute('viewer_reaction'),
             'reaction_summary' => collect(['celebrate', 'insightful', 'support', 'interested'])->mapWithKeys(fn ($type) => [$type => (int) ($post->getAttribute($type.'_reactions_count') ?? 0)])->all(),
             'can_delete' => $viewerId !== null && $viewerId === (int) $post->user_id,
+            'can_edit' => $viewerId !== null && $viewerId === (int) $post->user_id,
+            'edited_at' => $post->edited_at?->toIso8601String(),
         ];
     }
 
     /** @return array<string, mixed> */
-    public static function comment(PostComment $c, ?int $viewerId): array
+    public static function comment(PostComment $c, ?int $viewerId, ?int $postOwnerId = null): array
     {
         $author = $c->author;
         $profile = $author?->profile;
@@ -89,6 +92,7 @@ class PostPresenter
             'parent_id' => $c->parent_id,
             'body' => $c->body,
             'created_at' => $c->created_at?->toIso8601String(),
+            'edited_at' => $c->edited_at?->toIso8601String(),
             'author' => $author ? [
                 'id' => $author->id,
                 'name' => $author->name,
@@ -96,8 +100,12 @@ class PostPresenter
                 'photo' => $profile?->photo
                     ? asset('storage/uploads/users/original/'.$profile->photo)
                     : (! empty($author->avatar) ? $author->avatar : null),
+                'role' => $author->communityRole(),
             ] : null,
-            'can_delete' => $viewerId !== null && $viewerId === (int) $c->user_id,
+            // The post owner can also delete (moderating their own wall) —
+            // mirrors what destroy() already allowed server-side.
+            'can_delete' => $viewerId !== null && ($viewerId === (int) $c->user_id || ($postOwnerId !== null && $viewerId === $postOwnerId)),
+            'can_edit' => $viewerId !== null && $viewerId === (int) $c->user_id,
         ];
     }
 }

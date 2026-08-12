@@ -3,19 +3,22 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Follow;
 use App\Models\Product;
 use App\Models\Profile;
 use App\Models\User;
+use App\Services\JwtTokenService;
 use App\Support\ProductImageUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
 /**
  * Unauthenticated endpoints backing /u/{username} public profile pages.
  */
 class PublicProfileApiController extends Controller
 {
-    public function show(string $username): JsonResponse
+    public function show(Request $request, string $username): JsonResponse
     {
         $profile = Profile::query()->where('username', $username)->first();
         if (! $profile || ! $profile->is_public) {
@@ -40,7 +43,20 @@ class PublicProfileApiController extends Controller
         );
         $productsCount = $user->isSupplier() ? (int) Product::query()->where('user_id', $user->id)->count() : 0;
 
+        $followersCount = (int) Follow::query()->where('followed_id', $user->id)->count();
+        $followingCount = (int) Follow::query()->where('follower_id', $user->id)->count();
+
+        // Optional auth: this endpoint stays public, but a logged-in viewer's
+        // token (the SPA always sends it) unlocks the relationship flags.
+        $viewer = $this->resolveViewer($request);
+        $viewerBlock = [
+            'is_self' => $viewer !== null && (int) $viewer->id === (int) $user->id,
+            'is_following' => $viewer !== null && Follow::query()->where('follower_id', $viewer->id)->where('followed_id', $user->id)->exists(),
+            'follows_you' => $viewer !== null && Follow::query()->where('follower_id', $user->id)->where('followed_id', $viewer->id)->exists(),
+        ];
+
         return response()->json([
+            'viewer' => $viewerBlock,
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -66,8 +82,30 @@ class PublicProfileApiController extends Controller
                 'years_active' => $yearsActive,
                 'partners_count' => $partnersCount,
                 'products_count' => $productsCount,
+                'followers_count' => $followersCount,
+                'following_count' => $followingCount,
             ],
         ]);
+    }
+
+    /** Best-effort viewer from a Bearer token; never fails the request. */
+    private function resolveViewer(Request $request): ?User
+    {
+        $header = $request->header('Authorization', '');
+        if (! str_starts_with($header, 'Bearer ')) {
+            return null;
+        }
+        $token = trim(substr($header, 7));
+        if ($token === '') {
+            return null;
+        }
+        try {
+            $user = JwtTokenService::fromConfig()->validateAccessToken($token);
+        } catch (Throwable) {
+            return null;
+        }
+
+        return $user && ($user->is_active ?? true) ? $user : null;
     }
 
     public function products(Request $request, string $username): JsonResponse

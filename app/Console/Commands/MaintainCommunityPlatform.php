@@ -38,8 +38,8 @@ class MaintainCommunityPlatform extends Command
 
         Hashtag::query()->chunkById(200, function ($tags) {
             foreach ($tags as $tag) {
-                $recent = $tag->posts()->where('status', 'published')->where('published_at', '>=', now()->subDays(7))->count();
-                $tag->update(['posts_count' => $tag->posts()->where('status', 'published')->count(), 'trend_score' => $recent * 3]);
+                $recent = $tag->posts()->where('status', 'published')->where('lifecycle_status', 'published')->where('published_at', '>=', now()->subDays(7))->count();
+                $tag->update(['posts_count' => $tag->posts()->where('status', 'published')->where('lifecycle_status', 'published')->count(), 'trend_score' => $recent * 3]);
             }
         });
 

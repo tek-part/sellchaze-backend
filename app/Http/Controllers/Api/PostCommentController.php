@@ -16,20 +16,30 @@ class PostCommentController extends Controller
 {
     public function index(Request $request, Post $post): JsonResponse
     {
+        // An archived (or moderation-hidden) post keeps its thread readable
+        // only for the post's author.
+        if (! $this->threadReadable($request, $post)) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+
         $viewerId = $request->user()?->id;
         $rows = PostComment::query()
             ->where('post_id', $post->id)
-            ->with('author.profile')
+            ->with('author.profile', 'author.roles')
             ->orderBy('created_at')
             ->get();
 
         return response()->json([
-            'data' => $rows->map(fn (PostComment $c) => PostPresenter::comment($c, $viewerId))->values()->all(),
+            'data' => $rows->map(fn (PostComment $c) => PostPresenter::comment($c, $viewerId, (int) $post->user_id))->values()->all(),
         ]);
     }
 
     public function store(Request $request, Post $post): JsonResponse
     {
+        // Archived posts are frozen — nobody comments, the author included.
+        if ($post->status !== 'published' || $post->lifecycle_status !== 'published') {
+            return response()->json(['message' => 'Not found'], 404);
+        }
         if (! $post->comments_enabled) {
             return response()->json(['message' => 'Comments are disabled for this post.'], 422);
         }
@@ -53,9 +63,26 @@ class PostCommentController extends Controller
             'body' => strip_tags($data['body']),
         ]);
         $post->increment('comments_count');
-        $comment->load('author.profile');
+        $comment->load('author.profile', 'author.roles');
 
-        return response()->json(['data' => PostPresenter::comment($comment, $request->user()->id)], 201);
+        return response()->json(['data' => PostPresenter::comment($comment, $request->user()->id, (int) $post->user_id)], 201);
+    }
+
+    /** Author-only comment edit; the post owner can delete but not rewrite. */
+    public function update(Request $request, Post $post, PostComment $comment): JsonResponse
+    {
+        if ($comment->post_id !== $post->id) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+        if ($comment->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $data = $request->validate(['body' => ['required', 'string', 'max:5000']]);
+        $comment->update(['body' => strip_tags($data['body']), 'edited_at' => now()]);
+        $comment->load('author.profile', 'author.roles');
+
+        return response()->json(['data' => PostPresenter::comment($comment, $request->user()->id, (int) $post->user_id)]);
     }
 
     public function destroy(Request $request, Post $post, PostComment $comment): JsonResponse
@@ -77,5 +104,12 @@ class PostCommentController extends Controller
         }
 
         return response()->json(['message' => 'Deleted']);
+    }
+
+    private function threadReadable(Request $request, Post $post): bool
+    {
+        $isAuthor = (int) $post->user_id === (int) $request->user()?->id;
+
+        return $isAuthor || ($post->status === 'published' && $post->lifecycle_status !== 'archived');
     }
 }

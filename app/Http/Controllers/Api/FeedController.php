@@ -12,6 +12,7 @@ use App\Models\Profile;
 use App\Models\Sector;
 use App\Models\UserSafetyRelation;
 use App\Services\FeedCache;
+use App\Support\Feed\FeedQuery;
 use App\Support\Feed\PostPresenter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -39,19 +40,7 @@ class FeedController extends Controller
             return response()->json($cached);
         }
 
-        $q = Post::query()->published()->visibleTo($viewer)
-            ->addSelect(['viewer_reaction' => PostReaction::query()->select('type')->whereColumn('post_id', 'posts.id')->where('user_id', $viewerId)->limit(1)])
-            ->withCount([
-                'reactions as celebrate_reactions_count' => fn ($r) => $r->where('type', 'celebrate'),
-                'reactions as insightful_reactions_count' => fn ($r) => $r->where('type', 'insightful'),
-                'reactions as support_reactions_count' => fn ($r) => $r->where('type', 'support'),
-                'reactions as interested_reactions_count' => fn ($r) => $r->where('type', 'interested'),
-            ])
-            ->withFeedRelations()
-            ->withExists([
-                'likes as liked' => fn (Builder $l) => $l->where('user_id', $viewerId),
-                'saves as saved' => fn (Builder $s) => $s->where('user_id', $viewerId),
-            ]);
+        $q = FeedQuery::hydrate(Post::query()->published()->visibleTo($viewer), $viewerId);
 
         if ($viewerId) {
             $hiddenAuthors = UserSafetyRelation::query()
@@ -78,9 +67,20 @@ class FeedController extends Controller
         }
         // ?author={username} → that member's wall (the in-platform profile page).
         // Runs through the same visibility pipeline as every other filter.
+        // ?archived=1 on YOUR OWN wall swaps the base for archived-only rows —
+        // silently ignored for anyone else (they keep the published wall).
         if ($request->filled('author')) {
             $authorId = Profile::query()->where('username', $request->string('author'))->value('user_id');
-            $q->where('user_id', $authorId ?? -1)->orderByDesc('published_at');
+            $wantArchived = $request->boolean('archived') && $authorId !== null && (int) $authorId === (int) $viewerId;
+            if ($wantArchived) {
+                $q = FeedQuery::hydrate(
+                    Post::query()->where('status', 'published')->where('lifecycle_status', 'archived')->where('user_id', $viewerId),
+                    $viewerId,
+                );
+            } else {
+                $q->where('user_id', $authorId ?? -1);
+            }
+            $q->orderByDesc('published_at');
         }
 
         if ($sectorSlug = $request->query('sector')) {

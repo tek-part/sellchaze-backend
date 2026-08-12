@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Follow;
 use App\Models\User;
+use App\Models\UserSafetyRelation;
+use App\Support\Feed\UserCardPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +56,72 @@ class FollowController extends Controller
             ->all();
 
         return response()->json(['following' => $ids]);
+    }
+
+    /** GET /users/{user}/followers — who follows this member. */
+    public function followersOf(Request $request, User $user): JsonResponse
+    {
+        return $this->graphList($request, $user, 'followers');
+    }
+
+    /** GET /users/{user}/following — who this member follows. */
+    public function followingOf(Request $request, User $user): JsonResponse
+    {
+        return $this->graphList($request, $user, 'following');
+    }
+
+    /**
+     * Shared follower/following list: paginated user cards, newest follow
+     * first, hidden entirely between blocked pairs.
+     */
+    private function graphList(Request $request, User $user, string $direction): JsonResponse
+    {
+        $viewer = $request->user();
+
+        if (! ($user->is_active ?? true) || ! empty($user->pending_approval)) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+        // A block in either direction hides the whole graph.
+        $blockedPair = UserSafetyRelation::query()
+            ->where('type', 'block')
+            ->where(fn ($q) => $q
+                ->where(fn ($a) => $a->where('actor_user_id', $viewer->id)->where('target_user_id', $user->id))
+                ->orWhere(fn ($b) => $b->where('actor_user_id', $user->id)->where('target_user_id', $viewer->id)))
+            ->exists();
+        if ($blockedPair && $viewer->id !== $user->id) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+
+        $perPage = min(50, max(5, $request->integer('per_page', 20)));
+
+        $relation = $direction === 'followers' ? $user->followers() : $user->followingUsers();
+        $q = $relation->with('profile', 'roles')->where('users.is_active', true);
+
+        // Hide rows the viewer has blocked, and rows that blocked the viewer.
+        $iBlocked = UserSafetyRelation::query()->where('actor_user_id', $viewer->id)->where('type', 'block')->pluck('target_user_id');
+        $blockedMe = UserSafetyRelation::query()->where('target_user_id', $viewer->id)->where('type', 'block')->pluck('actor_user_id');
+        $excluded = $iBlocked->merge($blockedMe)->unique()->all();
+        if ($excluded) {
+            $q->whereNotIn('users.id', $excluded);
+        }
+
+        $rows = $q->orderByDesc('follows.created_at')->paginate($perPage);
+
+        $ids = collect($rows->items())->pluck('id')->all();
+        $iFollow = Follow::query()->where('follower_id', $viewer->id)->whereIn('followed_id', $ids)->pluck('followed_id')->flip();
+        $followMe = Follow::query()->where('followed_id', $viewer->id)->whereIn('follower_id', $ids)->pluck('follower_id')->flip();
+
+        return response()->json([
+            'data' => collect($rows->items())
+                ->map(fn (User $u) => UserCardPresenter::make($u, $iFollow->has($u->id), $followMe->has($u->id)))
+                ->values()->all(),
+            'meta' => [
+                'total' => $rows->total(),
+                'per_page' => $rows->perPage(),
+                'current_page' => $rows->currentPage(),
+                'last_page' => $rows->lastPage(),
+            ],
+        ]);
     }
 
     /**

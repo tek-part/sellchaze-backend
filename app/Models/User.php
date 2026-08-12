@@ -245,6 +245,27 @@ class User extends Authenticatable
     }
 
     /**
+     * The role label the community surfaces show under a name. Query-free when
+     * the `roles` relation is eager-loaded (Spatie reads the loaded collection).
+     */
+    public function communityRole(): string
+    {
+        return $this->isSupplier() ? 'supplier' : ($this->isMerchant() ? 'merchant' : 'user');
+    }
+
+    /** Members who follow this user. */
+    public function followers(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'follows', 'followed_id', 'follower_id')->withTimestamps();
+    }
+
+    /** Members this user follows. */
+    public function followingUsers(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'follows', 'follower_id', 'followed_id')->withTimestamps();
+    }
+
+    /**
      * Generate a new API key for this user.
      */
     public function generateApiKey(): string

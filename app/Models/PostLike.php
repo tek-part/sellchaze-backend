@@ -20,4 +20,10 @@ class PostLike extends Model
     {
         return $this->belongsTo(Post::class);
     }
+
+    /** @return BelongsTo<User, $this> */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }

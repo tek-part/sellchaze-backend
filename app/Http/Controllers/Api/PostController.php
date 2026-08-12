@@ -14,9 +14,12 @@ use App\Models\PostReaction;
 use App\Models\PostSave;
 use App\Models\PostShare;
 use App\Models\Product;
+use App\Models\User;
 use App\Services\FeedCache;
 use App\Services\SubscriptionService;
+use App\Support\Feed\FeedQuery;
 use App\Support\Feed\PostPresenter;
+use App\Support\Feed\UserCardPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -157,16 +160,150 @@ class PostController extends Controller
 
     public function show(Request $request, Post $post): JsonResponse
     {
-        if ($post->status !== 'published' && $post->user_id !== $request->user()?->id) {
+        if (! $this->isViewable($request, $post)) {
             return response()->json(['message' => 'Not found'], 404);
         }
-        if (! $this->canView($request, $post)) {
-            return response()->json(['message' => 'Not found'], 404);
-        }
-        $post->load(Post::FEED_RELATIONS);
-        $post->setAttribute('liked', PostLike::query()->where('post_id', $post->id)->where('user_id', $request->user()?->id)->exists());
+        $viewerId = $request->user()?->id;
+        // Re-fetch through the shared hydration so the detail card carries the
+        // same truthful liked/saved/reaction state as a feed card.
+        $post = FeedQuery::hydrate(Post::query()->whereKey($post->id), $viewerId)->firstOrFail();
 
-        return response()->json(['data' => PostPresenter::card($post, $request->user()?->id)]);
+        return response()->json(['data' => PostPresenter::card($post, $viewerId)]);
+    }
+
+    /**
+     * Author-only edit. Content changes stamp `edited_at`; archiving or
+     * toggling comments does not. Archiving is `lifecycle_status: archived`
+     * through this same endpoint — the scopePublished tightening hides the
+     * post everywhere public while the author keeps full access.
+     */
+    public function update(Request $request, Post $post): JsonResponse
+    {
+        $user = $request->user();
+        if ($post->user_id !== $user->id) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+        // A moderation-hidden post must not be editable back into sight.
+        if ($post->status === 'hidden') {
+            return response()->json(['message' => 'This post is under moderation.'], 403);
+        }
+
+        $data = $request->validate([
+            'body' => ['sometimes', 'nullable', 'string', 'max:20000'],
+            'audience' => ['sometimes', Rule::in(['public', 'followers', 'sector'])],
+            'comments_enabled' => ['sometimes', 'boolean'],
+            'cta_type' => ['sometimes', 'nullable', Rule::in(['request_quote', 'contact', 'view_product', 'register', 'apply'])],
+            'cta_label' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'cta_url' => ['sometimes', 'nullable', 'url', 'max:2048'],
+            'location_name' => ['sometimes', 'nullable', 'string', 'max:160'],
+            'type' => ['sometimes', Rule::in(Post::TYPES)],
+            'hashtags' => ['sometimes', 'array', 'max:10'],
+            'hashtags.*' => ['string', 'max:100'],
+            'lifecycle_status' => ['sometimes', Rule::in(['published', 'archived'])],
+        ]);
+
+        if (array_key_exists('audience', $data) && $post->audience === 'group') {
+            return response()->json(['message' => 'Group posts keep their group audience.'], 422);
+        }
+        if (($data['audience'] ?? null) === 'sector' && ! $post->sector_id) {
+            return response()->json(['message' => 'This post has no sector to restrict to.'], 422);
+        }
+        if (array_key_exists('lifecycle_status', $data) && $post->lifecycle_status === 'scheduled') {
+            return response()->json(['message' => 'Scheduled posts cannot be archived before publishing.'], 422);
+        }
+
+        $bodyChanged = array_key_exists('body', $data);
+        if ($bodyChanged) {
+            $data['body'] = $this->sanitize($data['body']);
+            if (blank(strip_tags((string) $data['body'])) && ! $post->product_id && empty($post->attachments) && ! $post->media()->exists()) {
+                return response()->json(['message' => 'A post needs some text, a product, or an attachment.'], 422);
+            }
+        }
+
+        $hashtags = $data['hashtags'] ?? [];
+        unset($data['hashtags']);
+
+        $post->fill($data);
+        if ($post->isDirty(['body', 'type', 'audience', 'cta_type', 'cta_label', 'cta_url', 'location_name'])) {
+            $post->edited_at = now();
+        }
+        $post->save();
+
+        if ($bodyChanged) {
+            $this->syncHashtags($post, $hashtags, $post->body);
+        }
+
+        $fresh = FeedQuery::hydrate(Post::query()->whereKey($post->id), $user->id)->firstOrFail();
+
+        return response()->json(['data' => PostPresenter::card($fresh, $user->id)]);
+    }
+
+    /**
+     * Who liked / reacted: one paginated list unioning the two systems, with a
+     * per-type summary for the viewer dialog's header chips.
+     */
+    public function reactions(Request $request, Post $post): JsonResponse
+    {
+        if (! $this->isViewable($request, $post)) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+
+        $data = $request->validate([
+            'type' => ['sometimes', Rule::in(['like', 'celebrate', 'insightful', 'support', 'interested'])],
+            'per_page' => ['sometimes', 'integer'],
+        ]);
+        $perPage = min(50, max(5, (int) ($data['per_page'] ?? 20)));
+        $type = $data['type'] ?? null;
+
+        $likes = DB::table('post_likes')->where('post_id', $post->id)
+            ->select('user_id', DB::raw("'like' as type"), 'created_at');
+        $reactions = DB::table('post_reactions')->where('post_id', $post->id)
+            ->select('user_id', 'type', 'created_at');
+
+        $source = match (true) {
+            $type === 'like' => $likes,
+            $type !== null => $reactions->where('type', $type),
+            default => $likes->unionAll($reactions),
+        };
+
+        $rows = DB::query()->fromSub($source, 'r')->orderByDesc('created_at')->paginate($perPage);
+
+        $viewerId = (int) $request->user()->id;
+        $users = User::query()->with('profile', 'roles')->whereIn('id', collect($rows->items())->pluck('user_id'))->get()->keyBy('id');
+        $ids = $users->keys()->all();
+        $iFollow = Follow::query()->where('follower_id', $viewerId)->whereIn('followed_id', $ids)->pluck('followed_id')->flip();
+        $followMe = Follow::query()->where('followed_id', $viewerId)->whereIn('follower_id', $ids)->pluck('follower_id')->flip();
+
+        $summary = $post->reactions()->selectRaw('type, count(*) as total')->groupBy('type')->pluck('total', 'type');
+        $summary['like'] = (int) $post->likes_count;
+
+        return response()->json([
+            'data' => collect($rows->items())
+                ->filter(fn ($row) => $users->has($row->user_id))
+                ->map(fn ($row) => [
+                    'user' => UserCardPresenter::make($users[$row->user_id], $iFollow->has($row->user_id), $followMe->has($row->user_id)),
+                    'type' => $row->type,
+                    'reacted_at' => $row->created_at,
+                ])->values()->all(),
+            'meta' => [
+                'total' => $rows->total(),
+                'per_page' => $rows->perPage(),
+                'current_page' => $rows->currentPage(),
+                'last_page' => $rows->lastPage(),
+                'summary' => $summary,
+            ],
+        ]);
+    }
+
+    /** Shared visibility gate for show()/reactions(): published, not archived (author excepted), audience allows the viewer. */
+    private function isViewable(Request $request, Post $post): bool
+    {
+        $isAuthor = (int) $post->user_id === (int) $request->user()?->id;
+        if (($post->status !== 'published' || $post->lifecycle_status === 'archived') && ! $isAuthor) {
+            return false;
+        }
+
+        return $this->canView($request, $post);
     }
 
     public function destroy(Request $request, Post $post): JsonResponse

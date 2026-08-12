@@ -35,12 +35,14 @@ class Post extends Model
 {
     public const TYPES = ['new_product', 'ad_offer', 'rfq', 'update_news', 'question'];
 
-    /** Relations every feed-card render needs — single source of truth for eager-loading. */
-    public const FEED_RELATIONS = ['author.profile', 'organization', 'sector', 'product', 'media.variants', 'communityGroup'];
+    /** Relations every feed-card render needs — single source of truth for eager-loading.
+     *  author.roles rides along so PostPresenter can emit the author's community
+     *  role (supplier/merchant) without a per-row Spatie query. */
+    public const FEED_RELATIONS = ['author.profile', 'author.roles', 'organization', 'sector', 'product', 'media.variants', 'communityGroup'];
 
     protected $fillable = [
         'user_id', 'organization_id', 'sector_id', 'type', 'body', 'product_id',
-        'attachments', 'meta', 'status', 'published_at', 'format', 'lifecycle_status',
+        'attachments', 'meta', 'status', 'published_at', 'edited_at', 'format', 'lifecycle_status',
         'audience', 'community_group_id', 'original_post_id', 'cta_type', 'cta_label',
         'cta_url', 'comments_enabled', 'scheduled_at', 'location_name', 'ranking_score',
     ];
@@ -54,6 +56,7 @@ class Post extends Model
             'comments_count' => 'integer',
             'shares_count' => 'integer',
             'published_at' => 'datetime',
+            'edited_at' => 'datetime',
             'scheduled_at' => 'datetime',
             'comments_enabled' => 'boolean',
             'ranking_score' => 'float',
@@ -63,7 +66,7 @@ class Post extends Model
     protected static function booted(): void
     {
         static::saved(function (Post $post) {
-            if ($post->wasRecentlyCreated || $post->wasChanged(['body', 'status', 'published_at', 'sector_id', 'format', 'audience', 'community_group_id'])) {
+            if ($post->wasRecentlyCreated || $post->wasChanged(['body', 'status', 'published_at', 'sector_id', 'format', 'audience', 'community_group_id', 'lifecycle_status', 'comments_enabled', 'cta_type', 'cta_label', 'cta_url', 'location_name'])) {
                 app(FeedCache::class)->flush();
             }
         });
@@ -143,9 +146,14 @@ class Post extends Model
         return $this->belongsTo(CommunityGroup::class);
     }
 
+    /**
+     * The only rows the public surfaces (feed, reels, group walls, ranking)
+     * ever see. Equality on lifecycle_status is deliberate: it excludes both
+     * 'archived' and any 'scheduled' rows the cron has not released yet.
+     */
     public function scopePublished(Builder $query): Builder
     {
-        return $query->where('status', 'published');
+        return $query->where('status', 'published')->where('lifecycle_status', 'published');
     }
 
     /** Apply row-level audience rules for every feed/reel query. */
@@ -174,5 +182,26 @@ class Post extends Model
     public function scopeWithFeedRelations(Builder $query): Builder
     {
         return $query->with(self::FEED_RELATIONS);
+    }
+
+    /**
+     * Drop posts by authors the viewer blocked/muted, and by authors who
+     * blocked the viewer — the same exclusion the feed applies, shared so
+     * search and the hashtag page behave identically.
+     */
+    public function scopeWithoutBlockedFor(Builder $query, User $viewer): Builder
+    {
+        $hiddenAuthors = UserSafetyRelation::query()
+            ->where('actor_user_id', $viewer->id)
+            ->whereIn('type', ['block', 'mute'])
+            ->pluck('target_user_id');
+        $blockedBy = UserSafetyRelation::query()
+            ->where('target_user_id', $viewer->id)
+            ->where('type', 'block')
+            ->pluck('actor_user_id');
+
+        $excluded = $hiddenAuthors->merge($blockedBy)->unique()->all();
+
+        return $excluded ? $query->whereNotIn('user_id', $excluded) : $query;
     }
 }

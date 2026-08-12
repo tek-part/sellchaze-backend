@@ -17,7 +17,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class PostComment extends Model
 {
-    protected $fillable = ['post_id', 'user_id', 'parent_id', 'body'];
+    protected $fillable = ['post_id', 'user_id', 'parent_id', 'body', 'edited_at'];
+
+    protected function casts(): array
+    {
+        return ['edited_at' => 'datetime'];
+    }
 
     /** @return BelongsTo<Post, $this> */
     public function post(): BelongsTo

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\ChatApiController;
 use App\Http\Controllers\Api\CommunityGroupController;
 use App\Http\Controllers\Api\CommunityMediaUploadController;
 use App\Http\Controllers\Api\CommunityReelController;
+use App\Http\Controllers\Api\CommunitySearchController;
 use App\Http\Controllers\Api\CouponsApiController;
 use App\Http\Controllers\Api\CurrencySettingsApiController;
 use App\Http\Controllers\Api\DashboardApiController;
@@ -351,7 +352,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/feed/events', [FeedEventController::class, 'batch'])->middleware('throttle:120,1');
         Route::post('/posts', [PostController::class, 'store'])->middleware('throttle:20,1');
         Route::get('/posts/{post}', [PostController::class, 'show'])->whereNumber('post');
+        Route::patch('/posts/{post}', [PostController::class, 'update'])->whereNumber('post')->middleware('throttle:30,1');
         Route::delete('/posts/{post}', [PostController::class, 'destroy'])->whereNumber('post');
+        Route::get('/posts/{post}/reactions', [PostController::class, 'reactions'])->whereNumber('post')->middleware('throttle:tenant-read');
         Route::post('/posts/{post}/like', [PostController::class, 'like'])->whereNumber('post');
         Route::delete('/posts/{post}/like', [PostController::class, 'unlike'])->whereNumber('post');
         Route::post('/posts/{post}/share', [PostController::class, 'share'])->whereNumber('post');
@@ -361,8 +364,14 @@ Route::prefix('v1')->group(function () {
         Route::delete('/posts/{post}/reaction', [PostController::class, 'unreact'])->whereNumber('post');
         Route::get('/posts/{post}/comments', [PostCommentController::class, 'index'])->whereNumber('post');
         Route::post('/posts/{post}/comments', [PostCommentController::class, 'store'])->whereNumber('post')->middleware('throttle:60,1');
+        Route::patch('/posts/{post}/comments/{comment}', [PostCommentController::class, 'update'])
+            ->whereNumber('post')->whereNumber('comment')->middleware('throttle:60,1');
         Route::delete('/posts/{post}/comments/{comment}', [PostCommentController::class, 'destroy'])
             ->whereNumber('post')->whereNumber('comment');
+        Route::get('/users/{user}/followers', [FollowController::class, 'followersOf'])->whereNumber('user')->middleware('throttle:tenant-read');
+        Route::get('/users/{user}/following', [FollowController::class, 'followingOf'])->whereNumber('user')->middleware('throttle:tenant-read');
+        Route::get('/search', [CommunitySearchController::class, 'index'])->middleware('throttle:tenant-read');
+        Route::get('/hashtags/{slug}/posts', [CommunitySearchController::class, 'hashtagPosts'])->middleware('throttle:tenant-read');
 
         Route::prefix('community/media/uploads')->group(function () {
             Route::post('/', [CommunityMediaUploadController::class, 'initiate'])->middleware('throttle:20,1');

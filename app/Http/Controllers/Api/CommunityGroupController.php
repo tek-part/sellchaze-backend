@@ -55,7 +55,7 @@ class CommunityGroupController extends Controller
     {
         $joined = $group->members()->where('users.id', $request->user()->id)->wherePivot('status', 'active')->exists();
         abort_if($group->privacy === 'private' && ! $joined, 403);
-        $posts = $group->posts()->where('status', 'published')->with(Post::FEED_RELATIONS)->orderByDesc('published_at')->cursorPaginate(12);
+        $posts = $group->posts()->published()->with(Post::FEED_RELATIONS)->orderByDesc('published_at')->cursorPaginate(12);
 
         return response()->json(['data' => [...$this->card($group->load('sector')), 'joined' => $joined, 'posts' => collect($posts->items())->map(fn ($p) => PostPresenter::card($p, $request->user()->id))->all(), 'next_cursor' => $posts->nextCursor()?->encode()]]);
     }
