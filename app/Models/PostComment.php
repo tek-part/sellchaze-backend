@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $user_id
  * @property int|null $parent_id
  * @property string $body
+ * @property \Illuminate\Support\Carbon|null $edited_at
  */
 class PostComment extends Model
 {

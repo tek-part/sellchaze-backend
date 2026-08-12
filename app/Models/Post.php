@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property int $shares_count
  * @property string $status
  * @property Carbon|null $published_at
+ * @property Carbon|null $edited_at
  * @property Carbon|null $scheduled_at
  * @property CommunityGroup|null $communityGroup
  * @property Collection<int, MediaAsset> $media

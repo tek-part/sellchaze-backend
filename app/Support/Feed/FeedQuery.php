@@ -2,6 +2,7 @@
 
 namespace App\Support\Feed;
 
+use App\Models\Post;
 use App\Models\PostReaction;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -23,7 +24,7 @@ class FeedQuery
                 'reactions as support_reactions_count' => fn ($r) => $r->where('type', 'support'),
                 'reactions as interested_reactions_count' => fn ($r) => $r->where('type', 'interested'),
             ])
-            ->withFeedRelations()
+            ->with(Post::FEED_RELATIONS)
             ->withExists([
                 'likes as liked' => fn (Builder $l) => $l->where('user_id', $viewerId),
                 'saves as saved' => fn (Builder $s) => $s->where('user_id', $viewerId),
