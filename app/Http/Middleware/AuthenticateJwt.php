@@ -38,7 +38,9 @@ class AuthenticateJwt
         }
 
         if ($user->is_active === false) {
-            return response()->json(['message' => __('Account is deactivated.')], 403);
+            // The machine-readable code lets the SPA end the session cleanly
+            // (the message itself is localized, so clients must not match on it).
+            return response()->json(['message' => __('Account is deactivated.'), 'code' => 'account_deactivated'], 403);
         }
 
         auth()->setUser($user);

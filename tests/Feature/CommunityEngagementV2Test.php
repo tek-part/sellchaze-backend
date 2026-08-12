@@ -273,6 +273,17 @@ class CommunityEngagementV2Test extends TestCase
         $this->assertSame('supplier', $comments[0]['author']['role']);
     }
 
+    public function test_deactivated_account_gets_machine_readable_403(): void
+    {
+        $user = $this->user('deactivated@example.com');
+        $token = JwtTokenService::fromConfig()->issueAccessToken($user);
+        $user->update(['is_active' => false]);
+
+        $this->withToken($token)->getJson('/api/v1/auth/me')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'account_deactivated');
+    }
+
     public function test_show_hydrates_saved_and_reaction_state(): void
     {
         $author = $this->user('parity-author@example.com');
