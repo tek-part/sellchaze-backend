@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * A comment on a feed post. `parent_id` allows one level of threaded replies.
@@ -14,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $user_id
  * @property int|null $parent_id
  * @property string $body
- * @property \Illuminate\Support\Carbon|null $edited_at
+ * @property Carbon|null $edited_at
  */
 class PostComment extends Model
 {
