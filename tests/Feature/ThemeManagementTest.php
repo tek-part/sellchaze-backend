@@ -165,7 +165,7 @@ class ThemeManagementTest extends TestCase
     public function test_settings_are_coerced_and_invalid_settings_rejected(): void
     {
         // valid but out-of-range -> coerced (products_per_row clamped to 6)
-        $this->asOwnerA()->putJson("/api/v1/stores/{$this->storeA->id}/themes/settings", [
+        $this->asOwnerA()->postJson("/api/v1/stores/{$this->storeA->id}/themes/settings", [
             'theme_id' => $this->defaultThemeId,
             'settings' => ['primary' => '#ffffff', 'products_per_row' => 99],
         ])->assertOk();

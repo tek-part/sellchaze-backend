@@ -21,9 +21,9 @@
         <env name="APP_ENV" value="testing"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_DRIVER" value="array"/>
-        <!-- Phase 2: isolated MySQL test database (never touches the real data). -->
-        <env name="DB_CONNECTION" value="mysql"/>
-        <env name="DB_DATABASE" value="wigpleasure_laravel_orders_test"/>
+        <!-- Disposable in-memory database: tests can never touch local/production data. -->
+        <env name="DB_CONNECTION" value="sqlite"/>
+        <env name="DB_DATABASE" value=":memory:"/>
         <env name="SELLCHASE_STOREFRONT_BASE_DOMAIN" value="sellchase.com"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

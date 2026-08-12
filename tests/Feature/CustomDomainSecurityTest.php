@@ -413,7 +413,7 @@ class CustomDomainSecurityTest extends TestCase
             ->assertNotFound();
 
         $this->withToken($token)
-            ->deleteJson("/api/v1/stores/{$a->id}/domains/{$victim->id}")
+            ->postJson("/api/v1/stores/{$a->id}/domains/{$victim->id}")
             ->assertNotFound();
 
         // And addressing it under the victim's store id must be forbidden.
@@ -422,6 +422,14 @@ class CustomDomainSecurityTest extends TestCase
             ->assertForbidden();
 
         $this->assertDatabaseHas('store_domains', ['id' => $victim->id, 'store_id' => $b->id]);
+
+        // The victim's owner can use the production-safe POST alias.
+        $ownerToken = JwtTokenService::fromConfig()->issueAccessToken($b->owner);
+        $this->withToken($ownerToken)
+            ->postJson("/api/v1/stores/{$b->id}/domains/{$victim->id}")
+            ->assertOk()
+            ->assertJsonPath('deleted', true);
+        $this->assertDatabaseMissing('store_domains', ['id' => $victim->id]);
     }
 
     public function test_audit_history_is_tenant_scoped(): void

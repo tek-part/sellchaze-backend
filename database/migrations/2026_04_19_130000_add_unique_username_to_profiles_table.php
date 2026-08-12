@@ -33,9 +33,8 @@ return new class extends Migration
             $table->string('username')->nullable(false)->change();
         });
 
-        // Idempotent: only add the unique index if it doesn't already exist.
-        $indexes = collect(DB::select("SHOW INDEX FROM profiles WHERE Key_name = 'profiles_username_unique'"));
-        if ($indexes->isEmpty()) {
+        // Idempotent and portable across supported database drivers.
+        if (! Schema::hasIndex('profiles', 'profiles_username_unique', 'unique')) {
             Schema::table('profiles', function (Blueprint $table) {
                 $table->unique('username');
             });

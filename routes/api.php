@@ -490,7 +490,9 @@ Route::prefix('v1')->group(function () {
                     Route::post('{domain}/primary', [StoreDomainsApiController::class, 'makePrimary'])->whereNumber('domain');
                     Route::post('{domain}/disable', [StoreDomainsApiController::class, 'disable'])->whereNumber('domain');
                     Route::post('{domain}/enable', [StoreDomainsApiController::class, 'enable'])->whereNumber('domain');
-                    Route::delete('{domain}', [StoreDomainsApiController::class, 'destroy'])->whereNumber('domain');
+                    // POST alias supports hosting proxies that normalize DELETE
+                    // before PHP receives it. Authorization remains identical.
+                    Route::match(['post', 'delete'], '{domain}', [StoreDomainsApiController::class, 'destroy'])->whereNumber('domain');
                 });
 
                 Route::middleware('throttle:domain-verify')->group(function () {
@@ -549,7 +551,9 @@ Route::prefix('v1')->group(function () {
                 Route::post('upgrade', [StoreThemesApiController::class, 'upgrade']);
                 Route::post('preview', [StoreThemesApiController::class, 'preview']);
                 Route::post('rollback', [StoreThemesApiController::class, 'rollback']);
-                Route::put('settings', [StoreThemesApiController::class, 'settings']);
+                // POST alias mirrors store settings and works behind proxies
+                // that do not preserve PUT requests.
+                Route::match(['put', 'post'], 'settings', [StoreThemesApiController::class, 'settings']);
                 Route::get('{theme}', [StoreThemesApiController::class, 'show'])->whereNumber('theme');
             });
 
