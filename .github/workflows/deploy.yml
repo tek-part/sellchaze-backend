@@ -43,9 +43,7 @@ jobs:
 
             APP_DIR=/home/sellchaze/public_html/api.sellchaze.com
 
-            case "$DEPLOY_SHA" in
-              ''|*[!0-9a-f]*) echo "Invalid deployment SHA" >&2; exit 1 ;;
-            esac
+            printf '%s\n' "$DEPLOY_SHA" | grep -Eq '^[0-9a-f]{40}$'
 
             cd "$APP_DIR"
             if [ ! -d .git ]; then
