@@ -39,11 +39,12 @@ class ThemeUpgradeAndMigrationTest extends TestCase
             'name' => 'Nike', 'slug' => 'nike', 'currency' => 'USD', 'status' => 'active',
         ]);
 
-        // Install + activate 1.0.0 explicitly, then customise a setting.
+        // Install + activate 1.0.0 explicitly, then customise and publish a setting.
         $v100 = $this->registry->resolveThemeVersion($this->default, '1.0.0');
         $install = $this->service->install($this->store, $this->default, $v100);
         $this->service->activate($this->store, $install);
         $this->service->updateSettings($install, ['primary' => '#abcdef']);
+        $this->service->publish($this->store, $install);
     }
 
     public function test_migrator_renames_fields(): void

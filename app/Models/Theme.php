@@ -13,12 +13,15 @@ class Theme extends Model
     protected $fillable = [
         'key', 'name', 'description', 'author', 'category', 'status', 'is_marketplace',
         'is_featured', 'installs_count', 'preview_image', 'latest_version_id',
+        'price', 'currency', 'license_type', 'support_days',
     ];
 
     protected $casts = [
         'is_marketplace' => 'boolean',
         'is_featured' => 'boolean',
         'installs_count' => 'integer',
+        'price' => 'decimal:2',
+        'support_days' => 'integer',
     ];
 
     /** @return HasMany<ThemeVersion, $this> */

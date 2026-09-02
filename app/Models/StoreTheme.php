@@ -17,13 +17,15 @@ class StoreTheme extends Model
     public const STATUSES = ['installed', 'preview', 'active'];
 
     protected $fillable = [
-        'store_id', 'theme_id', 'theme_version_id', 'settings', 'custom_css',
-        'status', 'installed_at',
+        'store_id', 'theme_id', 'theme_version_id', 'settings', 'draft_settings', 'custom_css',
+        'draft_custom_css', 'status', 'installed_at', 'published_at', 'published_by_user_id',
     ];
 
     protected $casts = [
         'settings' => 'array',
+        'draft_settings' => 'array',
         'installed_at' => 'datetime',
+        'published_at' => 'datetime',
     ];
 
     /** @return BelongsTo<Store, $this> */

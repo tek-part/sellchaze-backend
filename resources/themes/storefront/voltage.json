@@ -8,6 +8,7 @@
   "is_marketplace": true,
   "is_featured": false,
   "min_platform_version": "1.0.0",
+  "preview_image": "/media/theme-previews/voltage.svg",
   "supported_features": ["rtl", "dark-mode", "compare", "quick-view", "reviews"],
   "bundle_url": "builtin:voltage@1.0.0",
   "changelog": "Initial Sellchaze storefront release.",

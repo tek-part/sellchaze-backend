@@ -6,7 +6,7 @@
     "category": "food",
     "description": "A fresh, warm theme for food, agriculture and natural-product suppliers: appetising imagery, generous whitespace, story-first sections and a soft green palette — RTL-ready.",
     "min_platform_version": "1.0.0",
-    "preview_image": null,
+    "preview_image": "/media/theme-previews/verde.svg",
 
     "settings_schema": [
         {

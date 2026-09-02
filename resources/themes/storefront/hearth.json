@@ -8,6 +8,7 @@
   "is_marketplace": true,
   "is_featured": false,
   "min_platform_version": "1.0.0",
+  "preview_image": "/media/theme-previews/hearth.svg",
   "supported_features": ["rtl", "dark-mode", "wishlist", "newsletter", "lookbook"],
   "bundle_url": "builtin:hearth@1.0.0",
   "changelog": "Initial Sellchaze storefront release.",

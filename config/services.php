@@ -109,4 +109,18 @@ return [
     'wavex' => [
         'public_storage_url' => ($w = trim((string) env('WAVEX_PUBLIC_STORAGE_URL', ''))) !== '' ? rtrim($w, '/') : null,
     ],
+
+    /* Platform-owned checkout for paid marketplace themes. Never use a merchant store's Stripe keys here. */
+    'theme_marketplace' => [
+        'stripe_secret' => env('THEME_MARKETPLACE_STRIPE_SECRET'),
+        'stripe_webhook_secret' => env('THEME_MARKETPLACE_STRIPE_WEBHOOK_SECRET'),
+        'success_url' => env(
+            'THEME_MARKETPLACE_SUCCESS_URL',
+            rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/').'/store/themes?theme_purchase=success&session_id={CHECKOUT_SESSION_ID}'
+        ),
+        'cancel_url' => env(
+            'THEME_MARKETPLACE_CANCEL_URL',
+            rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/').'/store/themes?theme_purchase=cancelled'
+        ),
+    ],
 ];

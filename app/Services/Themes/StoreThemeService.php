@@ -27,22 +27,31 @@ class StoreThemeService
         private readonly ThemeCompatibility $compatibility,
         private readonly ThemeSettingsMigrator $migrator,
         private readonly StorefrontUrlGenerator $urls,
+        private readonly ThemeLicenseService $licenses,
     ) {}
 
     /** Install (idempotent) a theme version for a store, seeding settings defaults. */
-    public function install(Store $store, Theme $theme, ThemeVersion $version): StoreTheme
+    public function install(Store $store, Theme $theme, ThemeVersion $version, ?int $actorId = null): StoreTheme
     {
         $this->compatibility->assertCompatible($version); // Task 2: cannot install incompatible
+        $this->licenses->assertCanInstall($store, $theme, $actorId);
 
-        return StoreTheme::updateOrCreate(
+        $defaults = $this->settingsDefaults($version);
+
+        $install = StoreTheme::firstOrCreate(
             ['store_id' => $store->id, 'theme_id' => $theme->id],
             [
                 'theme_version_id' => $version->id,
-                'settings' => $this->settingsDefaults($version),
+                'settings' => $defaults,
+                'draft_settings' => $defaults,
                 'status' => 'installed',
                 'installed_at' => now(),
+                'published_at' => now(),
             ],
         );
+        if ($install->wasRecentlyCreated) $theme->increment('installs_count');
+
+        return $install;
     }
 
     /**
@@ -57,6 +66,8 @@ class StoreThemeService
         ?int $rollbackTo = null,
     ): StoreTheme {
         $version = ThemeVersion::query()->find($install->theme_version_id);
+        $theme = Theme::query()->findOrFail($install->theme_id);
+        $this->licenses->assertCanInstall($store, $theme, $actorId);
         if ($version) {
             $this->compatibility->assertCompatible($version); // Task 2: cannot activate incompatible
         }
@@ -71,7 +82,11 @@ class StoreThemeService
                 ->where('status', 'active')
                 ->update(['status' => 'installed']);
 
+            $install->settings = $install->draft_settings ?? $install->settings ?? [];
+            $install->custom_css = $install->draft_custom_css ?? $install->custom_css;
             $install->status = 'active';
+            $install->published_at = now();
+            $install->published_by_user_id = $actorId;
             $install->save();
 
             $store->forceFill([
@@ -98,7 +113,7 @@ class StoreThemeService
         return $install;
     }
 
-    /** Validate + persist settings for an install; refresh caches if it is active. */
+    /** Validate + persist a draft. Autosave never changes the live storefront. */
     public function updateSettings(
         StoreTheme $install,
         array $settings,
@@ -108,20 +123,36 @@ class StoreThemeService
         $version = ThemeVersion::query()->find($install->theme_version_id);
         $schema = $version->settings_schema ?? [];
 
-        $install->settings = $this->validator->coerce($settings, $schema);
+        $install->draft_settings = $this->validator->coerce($settings, $schema);
         $install->save();
         $this->recordRevision($install, $actorId, $source);
 
+        return $install;
+    }
+
+    /** Atomically promote the current draft to the published storefront state. */
+    public function publish(Store $store, StoreTheme $install, ?int $actorId = null): StoreTheme
+    {
+        DB::transaction(function () use ($store, $install, $actorId) {
+            $install->settings = $install->draft_settings ?? $install->settings ?? [];
+            $install->custom_css = $install->draft_custom_css ?? $install->custom_css;
+            $install->published_at = now();
+            $install->published_by_user_id = $actorId;
+            $install->save();
+
+            if ($install->status === 'active') {
+                $store->forceFill(['theme_settings' => $install->settings])->save();
+                StoreThemeActivation::query()
+                    ->where('store_id', $install->store_id)
+                    ->latest('id')->first()?->update(['settings' => $install->settings]);
+            }
+        });
+
         if ($install->status === 'active') {
-            $install->store?->forceFill(['theme_settings' => $install->settings])->save(); // triggers page-cache flush
-            // Keep the active activation snapshot in sync so rollback restores the
-            // exact current settings (backup), not the values from activation time.
-            StoreThemeActivation::query()
-                ->where('store_id', $install->store_id)
-                ->latest('id')->first()?->update(['settings' => $install->settings]);
+            app(StorefrontPageCache::class)->flushStore($store->id);
         }
 
-        return $install;
+        return $install->fresh();
     }
 
     public function restoreRevision(StoreTheme $install, StoreThemeRevision $revision, ?int $actorId = null): StoreTheme
@@ -135,7 +166,7 @@ class StoreThemeService
 
     private function recordRevision(StoreTheme $install, ?int $actorId, string $source): void
     {
-        $settings = $install->settings ?? [];
+        $settings = $install->draft_settings ?? $install->settings ?? [];
         ksort($settings);
         $checksum = hash('sha256', json_encode($settings, JSON_THROW_ON_ERROR));
         $latestChecksum = $install->revisions()->latest('id')->value('checksum');
@@ -175,8 +206,10 @@ class StoreThemeService
             [
                 'theme_version_id' => $previous->theme_version_id,
                 'settings' => $previous->settings ?? [],
+                'draft_settings' => $previous->settings ?? [],
                 'status' => 'installed',
                 'installed_at' => now(),
+                'published_at' => now(),
             ],
         );
 
@@ -202,6 +235,7 @@ class StoreThemeService
         if (! $install) {
             throw new RuntimeException('Theme is not installed for this store.');
         }
+        $this->licenses->assertCanInstall($store, $theme, $actorId);
         $current = ThemeVersion::query()->find($install->theme_version_id);
         $target = $this->registry->resolveThemeVersion($theme, $version);
         if (! $target) {
@@ -212,12 +246,15 @@ class StoreThemeService
         }
         $this->compatibility->assertCompatible($target);
 
-        $migrated = $this->migrator->migrate($theme->key, $current?->version ?? '', $target->version, $install->settings ?? []);
-        $migrated = $this->validator->coerce($migrated, $target->settings_schema ?? []);
+        $published = $this->migrator->migrate($theme->key, $current?->version ?? '', $target->version, $install->settings ?? []);
+        $published = $this->validator->coerce($published, $target->settings_schema ?? []);
+        $draft = $this->migrator->migrate($theme->key, $current?->version ?? '', $target->version, $install->draft_settings ?? $install->settings ?? []);
+        $draft = $this->validator->coerce($draft, $target->settings_schema ?? []);
 
         $wasActive = $install->status === 'active';
         $install->theme_version_id = $target->id;
-        $install->settings = $migrated;
+        $install->settings = $published;
+        $install->draft_settings = $draft;
         $install->save();
 
         if ($wasActive) {

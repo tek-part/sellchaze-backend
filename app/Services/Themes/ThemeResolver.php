@@ -56,6 +56,7 @@ class ThemeResolver
             'sections_schema' => $version->sections_schema ?? [],
             'templates' => $version->templates ?? [],
             'bundle_url' => $version->bundle_url,
+            'bundle_integrity' => $version->bundle_integrity,
             'custom_css' => $active?->custom_css,
         ];
     }
@@ -74,11 +75,12 @@ class ThemeResolver
             'theme_version_id' => $version->id,
             'key' => $theme?->key ?? 'unknown',
             'version' => $version->version,
-            'settings' => $this->validator->coerce($install->settings ?? [], $schema),
+            'settings' => $this->validator->coerce($install->draft_settings ?? $install->settings ?? [], $schema),
             'sections_schema' => $version->sections_schema ?? [],
             'templates' => $version->templates ?? [],
             'bundle_url' => $version->bundle_url,
-            'custom_css' => $install->custom_css,
+            'bundle_integrity' => $version->bundle_integrity,
+            'custom_css' => $install->draft_custom_css ?? $install->custom_css,
         ];
     }
 
@@ -96,6 +98,7 @@ class ThemeResolver
             'sections_schema' => $version->sections_schema ?? [],
             'templates' => $version->templates ?? [],
             'bundle_url' => $version->bundle_url,
+            'bundle_integrity' => $version->bundle_integrity,
             'custom_css' => null,
         ];
     }
@@ -125,6 +128,7 @@ class ThemeResolver
                 'category' => ['sections' => [['type' => 'category-header'], ['type' => 'product-grid']]],
             ],
             'bundle_url' => null,
+            'bundle_integrity' => null,
             'custom_css' => null,
         ];
     }

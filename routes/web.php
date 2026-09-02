@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\InvitationsController;
 use App\Http\Controllers\Storefront\StorefrontPageController;
 use App\Http\Controllers\Storefront\StorefrontStaticController;
+use App\Http\Controllers\Storefront\ThemeBundleController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Route;
 | the app welcome on the main domain; other storefront paths 404 on unknown hosts.
 */
 Route::middleware('resolve.store')->group(function () {
+    Route::get('/theme-bundles/{version}/{checksum}.js', [ThemeBundleController::class, 'show'])
+        ->whereNumber('version')->where('checksum', '[a-f0-9]{64}');
     Route::get('/', [StorefrontPageController::class, 'root']);
     Route::get('/products', [StorefrontPageController::class, 'products']);
     Route::get('/products/{slug}', [StorefrontPageController::class, 'product'])->where('slug', '[a-z0-9\-]+');

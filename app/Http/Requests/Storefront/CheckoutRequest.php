@@ -19,6 +19,7 @@ class CheckoutRequest extends FormRequest
             'customer_email' => ['required', 'email', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:50'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'payment_method' => ['nullable', 'string', 'max:80'],
             'shipping_address' => ['nullable', 'array'],
             'shipping_address.name' => ['required_with:shipping_address', 'string', 'max:255'],
             'shipping_address.line1' => ['required_with:shipping_address', 'string', 'max:255'],

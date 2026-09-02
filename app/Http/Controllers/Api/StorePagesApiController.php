@@ -119,7 +119,7 @@ class StorePagesApiController extends Controller
     public function preview(Request $request, Store $store, int $page): JsonResponse
     {
         $model = StorePage::query()->findOrFail($page);
-        $token = $this->previewToken->make($store->id, $model->id, 1800);
+        $token = $this->previewToken->makePage($store->id, $model->id, 1800);
 
         return response()->json([
             'preview_url' => $this->urls->previewUrl($store, $token, '/pages/'.$model->slug),
@@ -189,6 +189,7 @@ class StorePagesApiController extends Controller
                 'reusable_section_id' => $s->reusable_section_id, 'position' => $s->position,
                 'is_visible' => (bool) $s->is_visible,
             ])->values();
+            $out['has_unpublished_changes'] = $this->service->hasUnpublishedChanges($page);
         }
 
         return $out;

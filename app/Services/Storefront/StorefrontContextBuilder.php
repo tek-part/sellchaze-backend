@@ -32,16 +32,24 @@ class StorefrontContextBuilder
      * with the page's own (schema-validated, reusable-expanded) sections, page SEO,
      * navigation menus, and shared catalog data. Renders through the same pipeline.
      */
-    public function buildPage(Store $store, StorePage $page, ?array $themeOverride = null): array
+    public function buildPage(Store $store, StorePage $page, ?array $themeOverride = null, ?array $publication = null): array
     {
         $theme = $themeOverride ?? $this->resolver->resolve($store);
 
         // Eager-load sections + their reusable blocks in a constant number of
         // queries (idempotent — no-op if the caller already loaded them). Prevents
         // an N+1 where each reusable section would otherwise lazy-load on render.
-        $page->loadMissing('sections.reusable');
-
-        $rawSections = $page->sections->where('is_visible', true)->map(fn (StorePageSection $s) => $this->expandSection($s))->all();
+        if ($publication !== null) {
+            $page->forceFill($publication['page'] ?? []);
+            $rawSections = collect($publication['sections'] ?? [])->where('is_visible', true)->values()->map(fn (array $section, int $index) => [
+                'id' => 'published-'.$index,
+                'type' => $section['type'] ?? '',
+                'settings' => $section['settings'] ?? [],
+            ])->all();
+        } else {
+            $page->loadMissing('sections.reusable');
+            $rawSections = $page->sections->where('is_visible', true)->map(fn (StorePageSection $s) => $this->expandSection($s))->all();
+        }
         $pageSections = $this->sections->resolveSections($theme['sections_schema'], $rawSections);
         $responsiveCss = $this->sections->responsiveCss($theme['sections_schema'], $pageSections);
 
@@ -104,6 +112,7 @@ class StorefrontContextBuilder
             'version' => $theme['version'],
             'theme_version_id' => $theme['theme_version_id'],
             'bundle_url' => $theme['bundle_url'] ?? null,
+            'bundle_integrity' => $theme['bundle_integrity'] ?? null,
             'settings' => $theme['settings'],
             'custom_css' => $theme['custom_css'] ?? null,
         ];

@@ -345,6 +345,11 @@ paths:
     post:
       operationId: rollbackOrganizationStoreTheme
       responses: { '200': { description: Previous activation restored }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /organizations/{organization}/stores/{store}/themes/publish:
+    parameters: *organizationStoreParameters
+    post:
+      operationId: publishOrganizationStoreTheme
+      responses: { '200': { description: Theme draft published atomically }, '422': { $ref: '#/components/responses/ValidationError' } }
   /organizations/{organization}/stores/{store}/themes/settings:
     parameters: *organizationStoreParameters
     put:
@@ -355,6 +360,25 @@ paths:
     put:
       operationId: updateOrganizationStoreThemeCss
       responses: { '200': { description: Scoped and sanitized custom CSS saved }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /organizations/{organization}/stores/{store}/media:
+    parameters: *organizationStoreParameters
+    get:
+      operationId: listOrganizationStoreMedia
+      responses: { '200': { description: Paginated store media library } }
+    post:
+      operationId: uploadOrganizationStoreMedia
+      responses: { '201': { description: Media asset uploaded }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /organizations/{organization}/stores/{store}/media/{asset}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - $ref: '#/components/parameters/StoreId'
+      - { name: asset, in: path, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateOrganizationStoreMedia
+      responses: { '200': { description: Media asset metadata updated }, '422': { $ref: '#/components/responses/ValidationError' } }
+    delete:
+      operationId: deleteOrganizationStoreMedia
+      responses: { '200': { description: Media asset removed } }
   /organizations/{organization}/stores/{store}/page-drafts:
     parameters: *organizationStoreParameters
     get:

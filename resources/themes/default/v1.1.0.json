@@ -9,7 +9,7 @@
     "supported_features": ["sections", "seo"],
     "bundle_url": "builtin:default@1.1.0",
     "changelog": "Renamed 'primary' to 'brand_primary'; added 'accent' color.",
-    "preview_image": null,
+    "preview_image": "/media/theme-previews/default-latest.svg",
 
     "settings_schema": [
         {

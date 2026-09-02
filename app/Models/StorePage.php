@@ -14,7 +14,7 @@ class StorePage extends Model
     public const STATUSES = ['draft', 'published', 'scheduled'];
 
     protected $fillable = [
-        'store_id', 'title', 'slug', 'status', 'template', 'locale',
+        'store_id', 'title', 'slug', 'published_slug', 'status', 'template', 'locale',
         'seo', 'publish_at', 'published_at',
     ];
 

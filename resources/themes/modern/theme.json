@@ -6,7 +6,7 @@
     "category": "general",
     "description": "A premium, multi-purpose storefront theme with a theme-owned header, footer, announcement bar and fully token-driven design (colors, typography, radius, shadows, layout width) — RTL-ready.",
     "min_platform_version": "1.0.0",
-    "preview_image": null,
+    "preview_image": "/media/theme-previews/modern.svg",
 
     "settings_schema": [
         {

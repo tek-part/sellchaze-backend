@@ -6,7 +6,7 @@
     "category": "industrial",
     "description": "An industrial B2B theme built for factories and wholesalers: dense product grids, specification-first product pages, trust statistics and an RFQ-oriented hero — RTL-ready.",
     "min_platform_version": "1.0.0",
-    "preview_image": null,
+    "preview_image": "/media/theme-previews/atlas.svg",
 
     "settings_schema": [
         {

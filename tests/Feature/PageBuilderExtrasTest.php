@@ -61,8 +61,13 @@ class PageBuilderExtrasTest extends TestCase
 
         $this->assertStringContainsString('Original', $this->get('http://nike.sellchase.com/pages/landing')->getContent());
 
-        // one edit to the reusable section changes the rendered page
+        // Published pages are immutable snapshots: editing the reusable draft
+        // does not affect visitors until the page is explicitly republished.
         $this->api()->putJson($this->base()."/reusable-sections/{$reusableId}", ['settings' => ['headline' => 'Updated']])->assertOk();
+        $this->assertStringContainsString('Original', $this->get('http://nike.sellchase.com/pages/landing')->getContent());
+        $this->assertStringNotContainsString('Updated', $this->get('http://nike.sellchase.com/pages/landing')->getContent());
+
+        $this->api()->postJson($this->base()."/pages/{$pageId}/publish")->assertOk();
         $this->assertStringContainsString('Updated', $this->get('http://nike.sellchase.com/pages/landing')->getContent());
     }
 

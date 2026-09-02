@@ -42,6 +42,7 @@ class ThemeRegistry
             ['theme_id' => $theme->id, 'version' => $manifest['version']],
             [
                 'settings_schema' => $manifest['settings_schema'],
+                'status' => 'published',
                 'sections_schema' => $manifest['sections_schema'],
                 'templates' => $manifest['templates'],
                 'bundle_url' => $manifest['bundle_url'] ?? null,
@@ -128,10 +129,10 @@ class ThemeRegistry
         $themeId = $theme instanceof Theme ? $theme->id : (int) $theme;
 
         if ($version !== null) {
-            return ThemeVersion::query()->where('theme_id', $themeId)->where('version', $version)->first();
+            return ThemeVersion::query()->where('theme_id', $themeId)->where('version', $version)->where('status', 'published')->first();
         }
 
-        return ThemeVersion::query()->where('theme_id', $themeId)->get()
+        return ThemeVersion::query()->where('theme_id', $themeId)->where('status', 'published')->get()
             ->sort(fn ($a, $b) => version_compare($a->version, $b->version))
             ->last();
     }

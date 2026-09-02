@@ -8,11 +8,16 @@ use App\Models\StoreTheme;
 use App\Models\StoreThemeActivation;
 use App\Models\StoreThemeRevision;
 use App\Models\Theme;
+use App\Models\ThemeVersion;
+use App\Models\StoreThemeLicense;
 use App\Services\Storefront\StorefrontPageCache;
+use App\Services\Storefront\StorefrontUrlGenerator;
 use App\Services\Themes\CustomCssSanitizer;
 use App\Services\Themes\StoreThemeService;
 use App\Services\Themes\ThemeRegistry;
 use App\Services\Themes\ThemeSettingsValidator;
+use App\Services\Themes\ThemeLicenseService;
+use App\Services\Themes\ThemePreviewToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -28,6 +33,9 @@ class StoreThemesApiController extends Controller
         private readonly StoreThemeService $service,
         private readonly ThemeRegistry $registry,
         private readonly ThemeSettingsValidator $validator,
+        private readonly ThemeLicenseService $licenses,
+        private readonly ThemePreviewToken $previewTokens,
+        private readonly StorefrontUrlGenerator $urls,
     ) {}
 
     /** GET /stores/{store}/themes — available themes + this store's installs. */
@@ -35,15 +43,34 @@ class StoreThemesApiController extends Controller
     {
         $installs = StoreTheme::query()->where('store_id', $store->id)->get()->keyBy('theme_id');
 
-        $themes = Theme::query()->where('status', 'published')->orderBy('name')->get()->map(function (Theme $theme) use ($installs) {
+        $licenseRows = StoreThemeLicense::query()->where('store_id', $store->id)->get()->keyBy('theme_id');
+        $themes = Theme::query()->where('status', 'published')->orderBy('name')->get()->map(function (Theme $theme) use ($installs, $licenseRows, $store) {
             $install = $installs->get($theme->id);
+            $license = $licenseRows->get($theme->id);
+            $latest = $this->registry->resolveThemeVersion($theme);
+            $installedVersion = $install
+                ? ThemeVersion::query()->find($install->theme_version_id)
+                : null;
 
             return [
                 'id' => $theme->id,
                 'key' => $theme->key,
                 'name' => $theme->name,
+                'description' => $theme->description,
                 'author' => $theme->author,
-                'latest_version' => $this->registry->resolveThemeVersion($theme)?->version,
+                'is_featured' => (bool) $theme->is_featured,
+                'premium' => (float) $theme->price > 0,
+                'price' => $theme->price,
+                'currency' => $theme->currency,
+                'license_type' => $theme->license_type,
+                'licensed' => $this->licenses->isLicensed($store, $theme),
+                'license_status' => $license?->status,
+                'preview_image' => $theme->preview_image,
+                'latest_version' => $latest?->version,
+                'installed_version' => $installedVersion?->version,
+                'update_available' => $latest && $installedVersion
+                    ? version_compare($latest->version, $installedVersion->version, '>')
+                    : false,
                 'installed' => $install !== null,
                 'status' => $install?->status,
             ];
@@ -63,13 +90,32 @@ class StoreThemesApiController extends Controller
         $install = StoreTheme::query()->where('store_id', $store->id)->where('theme_id', $model->id)->first();
 
         return response()->json([
-            'theme' => ['id' => $model->id, 'key' => $model->key, 'name' => $model->name],
+            'theme' => [
+                'id' => $model->id,
+                'key' => $model->key,
+                'name' => $model->name,
+                'description' => $model->description,
+                'author' => $model->author,
+                'category' => $model->category,
+                'preview_image' => $model->preview_image,
+                'is_featured' => (bool) $model->is_featured,
+                'premium' => (float) $model->price > 0,
+                'price' => $model->price,
+                'currency' => $model->currency,
+                'license_type' => $model->license_type,
+                'licensed' => $this->licenses->isLicensed($store, $model),
+            ],
             'version' => $version ? ['version' => $version->version, 'settings_schema' => $version->settings_schema] : null,
             'install' => $install ? [
                 'id' => $install->id,
                 'status' => $install->status,
                 'settings' => $install->settings,
+                'draft_settings' => $install->draft_settings ?? $install->settings,
+                'published_settings' => $install->settings,
                 'custom_css' => $install->custom_css,
+                'draft_custom_css' => $install->draft_custom_css ?? $install->custom_css,
+                'published_at' => $install->published_at,
+                'has_unpublished_changes' => $this->hasUnpublishedChanges($install),
             ] : null,
             'is_active' => $install?->status === 'active',
         ], 200, [], JSON_UNESCAPED_UNICODE);
@@ -109,7 +155,7 @@ class StoreThemesApiController extends Controller
         abort_if($version === null, 422, 'Theme version not found.');
 
         try {
-            $install = $this->service->install($store, $theme, $version);
+            $install = $this->service->install($store, $theme, $version, $request->user()?->id);
         } catch (RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422); // incompatible
         }
@@ -152,17 +198,27 @@ class StoreThemesApiController extends Controller
     public function preview(Request $request, Store $store): JsonResponse
     {
         $data = $request->validate(['theme_id' => ['required', 'integer'], 'version' => ['nullable', 'string']]);
-        $install = StoreTheme::query()->where('store_id', $store->id)->where('theme_id', $data['theme_id'])->firstOrFail();
+        $theme = Theme::query()->whereKey($data['theme_id'])->where('status', 'published')->firstOrFail();
+        $target = $this->registry->resolveThemeVersion($theme, $data['version'] ?? null);
+        abort_if($target === null, 422, 'Preview version not found.');
 
-        $versionId = 0;
-        if (! empty($data['version'])) {
-            $target = $this->registry->resolveThemeVersion($install->theme_id, $data['version']);
-            abort_if($target === null, 422, 'Preview version not found.');
-            $versionId = $target->id;
+        $install = StoreTheme::query()
+            ->where('store_id', $store->id)
+            ->where('theme_id', $theme->id)
+            ->first();
+
+        if ($install) {
+            $versionId = ! empty($data['version']) ? $target->id : 0;
+            $previewUrl = $this->service->previewUrl($store, $install, 1800, $versionId);
+        } else {
+            $token = $this->previewTokens->makeCatalog($store->id, $target->id, 1800);
+            $previewUrl = $this->urls->previewUrl($store, $token, '/');
         }
 
+        abort_if(! $previewUrl, 422, 'Storefront preview host is not configured.');
+
         return response()->json([
-            'preview_url' => $this->service->previewUrl($store, $install, 1800, $versionId),
+            'preview_url' => $previewUrl,
             'expires_in' => 1800,
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
@@ -205,6 +261,14 @@ class StoreThemesApiController extends Controller
         return response()->json(['data' => $this->installArray($install)], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
+    public function publish(Request $request, Store $store): JsonResponse
+    {
+        $install = $this->findInstall($request, $store);
+        $install = $this->service->publish($store, $install, $request->user()?->id);
+
+        return response()->json(['data' => $this->installArray($install)], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
     public function revisions(Request $request, Store $store, int $theme): JsonResponse
     {
         $install = StoreTheme::query()
@@ -231,10 +295,9 @@ class StoreThemesApiController extends Controller
     {
         $data = $request->validate(['theme_id' => ['required', 'integer'], 'custom_css' => ['nullable', 'string', 'max:50000']]);
         $install = StoreTheme::query()->where('store_id', $store->id)->where('theme_id', $data['theme_id'])->firstOrFail();
-        $install->update(['custom_css' => $sanitizer->sanitize($data['custom_css'] ?? '')]);
-        app(StorefrontPageCache::class)->flushStore($store->id);
+        $install->update(['draft_custom_css' => $sanitizer->sanitize($data['custom_css'] ?? '')]);
 
-        return response()->json(['data' => ['custom_css' => $install->custom_css]]);
+        return response()->json(['data' => ['custom_css' => $install->draft_custom_css, 'has_unpublished_changes' => true]]);
     }
 
     public function restoreRevision(
@@ -268,7 +331,17 @@ class StoreThemesApiController extends Controller
             'theme_version_id' => $install->theme_version_id,
             'status' => $install->status,
             'settings' => $install->settings,
+            'draft_settings' => $install->draft_settings ?? $install->settings,
             'custom_css' => $install->custom_css,
+            'draft_custom_css' => $install->draft_custom_css ?? $install->custom_css,
+            'published_at' => $install->published_at,
+            'has_unpublished_changes' => $this->hasUnpublishedChanges($install),
         ];
+    }
+
+    private function hasUnpublishedChanges(StoreTheme $install): bool
+    {
+        return ($install->draft_settings ?? $install->settings ?? []) !== ($install->settings ?? [])
+            || ($install->draft_custom_css ?? $install->custom_css ?? '') !== ($install->custom_css ?? '');
     }
 }

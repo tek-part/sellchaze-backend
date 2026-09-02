@@ -193,7 +193,7 @@ class ThemeManagementTest extends TestCase
             'theme_id' => $this->defaultThemeId,
             'settings' => ['primary' => '#ffffff', 'products_per_row' => 99],
         ])->assertOk();
-        $settings = StoreTheme::where('store_id', $this->storeA->id)->where('theme_id', $this->defaultThemeId)->value('settings');
+        $settings = StoreTheme::where('store_id', $this->storeA->id)->where('theme_id', $this->defaultThemeId)->value('draft_settings');
         $this->assertSame(6, $settings['products_per_row']);
         $this->assertSame('#ffffff', $settings['primary']);
 

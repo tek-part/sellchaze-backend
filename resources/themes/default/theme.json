@@ -5,7 +5,7 @@
     "author": "Sellchaze",
     "category": "general",
     "min_platform_version": "1.0.0",
-    "preview_image": null,
+    "preview_image": "/media/theme-previews/default.svg",
 
     "settings_schema": [
         {

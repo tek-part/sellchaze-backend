@@ -25,6 +25,7 @@ class StoreOrder extends Model
     protected $fillable = [
         'store_id', 'store_customer_id', 'order_number', 'status', 'currency',
         'customer_name', 'customer_email', 'customer_phone', 'shipping_address',
+        'payment_method', 'payment_status', 'payment_reference',
         'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'notes',
         'placed_at', 'cancelled_at',
     ];

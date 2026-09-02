@@ -39,6 +39,7 @@ class StorePageService
         $page->seo = $data['seo'] ?? null;
         $page->publish_at = $data['publish_at'] ?? null;
         $page->published_at = ($page->status === 'published') ? now() : null;
+        $page->published_slug = ($page->status === 'published') ? $page->slug : null;
         $page->save();
 
         $this->flush($store->id);
@@ -62,8 +63,6 @@ class StorePageService
             $page->publish_at = $data['publish_at'];
         }
         $page->save();
-
-        $this->flush($page->store_id);
 
         return $page;
     }
@@ -101,25 +100,13 @@ class StorePageService
             }
         });
 
-        $this->flush($page->store_id);
-
         return $page->refresh();
     }
 
     public function publish(StorePage $page): StorePage
     {
         DB::transaction(function () use ($page): void {
-            $page->load('sections');
-            $snapshot = [
-                'page' => $page->only(['title', 'slug', 'template', 'locale', 'seo']),
-                'sections' => $page->sections->map(fn (StorePageSection $section) => [
-                    'type' => $section->type,
-                    'settings' => $section->settings,
-                    'reusable_section_id' => $section->reusable_section_id,
-                    'is_visible' => (bool) $section->is_visible,
-                    'position' => $section->position,
-                ])->values()->all(),
-            ];
+            $snapshot = $this->snapshot($page);
             $json = json_encode($snapshot, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $version = (int) DB::table('store_page_publications')->where('store_page_id', $page->id)->max('version') + 1;
             DB::table('store_page_publications')->insert([
@@ -134,11 +121,40 @@ class StorePageService
             ]);
             $page->status = 'published';
             $page->published_at = now();
+            $page->published_slug = $page->slug;
             $page->save();
         });
         $this->flush($page->store_id);
 
         return $page;
+    }
+
+    public function snapshot(StorePage $page): array
+    {
+        $page->load('sections.reusable');
+
+        return [
+            'page' => $page->only(['title', 'slug', 'template', 'locale', 'seo']),
+            'sections' => $page->sections->map(function (StorePageSection $section) {
+                $reusable = $section->reusable_section_id ? $section->reusable : null;
+
+                return [
+                    'type' => $reusable?->type ?? $section->type,
+                    'settings' => $reusable ? array_merge($reusable->settings ?? [], $section->settings ?? []) : ($section->settings ?? []),
+                    'reusable_section_id' => $section->reusable_section_id,
+                    'is_visible' => (bool) $section->is_visible,
+                    'position' => $section->position,
+                ];
+            })->values()->all(),
+        ];
+    }
+
+    public function hasUnpublishedChanges(StorePage $page): bool
+    {
+        $json = json_encode($this->snapshot($page), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $published = DB::table('store_page_publications')->where('store_page_id', $page->id)->orderByDesc('version')->value('checksum');
+
+        return $published === null || ! hash_equals((string) $published, hash('sha256', $json));
     }
 
     public function schedule(StorePage $page, \DateTimeInterface $publishAt): StorePage
@@ -155,6 +171,7 @@ class StorePageService
     {
         $page->status = 'draft';
         $page->published_at = null;
+        $page->published_slug = null;
         $page->save();
         $this->flush($page->store_id);
 
@@ -210,8 +227,6 @@ class StorePageService
                 ]);
             }
         });
-
-        $this->flush($page->store_id);
 
         return $page->refresh();
     }

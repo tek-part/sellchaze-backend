@@ -162,4 +162,7 @@ return [
 
     /** Disk used for theme marketplace assets (S3-ready). */
     'theme_assets_disk' => env('SELLCHASE_THEME_ASSETS_DISK', 'public'),
+
+    /** Private path metadata + same-origin public controller serve immutable theme bundles. */
+    'theme_bundles_disk' => env('SELLCHASE_THEME_BUNDLES_DISK', 'public'),
 ];

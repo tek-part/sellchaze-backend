@@ -78,6 +78,10 @@ class MarketplaceThemesController extends Controller
             'installs_count' => $theme->installs_count,
             'latest_version' => $this->registry->resolveThemeVersion($theme)?->version,
             'logo_url' => $logo?->url(),
+            'price' => $theme->price,
+            'currency' => $theme->currency,
+            'license_type' => $theme->license_type,
+            'support_days' => $theme->support_days,
         ];
     }
 }

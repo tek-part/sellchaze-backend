@@ -29,7 +29,7 @@ class CheckoutService
      * @param  array{name:string,email:string,phone?:string|null,notes?:string|null}  $contact
      * @param  array<string,mixed>|null  $shippingAddress
      */
-    public function place(Store $store, Cart $cart, ?StoreCustomer $customer, array $contact, ?array $shippingAddress): StoreOrder
+    public function place(Store $store, Cart $cart, ?StoreCustomer $customer, array $contact, ?array $shippingAddress, string $paymentMethod): StoreOrder
     {
         $cart->load('items');
 
@@ -37,7 +37,7 @@ class CheckoutService
             throw ValidationException::withMessages(['cart' => 'Your cart is empty.']);
         }
 
-        return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress) {
+        return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress, $paymentMethod) {
             $subtotal = '0.00';
             $lines = [];
 
@@ -93,6 +93,8 @@ class CheckoutService
                 'customer_email' => $contact['email'],
                 'customer_phone' => $contact['phone'] ?? null,
                 'shipping_address' => $shippingAddress,
+                'payment_method' => $paymentMethod,
+                'payment_status' => 'pending',
                 'subtotal' => $totals['subtotal'],
                 'shipping_total' => $totals['shipping_total'],
                 'discount_total' => $totals['discount_total'],

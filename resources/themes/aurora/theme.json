@@ -8,6 +8,7 @@
     "is_marketplace": true,
     "is_featured": true,
     "min_platform_version": "1.0.0",
+    "preview_image": "/media/theme-previews/aurora.svg",
     "supported_features": ["sections", "seo"],
     "bundle_url": "builtin:aurora@1.0.0",
     "changelog": "Initial release.",

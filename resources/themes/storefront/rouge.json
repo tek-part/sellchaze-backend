@@ -8,6 +8,7 @@
   "is_marketplace": true,
   "is_featured": true,
   "min_platform_version": "1.0.0",
+  "preview_image": "/media/theme-previews/rouge.svg",
   "supported_features": ["rtl", "dark-mode", "wishlist", "reviews", "lookbook", "instagram"],
   "bundle_url": "builtin:rouge@1.0.0",
   "changelog": "Initial Sellchaze storefront release.",

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Models\StorePage;
 use App\Models\StoreTheme;
+use App\Models\Theme;
 use App\Models\ThemeVersion;
 use App\Services\Storefront\StorefrontContextBuilder;
 use App\Services\Storefront\StorefrontRenderer;
@@ -17,6 +18,7 @@ use App\Services\Themes\ThemeSettingsMigrator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Public storefront pages, now rendered by the Phase 4B theme runtime:
@@ -119,12 +121,24 @@ class StorefrontPageController extends Controller
             return null;
         }
 
+        $resolver = app(ThemeResolver::class);
+
+        // Marketplace preview is intentionally resolved before looking for a
+        // StoreTheme install: paid catalog themes must be previewable without
+        // granting a license or creating tenant state.
+        if (! empty($ctx['catalog_version_id'])) {
+            $version = ThemeVersion::query()->find($ctx['catalog_version_id']);
+            if ($version && Theme::query()->whereKey($version->theme_id)->where('status', 'published')->exists()) {
+                return $resolver->resolveForVersion($version, []);
+            }
+
+            return null;
+        }
+
         $install = StoreTheme::query()->where('store_id', $store->id)->find($ctx['store_theme_id']);
         if ($install === null) {
             return null;
         }
-
-        $resolver = app(ThemeResolver::class);
 
         // Upgrade preview: render a specific (newer) version with migrated settings.
         if (! empty($ctx['version_id'])) {
@@ -153,16 +167,25 @@ class StorefrontPageController extends Controller
         // Owner draft preview via a signed token (isolation: token binds store + page).
         $previewPageId = null;
         if (is_string($token = $request->query('__preview')) && $token !== '') {
-            $previewPageId = app(ThemePreviewToken::class)->verify($token, $store->id);
+            $previewPageId = app(ThemePreviewToken::class)->verifyPage($token, $store->id);
         }
 
-        $page = StorePage::query()->where('store_id', $store->id)->where('slug', $slug)->first();
+        $page = $previewPageId !== null
+            ? StorePage::query()->where('store_id', $store->id)->find($previewPageId)
+            : StorePage::query()->where('store_id', $store->id)->where(function ($query) use ($slug) {
+                $query->where('published_slug', $slug)->orWhere(fn ($legacy) => $legacy->whereNull('published_slug')->where('slug', $slug));
+            })->first();
         abort_if($page === null, 404, 'Page not found.');
 
         $isPreview = $previewPageId !== null && (int) $previewPageId === (int) $page->id;
         abort_unless($isPreview || $page->isPubliclyVisible(), 404, 'Page not found.'); // drafts/future hidden
 
-        $context = $this->builder->buildPage($store, $page);
+        $publication = null;
+        if (! $isPreview) {
+            $json = DB::table('store_page_publications')->where('store_page_id', $page->id)->orderByDesc('version')->value('snapshot');
+            $publication = is_string($json) ? json_decode($json, true) : null;
+        }
+        $context = $this->builder->buildPage($store, $page, null, $publication);
 
         if ($isPreview) {
             return response($this->renderer->renderFresh($context))->header('X-Robots-Tag', 'noindex, nofollow');
