@@ -61,6 +61,9 @@ jobs:
 
             "$PHP_BIN" artisan migrate --force
 
+            # Register/refresh storefront theme manifests (idempotent).
+            "$PHP_BIN" artisan themes:register
+
             "$PHP_BIN" artisan optimize
 
             "$PHP_BIN" artisan queue:restart || true
