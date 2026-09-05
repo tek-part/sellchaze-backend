@@ -15,10 +15,11 @@ class StoreMenuItem extends Model
     public const TYPES = ['internal', 'category', 'product', 'url'];
 
     protected $fillable = [
-        'store_menu_id', 'store_id', 'parent_id', 'label', 'type', 'target', 'position',
+        'store_menu_id', 'store_id', 'parent_id', 'label', 'label_i18n', 'type', 'target', 'position',
     ];
 
     protected $casts = [
+        'label_i18n' => 'array',
         'position' => 'integer',
     ];
 

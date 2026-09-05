@@ -86,8 +86,9 @@ class StoreSeoService
 
     public function forProduct(Store $store, Product $product): array
     {
-        $title = $product->name.' — '.$store->name;
-        $description = $product->description ?: $product->name;
+        $name = $product->translated('name') ?: $product->name;
+        $title = $name.' — '.$store->name;
+        $description = $product->translated('description') ?: $name;
         $url = $this->canonical($store, 'products/'.$product->slug);
         $image = $product->imageUrl();
 
@@ -99,7 +100,7 @@ class StoreSeoService
             'json_ld' => [
                 '@context' => 'https://schema.org',
                 '@type' => 'Product',
-                'name' => $product->name,
+                'name' => $name,
                 'description' => $description,
                 'url' => $url,
                 'image' => $image,
@@ -117,8 +118,9 @@ class StoreSeoService
 
     public function forCategory(Store $store, Category $category): array
     {
-        $title = $category->name.' — '.$store->name;
-        $description = $category->description ?: ($category->name.' at '.$store->name);
+        $name = $category->translated('name') ?: $category->name;
+        $title = $name.' — '.$store->name;
+        $description = $category->translated('description') ?: ($name.' at '.$store->name);
         $url = $this->canonical($store, 'categories/'.$category->slug);
         $image = $category->imageUrl() ?: $store->logoUrl();
 
@@ -130,7 +132,7 @@ class StoreSeoService
             'json_ld' => [
                 '@context' => 'https://schema.org',
                 '@type' => 'CollectionPage',
-                'name' => $category->name,
+                'name' => $name,
                 'description' => $description,
                 'url' => $url,
             ],

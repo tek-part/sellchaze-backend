@@ -19,12 +19,12 @@ class StorefrontProductResource extends JsonResource
         return [
             'id' => $this->id,
             'store_id' => $this->store_id,
-            'name' => $this->name,
+            'name' => $this->translated('name'),
             'slug' => $this->slug,
             'sku' => $this->sku,
             'barcode' => $this->barcode,
-            'description' => $this->description,
-            'short_description' => $this->short_description,
+            'description' => $this->translated('description'),
+            'short_description' => $this->translated('short_description'),
             'long_description' => $this->long_description,
             'price' => $this->price,
             'compare_price' => $this->compare_price,
@@ -54,7 +54,7 @@ class StorefrontProductResource extends JsonResource
             'manufacturer' => $this->manufacturer,
             'unit' => $this->unit,
             'tags' => $this->tags ?: null,
-            'brand' => $this->whenLoaded('brand', fn () => $this->brand?->name),
+            'brand' => $this->whenLoaded('brand', fn () => $this->brand?->translated('name')),
             'images' => $this->whenLoaded('media', fn () => $this->media
                 ->filter(fn ($m) => in_array($m->type, ['cover', 'gallery'], true))
                 ->map(fn ($m) => $m->url())
@@ -63,7 +63,7 @@ class StorefrontProductResource extends JsonResource
                 ->all()),
             'category' => $this->whenLoaded('category', fn () => $this->category ? [
                 'id' => $this->category->id,
-                'name' => $this->category->name,
+                'name' => $this->category->translated('name'),
                 'slug' => $this->category->slug,
             ] : null),
             'variants' => StorefrontProductVariantResource::collection($this->whenLoaded('variants')),

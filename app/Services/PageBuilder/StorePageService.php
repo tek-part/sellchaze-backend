@@ -10,8 +10,10 @@ use App\Models\StorePageSection;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Themes\SectionRegistry;
 use App\Services\Themes\ThemeResolver;
+use App\Support\Localization\LocaleContext;
 use App\Support\Slug;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Page CRUD + schema-driven section composition + revisions + publish workflow.
@@ -26,9 +28,17 @@ class StorePageService
         private readonly StorefrontPageCache $cache,
     ) {}
 
+    /** Templates that are singletons per (store, locale) and never served by slug. */
+    public const TEMPLATE_PAGES = ['home'];
+
     public function create(Store $store, array $data): StorePage
     {
-        $locale = $data['locale'] ?? 'en';
+        $locale = $data['locale'] ?? LocaleContext::storeDefault($store);
+        if (in_array($data['template'] ?? null, self::TEMPLATE_PAGES, true)) {
+            // A template page is a singleton: creating it again yields the existing row.
+            return $this->ensureTemplatePage($store, $data['template'], $locale)[0];
+        }
+
         $page = new StorePage;
         $page->store_id = $store->id;
         $page->title = $data['title'];
@@ -51,10 +61,23 @@ class StorePageService
     {
         $this->saveRevision($page, $actorId); // snapshot the current state before editing
 
+        $isTemplatePage = in_array($page->template, self::TEMPLATE_PAGES, true);
+        if (! $isTemplatePage && in_array($data['template'] ?? null, self::TEMPLATE_PAGES, true)) {
+            throw ValidationException::withMessages(['template' => ["A page cannot be turned into the '{$data['template']}' template; use the template endpoint."]]);
+        }
+        if ($isTemplatePage) {
+            unset($data['template'], $data['slug'], $data['locale']); // pinned: singleton per (store, locale)
+        }
+
         foreach (['title', 'template', 'seo'] as $key) {
             if (array_key_exists($key, $data)) {
                 $page->{$key} = $data[$key];
             }
+        }
+        if (! empty($data['locale']) && $data['locale'] !== $page->locale) {
+            // Moving a page between locales re-checks slug uniqueness within the new locale.
+            $page->locale = $data['locale'];
+            $page->slug = $this->uniqueSlug($page->store, $data['slug'] ?? $page->slug, $page->locale, $page->id);
         }
         if (! empty($data['slug'])) {
             $page->slug = $this->uniqueSlug($page->store, $data['slug'], $page->locale, $page->id);
@@ -65,6 +88,60 @@ class StorePageService
         $page->save();
 
         return $page;
+    }
+
+    /**
+     * The singleton template page (e.g. `home`) for a store + locale, created on first
+     * access: title-cased, draft, slug = template, seeded from the active theme's
+     * manifest `templates.<template>` (section defaults + the template's own settings).
+     *
+     * @return array{0: StorePage, 1: bool} [page, created]
+     */
+    public function ensureTemplatePage(Store $store, string $template, ?string $locale = null): array
+    {
+        if (! in_array($template, self::TEMPLATE_PAGES, true)) {
+            throw new \InvalidArgumentException("Unknown template page '{$template}'.");
+        }
+        $locale ??= LocaleContext::storeDefault($store);
+
+        $existing = StorePage::query()->withoutGlobalScope(StoreScope::class)
+            ->where('store_id', $store->id)->where('template', $template)->where('locale', $locale)
+            ->orderBy('id')->first();
+        if ($existing) {
+            return [$existing, false];
+        }
+
+        $theme = $this->resolver->resolve($store, $locale) ?? [];
+        $seed = $this->sections->resolveSections(
+            $theme['sections_schema'] ?? [],
+            $theme['templates'][$template]['sections'] ?? [],
+        );
+
+        $page = DB::transaction(function () use ($store, $template, $locale, $seed) {
+            $page = new StorePage;
+            $page->store_id = $store->id;
+            $page->title = ucfirst($template);
+            $page->slug = $template;
+            $page->status = 'draft';
+            $page->template = $template;
+            $page->locale = $locale;
+            $page->save();
+
+            foreach ($seed as $position => $section) {
+                StorePageSection::create([
+                    'store_page_id' => $page->id,
+                    'store_id' => $store->id,
+                    'type' => $section['type'],
+                    'settings' => $section['settings'],
+                    'position' => $position,
+                    'is_visible' => true,
+                ]);
+            }
+
+            return $page;
+        });
+
+        return [$page->refresh(), true];
     }
 
     /**
@@ -92,13 +169,14 @@ class StorePageService
                     'store_page_id' => $page->id,
                     'store_id' => $page->store_id,
                     'type' => $type,
-                    'settings' => $section['settings'] ?? [],
+                    'settings' => $this->sections->sanitizeSettings($schema[$type]['settings'] ?? [], $section['settings'] ?? []),
                     'reusable_section_id' => $section['reusable_section_id'] ?? null,
                     'position' => $position++,
                     'is_visible' => $section['is_visible'] ?? true,
                 ]);
             }
         });
+        $this->flush($page->store_id); // draft previews + scheduled-but-unpublished pages read live rows
 
         return $page->refresh();
     }

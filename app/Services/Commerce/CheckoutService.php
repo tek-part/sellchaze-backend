@@ -2,12 +2,14 @@
 
 namespace App\Services\Commerce;
 
+use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Cart;
 use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreCustomer;
 use App\Models\StoreOrder;
+use App\Services\Outbox\OutboxRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -23,6 +25,7 @@ class CheckoutService
         private readonly StoreOrderService $orders,
         private readonly CouponService $coupons,
         private readonly PricingCalculator $pricing,
+        private readonly OutboxRecorder $outbox,
     ) {}
 
     /**
@@ -115,6 +118,19 @@ class CheckoutService
             $cart->update(['status' => 'converted', 'coupon_id' => null]);
 
             StoreAnalyticsService::forget($store->id);
+
+            $this->outbox->record('StorefrontOrderPlaced', 'store_order', $order->id, [
+                'store_id' => $store->id,
+                'store_order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'grand_total' => $totals['grand_total'],
+                'currency' => $order->currency,
+                'payment_method' => $paymentMethod,
+            ]);
+
+            // Mirror into the B2B orders pipeline once the customer order is durable. afterCommit
+            // covers COD/bank transfer too, and a bridge failure can never roll this order back.
+            BridgeStorefrontOrderJob::dispatch($order->id, $store->id)->afterCommit();
 
             return $order->load('items');
         });

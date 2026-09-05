@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class OrdersApiController extends Controller
@@ -27,6 +28,10 @@ class OrdersApiController extends Controller
     {
         $user = $request->user();
         $direction = $request->get('direction');
+
+        $request->validate([
+            'source' => ['nullable', 'string', Rule::in(Order::SOURCES)],
+        ]);
 
         if ($direction === 'in') {
             $query = $this->ordersInQuery($user);
@@ -46,6 +51,9 @@ class OrdersApiController extends Controller
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+        }
+        if ($request->filled('source')) {
+            $query->where('orders.source', $request->get('source'));
         }
         if ($request->filled('date_from')) {
             $query->whereDate('created_at', '>=', $request->date('date_from'));
@@ -195,6 +203,7 @@ class OrdersApiController extends Controller
 
         $order = new Order;
         $order->code = 'ORD-'.$ownerId.'-'.strtoupper(bin2hex(random_bytes(3)));
+        $order->source = Order::SOURCE_MERCHANT_DIRECT;
         $order->quantity = (int) $validated['quantity'];
         $order->user_id = $ownerId;
         $order->product_id = (int) $validated['product_id'];
@@ -222,7 +231,7 @@ class OrdersApiController extends Controller
                 $supplier = User::find($sid);
                 if ($supplier) {
                     $supplier->notifications()->create([
-                        'id' => (string) \Illuminate\Support\Str::uuid(),
+                        'id' => (string) Str::uuid(),
                         'type' => 'order',
                         'data' => [
                             'type' => 'order',

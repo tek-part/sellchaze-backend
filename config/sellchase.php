@@ -35,6 +35,13 @@ return [
         'base_domain' => strtolower(env('SELLCHASE_STOREFRONT_BASE_DOMAIN', 'sellchaze.com')),
 
         /*
+         | Space-separated CSP `frame-ancestors` sources allowed to embed storefront pages (theme
+         | editor / customizer previews). Empty = 'self' + FRONTEND_URL origin + https://{base_domain}
+         | + https://*.{base_domain}.
+         */
+        'frame_ancestors' => env('SELLCHASE_FRAME_ANCESTORS', ''),
+
+        /*
          | StorefrontUrlGenerator inputs — deliberately decoupled from APP_URL.
          | APP_URL addresses the dashboard/API app; storefronts live on tenant
          | hosts (and, in split-port dev, a different port), so their links are
@@ -157,7 +164,13 @@ return [
      */
     'platform' => [
         'version' => env('SELLCHASE_PLATFORM_VERSION', '1.0.0'),
-        'features' => ['sections', 'seo', 'ssr', 'settings'],
+        // Legacy platform features + the storefront engine capabilities
+        // (keep in sync with src/apps/storefront/theme-engine/capabilities.ts).
+        'features' => [
+            'sections', 'seo', 'ssr', 'settings',
+            'rtl', 'dark-mode', 'mega-menu', 'search-overlay', 'cart-drawer', 'wishlist', 'compare',
+            'quick-view', 'quick-add', 'reviews', 'newsletter', 'countdown', 'lookbook', 'instagram', 'blog',
+        ],
     ],
 
     /** Disk used for theme marketplace assets (S3-ready). */

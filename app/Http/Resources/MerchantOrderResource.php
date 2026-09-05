@@ -39,6 +39,12 @@ class MerchantOrderResource extends JsonResource
             'cancelled_at' => $this->cancelled_at,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+            // The B2B order bridged from this storefront order (null until bridged / when unbridgeable).
+            'b2b_order' => $this->whenLoaded('b2bOrder', fn () => $this->b2bOrder ? [
+                'id' => $this->b2bOrder->id,
+                'code' => $this->b2bOrder->code,
+                'status' => $this->b2bOrder->status,
+            ] : null),
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'store_product_id' => $item->store_product_id,

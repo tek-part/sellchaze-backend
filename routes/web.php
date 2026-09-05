@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 | domains like nike.com. "/" serves the store homepage on a resolved host, or
 | the app welcome on the main domain; other storefront paths 404 on unknown hosts.
 */
-Route::middleware('resolve.store')->group(function () {
+Route::middleware(['resolve.store', 'storefront.locale'])->group(function () {
     Route::get('/theme-bundles/{version}/{checksum}.js', [ThemeBundleController::class, 'show'])
         ->whereNumber('version')->where('checksum', '[a-f0-9]{64}');
     Route::get('/', [StorefrontPageController::class, 'root']);

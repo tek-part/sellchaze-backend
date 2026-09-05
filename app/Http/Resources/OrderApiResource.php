@@ -27,6 +27,10 @@ class OrderApiResource extends JsonResource
             'code' => $this->code,
             'ref_number' => $this->ref_number,
             'status' => $this->status,
+            'source' => $this->source ?? Order::SOURCE_MERCHANT_DIRECT,
+            'store_id' => $this->store_id,
+            'store_order_id' => $this->store_order_id,
+            'store_order_number' => $this->storeOrderNumber(),
             'wigpleasure_order_id' => $this->wigpleasure_order_id,
             'wigpleasure_store_status' => $this->wigpleasure_store_status,
             'quantity' => $this->quantity,
@@ -39,7 +43,8 @@ class OrderApiResource extends JsonResource
             ] : null),
             'is_late' => $this->computeIsLate(),
             'created_at' => $this->created_at?->toIso8601String(),
-            'product' => $this->whenLoaded('product', fn () => $this->serializeProductBrief($request)),
+            // when() rather than whenLoaded(): a loaded-but-null product must still reach the snapshot fallback.
+            'product' => $this->when($this->resource->relationLoaded('product'), fn () => $this->serializeProductBrief($request)),
             'user' => $this->whenLoaded('user', fn () => [
                 'id' => $this->user->id,
                 'name' => $this->user->name,
@@ -70,6 +75,7 @@ class OrderApiResource extends JsonResource
             'payment_transaction_id' => $this->payment_transaction_id,
             'delivery_path' => $this->delivery_path,
             'wigpleasure_products' => $this->wigpleasureProductsArray($request),
+            'storefront_items' => $this->storefrontItemsArray(),
             'attribute_badges' => $this->mergedAttributeBadges($request),
             'order_images' => $this->orderImageGallery(),
             'quotations' => $this->whenLoaded('quotations', fn () => $this->serializeQuotations()),
@@ -80,11 +86,70 @@ class OrderApiResource extends JsonResource
     }
 
     /**
-     * @return array<string, mixed>
+     * Storefront-bridged orders carry the order number in ref_number; prefer the live relation when loaded.
      */
-    private function serializeProductBrief(Request $request): array
+    private function storeOrderNumber(): ?string
+    {
+        if (($this->source ?? null) !== Order::SOURCE_STOREFRONT) {
+            return null;
+        }
+        if ($this->resource->relationLoaded('storeOrder') && $this->storeOrder) {
+            return $this->storeOrder->order_number;
+        }
+
+        return $this->ref_number ?: null;
+    }
+
+    /**
+     * Immutable line snapshot taken when a storefront order was bridged.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function storefrontItemsArray(): array
+    {
+        $raw = $this->storefront_items;
+        if (is_string($raw)) {
+            $raw = json_decode($raw, true);
+        }
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        return array_values(array_map(function ($row) {
+            if (! is_array($row)) {
+                return $row;
+            }
+            $row['image_thumb_url'] = ProductImageUrl::thumbUrl($row['image'] ?? null);
+
+            return $row;
+        }, $raw));
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function serializeProductBrief(Request $request): ?array
     {
         $p = $this->product;
+        if ($p === null) {
+            // Product deleted (or otherwise unresolvable): fall back to the storefront snapshot.
+            $items = $this->storefrontItemsArray();
+            $first = $items[0] ?? null;
+            if (! is_array($first)) {
+                return null;
+            }
+            $name = (string) ($first['name'] ?? 'Product');
+
+            return [
+                'id' => $first['product_id'] ?? $this->product_id,
+                'name' => $name,
+                'name_en' => $name,
+                'name_ar' => $name,
+                'image' => $first['image'] ?? null,
+                'image_thumb_url' => $first['image_thumb_url'] ?? null,
+                'storefront_url' => null,
+            ];
+        }
         $thumb = ProductImageUrl::thumbUrl($p->image);
         $line = $this->matchingWigpleasureProductLine((int) $p->id);
         $nameEn = isset($line['title_en']) ? (string) $line['title_en'] : null;

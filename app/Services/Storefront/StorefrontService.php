@@ -8,6 +8,8 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreBrand;
 use App\Models\StoreCollection;
+use App\Support\Localization\LocaleContext;
+use App\Support\Localization\LocalizedValue;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -19,25 +21,46 @@ use Illuminate\Support\Facades\Cache;
  */
 class StorefrontService
 {
-    public static function homepageCacheKey(int $storeId): string
+    /** Homepage payloads are cached per store *and* locale (names/labels are translated). */
+    public static function homepageCacheKey(int $storeId, ?string $locale = null): string
     {
-        return "storefront:{$storeId}:homepage";
+        $locale = strtolower(trim((string) $locale));
+
+        return $locale === '' ? "storefront:{$storeId}:homepage" : "storefront:{$storeId}:homepage:{$locale}";
     }
 
+    /** Forget every locale variant (the store's supported locales + platform locales + the legacy key). */
     public static function forgetHomepage(int $storeId): void
     {
+        $locales = LocalizedValue::PLATFORM_LOCALES;
+        $store = Store::query()->whereKey($storeId)->first(['id', 'default_locale', 'supported_locales']);
+        if ($store) {
+            $locales = array_merge($locales, LocaleContext::storeSupported($store));
+        }
         Cache::forget(self::homepageCacheKey($storeId));
+        foreach (array_unique($locales) as $locale) {
+            Cache::forget(self::homepageCacheKey($storeId, $locale));
+        }
+    }
+
+    /** The locale storefront reads resolve against: the request locale, else the store default. */
+    private function locale(Store $store): string
+    {
+        $context = app(LocaleContext::class);
+
+        return $context->has() ? $context->current() : LocaleContext::storeDefault($store);
     }
 
     public function homepage(Store $store): array
     {
         $ttl = (int) config('sellchase.storefront.homepage_cache_ttl', 60);
+        $locale = $this->locale($store);
 
-        return Cache::remember(self::homepageCacheKey($store->id), $ttl, function () use ($store) {
+        return Cache::remember(self::homepageCacheKey($store->id, $locale), $ttl, function () use ($store, $locale) {
             $featured = Product::query()
                 ->where('is_active', true)
                 ->where('is_featured', true)
-                ->with('category:id,name,slug')
+                ->with('category:id,name,name_en,name_ar,slug,translations')
                 ->orderBy('position')->orderByDesc('id')
                 ->limit(8)->get();
 
@@ -45,7 +68,7 @@ class StorefrontService
             if ($featured->isEmpty()) {
                 $featured = Product::query()
                     ->where('is_active', true)
-                    ->with('category:id,name,slug')
+                    ->with('category:id,name,name_en,name_ar,slug,translations')
                     ->orderByDesc('id')->limit(8)->get();
             }
 
@@ -62,17 +85,17 @@ class StorefrontService
                     'logo_url' => $store->logoUrl(),
                     'banner_url' => $store->bannerUrl(),
                 ],
-                'featured_products' => $featured->map(fn (Product $p) => $this->productArray($p))->all(),
+                'featured_products' => $featured->map(fn (Product $p) => $this->productArray($p, $locale))->all(),
                 'categories' => $categories->map(fn (Category $c) => [
                     'id' => $c->id,
-                    'name' => $c->name,
+                    'name' => $c->translated('name', $locale),
                     'slug' => $c->slug,
                     'image_url' => $c->imageUrl(),
                     'products_count' => (int) $c->products_count,
                 ])->all(),
                 'featured_collections' => $this->collections(6)->map(fn (StoreCollection $c) => [
                     'id' => $c->id,
-                    'name' => $c->name,
+                    'name' => $c->translated('name', $locale),
                     'slug' => $c->slug,
                     'image_url' => $c->imageUrl(),
                     'products_count' => (int) ($c->products_count ?? 0),
@@ -113,7 +136,7 @@ class StorefrontService
                     ->orWhere('short_description', 'like', $like)
                     ->orWhere('sku', 'like', $like));
             })
-            ->with('category:id,name,slug');
+            ->with('category:id,name,name_en,name_ar,slug,translations');
 
         // Merchandising rows sort by their signal; everything else by curated position.
         match ($filter) {
@@ -149,7 +172,7 @@ class StorefrontService
     {
         return $collection->products()
             ->where('is_active', true)
-            ->with('category:id,name,slug')
+            ->with('category:id,name,name_en,name_ar,slug,translations')
             ->paginate($perPage);
     }
 
@@ -181,7 +204,7 @@ class StorefrontService
         return Product::query()
             ->where('is_active', true)
             ->where('slug', $slug)
-            ->with(['category:id,name,slug', 'brand:id,name', 'variants', 'media'])
+            ->with(['category:id,name,name_en,name_ar,slug,translations', 'brand:id,name,translations', 'variants', 'media'])
             ->first();
     }
 
@@ -203,20 +226,21 @@ class StorefrontService
             ->first();
     }
 
-    public function productArray(Product $p): array
+    /** Card-sized product payload with names resolved for `$locale` (request locale by default). */
+    public function productArray(Product $p, ?string $locale = null): array
     {
         return [
             'id' => $p->id,
-            'name' => $p->name,
+            'name' => $p->translated('name', $locale),
             'slug' => $p->slug,
             'price' => $p->price,
             'compare_price' => $p->compare_price,
-            'short_description' => $p->short_description,
+            'short_description' => $p->translated('short_description', $locale),
             'image_url' => $p->imageUrl(),
             'is_featured' => $p->is_featured,
             'category' => $p->relationLoaded('category') && $p->category ? [
                 'id' => $p->category->id,
-                'name' => $p->category->name,
+                'name' => $p->category->translated('name', $locale),
                 'slug' => $p->category->slug,
             ] : null,
         ];

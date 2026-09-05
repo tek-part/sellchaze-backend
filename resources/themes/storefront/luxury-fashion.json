@@ -8,29 +8,119 @@
   "is_marketplace": true,
   "is_featured": true,
   "min_platform_version": "1.0.0",
-  "preview_image": "/media/theme-previews/luxury-fashion.svg",
-  "supported_features": ["rtl", "dark-mode", "wishlist", "reviews", "lookbook"],
+  "preview_image": "/media/theme-previews/luxury-fashion.jpg",
+  "supported_features": [
+    "rtl",
+    "dark-mode",
+    "wishlist",
+    "reviews",
+    "lookbook"
+  ],
   "bundle_url": "builtin:luxury-fashion@1.0.0",
   "changelog": "Initial Sellchaze storefront release.",
   "settings_schema": [
-    {"id":"appearance","label":"Appearance","fields":[
-      {"id":"color_scheme","type":"select","label":"Colour scheme","default":"auto","options":["auto","light","dark"]},
-      {"id":"accent_color","type":"color","label":"Champagne accent","default":"#B08D57"}
-    ]},
-    {"id":"layout","label":"Layout","fields":[
-      {"id":"container_width","type":"range","label":"Content width","default":1440,"min":1200,"max":1600}
-    ]}
+    {
+      "id": "appearance",
+      "label": "Appearance",
+      "fields": [
+        {
+          "id": "color_scheme",
+          "type": "select",
+          "label": "Colour scheme",
+          "default": "auto",
+          "options": [
+            "auto",
+            "light",
+            "dark"
+          ]
+        },
+        {
+          "id": "accent_color",
+          "type": "color",
+          "label": "Champagne accent",
+          "default": "#B08D57"
+        }
+      ]
+    },
+    {
+      "id": "layout",
+      "label": "Layout",
+      "fields": [
+        {
+          "id": "container_width",
+          "type": "range",
+          "label": "Content width",
+          "default": 1440,
+          "min": 1200,
+          "max": 1600
+        }
+      ]
+    }
   ],
   "sections_schema": {
-    "hero":{"label":"Hero","settings":[{"id":"section_spacing","type":"range","label":"Vertical spacing","default":96,"min":0,"max":240,"step":4,"responsive":true,"css_property":"padding-block"}]},
-    "category-list":{"label":"Categories","settings":[]},
-    "product-grid":{"label":"Products","settings":[]},
-    "category-header":{"label":"Category header","settings":[]},
-    "product-details":{"label":"Product details","settings":[]}
+    "hero": {
+      "label": "Hero",
+      "settings": [
+        {
+          "id": "section_spacing",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 96,
+          "min": 0,
+          "max": 240,
+          "step": 4,
+          "responsive": true,
+          "css_property": "padding-block"
+        }
+      ]
+    },
+    "category-list": {
+      "label": "Categories",
+      "settings": []
+    },
+    "product-grid": {
+      "label": "Products",
+      "settings": []
+    },
+    "category-header": {
+      "label": "Category header",
+      "settings": []
+    },
+    "product-details": {
+      "label": "Product details",
+      "settings": []
+    }
   },
   "templates": {
-    "home":{"sections":[{"type":"hero"},{"type":"category-list"},{"type":"product-grid"}]},
-    "product":{"sections":[{"type":"product-details"}]},
-    "category":{"sections":[{"type":"category-header"},{"type":"product-grid"}]}
+    "home": {
+      "sections": [
+        {
+          "type": "hero"
+        },
+        {
+          "type": "category-list"
+        },
+        {
+          "type": "product-grid"
+        }
+      ]
+    },
+    "product": {
+      "sections": [
+        {
+          "type": "product-details"
+        }
+      ]
+    },
+    "category": {
+      "sections": [
+        {
+          "type": "category-header"
+        },
+        {
+          "type": "product-grid"
+        }
+      ]
+    }
   }
 }

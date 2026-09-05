@@ -16,7 +16,7 @@ class StorefrontProductVariantResource extends JsonResource
         return [
             'id' => $this->id,
             'store_product_id' => $this->store_product_id,
-            'name' => $this->name,
+            'name' => $this->translated('name'),
             'sku' => $this->sku,
             'barcode' => $this->barcode,
             'price_override' => $this->price_override,

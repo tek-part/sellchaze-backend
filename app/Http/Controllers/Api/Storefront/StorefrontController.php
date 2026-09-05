@@ -11,11 +11,14 @@ use App\Http\Resources\Storefront\StorefrontCouponResource;
 use App\Http\Resources\Storefront\StorefrontProductResource;
 use App\Models\Store;
 use App\Models\StoreContentPage;
+use App\Models\StoreMenu;
 use App\Services\CurrencyRateService;
+use App\Services\PageBuilder\StoreMenuService;
 use App\Services\Storefront\StorefrontContextBuilder;
 use App\Services\Storefront\StorefrontService;
 use App\Services\Storefront\StoreSeoService;
 use App\Services\Themes\ThemeResolver;
+use App\Support\Localization\LocaleContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -29,25 +32,49 @@ class StorefrontController extends Controller
         private readonly StorefrontContextBuilder $builder,
         private readonly ThemeResolver $themes,
         private readonly CurrencyRateService $currencyRates,
+        private readonly LocaleContext $locale,
+        private readonly StoreMenuService $menus,
     ) {}
 
-    /** GET /storefront — homepage payload + SEO for the resolved store. */
+    /**
+     * GET /storefront — homepage payload + SEO for the resolved store, plus the
+     * resolved `locale` block and the header/footer `navigation` trees (labels
+     * already picked for that locale). Theme settings arrive as flat scalars.
+     */
     public function index(Request $request): JsonResponse
     {
         $store = $this->currentStore($request);
-        $theme = $this->themes->resolve($store);
+        $theme = $this->themes->resolve($store, $this->locale->current());
 
         return response()->json([
             'store' => $this->storeSummary($store),
+            'locale' => $this->locale->toArray(),
             'seo' => $this->seo->forStore($store),
             'theme' => $theme === null ? null : [
                 'key' => $theme['key'],
                 'version' => $theme['version'],
                 'settings' => $theme['settings'],
+                'settings_i18n' => $theme['settings_i18n'] ?? [],
                 'custom_css' => $theme['custom_css'] ?? null,
             ],
             'homepage' => $this->storefront->homepage($store),
+            'navigation' => $this->navigation($store),
         ], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** Header/footer menu trees for the current locale; empty arrays when the store has none. */
+    private function navigation(Store $store): array
+    {
+        $menus = StoreMenu::query()
+            ->where('store_id', $store->id)
+            ->whereIn('handle', ['header', 'footer'])
+            ->get()->keyBy('handle');
+        $locale = $this->locale->current();
+
+        return [
+            'header' => $menus->has('header') ? $this->menus->tree($menus->get('header'), $locale) : [],
+            'footer' => $menus->has('footer') ? $this->menus->tree($menus->get('footer'), $locale) : [],
+        ];
     }
 
     /**

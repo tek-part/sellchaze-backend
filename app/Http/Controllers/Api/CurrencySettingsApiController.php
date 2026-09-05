@@ -31,6 +31,23 @@ class CurrencySettingsApiController extends Controller
         ]);
     }
 
+    /**
+     * Plain list of ISO codes for store-owner settings pickers. Unlike index()
+     * this exposes no rates and is mounted store-scoped (no admin permission).
+     */
+    public function codes(): JsonResponse
+    {
+        $codes = CurrencyRate::query()
+            ->pluck('currency_code')
+            ->map(fn ($code) => strtoupper((string) $code))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        return response()->json(['data' => $codes]);
+    }
+
     public function store(Request $request, CurrencyRateService $service): JsonResponse
     {
         $validated = $request->validate([

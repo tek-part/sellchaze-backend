@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\ProductScope;
+use App\Models\Scopes\StoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,6 +11,21 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Order extends Model
 {
+    /** Merchant/staff-authored B2B order (SPA, legacy Blade, public create API). */
+    public const SOURCE_MERCHANT_DIRECT = 'merchant_direct';
+
+    /** Bridged from a hosted storefront checkout (StoreOrder -> Order). */
+    public const SOURCE_STOREFRONT = 'storefront';
+
+    /** Synced from an external store (Wigpleasure). */
+    public const SOURCE_EXTERNAL_STORE = 'external_store';
+
+    public const SOURCES = [
+        self::SOURCE_MERCHANT_DIRECT,
+        self::SOURCE_STOREFRONT,
+        self::SOURCE_EXTERNAL_STORE,
+    ];
+
     protected $hidden = ['updated_at', 'deleted_at'];
 
     /**
@@ -22,16 +39,45 @@ class Order extends Model
         'payment_method', 'payment_type', 'paid_amount', 'delivery_path',
         'wigpleasure_order_id', 'wigpleasure_store_status', 'customer_name', 'customer_email', 'customer_phone',
         'shipping_address_json', 'currency', 'payment_transaction_id', 'wigpleasure_products',
+        'source', 'store_id', 'store_order_id', 'storefront_items',
     ];
 
     protected $casts = [
         'paid_amount' => 'decimal:2',
+        'storefront_items' => 'array',
     ];
 
-    /** @return BelongsTo<Product, $this> */
+    /**
+     * Storefront-bridged orders point at store-scoped products (store_id NOT NULL), which the
+     * unified ProductScope hides outside a CurrentStore context — resolve the product regardless.
+     *
+     * @return BelongsTo<Product, $this>
+     */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withoutGlobalScope(ProductScope::class);
+    }
+
+    /** @return BelongsTo<Store, $this> */
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
+    }
+
+    /**
+     * The storefront order this row mirrors (source = storefront). StoreScope is fail-closed
+     * without a tenant; the B2B side reads across stores by design.
+     *
+     * @return BelongsTo<StoreOrder, $this>
+     */
+    public function storeOrder(): BelongsTo
+    {
+        return $this->belongsTo(StoreOrder::class, 'store_order_id')->withoutGlobalScope(StoreScope::class);
+    }
+
+    public function isFromStorefront(): bool
+    {
+        return $this->source === self::SOURCE_STOREFRONT;
     }
 
     /** @return HasOne<ProductOrders, $this> */

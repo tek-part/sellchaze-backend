@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
+use App\Models\Concerns\HasTranslations;
 use App\Models\Scopes\ProductScope;
 use App\Models\Scopes\StoreScope;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,10 @@ use Illuminate\Support\Facades\Storage;
 class StoreBrand extends Model
 {
     use BelongsToStore;
+    use HasTranslations;
+
+    /** Attributes carried per-locale in the `translations` json (see HasTranslations). */
+    protected array $translatable = ['name', 'description'];
 
     protected $fillable = [
         'store_id', 'name', 'slug', 'description', 'logo', 'website', 'origin_country',

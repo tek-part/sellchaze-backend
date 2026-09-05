@@ -41,6 +41,7 @@ class OrderApiController extends Controller
 
         $order = new Order;
         $order->code = random_alphanumeric(10);
+        $order->source = Order::SOURCE_MERCHANT_DIRECT;
         $order->quantity = $request->quantity;
         $order->user_id = $request->user_id;
         $order->product_id = $request->product_id;

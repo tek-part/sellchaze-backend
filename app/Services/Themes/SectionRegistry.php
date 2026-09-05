@@ -52,8 +52,12 @@ class SectionRegistry
         return $resolved;
     }
 
-    /** Merge section-schema defaults with template overrides. */
-    private function resolveSectionSettings(array $schemaFields, array $overrides): array
+    /**
+     * Merge section-schema defaults with template/page overrides. Overrides are
+     * coerced field-by-field (see sanitizeSettings) so a stored layout can never
+     * carry a value shape the theme runtime cannot render.
+     */
+    public function resolveSectionSettings(array $schemaFields, array $overrides): array
     {
         $settings = [];
         foreach ($schemaFields as $field) {
@@ -62,11 +66,102 @@ class SectionRegistry
             }
         }
 
-        foreach ($overrides as $key => $value) {
+        foreach ($this->sanitizeSettings($schemaFields, $overrides) as $key => $value) {
             $settings[$key] = $value; // template-level override
         }
 
         return $settings;
+    }
+
+    /**
+     * Coerce ONLY the provided keys against the schema (no defaults are added, so a
+     * page's stored settings stay minimal). Tolerates the rich manifest shapes:
+     *  - `list`: an array of item objects, capped to `max` items;
+     *  - `select`: options as bare strings or `{value,label}` objects;
+     *  - translatable text: a plain string or a `{locale: string}` map.
+     * Keys the schema does not declare (e.g. `__responsive`) pass through untouched.
+     *
+     * @return array<string,mixed>
+     */
+    public function sanitizeSettings(array $schemaFields, array $values): array
+    {
+        $fields = [];
+        foreach ($schemaFields as $field) {
+            if (isset($field['id'])) {
+                $fields[(string) $field['id']] = $field;
+            }
+        }
+
+        $out = [];
+        foreach ($values as $key => $value) {
+            $out[$key] = isset($fields[$key]) ? $this->coerceField($fields[$key], $value) : $value;
+        }
+
+        return $out;
+    }
+
+    private function coerceField(array $field, mixed $value): mixed
+    {
+        $type = (string) ($field['type'] ?? 'text');
+        $default = $field['default'] ?? null;
+
+        switch ($type) {
+            case 'list':
+                if (! is_array($value)) {
+                    return is_array($default) ? $default : [];
+                }
+                $items = array_values(array_filter($value, 'is_array'));
+                $max = isset($field['max']) && is_numeric($field['max']) ? (int) $field['max'] : null;
+                if ($max !== null && $max >= 0 && count($items) > $max) {
+                    $items = array_slice($items, 0, $max);
+                }
+                if (is_array($field['item'] ?? null)) {
+                    $items = array_map(fn (array $item) => $this->sanitizeSettings($field['item'], $item), $items);
+                }
+
+                return $items;
+
+            case 'select':
+                $allowed = SchemaOptions::values($field['options'] ?? null);
+                if ($allowed === []) {
+                    return $value; // no declared options: pass through
+                }
+
+                return SchemaOptions::contains($field['options'], $value) ? (string) $value : $default;
+
+            case 'toggle':
+                return is_bool($value) ? $value : (is_scalar($value) ? filter_var($value, FILTER_VALIDATE_BOOLEAN) : (bool) $default);
+
+            case 'number':
+            case 'range':
+                return is_numeric($value) ? $value + 0 : $default;
+
+            case 'text':
+            case 'textarea':
+            case 'richtext':
+                if (! empty($field['translatable'])) {
+                    if (is_string($value)) {
+                        return $value;
+                    }
+                    if (is_array($value)) {
+                        $map = [];
+                        foreach ($value as $locale => $text) {
+                            if (is_string($locale) && $locale !== '' && (is_scalar($text) || $text === null)) {
+                                $map[$locale] = (string) ($text ?? '');
+                            }
+                        }
+
+                        return $map;
+                    }
+
+                    return $default;
+                }
+
+                return is_scalar($value) || $value === null ? $value : $default;
+
+            default:
+                return $value;
+        }
     }
 
     public function responsiveCss(array $sectionsSchema, array $sections): string

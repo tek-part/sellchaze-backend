@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\FlushesOwnerStorefront;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Services\Rbac\UserScope;
+use App\Support\Localization\TranslationRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Intervention\Image\Facades\Image;
@@ -62,6 +63,7 @@ class CategoriesApiController extends Controller
             'name_en' => $category->name_en,
             'name_ar' => $category->name_ar,
             'name' => $category->labelForLocale($locale),
+            'translations' => $category->translationsPayload(),
             'image' => $category->image,
             'image_url' => $category->imageUrl(),
             'products_count' => $productsCount,
@@ -94,8 +96,26 @@ class CategoriesApiController extends Controller
         }
     }
 
+    /**
+     * Accept three input shapes for the bilingual name and normalise to name_en/name_ar:
+     *   1. `translations.name.{en,ar}` (the LocaleTabs editor; JSON string on multipart);
+     *   2. explicit `name_en`/`name_ar`;
+     *   3. a single legacy `name` copied into whichever of the two is missing.
+     */
     private function mergeLegacyNameIntoTranslations(Request $request): void
     {
+        TranslationRules::decodeRequest($request);
+
+        $translated = $request->input('translations.name');
+        if (is_array($translated)) {
+            foreach (['en', 'ar'] as $locale) {
+                $value = $translated[$locale] ?? null;
+                if (is_string($value) && trim($value) !== '' && ! $request->filled("name_{$locale}")) {
+                    $request->merge(["name_{$locale}" => trim($value)]);
+                }
+            }
+        }
+
         $name = $request->input('name');
         if (! is_string($name) || trim($name) === '') {
             return;
@@ -107,6 +127,12 @@ class CategoriesApiController extends Controller
         if (! $request->filled('name_ar')) {
             $request->merge(['name_ar' => $trim]);
         }
+    }
+
+    /** @return array<string, mixed> translations payload (name/description) or null */
+    private function translationsInput(array $validated): ?array
+    {
+        return is_array($validated['translations'] ?? null) ? $validated['translations'] : null;
     }
 
     public function index(Request $request): JsonResponse
@@ -159,15 +185,19 @@ class CategoriesApiController extends Controller
             'name_en' => ['required', 'string', 'max:255'],
             'name_ar' => ['required', 'string', 'max:255'],
             'image' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192'],
-        ]);
+        ] + TranslationRules::for(['name', 'description']));
 
         // Own the category to the actor's catalog so it appears in their scoped
         // list and storefront. Admins own the categories they create too.
-        $category = Category::query()->create([
+        $category = new Category([
             'name_en' => $validated['name_en'],
             'name_ar' => $validated['name_ar'],
             'user_id' => UserScope::effectiveMerchantUserId($request->user()),
         ]);
+        if (($translations = $this->translationsInput($validated)) !== null) {
+            $category->fillTranslations($translations);
+        }
+        $category->save();
 
         if ($request->hasFile('image')) {
             $category->image = $this->storeCategoryImage($request->file('image'));
@@ -199,12 +229,16 @@ class CategoriesApiController extends Controller
             'name_ar' => ['required', 'string', 'max:255'],
             'image' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192'],
             'remove_image' => ['nullable', 'boolean'],
-        ]);
+        ] + TranslationRules::for(['name', 'description']));
 
-        $category->update([
+        $category->fill([
             'name_en' => $validated['name_en'],
             'name_ar' => $validated['name_ar'],
         ]);
+        if (($translations = $this->translationsInput($validated)) !== null) {
+            $category->fillTranslations($translations);
+        }
+        $category->save();
 
         if ($request->hasFile('image')) {
             $this->deleteCategoryImageFiles($category->image);

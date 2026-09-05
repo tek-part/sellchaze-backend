@@ -1,0 +1,53 @@
+{
+  "key": "rich-test",
+  "name": "Rich Sections Test Theme",
+  "version": "1.0.0",
+  "author": "tests",
+  "settings_schema": [
+    {
+      "id": "brand",
+      "label": "Brand",
+      "fields": [
+        { "id": "primary_color", "type": "color", "label": "Primary", "default": "#111111" },
+        { "id": "tagline", "type": "text", "label": "Tagline", "translatable": true, "default": { "en": "Hello", "ar": "مرحبا" } },
+        { "id": "layout", "type": "select", "label": "Layout", "default": "wide",
+          "options": [ { "value": "wide", "label": "Wide" }, { "value": "boxed", "label": "Boxed" } ] }
+      ]
+    }
+  ],
+  "sections_schema": {
+    "hero": {
+      "label": "Hero banner",
+      "description": "Full-width opening banner",
+      "category": "hero",
+      "icon": "HiOutlinePhoto",
+      "settings": [
+        { "id": "headline", "type": "text", "label": "Headline", "translatable": true, "default": { "en": "Welcome", "ar": "أهلا" } },
+        { "id": "align", "type": "select", "label": "Alignment", "default": "center",
+          "options": [ { "value": "start", "label": "Start" }, { "value": "center", "label": "Center" } ] },
+        { "id": "show_cta", "type": "toggle", "label": "Show CTA", "default": true },
+        { "id": "section_spacing", "type": "range", "label": "Spacing", "default": 64, "min": 0, "max": 200, "responsive": true, "css_property": "padding-block" }
+      ]
+    },
+    "feature-list": {
+      "label": "Feature list",
+      "category": "content",
+      "icon": "HiOutlineSparkles",
+      "settings": [
+        { "id": "items", "type": "list", "label": "Items", "max": 2, "default": [],
+          "item": [
+            { "id": "title", "type": "text", "label": "Title", "translatable": true },
+            { "id": "icon", "type": "select", "label": "Icon", "options": [ "star", "bolt" ], "default": "star" }
+          ] }
+      ]
+    },
+    "product-grid": { "label": "Product grid", "category": "products", "settings": [ { "id": "limit", "type": "number", "label": "Limit", "default": 8 } ] },
+    "category-header": { "label": "Category header", "category": "categories", "settings": [] },
+    "product-details": { "label": "Product details", "category": "products", "settings": [] }
+  },
+  "templates": {
+    "home": { "sections": [ { "type": "hero", "settings": { "headline": { "en": "Rich home", "ar": "رئيسية" } } }, { "type": "feature-list" }, { "type": "product-grid", "settings": { "limit": 4 } } ] },
+    "product": { "sections": [ { "type": "product-details" } ] },
+    "category": { "sections": [ { "type": "category-header" }, { "type": "product-grid" } ] }
+  }
+}

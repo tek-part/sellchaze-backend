@@ -2,13 +2,13 @@
 
 namespace App\Actions\Orders;
 
+use App\Events\DashboardStatsUpdated;
 use App\Models\Order;
 use App\Models\OrderSuppliers;
+use App\Models\User;
+use App\Notifications\OrderCreated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
-use App\Events\DashboardStatsUpdated;
-use App\Notifications\OrderCreated;
-use App\Models\User;
 
 /**
  * Placeholder Action that encapsulates order creation logic.
@@ -21,12 +21,12 @@ class CreateOrderAction
      * Core logic extracted from OrderController::store for future refactoring.
      *
      * @param  array<string, mixed>  $data
-     * @return Order
      */
     public function __invoke(array $data): Order
     {
         $order = new Order;
         $order->code = random_alphanumeric(10);
+        $order->source = Order::SOURCE_MERCHANT_DIRECT;
         $order->quantity = $data['quantity'];
         $order->user_id = $data['user_id'];
         $order->product_id = $data['product'];
@@ -50,7 +50,7 @@ class CreateOrderAction
                 $user = User::find($supplierId);
                 if ($user) {
                     $payload = [
-                        'greeting' => 'Hi ' . $user->name . ', you received a new order!',
+                        'greeting' => 'Hi '.$user->name.', you received a new order!',
                         'body' => 'A customer made and order and chose you to supply this order',
                         'thanks' => 'Thank you',
                         'actionText' => 'Order Details',

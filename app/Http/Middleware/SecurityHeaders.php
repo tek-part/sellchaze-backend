@@ -20,7 +20,6 @@ class SecurityHeaders
      * @var array<string, string>
      */
     private const HEADERS = [
-        'X-Frame-Options' => 'SAMEORIGIN',
         'X-Content-Type-Options' => 'nosniff',
         'Referrer-Policy' => 'strict-origin-when-cross-origin',
         'Permissions-Policy' => 'geolocation=(), microphone=(), camera=()',
@@ -49,10 +48,53 @@ class SecurityHeaders
             }
         }
 
+        // Framing is ENFORCED (not report-only): the storefront may only be embedded by itself, the
+        // dashboard (theme editor / customizer live preview) and tenant hosts on the base domain.
+        // Replaces X-Frame-Options, which cannot express more than one origin.
+        if (! $response->headers->has('Content-Security-Policy')) {
+            $response->headers->set('Content-Security-Policy', 'frame-ancestors '.implode(' ', $this->frameAncestors()));
+        }
+
         if (! $response->headers->has('Content-Security-Policy-Report-Only')) {
             $response->headers->set('Content-Security-Policy-Report-Only', self::CSP_REPORT_ONLY);
         }
 
         return $response;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function frameAncestors(): array
+    {
+        $configured = trim((string) config('sellchase.storefront.frame_ancestors', ''));
+        if ($configured !== '') {
+            return array_values(array_filter(preg_split('/\s+/', $configured) ?: []));
+        }
+
+        $ancestors = ["'self'"];
+        $frontend = (string) config('sellchase.frontend_url', '');
+        if ($frontend !== '' && ($origin = $this->origin($frontend)) !== null) {
+            $ancestors[] = $origin;
+        }
+        $base = strtolower((string) config('sellchase.storefront.base_domain', ''));
+        if ($base !== '') {
+            $ancestors[] = 'https://'.$base;
+            $ancestors[] = 'https://*.'.$base;
+        }
+
+        return array_values(array_unique($ancestors));
+    }
+
+    private function origin(string $url): ?string
+    {
+        $parts = parse_url($url);
+        if (! is_array($parts) || empty($parts['host'])) {
+            return null;
+        }
+        $scheme = $parts['scheme'] ?? 'https';
+        $port = isset($parts['port']) ? ':'.$parts['port'] : '';
+
+        return $scheme.'://'.$parts['host'].$port;
     }
 }

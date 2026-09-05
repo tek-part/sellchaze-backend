@@ -15,9 +15,9 @@ class StorefrontBrandResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'name' => $this->name,
+            'name' => $this->translated('name'),
             'slug' => $this->slug,
-            'description' => $this->description,
+            'description' => $this->translated('description'),
             'logo_url' => $this->logoUrl(),
             'website' => $this->website,
             'origin_country' => $this->origin_country,

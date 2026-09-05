@@ -13,12 +13,15 @@ use App\Models\Product;
 use App\Models\User;
 use App\Notifications\OrderCreated;
 use File;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\View\View;
 use Image;
 use Notification;
 use Session;
@@ -39,7 +42,8 @@ class OrderController extends Controller
      * Display a listing of the resource.
      *
      * @return Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function index(Request $request)
     {
@@ -92,7 +96,8 @@ class OrderController extends Controller
      * Display a listing of the resource.
      *
      * @return Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function in(Request $request)
     {
@@ -143,7 +148,8 @@ class OrderController extends Controller
      * Display a listing of the resource.
      *
      * @return Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function out(Request $request)
     {
@@ -278,7 +284,8 @@ class OrderController extends Controller
      * Show the form for creating a new resource.
      *
      * @return Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function create()
     {
@@ -291,7 +298,8 @@ class OrderController extends Controller
      * Store a newly created resource in storage.
      *
      * @return Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function store(Request $request)
     {
@@ -307,6 +315,7 @@ class OrderController extends Controller
 
         $order = new Order;
         $order->code = random_alphanumeric(10);
+        $order->source = Order::SOURCE_MERCHANT_DIRECT;
         $order->quantity = $request->input('quantity');
         // $order->user_id   = Auth::user()->id;
         $order->user_id = b2bListingsUserId();
@@ -374,7 +383,8 @@ class OrderController extends Controller
      *
      * @param  string  $code
      * @return Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function show($code)
     {
@@ -417,7 +427,8 @@ class OrderController extends Controller
      *
      * @param  string  $code  Order code
      * @return Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function edit($code)
     {
@@ -436,7 +447,8 @@ class OrderController extends Controller
      * Update the specified resource in storage.
      *
      * @return Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function update(Request $request, Order $order)
     {
@@ -506,7 +518,8 @@ class OrderController extends Controller
      *
      * @param  int  $code
      * @return Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function destroy($code)
     {
@@ -585,7 +598,8 @@ class OrderController extends Controller
      *
      * @param  string  $code
      * @return Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function quotations($code)
     {

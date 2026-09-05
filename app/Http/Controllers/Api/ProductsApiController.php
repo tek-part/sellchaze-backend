@@ -5,11 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Concerns\FlushesOwnerStorefront;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
-use App\Support\ProductImageUrl;
 use App\Models\ProductAttributes;
 use App\Models\ProductMedia;
 use App\Services\ProductDeletionService;
 use App\Services\Rbac\UserScope;
+use App\Support\Localization\TranslationRules;
+use App\Support\ProductImageUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -66,9 +67,13 @@ class ProductsApiController extends Controller
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
+    /** Translatable product attributes accepted in the `translations` payload. */
+    private const TRANSLATABLE = ['name', 'description', 'short_description'];
+
     public function store(Request $request): JsonResponse
     {
         $this->normalizeArrayInputs($request);
+        TranslationRules::decodeRequest($request);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -79,14 +84,18 @@ class ProductsApiController extends Controller
             'image' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192'],
             'gallery' => ['nullable', 'array'],
             'gallery.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192'],
-        ]);
+        ] + TranslationRules::for(self::TRANSLATABLE));
 
-        $product = Product::query()->create([
+        $product = new Product([
             'name' => $validated['name'],
             'description' => $validated['description'] ?? '',
             'category_id' => $validated['category_id'],
             'user_id' => $request->user()->id,
         ]);
+        if (is_array($validated['translations'] ?? null)) {
+            $product->fillTranslations($validated['translations']);
+        }
+        $product->save();
 
         if ($request->hasFile('image')) {
             $product->image = $this->storeProductImage($request->file('image'));
@@ -124,6 +133,7 @@ class ProductsApiController extends Controller
     {
         $this->assertCanManageProduct($request, $product);
         $this->normalizeArrayInputs($request);
+        TranslationRules::decodeRequest($request);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -136,13 +146,17 @@ class ProductsApiController extends Controller
             'gallery' => ['nullable', 'array'],
             'gallery.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192'],
             'remove_media_ids' => ['nullable'],
-        ]);
+        ] + TranslationRules::for(self::TRANSLATABLE));
 
-        $product->update([
+        $product->fill([
             'name' => $validated['name'],
             'description' => $validated['description'] ?? '',
             'category_id' => $validated['category_id'],
         ]);
+        if (is_array($validated['translations'] ?? null)) {
+            $product->fillTranslations($validated['translations']);
+        }
+        $product->save();
 
         if ($request->hasFile('image')) {
             $this->deleteProductImageFiles($product->image);
@@ -371,6 +385,7 @@ class ProductsApiController extends Controller
             'id' => $p->id,
             'name' => $p->name,
             'description' => $p->description,
+            'translations' => $p->translationsPayload(),
             'image' => $p->image,
             'image_thumb_url' => $thumb,
             'image_url' => $original,

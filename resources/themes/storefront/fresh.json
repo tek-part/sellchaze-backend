@@ -1,0 +1,3766 @@
+{
+  "key": "fresh",
+  "name": "Fresh — فريش",
+  "version": "1.0.0",
+  "author": "Sellchaze",
+  "category": "food",
+  "description": "A friendly grocery & fresh-market theme: green primary with a lime accent on a cream canvas, pill shapes, a delivery-time promise in the header, big quick-add buttons with quantity steppers on cards, category circles, weekly deals with a countdown and a sticky bottom tab bar on phones — built on the shared section library so every block is editable in the customizer.",
+  "is_marketplace": true,
+  "is_featured": false,
+  "min_platform_version": "1.0.0",
+  "preview_image": "/media/theme-previews/fresh.jpg",
+  "supported_features": [
+    "rtl",
+    "dark-mode",
+    "search-overlay",
+    "cart-drawer",
+    "wishlist",
+    "quick-add",
+    "newsletter",
+    "countdown",
+    "blog"
+  ],
+  "bundle_url": "builtin:fresh@1.0.0",
+  "changelog": "1.0.0 (2026-09-05): Initial release — grocery / fresh-market theme on the shared section library.",
+  "settings_schema": [
+    {
+      "id": "colors",
+      "label": "Colors",
+      "fields": [
+        {
+          "id": "primary_color",
+          "type": "color",
+          "label": "Primary",
+          "default": "#16A34A",
+          "hint": "Buttons, links, quick-add, active states."
+        },
+        {
+          "id": "accent_color",
+          "type": "color",
+          "label": "Accent",
+          "default": "#84CC16",
+          "hint": "Lime highlights, eyebrows, deal badges."
+        },
+        {
+          "id": "background_color",
+          "type": "color",
+          "label": "Background",
+          "default": "#FFFBF2",
+          "hint": "Cream page canvas; cards stay white."
+        },
+        {
+          "id": "text_color",
+          "type": "color",
+          "label": "Text",
+          "default": "#1B2A1E"
+        },
+        {
+          "id": "sale_color",
+          "type": "color",
+          "label": "Sale / discount",
+          "default": "#EF4444"
+        }
+      ]
+    },
+    {
+      "id": "typography",
+      "label": "Typography",
+      "fields": [
+        {
+          "id": "heading_font",
+          "type": "select",
+          "label": "Heading font",
+          "default": "Cairo",
+          "options": [
+            {
+              "value": "Cairo",
+              "label": "Cairo"
+            },
+            {
+              "value": "Nunito",
+              "label": "Nunito"
+            },
+            {
+              "value": "Tajawal",
+              "label": "Tajawal"
+            },
+            {
+              "value": "Almarai",
+              "label": "Almarai"
+            },
+            {
+              "value": "IBM Plex Sans Arabic",
+              "label": "IBM Plex Sans Arabic"
+            },
+            {
+              "value": "Rubik",
+              "label": "Rubik"
+            },
+            {
+              "value": "Poppins",
+              "label": "Poppins"
+            },
+            {
+              "value": "system",
+              "label": "System default"
+            }
+          ]
+        },
+        {
+          "id": "body_font",
+          "type": "select",
+          "label": "Body font",
+          "default": "Nunito",
+          "options": [
+            {
+              "value": "Cairo",
+              "label": "Cairo"
+            },
+            {
+              "value": "Nunito",
+              "label": "Nunito"
+            },
+            {
+              "value": "Tajawal",
+              "label": "Tajawal"
+            },
+            {
+              "value": "Almarai",
+              "label": "Almarai"
+            },
+            {
+              "value": "IBM Plex Sans Arabic",
+              "label": "IBM Plex Sans Arabic"
+            },
+            {
+              "value": "Rubik",
+              "label": "Rubik"
+            },
+            {
+              "value": "Poppins",
+              "label": "Poppins"
+            },
+            {
+              "value": "system",
+              "label": "System default"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "header",
+      "label": "Header",
+      "fields": [
+        {
+          "id": "delivery_promise",
+          "type": "text",
+          "label": "Delivery promise",
+          "default": {
+            "ar": "توصيل خلال ٦٠ دقيقة — اطلب قبل ١٠ مساءً",
+            "en": "Delivery in 60 minutes — order before 10 pm"
+          },
+          "hint": "Shown in the strip above the header. Leave empty to hide.",
+          "translatable": true
+        },
+        {
+          "id": "sticky_header",
+          "type": "toggle",
+          "label": "Sticky header",
+          "default": true
+        },
+        {
+          "id": "show_mobile_tabbar",
+          "type": "toggle",
+          "label": "Show bottom tab bar on mobile",
+          "default": true,
+          "hint": "Home · Categories · Cart · Account, pinned to the bottom on phones."
+        },
+        {
+          "id": "show_announcement",
+          "type": "toggle",
+          "label": "Show announcement bar",
+          "default": true
+        },
+        {
+          "id": "announcement_text",
+          "type": "text",
+          "label": "Announcement text",
+          "default": {
+            "ar": "توصيل مجاني للطلبات فوق ١٥٠ ر.س",
+            "en": "Free delivery on orders over 150"
+          },
+          "translatable": true
+        }
+      ]
+    },
+    {
+      "id": "layout",
+      "label": "Layout",
+      "fields": [
+        {
+          "id": "container_width",
+          "type": "range",
+          "label": "Content width (px)",
+          "default": 1360,
+          "min": 1200,
+          "max": 1600,
+          "step": 20
+        },
+        {
+          "id": "radius",
+          "type": "select",
+          "label": "Corner style",
+          "default": "pill",
+          "options": [
+            {
+              "value": "rounded",
+              "label": "Rounded"
+            },
+            {
+              "value": "pill",
+              "label": "Pill (very rounded)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "product-cards",
+      "label": "Product cards",
+      "fields": [
+        {
+          "id": "show_quick_add",
+          "type": "toggle",
+          "label": "Show quick add + quantity stepper on cards",
+          "default": true
+        },
+        {
+          "id": "show_unit_label",
+          "type": "toggle",
+          "label": "Show unit label on cards",
+          "default": true,
+          "hint": "e.g. \"1 kg\", \"per piece\" — uses the product unit when the catalogue provides one."
+        },
+        {
+          "id": "default_unit_label",
+          "type": "text",
+          "label": "Default unit label",
+          "default": {
+            "ar": "للقطعة",
+            "en": "per piece"
+          },
+          "translatable": true
+        },
+        {
+          "id": "show_ratings",
+          "type": "toggle",
+          "label": "Show ratings on cards",
+          "default": true
+        }
+      ]
+    }
+  ],
+  "sections_schema": {
+    "hero-slider": {
+      "label": "Hero slider",
+      "category": "hero",
+      "settings": [
+        {
+          "id": "slides",
+          "type": "list",
+          "label": "Slides",
+          "default": [
+            {
+              "image": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1920&h=900&q=80",
+              "mobile_image": "",
+              "eyebrow": {
+                "ar": "تشكيلة الموسم",
+                "en": "This season"
+              },
+              "heading": {
+                "ar": "كل ما تحتاجه، في مكان واحد",
+                "en": "Everything you need, in one place"
+              },
+              "text": {
+                "ar": "منتجات مختارة بعناية مع شحن سريع وإرجاع سهل.",
+                "en": "Hand-picked products with fast shipping and easy returns."
+              },
+              "cta_label": {
+                "ar": "تسوق الآن",
+                "en": "Shop now"
+              },
+              "cta_url": "/shop",
+              "align": "start",
+              "overlay": 35
+            },
+            {
+              "image": "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1920&h=900&q=80",
+              "mobile_image": "",
+              "eyebrow": {
+                "ar": "عروض محدودة",
+                "en": "Limited offers"
+              },
+              "heading": {
+                "ar": "خصومات تصل إلى ٥٠٪",
+                "en": "Up to 50% off"
+              },
+              "text": {
+                "ar": "على مجموعة مختارة من المنتجات الأكثر مبيعاً.",
+                "en": "On a curated selection of best sellers."
+              },
+              "cta_label": {
+                "ar": "اكتشف العروض",
+                "en": "See the deals"
+              },
+              "cta_url": "/collections/best-sellers",
+              "align": "center",
+              "overlay": 40
+            }
+          ],
+          "item": [
+            {
+              "id": "image",
+              "type": "image",
+              "label": "Image",
+              "default": "",
+              "hint": "Recommended 1920×800."
+            },
+            {
+              "id": "mobile_image",
+              "type": "image",
+              "label": "Mobile image",
+              "default": "",
+              "hint": "Optional portrait crop for phones."
+            },
+            {
+              "id": "eyebrow",
+              "type": "text",
+              "label": "Eyebrow",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "heading",
+              "type": "text",
+              "label": "Heading",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "text",
+              "type": "textarea",
+              "label": "Text",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "cta_label",
+              "type": "text",
+              "label": "Button label",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "cta_url",
+              "type": "url",
+              "label": "Button link",
+              "default": "/shop"
+            },
+            {
+              "id": "align",
+              "type": "select",
+              "label": "Text alignment",
+              "default": "start",
+              "options": [
+                {
+                  "value": "start",
+                  "label": "Start"
+                },
+                {
+                  "value": "center",
+                  "label": "Center"
+                },
+                {
+                  "value": "end",
+                  "label": "End"
+                }
+              ]
+            },
+            {
+              "id": "overlay",
+              "type": "range",
+              "label": "Overlay darkness",
+              "default": 35,
+              "min": 0,
+              "max": 90,
+              "step": 5
+            }
+          ],
+          "max": 6
+        },
+        {
+          "id": "height",
+          "type": "select",
+          "label": "Height",
+          "default": "medium",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Auto"
+            },
+            {
+              "value": "short",
+              "label": "Short"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "tall",
+              "label": "Tall"
+            },
+            {
+              "value": "full",
+              "label": "Full screen"
+            }
+          ]
+        },
+        {
+          "id": "autoplay",
+          "type": "toggle",
+          "label": "Autoplay",
+          "default": true
+        },
+        {
+          "id": "interval",
+          "type": "range",
+          "label": "Autoplay interval (s)",
+          "default": 6,
+          "min": 3,
+          "max": 15,
+          "step": 1
+        },
+        {
+          "id": "show_dots",
+          "type": "toggle",
+          "label": "Show dots",
+          "default": true
+        },
+        {
+          "id": "show_arrows",
+          "type": "toggle",
+          "label": "Show arrows",
+          "default": true
+        },
+        {
+          "id": "rounded",
+          "type": "toggle",
+          "label": "Rounded inside the container",
+          "default": false,
+          "hint": "Off = edge-to-edge."
+        }
+      ],
+      "description": "Rotating full-width promotional slides with headline and button.",
+      "icon": "HiOutlinePhoto"
+    },
+    "hero-banner": {
+      "label": "Hero banner",
+      "category": "hero",
+      "settings": [
+        {
+          "id": "image",
+          "type": "image",
+          "label": "Image",
+          "default": "https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=1920&h=900&q=80",
+          "hint": "Recommended 1920×800."
+        },
+        {
+          "id": "mobile_image",
+          "type": "image",
+          "label": "Mobile image",
+          "default": ""
+        },
+        {
+          "id": "eyebrow",
+          "type": "text",
+          "label": "Eyebrow",
+          "default": {
+            "ar": "وصل حديثاً",
+            "en": "New in"
+          },
+          "translatable": true
+        },
+        {
+          "id": "heading",
+          "type": "text",
+          "label": "Heading",
+          "default": {
+            "ar": "تسوق أحدث المنتجات",
+            "en": "Shop the latest arrivals"
+          },
+          "translatable": true
+        },
+        {
+          "id": "text",
+          "type": "textarea",
+          "label": "Text",
+          "default": {
+            "ar": "جودة عالية بأسعار مناسبة، مع توصيل سريع لباب منزلك.",
+            "en": "Great quality at fair prices, delivered fast to your door."
+          },
+          "translatable": true
+        },
+        {
+          "id": "cta_label",
+          "type": "text",
+          "label": "Primary button",
+          "default": {
+            "ar": "تسوق الآن",
+            "en": "Shop now"
+          },
+          "translatable": true
+        },
+        {
+          "id": "cta_url",
+          "type": "url",
+          "label": "Primary link",
+          "default": "/shop"
+        },
+        {
+          "id": "cta2_label",
+          "type": "text",
+          "label": "Secondary button",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "cta2_url",
+          "type": "url",
+          "label": "Secondary link",
+          "default": ""
+        },
+        {
+          "id": "align",
+          "type": "select",
+          "label": "Text alignment",
+          "default": "start",
+          "options": [
+            {
+              "value": "start",
+              "label": "Start"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            },
+            {
+              "value": "end",
+              "label": "End"
+            }
+          ]
+        },
+        {
+          "id": "height",
+          "type": "select",
+          "label": "Height",
+          "default": "medium",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Auto"
+            },
+            {
+              "value": "short",
+              "label": "Short"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "tall",
+              "label": "Tall"
+            },
+            {
+              "value": "full",
+              "label": "Full screen"
+            }
+          ]
+        },
+        {
+          "id": "overlay",
+          "type": "range",
+          "label": "Overlay darkness",
+          "default": 35,
+          "min": 0,
+          "max": 90,
+          "step": 5
+        },
+        {
+          "id": "text_color",
+          "type": "select",
+          "label": "Text colour",
+          "default": "light",
+          "options": [
+            {
+              "value": "light",
+              "label": "Light (on photo)"
+            },
+            {
+              "value": "dark",
+              "label": "Dark"
+            }
+          ]
+        },
+        {
+          "id": "rounded",
+          "type": "toggle",
+          "label": "Rounded inside the container",
+          "default": false
+        }
+      ],
+      "description": "One large image with headline, text and up to two buttons.",
+      "icon": "HiOutlineRectangleStack"
+    },
+    "announcement-strip": {
+      "label": "Announcement strip",
+      "category": "marketing",
+      "settings": [
+        {
+          "id": "items",
+          "type": "list",
+          "label": "Messages",
+          "default": [
+            {
+              "text": {
+                "ar": "شحن مجاني للطلبات فوق ٢٠٠ ر.س",
+                "en": "Free shipping on orders over 200"
+              },
+              "url": ""
+            },
+            {
+              "text": {
+                "ar": "إرجاع مجاني خلال ١٤ يوماً",
+                "en": "Free returns within 14 days"
+              },
+              "url": ""
+            }
+          ],
+          "item": [
+            {
+              "id": "text",
+              "type": "text",
+              "label": "Text",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "url",
+              "type": "url",
+              "label": "Link",
+              "default": ""
+            }
+          ],
+          "max": 6
+        },
+        {
+          "id": "mode",
+          "type": "select",
+          "label": "Display",
+          "default": "rotate",
+          "options": [
+            {
+              "value": "rotate",
+              "label": "Rotate one at a time"
+            },
+            {
+              "value": "marquee",
+              "label": "Scrolling marquee"
+            },
+            {
+              "value": "static",
+              "label": "Show all inline"
+            }
+          ]
+        },
+        {
+          "id": "interval",
+          "type": "range",
+          "label": "Rotate every (s)",
+          "default": 5,
+          "min": 3,
+          "max": 15,
+          "step": 1
+        },
+        {
+          "id": "background",
+          "type": "color",
+          "label": "Background",
+          "default": "",
+          "hint": "Leave empty to use the theme colour."
+        },
+        {
+          "id": "color",
+          "type": "color",
+          "label": "Text colour",
+          "default": "",
+          "hint": "Leave empty to use the theme colour."
+        }
+      ],
+      "description": "A slim band of short messages — shipping, promo codes, news.",
+      "icon": "HiOutlineMegaphone"
+    },
+    "category-circles": {
+      "label": "Category circles",
+      "category": "categories",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "تسوق حسب التصنيف",
+            "en": "Shop by category"
+          },
+          "translatable": true
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "label": "Subtitle",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "limit",
+          "type": "range",
+          "label": "Max categories",
+          "default": 10,
+          "min": 2,
+          "max": 24,
+          "step": 1
+        },
+        {
+          "id": "size",
+          "type": "select",
+          "label": "Circle size",
+          "default": "md",
+          "options": [
+            {
+              "value": "sm",
+              "label": "Small"
+            },
+            {
+              "value": "md",
+              "label": "Medium"
+            },
+            {
+              "value": "lg",
+              "label": "Large"
+            }
+          ]
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "scroll",
+          "options": [
+            {
+              "value": "scroll",
+              "label": "Scroll row"
+            },
+            {
+              "value": "wrap",
+              "label": "Wrap into rows"
+            }
+          ]
+        },
+        {
+          "id": "show_count",
+          "type": "toggle",
+          "label": "Show product counts",
+          "default": false
+        },
+        {
+          "id": "view_all_url",
+          "type": "url",
+          "label": "View-all link",
+          "default": "/categories"
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 48,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Round category thumbnails in a scrollable row.",
+      "icon": "HiOutlineSquares2X2"
+    },
+    "category-grid": {
+      "label": "Category grid",
+      "category": "categories",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "التصنيفات",
+            "en": "Categories"
+          },
+          "translatable": true
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "label": "Subtitle",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "4",
+          "options": [
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            },
+            {
+              "value": "5",
+              "label": "5"
+            },
+            {
+              "value": "6",
+              "label": "6"
+            }
+          ]
+        },
+        {
+          "id": "limit",
+          "type": "range",
+          "label": "Max categories",
+          "default": 8,
+          "min": 1,
+          "max": 24,
+          "step": 1
+        },
+        {
+          "id": "style",
+          "type": "select",
+          "label": "Tile style",
+          "default": "overlay",
+          "options": [
+            {
+              "value": "overlay",
+              "label": "Name over image"
+            },
+            {
+              "value": "below",
+              "label": "Name below image"
+            }
+          ]
+        },
+        {
+          "id": "aspect",
+          "type": "select",
+          "label": "Image ratio",
+          "default": "square",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Natural"
+            },
+            {
+              "value": "square",
+              "label": "Square 1:1"
+            },
+            {
+              "value": "landscape",
+              "label": "Landscape 4:3"
+            },
+            {
+              "value": "wide",
+              "label": "Wide 16:9"
+            },
+            {
+              "value": "portrait",
+              "label": "Portrait 3:4"
+            }
+          ]
+        },
+        {
+          "id": "show_count",
+          "type": "toggle",
+          "label": "Show product counts",
+          "default": true
+        },
+        {
+          "id": "view_all_url",
+          "type": "url",
+          "label": "View-all link",
+          "default": "/categories"
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Category tiles with image and name.",
+      "icon": "HiOutlineViewColumns"
+    },
+    "featured-products": {
+      "label": "Featured products",
+      "category": "products",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "وصل حديثاً",
+            "en": "New arrivals"
+          },
+          "translatable": true
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "label": "Subtitle",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "collection",
+          "type": "collection",
+          "label": "Collection",
+          "default": "newest",
+          "hint": "newest · featured · bestsellers · sale · trending — or a collection id/slug."
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "grid",
+          "options": [
+            {
+              "value": "grid",
+              "label": "Grid"
+            },
+            {
+              "value": "carousel",
+              "label": "Carousel"
+            }
+          ]
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "4",
+          "options": [
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            },
+            {
+              "value": "5",
+              "label": "5"
+            },
+            {
+              "value": "6",
+              "label": "6"
+            }
+          ]
+        },
+        {
+          "id": "limit",
+          "type": "range",
+          "label": "Products to show",
+          "default": 8,
+          "min": 1,
+          "max": 24,
+          "step": 1
+        },
+        {
+          "id": "show_badges",
+          "type": "toggle",
+          "label": "Show badges (sale %, new)",
+          "default": true
+        },
+        {
+          "id": "show_ratings",
+          "type": "toggle",
+          "label": "Show ratings",
+          "default": true
+        },
+        {
+          "id": "show_quick_add",
+          "type": "toggle",
+          "label": "Show quick add",
+          "default": true
+        },
+        {
+          "id": "show_wishlist",
+          "type": "toggle",
+          "label": "Show wishlist heart",
+          "default": true
+        },
+        {
+          "id": "view_all_url",
+          "type": "url",
+          "label": "View-all link",
+          "default": "/shop"
+        },
+        {
+          "id": "view_all_label",
+          "type": "text",
+          "label": "View-all label",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "A product collection as a grid or carousel.",
+      "icon": "HiOutlineShoppingBag",
+      "presets": [
+        {
+          "label": "Best sellers",
+          "settings": {
+            "title": {
+              "ar": "الأكثر مبيعاً",
+              "en": "Best sellers"
+            },
+            "collection": "bestsellers",
+            "view_all_url": "/collections/best-sellers"
+          }
+        },
+        {
+          "label": "On sale",
+          "settings": {
+            "title": {
+              "ar": "تخفيضات",
+              "en": "On sale"
+            },
+            "collection": "sale"
+          }
+        },
+        {
+          "label": "Trending carousel",
+          "settings": {
+            "title": {
+              "ar": "الأكثر رواجاً",
+              "en": "Trending now"
+            },
+            "collection": "trending",
+            "layout": "carousel"
+          }
+        }
+      ]
+    },
+    "product-tabs": {
+      "label": "Product tabs",
+      "category": "products",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "اكتشف منتجاتنا",
+            "en": "Discover our products"
+          },
+          "translatable": true
+        },
+        {
+          "id": "tabs",
+          "type": "list",
+          "label": "Tabs",
+          "default": [
+            {
+              "label": {
+                "ar": "الجديد",
+                "en": "New"
+              },
+              "collection": "newest"
+            },
+            {
+              "label": {
+                "ar": "الأكثر مبيعاً",
+                "en": "Best sellers"
+              },
+              "collection": "bestsellers"
+            },
+            {
+              "label": {
+                "ar": "تخفيضات",
+                "en": "Sale"
+              },
+              "collection": "sale"
+            }
+          ],
+          "item": [
+            {
+              "id": "label",
+              "type": "text",
+              "label": "Tab label",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "collection",
+              "type": "collection",
+              "label": "Collection",
+              "default": "newest",
+              "hint": "newest · featured · bestsellers · sale · trending — or a collection id/slug."
+            }
+          ],
+          "max": 6
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "grid",
+          "options": [
+            {
+              "value": "grid",
+              "label": "Grid"
+            },
+            {
+              "value": "carousel",
+              "label": "Carousel"
+            }
+          ]
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "4",
+          "options": [
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            },
+            {
+              "value": "5",
+              "label": "5"
+            },
+            {
+              "value": "6",
+              "label": "6"
+            }
+          ]
+        },
+        {
+          "id": "limit",
+          "type": "range",
+          "label": "Products per tab",
+          "default": 8,
+          "min": 1,
+          "max": 24,
+          "step": 1
+        },
+        {
+          "id": "align",
+          "type": "select",
+          "label": "Tabs alignment",
+          "default": "center",
+          "options": [
+            {
+              "value": "start",
+              "label": "Start"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            },
+            {
+              "value": "end",
+              "label": "End"
+            }
+          ]
+        },
+        {
+          "id": "show_badges",
+          "type": "toggle",
+          "label": "Show badges (sale %, new)",
+          "default": true
+        },
+        {
+          "id": "show_ratings",
+          "type": "toggle",
+          "label": "Show ratings",
+          "default": true
+        },
+        {
+          "id": "show_quick_add",
+          "type": "toggle",
+          "label": "Show quick add",
+          "default": true
+        },
+        {
+          "id": "show_wishlist",
+          "type": "toggle",
+          "label": "Show wishlist heart",
+          "default": true
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Tabs that switch between product collections.",
+      "icon": "HiOutlineTableCells"
+    },
+    "flash-deals": {
+      "label": "Flash deals",
+      "category": "products",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "عروض اليوم",
+            "en": "Deals of the day"
+          },
+          "translatable": true
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "label": "Subtitle",
+          "default": {
+            "ar": "أسعار خاصة لفترة محدودة",
+            "en": "Special prices for a limited time"
+          },
+          "translatable": true
+        },
+        {
+          "id": "ends_at",
+          "type": "text",
+          "label": "Ends at (date & time)",
+          "default": "2026-09-11T22:00",
+          "hint": "ISO format, e.g. 2026-12-31T23:59 (store time zone)."
+        },
+        {
+          "id": "collection",
+          "type": "collection",
+          "label": "Collection",
+          "default": "sale",
+          "hint": "newest · featured · bestsellers · sale · trending — or a collection id/slug."
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "carousel",
+          "options": [
+            {
+              "value": "grid",
+              "label": "Grid"
+            },
+            {
+              "value": "carousel",
+              "label": "Carousel"
+            }
+          ]
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "4",
+          "options": [
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            },
+            {
+              "value": "5",
+              "label": "5"
+            },
+            {
+              "value": "6",
+              "label": "6"
+            }
+          ]
+        },
+        {
+          "id": "limit",
+          "type": "range",
+          "label": "Products to show",
+          "default": 8,
+          "min": 1,
+          "max": 24,
+          "step": 1
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "surface",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
+            }
+          ]
+        },
+        {
+          "id": "hide_when_expired",
+          "type": "toggle",
+          "label": "Hide the section when the timer ends",
+          "default": true
+        },
+        {
+          "id": "show_badges",
+          "type": "toggle",
+          "label": "Show badges (sale %, new)",
+          "default": true
+        },
+        {
+          "id": "show_ratings",
+          "type": "toggle",
+          "label": "Show ratings",
+          "default": true
+        },
+        {
+          "id": "show_quick_add",
+          "type": "toggle",
+          "label": "Show quick add",
+          "default": true
+        },
+        {
+          "id": "show_wishlist",
+          "type": "toggle",
+          "label": "Show wishlist heart",
+          "default": true
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "A countdown timer with the products on offer.",
+      "icon": "HiOutlineBolt"
+    },
+    "banner-grid": {
+      "label": "Banner grid",
+      "category": "marketing",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "banners",
+          "type": "list",
+          "label": "Banners",
+          "default": [
+            {
+              "image": "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=1200&h=800&q=80",
+              "eyebrow": {
+                "ar": "جديد",
+                "en": "New"
+              },
+              "title": {
+                "ar": "تشكيلة الرجال",
+                "en": "Men’s edit"
+              },
+              "subtitle": "",
+              "cta_label": {
+                "ar": "تسوق",
+                "en": "Shop"
+              },
+              "link": "/shop",
+              "align": "start"
+            },
+            {
+              "image": "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1200&h=800&q=80",
+              "eyebrow": {
+                "ar": "الأكثر طلباً",
+                "en": "Most wanted"
+              },
+              "title": {
+                "ar": "تشكيلة النساء",
+                "en": "Women’s edit"
+              },
+              "subtitle": "",
+              "cta_label": {
+                "ar": "تسوق",
+                "en": "Shop"
+              },
+              "link": "/shop",
+              "align": "start"
+            }
+          ],
+          "item": [
+            {
+              "id": "image",
+              "type": "image",
+              "label": "Image",
+              "default": ""
+            },
+            {
+              "id": "eyebrow",
+              "type": "text",
+              "label": "Eyebrow",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "title",
+              "type": "text",
+              "label": "Title",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "subtitle",
+              "type": "text",
+              "label": "Subtitle",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "cta_label",
+              "type": "text",
+              "label": "Button label",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "link",
+              "type": "url",
+              "label": "Link",
+              "default": "/shop"
+            },
+            {
+              "id": "align",
+              "type": "select",
+              "label": "Text position",
+              "default": "start",
+              "options": [
+                {
+                  "value": "start",
+                  "label": "Bottom start"
+                },
+                {
+                  "value": "center",
+                  "label": "Center"
+                },
+                {
+                  "value": "end",
+                  "label": "Bottom end"
+                }
+              ]
+            }
+          ],
+          "max": 6
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "2",
+          "options": [
+            {
+              "value": "1",
+              "label": "1"
+            },
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            }
+          ]
+        },
+        {
+          "id": "aspect",
+          "type": "select",
+          "label": "Image ratio",
+          "default": "landscape",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Natural"
+            },
+            {
+              "value": "square",
+              "label": "Square 1:1"
+            },
+            {
+              "value": "landscape",
+              "label": "Landscape 4:3"
+            },
+            {
+              "value": "wide",
+              "label": "Wide 16:9"
+            },
+            {
+              "value": "portrait",
+              "label": "Portrait 3:4"
+            }
+          ]
+        },
+        {
+          "id": "overlay",
+          "type": "range",
+          "label": "Overlay darkness",
+          "default": 25,
+          "min": 0,
+          "max": 80,
+          "step": 5
+        },
+        {
+          "id": "style",
+          "type": "select",
+          "label": "Style",
+          "default": "overlay",
+          "options": [
+            {
+              "value": "overlay",
+              "label": "Text over image"
+            },
+            {
+              "value": "below",
+              "label": "Text below image"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 48,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Promotional image tiles with a title and link.",
+      "icon": "HiOutlineViewColumns"
+    },
+    "image-with-text": {
+      "label": "Image with text",
+      "category": "content",
+      "settings": [
+        {
+          "id": "image",
+          "type": "image",
+          "label": "Image",
+          "default": "https://images.unsplash.com/photo-1556740749-887f6717d7e4?auto=format&fit=crop&w=1200&h=900&q=80"
+        },
+        {
+          "id": "eyebrow",
+          "type": "text",
+          "label": "Eyebrow",
+          "default": {
+            "ar": "قصتنا",
+            "en": "Our story"
+          },
+          "translatable": true
+        },
+        {
+          "id": "heading",
+          "type": "text",
+          "label": "Heading",
+          "default": {
+            "ar": "جودة نثق بها، وخدمة تليق بك",
+            "en": "Quality you can trust, service you deserve"
+          },
+          "translatable": true
+        },
+        {
+          "id": "text",
+          "type": "richtext",
+          "label": "Text",
+          "default": {
+            "ar": "<p>نختار كل منتج بعناية ونختبره قبل أن يصل إليك. هدفنا تجربة تسوق سهلة وسريعة من الطلب إلى الاستلام.</p>",
+            "en": "<p>We hand-pick and test every product before it reaches you. Our goal is a simple, fast shopping experience from order to delivery.</p>"
+          },
+          "translatable": true
+        },
+        {
+          "id": "cta_label",
+          "type": "text",
+          "label": "Button label",
+          "default": {
+            "ar": "اعرف المزيد",
+            "en": "Learn more"
+          },
+          "translatable": true
+        },
+        {
+          "id": "cta_url",
+          "type": "url",
+          "label": "Button link",
+          "default": "/about"
+        },
+        {
+          "id": "media_side",
+          "type": "select",
+          "label": "Image side",
+          "default": "start",
+          "options": [
+            {
+              "value": "start",
+              "label": "Start"
+            },
+            {
+              "value": "end",
+              "label": "End"
+            }
+          ]
+        },
+        {
+          "id": "aspect",
+          "type": "select",
+          "label": "Image ratio",
+          "default": "landscape",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Natural"
+            },
+            {
+              "value": "square",
+              "label": "Square 1:1"
+            },
+            {
+              "value": "landscape",
+              "label": "Landscape 4:3"
+            },
+            {
+              "value": "wide",
+              "label": "Wide 16:9"
+            },
+            {
+              "value": "portrait",
+              "label": "Portrait 3:4"
+            }
+          ]
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "none",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "An image beside a headline, paragraph and button.",
+      "icon": "HiOutlinePhoto"
+    },
+    "video": {
+      "label": "Video",
+      "category": "content",
+      "settings": [
+        {
+          "id": "heading",
+          "type": "text",
+          "label": "Heading",
+          "default": {
+            "ar": "شاهد قصتنا",
+            "en": "Watch our story"
+          },
+          "translatable": true
+        },
+        {
+          "id": "text",
+          "type": "text",
+          "label": "Text",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "url",
+          "type": "url",
+          "label": "Video URL",
+          "default": "https://www.youtube.com/watch?v=ysz5S6PUM-U"
+        },
+        {
+          "id": "poster",
+          "type": "image",
+          "label": "Cover image",
+          "default": "https://images.unsplash.com/photo-1492724441997-5dc865305da7?auto=format&fit=crop&w=1600&h=900&q=80"
+        },
+        {
+          "id": "aspect",
+          "type": "select",
+          "label": "Ratio",
+          "default": "wide",
+          "options": [
+            {
+              "value": "wide",
+              "label": "16:9"
+            },
+            {
+              "value": "landscape",
+              "label": "4:3"
+            },
+            {
+              "value": "square",
+              "label": "1:1"
+            }
+          ]
+        },
+        {
+          "id": "autoplay",
+          "type": "toggle",
+          "label": "Autoplay (muted, MP4 only)",
+          "default": false
+        },
+        {
+          "id": "loop",
+          "type": "toggle",
+          "label": "Loop",
+          "default": false
+        },
+        {
+          "id": "width",
+          "type": "select",
+          "label": "Width",
+          "default": "wide",
+          "options": [
+            {
+              "value": "narrow",
+              "label": "Narrow"
+            },
+            {
+              "value": "wide",
+              "label": "Full container"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "A YouTube, Vimeo or MP4 video with a cover image.",
+      "icon": "HiOutlinePlayCircle"
+    },
+    "rich-text": {
+      "label": "Rich text",
+      "category": "content",
+      "settings": [
+        {
+          "id": "eyebrow",
+          "type": "text",
+          "label": "Eyebrow",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "heading",
+          "type": "text",
+          "label": "Heading",
+          "default": {
+            "ar": "مرحباً بك في متجرنا",
+            "en": "Welcome to our store"
+          },
+          "translatable": true
+        },
+        {
+          "id": "body",
+          "type": "richtext",
+          "label": "Text",
+          "default": {
+            "ar": "<p>نقدم لك أفضل المنتجات بأسعار منافسة وخدمة عملاء تسعدك. تصفح تشكيلتنا واكتشف الجديد كل أسبوع.</p>",
+            "en": "<p>We bring you the best products at fair prices with customer service that delights. Browse the range and discover something new every week.</p>"
+          },
+          "translatable": true
+        },
+        {
+          "id": "align",
+          "type": "select",
+          "label": "Alignment",
+          "default": "center",
+          "options": [
+            {
+              "value": "start",
+              "label": "Start"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            },
+            {
+              "value": "end",
+              "label": "End"
+            }
+          ]
+        },
+        {
+          "id": "width",
+          "type": "select",
+          "label": "Width",
+          "default": "narrow",
+          "options": [
+            {
+              "value": "narrow",
+              "label": "Narrow (reading measure)"
+            },
+            {
+              "value": "wide",
+              "label": "Full container"
+            }
+          ]
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "none",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "A headline and formatted paragraph text.",
+      "icon": "HiOutlineBars3BottomLeft"
+    },
+    "features": {
+      "label": "Store features",
+      "category": "marketing",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "label": "Subtitle",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "items",
+          "type": "list",
+          "label": "Features",
+          "default": [
+            {
+              "icon": "truck",
+              "title": {
+                "ar": "شحن سريع",
+                "en": "Fast shipping"
+              },
+              "text": {
+                "ar": "توصيل خلال ٢-٥ أيام عمل",
+                "en": "Delivered in 2–5 business days"
+              },
+              "url": ""
+            },
+            {
+              "icon": "refresh",
+              "title": {
+                "ar": "إرجاع سهل",
+                "en": "Easy returns"
+              },
+              "text": {
+                "ar": "خلال ١٤ يوماً بدون أسئلة",
+                "en": "14 days, no questions asked"
+              },
+              "url": ""
+            },
+            {
+              "icon": "shield",
+              "title": {
+                "ar": "دفع آمن",
+                "en": "Secure payment"
+              },
+              "text": {
+                "ar": "مدى، فيزا، ماستركارد وأبل باي",
+                "en": "Mada, Visa, Mastercard & Apple Pay"
+              },
+              "url": ""
+            },
+            {
+              "icon": "headset",
+              "title": {
+                "ar": "دعم متواصل",
+                "en": "Always-on support"
+              },
+              "text": {
+                "ar": "فريقنا جاهز لمساعدتك",
+                "en": "Our team is ready to help"
+              },
+              "url": ""
+            }
+          ],
+          "item": [
+            {
+              "id": "icon",
+              "type": "select",
+              "label": "Icon",
+              "default": "truck",
+              "options": [
+                {
+                  "value": "truck",
+                  "label": "Truck"
+                },
+                {
+                  "value": "shield",
+                  "label": "Shield"
+                },
+                {
+                  "value": "refresh",
+                  "label": "Refresh"
+                },
+                {
+                  "value": "headset",
+                  "label": "Headset"
+                },
+                {
+                  "value": "card",
+                  "label": "Card"
+                },
+                {
+                  "value": "star",
+                  "label": "Star"
+                },
+                {
+                  "value": "gift",
+                  "label": "Gift"
+                },
+                {
+                  "value": "clock",
+                  "label": "Clock"
+                },
+                {
+                  "value": "check",
+                  "label": "Check"
+                },
+                {
+                  "value": "tag",
+                  "label": "Tag"
+                }
+              ]
+            },
+            {
+              "id": "title",
+              "type": "text",
+              "label": "Title",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "text",
+              "type": "text",
+              "label": "Text",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "url",
+              "type": "url",
+              "label": "Link",
+              "default": ""
+            }
+          ],
+          "max": 8
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "4",
+          "options": [
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            },
+            {
+              "value": "5",
+              "label": "5"
+            },
+            {
+              "value": "6",
+              "label": "6"
+            }
+          ]
+        },
+        {
+          "id": "style",
+          "type": "select",
+          "label": "Style",
+          "default": "cards",
+          "options": [
+            {
+              "value": "cards",
+              "label": "Cards"
+            },
+            {
+              "value": "plain",
+              "label": "Plain"
+            },
+            {
+              "value": "inline",
+              "label": "Inline row"
+            }
+          ]
+        },
+        {
+          "id": "align",
+          "type": "select",
+          "label": "Alignment",
+          "default": "center",
+          "options": [
+            {
+              "value": "start",
+              "label": "Start"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            },
+            {
+              "value": "end",
+              "label": "End"
+            }
+          ]
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "none",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 48,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Icons with short reasons to shop with you.",
+      "icon": "HiOutlineSparkles"
+    },
+    "testimonials": {
+      "label": "Testimonials",
+      "category": "social",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "ماذا يقول عملاؤنا",
+            "en": "What our customers say"
+          },
+          "translatable": true
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "label": "Subtitle",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "items",
+          "type": "list",
+          "label": "Testimonials",
+          "default": [
+            {
+              "quote": {
+                "ar": "تجربة رائعة من أول طلب — توصيل سريع وتغليف ممتاز.",
+                "en": "A great experience from the first order — fast delivery and lovely packaging."
+              },
+              "author": {
+                "ar": "سارة م.",
+                "en": "Sara M."
+              },
+              "role": {
+                "ar": "الرياض",
+                "en": "Riyadh"
+              },
+              "rating": 5,
+              "avatar": ""
+            },
+            {
+              "quote": {
+                "ar": "المنتجات مطابقة للوصف والدعم متجاوب جداً.",
+                "en": "Products exactly as described and support replies quickly."
+              },
+              "author": {
+                "ar": "خالد ع.",
+                "en": "Khalid A."
+              },
+              "role": {
+                "ar": "جدة",
+                "en": "Jeddah"
+              },
+              "rating": 5,
+              "avatar": ""
+            },
+            {
+              "quote": {
+                "ar": "أسعار منافسة وجودة أفضل مما توقعت.",
+                "en": "Competitive prices and better quality than I expected."
+              },
+              "author": {
+                "ar": "نورة س.",
+                "en": "Noura S."
+              },
+              "role": {
+                "ar": "الدمام",
+                "en": "Dammam"
+              },
+              "rating": 4,
+              "avatar": ""
+            }
+          ],
+          "item": [
+            {
+              "id": "quote",
+              "type": "textarea",
+              "label": "Quote",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "author",
+              "type": "text",
+              "label": "Name",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "role",
+              "type": "text",
+              "label": "Role / city",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "rating",
+              "type": "range",
+              "label": "Rating",
+              "default": 5,
+              "min": 1,
+              "max": 5,
+              "step": 1
+            },
+            {
+              "id": "avatar",
+              "type": "image",
+              "label": "Photo",
+              "default": ""
+            }
+          ],
+          "max": 12
+        },
+        {
+          "id": "use_store_reviews",
+          "type": "toggle",
+          "label": "Use store reviews when the list is empty",
+          "default": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "carousel",
+          "options": [
+            {
+              "value": "grid",
+              "label": "Grid"
+            },
+            {
+              "value": "carousel",
+              "label": "Carousel"
+            }
+          ]
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "3",
+          "options": [
+            {
+              "value": "1",
+              "label": "1"
+            },
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            }
+          ]
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "surface",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Customer quotes with ratings.",
+      "icon": "HiOutlineChatBubbleLeftRight"
+    },
+    "brand-logos": {
+      "label": "Brand logos",
+      "category": "social",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "علاماتنا التجارية",
+            "en": "Brands we carry"
+          },
+          "translatable": true
+        },
+        {
+          "id": "source",
+          "type": "select",
+          "label": "Source",
+          "default": "store",
+          "options": [
+            {
+              "value": "store",
+              "label": "Store brands"
+            },
+            {
+              "value": "custom",
+              "label": "Custom list"
+            }
+          ]
+        },
+        {
+          "id": "items",
+          "type": "list",
+          "label": "Custom logos",
+          "default": [],
+          "item": [
+            {
+              "id": "image",
+              "type": "image",
+              "label": "Logo",
+              "default": ""
+            },
+            {
+              "id": "name",
+              "type": "text",
+              "label": "Name",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "url",
+              "type": "url",
+              "label": "Link",
+              "default": ""
+            }
+          ],
+          "max": 16
+        },
+        {
+          "id": "limit",
+          "type": "range",
+          "label": "Max logos",
+          "default": 10,
+          "min": 2,
+          "max": 24,
+          "step": 1
+        },
+        {
+          "id": "grayscale",
+          "type": "toggle",
+          "label": "Grayscale until hover",
+          "default": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "row",
+          "options": [
+            {
+              "value": "row",
+              "label": "Scrolling row"
+            },
+            {
+              "value": "wrap",
+              "label": "Wrap"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 40,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "A row of the brands you carry.",
+      "icon": "HiOutlineBuildingStorefront"
+    },
+    "newsletter": {
+      "label": "Newsletter",
+      "category": "marketing",
+      "settings": [
+        {
+          "id": "eyebrow",
+          "type": "text",
+          "label": "Eyebrow",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "heading",
+          "type": "text",
+          "label": "Heading",
+          "default": {
+            "ar": "اشترك في نشرتنا البريدية",
+            "en": "Join our newsletter"
+          },
+          "translatable": true
+        },
+        {
+          "id": "text",
+          "type": "textarea",
+          "label": "Text",
+          "default": {
+            "ar": "كن أول من يعرف عن الجديد والعروض الحصرية.",
+            "en": "Be the first to hear about new arrivals and exclusive offers."
+          },
+          "translatable": true
+        },
+        {
+          "id": "placeholder",
+          "type": "text",
+          "label": "Input placeholder",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "button_label",
+          "type": "text",
+          "label": "Button label",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "note",
+          "type": "text",
+          "label": "Small print",
+          "default": {
+            "ar": "لن نرسل لك رسائل مزعجة. يمكنك إلغاء الاشتراك في أي وقت.",
+            "en": "No spam. Unsubscribe any time."
+          },
+          "translatable": true
+        },
+        {
+          "id": "align",
+          "type": "select",
+          "label": "Alignment",
+          "default": "center",
+          "options": [
+            {
+              "value": "start",
+              "label": "Start"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            },
+            {
+              "value": "end",
+              "label": "End"
+            }
+          ]
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "primary",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
+            }
+          ]
+        },
+        {
+          "id": "style",
+          "type": "select",
+          "label": "Style",
+          "default": "band",
+          "options": [
+            {
+              "value": "band",
+              "label": "Full-width band"
+            },
+            {
+              "value": "card",
+              "label": "Card inside the container"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Email sign-up with a headline and note.",
+      "icon": "HiOutlineEnvelope"
+    },
+    "faq": {
+      "label": "FAQ",
+      "category": "content",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "الأسئلة الشائعة",
+            "en": "Frequently asked questions"
+          },
+          "translatable": true
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "label": "Subtitle",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "items",
+          "type": "list",
+          "label": "Questions",
+          "default": [
+            {
+              "question": {
+                "ar": "كم يستغرق الشحن؟",
+                "en": "How long does shipping take?"
+              },
+              "answer": {
+                "ar": "عادةً من ٢ إلى ٥ أيام عمل داخل المملكة.",
+                "en": "Usually 2–5 business days domestically."
+              }
+            },
+            {
+              "question": {
+                "ar": "هل يمكنني إرجاع المنتج؟",
+                "en": "Can I return a product?"
+              },
+              "answer": {
+                "ar": "نعم، خلال ١٤ يوماً من الاستلام بشرط أن يكون بحالته الأصلية.",
+                "en": "Yes — within 14 days of delivery, in its original condition."
+              }
+            },
+            {
+              "question": {
+                "ar": "ما طرق الدفع المتاحة؟",
+                "en": "Which payment methods do you accept?"
+              },
+              "answer": {
+                "ar": "مدى، فيزا، ماستركارد، أبل باي والدفع عند الاستلام في مدن مختارة.",
+                "en": "Mada, Visa, Mastercard, Apple Pay and cash on delivery in selected cities."
+              }
+            }
+          ],
+          "item": [
+            {
+              "id": "question",
+              "type": "text",
+              "label": "Question",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "answer",
+              "type": "richtext",
+              "label": "Answer",
+              "default": "",
+              "translatable": true
+            }
+          ],
+          "max": 20
+        },
+        {
+          "id": "use_store_faq",
+          "type": "toggle",
+          "label": "Use the store FAQ page when the list is empty",
+          "default": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "accordion",
+          "options": [
+            {
+              "value": "accordion",
+              "label": "Accordion"
+            },
+            {
+              "value": "columns",
+              "label": "Two columns"
+            }
+          ]
+        },
+        {
+          "id": "open_first",
+          "type": "toggle",
+          "label": "Open the first question",
+          "default": true
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Expandable questions and answers.",
+      "icon": "HiOutlineQuestionMarkCircle"
+    },
+    "blog-posts": {
+      "label": "Blog posts",
+      "category": "content",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "من المدونة",
+            "en": "From the blog"
+          },
+          "translatable": true
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "label": "Subtitle",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "3",
+          "options": [
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            }
+          ]
+        },
+        {
+          "id": "limit",
+          "type": "range",
+          "label": "Posts to show",
+          "default": 3,
+          "min": 1,
+          "max": 12,
+          "step": 1
+        },
+        {
+          "id": "show_excerpt",
+          "type": "toggle",
+          "label": "Show excerpt",
+          "default": true
+        },
+        {
+          "id": "show_meta",
+          "type": "toggle",
+          "label": "Show date & reading time",
+          "default": true
+        },
+        {
+          "id": "view_all_url",
+          "type": "url",
+          "label": "View-all link",
+          "default": "/blog"
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Latest articles from the store blog.",
+      "icon": "HiOutlineNewspaper"
+    },
+    "instagram": {
+      "label": "Instagram",
+      "category": "social",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "تابعنا على إنستغرام",
+            "en": "Follow us on Instagram"
+          },
+          "translatable": true
+        },
+        {
+          "id": "handle",
+          "type": "text",
+          "label": "Handle",
+          "default": "@yourstore",
+          "translatable": true
+        },
+        {
+          "id": "profile_url",
+          "type": "url",
+          "label": "Profile link",
+          "default": "https://instagram.com"
+        },
+        {
+          "id": "items",
+          "type": "list",
+          "label": "Photos",
+          "default": [
+            {
+              "image": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&h=600&q=80",
+              "url": ""
+            },
+            {
+              "image": "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=600&h=600&q=80",
+              "url": ""
+            },
+            {
+              "image": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&h=600&q=80",
+              "url": ""
+            },
+            {
+              "image": "https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=600&h=600&q=80",
+              "url": ""
+            },
+            {
+              "image": "https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&w=600&h=600&q=80",
+              "url": ""
+            },
+            {
+              "image": "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=600&h=600&q=80",
+              "url": ""
+            }
+          ],
+          "item": [
+            {
+              "id": "image",
+              "type": "image",
+              "label": "Image",
+              "default": ""
+            },
+            {
+              "id": "url",
+              "type": "url",
+              "label": "Post link",
+              "default": ""
+            }
+          ],
+          "max": 12
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "6",
+          "options": [
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            },
+            {
+              "value": "5",
+              "label": "5"
+            },
+            {
+              "value": "6",
+              "label": "6"
+            }
+          ]
+        },
+        {
+          "id": "limit",
+          "type": "range",
+          "label": "Max photos",
+          "default": 6,
+          "min": 3,
+          "max": 12,
+          "step": 1
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 48,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "A photo grid linking to your Instagram.",
+      "icon": "HiOutlineCamera"
+    },
+    "custom-html": {
+      "label": "Custom HTML",
+      "category": "layout",
+      "settings": [
+        {
+          "id": "html",
+          "type": "textarea",
+          "label": "HTML",
+          "default": "",
+          "hint": "Safe HTML only — script tags and inline handlers are removed."
+        },
+        {
+          "id": "container",
+          "type": "toggle",
+          "label": "Constrain to the page container",
+          "default": true
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 32,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Your own HTML block (scripts are not allowed).",
+      "icon": "HiOutlineCodeBracket"
+    },
+    "spacer": {
+      "label": "Spacer",
+      "category": "layout",
+      "settings": [
+        {
+          "id": "height",
+          "type": "range",
+          "label": "Height (desktop)",
+          "default": 48,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 240,
+          "step": 4
+        },
+        {
+          "id": "height_mobile",
+          "type": "range",
+          "label": "Height (mobile)",
+          "default": 24,
+          "min": 0,
+          "max": 160,
+          "step": 4
+        },
+        {
+          "id": "divider",
+          "type": "toggle",
+          "label": "Show a divider line",
+          "default": false
+        }
+      ],
+      "description": "Empty vertical space between sections.",
+      "icon": "HiOutlineArrowsUpDown"
+    },
+    "category-header": {
+      "label": "Category header",
+      "category": "layout",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title override",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "show_description",
+          "type": "toggle",
+          "label": "Show description",
+          "default": true
+        },
+        {
+          "id": "show_breadcrumbs",
+          "type": "toggle",
+          "label": "Show breadcrumbs",
+          "default": true
+        },
+        {
+          "id": "banner_mode",
+          "type": "select",
+          "label": "Banner",
+          "default": "auto",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Category image when available"
+            },
+            {
+              "value": "custom",
+              "label": "Custom image"
+            },
+            {
+              "value": "none",
+              "label": "No banner"
+            }
+          ]
+        },
+        {
+          "id": "banner",
+          "type": "image",
+          "label": "Custom banner",
+          "default": ""
+        },
+        {
+          "id": "align",
+          "type": "select",
+          "label": "Alignment",
+          "default": "start",
+          "options": [
+            {
+              "value": "start",
+              "label": "Start"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            },
+            {
+              "value": "end",
+              "label": "End"
+            }
+          ]
+        }
+      ],
+      "description": "Title, breadcrumbs and banner of a category page.",
+      "icon": "HiOutlineTag"
+    },
+    "product-grid": {
+      "label": "Product grid",
+      "category": "products",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "source",
+          "type": "collection",
+          "label": "Source",
+          "default": "all",
+          "hint": "\"all\" = the products of this page; or a collection key/id."
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "4",
+          "options": [
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            },
+            {
+              "value": "5",
+              "label": "5"
+            },
+            {
+              "value": "6",
+              "label": "6"
+            }
+          ]
+        },
+        {
+          "id": "limit",
+          "type": "range",
+          "label": "Max products",
+          "default": 24,
+          "min": 1,
+          "max": 60,
+          "step": 1
+        },
+        {
+          "id": "show_badges",
+          "type": "toggle",
+          "label": "Show badges (sale %, new)",
+          "default": true
+        },
+        {
+          "id": "show_ratings",
+          "type": "toggle",
+          "label": "Show ratings",
+          "default": true
+        },
+        {
+          "id": "show_quick_add",
+          "type": "toggle",
+          "label": "Show quick add",
+          "default": true
+        },
+        {
+          "id": "show_wishlist",
+          "type": "toggle",
+          "label": "Show wishlist heart",
+          "default": true
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 32,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "The product listing of a category page.",
+      "icon": "HiOutlineSquares2X2"
+    },
+    "product-details": {
+      "label": "Product details",
+      "category": "products",
+      "settings": [
+        {
+          "id": "show_share",
+          "type": "toggle",
+          "label": "Show share button",
+          "default": true
+        },
+        {
+          "id": "show_sku",
+          "type": "toggle",
+          "label": "Show SKU",
+          "default": false
+        }
+      ],
+      "description": "Gallery, price, options and add-to-cart of a product page.",
+      "icon": "HiOutlineShoppingCart"
+    },
+    "related-products": {
+      "label": "Related products",
+      "category": "products",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "قد يعجبك أيضاً",
+            "en": "You may also like"
+          },
+          "translatable": true
+        },
+        {
+          "id": "collection",
+          "type": "collection",
+          "label": "Collection",
+          "default": "related",
+          "hint": "newest · featured · bestsellers · sale · trending — or a collection id/slug."
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "carousel",
+          "options": [
+            {
+              "value": "grid",
+              "label": "Grid"
+            },
+            {
+              "value": "carousel",
+              "label": "Carousel"
+            }
+          ]
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "4",
+          "options": [
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            },
+            {
+              "value": "5",
+              "label": "5"
+            },
+            {
+              "value": "6",
+              "label": "6"
+            }
+          ]
+        },
+        {
+          "id": "limit",
+          "type": "range",
+          "label": "Products to show",
+          "default": 8,
+          "min": 1,
+          "max": 16,
+          "step": 1
+        },
+        {
+          "id": "show_badges",
+          "type": "toggle",
+          "label": "Show badges (sale %, new)",
+          "default": true
+        },
+        {
+          "id": "show_ratings",
+          "type": "toggle",
+          "label": "Show ratings",
+          "default": true
+        },
+        {
+          "id": "show_quick_add",
+          "type": "toggle",
+          "label": "Show quick add",
+          "default": true
+        },
+        {
+          "id": "show_wishlist",
+          "type": "toggle",
+          "label": "Show wishlist heart",
+          "default": true
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 48,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Products similar to the one being viewed.",
+      "icon": "HiOutlineArrowsRightLeft"
+    },
+    "recently-viewed": {
+      "label": "Recently viewed",
+      "category": "products",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "شاهدت مؤخراً",
+            "en": "Recently viewed"
+          },
+          "translatable": true
+        },
+        {
+          "id": "limit",
+          "type": "range",
+          "label": "Products to show",
+          "default": 8,
+          "min": 2,
+          "max": 16,
+          "step": 1
+        },
+        {
+          "id": "min_items",
+          "type": "range",
+          "label": "Hide below this many",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "step": 1
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 48,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "description": "Products the visitor looked at recently.",
+      "icon": "HiOutlineClock"
+    }
+  },
+  "templates": {
+    "home": {
+      "sections": [
+        {
+          "type": "hero-slider",
+          "settings": {
+            "height": "medium",
+            "rounded": true,
+            "autoplay": true,
+            "interval": 7,
+            "slides": [
+              {
+                "image": "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1920&h=900&q=80",
+                "eyebrow": {
+                  "ar": "طازج كل صباح",
+                  "en": "Fresh every morning"
+                },
+                "heading": {
+                  "ar": "خضار وفواكه من المزرعة إلى بابك",
+                  "en": "Farm-fresh fruit & veg to your door"
+                },
+                "text": {
+                  "ar": "نقطف اليوم ونوصّل اليوم. جودة مضمونة أو نستبدلها مجاناً.",
+                  "en": "Picked today, delivered today. Guaranteed fresh or we replace it free."
+                },
+                "cta_label": {
+                  "ar": "تسوق الطازج",
+                  "en": "Shop fresh"
+                },
+                "cta_url": "/shop",
+                "align": "start",
+                "overlay": 35
+              },
+              {
+                "image": "https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=1920&h=900&q=80",
+                "eyebrow": {
+                  "ar": "عروض الأسبوع",
+                  "en": "This week’s deals"
+                },
+                "heading": {
+                  "ar": "وفّر حتى ٤٠٪ على السلة الأسبوعية",
+                  "en": "Save up to 40% on your weekly basket"
+                },
+                "text": {
+                  "ar": "أسعار خاصة على الفواكه والخضار والمخبوزات حتى نهاية الأسبوع.",
+                  "en": "Special prices on fruit, vegetables and bakery until the weekend."
+                },
+                "cta_label": {
+                  "ar": "اكتشف العروض",
+                  "en": "See the deals"
+                },
+                "cta_url": "/collections/sale",
+                "align": "center",
+                "overlay": 40
+              }
+            ]
+          }
+        },
+        {
+          "type": "features",
+          "settings": {
+            "style": "cards",
+            "columns": 4,
+            "align": "start",
+            "background": "none",
+            "padding_block": 24,
+            "items": [
+              {
+                "icon": "truck",
+                "title": {
+                  "ar": "توصيل مجاني",
+                  "en": "Free delivery"
+                },
+                "text": {
+                  "ar": "للطلبات فوق ١٥٠ ر.س",
+                  "en": "On orders over 150"
+                },
+                "url": ""
+              },
+              {
+                "icon": "clock",
+                "title": {
+                  "ar": "توصيل في نفس اليوم",
+                  "en": "Same-day delivery"
+                },
+                "text": {
+                  "ar": "اطلب قبل ١٠ مساءً",
+                  "en": "Order before 10 pm"
+                },
+                "url": ""
+              },
+              {
+                "icon": "check",
+                "title": {
+                  "ar": "ضمان الطزاجة",
+                  "en": "Fresh guarantee"
+                },
+                "text": {
+                  "ar": "استبدال مجاني إن لم يعجبك",
+                  "en": "Free replacement if it’s not right"
+                },
+                "url": ""
+              },
+              {
+                "icon": "headset",
+                "title": {
+                  "ar": "دعم على مدار الساعة",
+                  "en": "24/7 support"
+                },
+                "text": {
+                  "ar": "واتساب واتصال في أي وقت",
+                  "en": "WhatsApp & phone, any time"
+                },
+                "url": ""
+              }
+            ]
+          }
+        },
+        {
+          "type": "category-circles",
+          "settings": {
+            "title": {
+              "ar": "تسوق حسب القسم",
+              "en": "Shop by aisle"
+            },
+            "limit": 10,
+            "size": "md",
+            "layout": "scroll",
+            "view_all_url": "/categories"
+          }
+        },
+        {
+          "type": "flash-deals",
+          "settings": {
+            "title": {
+              "ar": "عروض الأسبوع",
+              "en": "Weekly offers"
+            },
+            "subtitle": {
+              "ar": "أسعار خاصة تنتهي مع نهاية الأسبوع",
+              "en": "Special prices until the end of the week"
+            },
+            "collection": "sale",
+            "layout": "carousel",
+            "columns": 5,
+            "limit": 10,
+            "background": "surface"
+          }
+        },
+        {
+          "type": "featured-products",
+          "settings": {
+            "title": {
+              "ar": "وصل حديثاً",
+              "en": "Just arrived"
+            },
+            "subtitle": {
+              "ar": "أحدث ما وصلنا من المزارع هذا الأسبوع",
+              "en": "The latest from the farms this week"
+            },
+            "collection": "newest",
+            "columns": 5,
+            "limit": 10,
+            "layout": "grid",
+            "view_all_url": "/collections/new-arrivals"
+          }
+        },
+        {
+          "type": "banner-grid",
+          "settings": {
+            "columns": 2,
+            "aspect": "landscape",
+            "overlay": 25,
+            "banners": [
+              {
+                "image": "https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=1200&h=800&q=80",
+                "eyebrow": {
+                  "ar": "عضوي",
+                  "en": "Organic"
+                },
+                "title": {
+                  "ar": "سلة الفواكه العضوية",
+                  "en": "Organic fruit basket"
+                },
+                "subtitle": {
+                  "ar": "مختارة من مزارع معتمدة",
+                  "en": "From certified farms"
+                },
+                "cta_label": {
+                  "ar": "تسوق",
+                  "en": "Shop"
+                },
+                "link": "/collections/organic",
+                "align": "start"
+              },
+              {
+                "image": "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&h=800&q=80",
+                "eyebrow": {
+                  "ar": "مخبوز اليوم",
+                  "en": "Baked today"
+                },
+                "title": {
+                  "ar": "خبز ومعجنات طازجة",
+                  "en": "Fresh bread & pastries"
+                },
+                "subtitle": {
+                  "ar": "من الفرن إلى بابك",
+                  "en": "Oven to door"
+                },
+                "cta_label": {
+                  "ar": "تسوق",
+                  "en": "Shop"
+                },
+                "link": "/collections/bakery",
+                "align": "start"
+              }
+            ]
+          }
+        },
+        {
+          "type": "product-tabs",
+          "settings": {
+            "title": {
+              "ar": "اكتشف الأقسام",
+              "en": "Browse the aisles"
+            },
+            "tabs": [
+              {
+                "label": {
+                  "ar": "فواكه",
+                  "en": "Fruits"
+                },
+                "collection": "newest"
+              },
+              {
+                "label": {
+                  "ar": "خضار",
+                  "en": "Vegetables"
+                },
+                "collection": "bestsellers"
+              },
+              {
+                "label": {
+                  "ar": "مخبوزات",
+                  "en": "Bakery"
+                },
+                "collection": "sale"
+              }
+            ],
+            "layout": "grid",
+            "columns": 5,
+            "limit": 10,
+            "align": "center"
+          }
+        },
+        {
+          "type": "image-with-text",
+          "settings": {
+            "image": "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&h=900&q=80",
+            "eyebrow": {
+              "ar": "من المزرعة",
+              "en": "From the farm"
+            },
+            "heading": {
+              "ar": "نعرف المزارع الذي زرع طعامك",
+              "en": "We know the farmer who grew your food"
+            },
+            "text": {
+              "ar": "<p>نعمل مباشرة مع مزارع محلية صغيرة، نقطف في الصباح ونوصّل في نفس اليوم. بدون وسطاء، بدون تخزين طويل — فقط طعام طازج بسعر عادل للجميع.</p>",
+              "en": "<p>We work directly with small local farms, harvest in the morning and deliver the same day. No middlemen, no long storage — just fresh food at a fair price for everyone.</p>"
+            },
+            "cta_label": {
+              "ar": "تعرّف على مزارعنا",
+              "en": "Meet our farms"
+            },
+            "cta_url": "/about",
+            "media_side": "start",
+            "background": "surface"
+          }
+        },
+        {
+          "type": "testimonials",
+          "settings": {
+            "title": {
+              "ar": "ماذا يقول جيراننا",
+              "en": "What our neighbours say"
+            },
+            "layout": "carousel",
+            "background": "none"
+          }
+        },
+        {
+          "type": "blog-posts",
+          "settings": {
+            "title": {
+              "ar": "وصفات من مطبخنا",
+              "en": "Recipes from our kitchen"
+            },
+            "subtitle": {
+              "ar": "أفكار سريعة لما في سلتك",
+              "en": "Quick ideas for what’s in your basket"
+            },
+            "columns": 3,
+            "limit": 3,
+            "view_all_url": "/blog"
+          }
+        },
+        {
+          "type": "newsletter",
+          "settings": {
+            "eyebrow": {
+              "ar": "عروض الأسبوع في بريدك",
+              "en": "Weekly deals in your inbox"
+            },
+            "heading": {
+              "ar": "اشترك واحصل على ١٠٪ على أول طلب",
+              "en": "Subscribe and get 10% off your first order"
+            },
+            "background": "primary",
+            "style": "card"
+          }
+        }
+      ]
+    },
+    "product": {
+      "sections": [
+        {
+          "type": "product-details",
+          "settings": {
+            "show_share": true,
+            "show_sku": false
+          }
+        },
+        {
+          "type": "related-products",
+          "settings": {}
+        },
+        {
+          "type": "recently-viewed",
+          "settings": {}
+        }
+      ]
+    },
+    "category": {
+      "sections": [
+        {
+          "type": "category-header",
+          "settings": {}
+        },
+        {
+          "type": "product-grid",
+          "settings": {
+            "source": "all",
+            "columns": 4,
+            "limit": 24
+          }
+        }
+      ]
+    }
+  }
+}

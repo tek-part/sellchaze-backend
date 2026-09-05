@@ -47,6 +47,7 @@ class MerchantOrderController extends Controller
             ->when($request->filled('date_from'), fn (Builder $q) => $q->whereDate('placed_at', '>=', $request->get('date_from')))
             ->when($request->filled('date_to'), fn (Builder $q) => $q->whereDate('placed_at', '<=', $request->get('date_to')))
             ->withCount('items')
+            ->with('b2bOrder')
             ->orderBy($sort, $dir)
             ->paginate($perPage);
 
@@ -65,7 +66,7 @@ class MerchantOrderController extends Controller
     public function show(Request $request, Store $store, int $order): JsonResponse
     {
         return response()->json([
-            'data' => new MerchantOrderResource($this->find($order)->load(['items', 'statusChanges.actor'])),
+            'data' => new MerchantOrderResource($this->find($order)->load(['items', 'statusChanges.actor', 'b2bOrder'])),
         ]);
     }
 
@@ -85,7 +86,7 @@ class MerchantOrderController extends Controller
         $this->orders->transition($model, $to, (int) $request->user()->id, $request->input('note'));
 
         return response()->json([
-            'data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor'])),
+            'data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor', 'b2bOrder'])),
         ]);
     }
 
@@ -96,7 +97,7 @@ class MerchantOrderController extends Controller
         $this->orders->addNote($model, (string) $request->input('note'), (int) $request->user()->id);
 
         return response()->json([
-            'data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor'])),
+            'data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor', 'b2bOrder'])),
         ]);
     }
 

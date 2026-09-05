@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
+use App\Models\Concerns\HasTranslations;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +16,10 @@ use Illuminate\Support\Facades\Storage;
 class StoreCollection extends Model
 {
     use BelongsToStore;
+    use HasTranslations;
+
+    /** Attributes carried per-locale in the `translations` json (see HasTranslations). */
+    protected array $translatable = ['name', 'description'];
 
     public const TYPES = [
         'featured', 'new-arrivals', 'best-sellers', 'trending', 'weekly-deals',

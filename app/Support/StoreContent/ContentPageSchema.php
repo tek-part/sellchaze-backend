@@ -15,8 +15,42 @@ namespace App\Support\StoreContent;
  */
 class ContentPageSchema
 {
-    /** @return array<string, array<string, mixed>> */
+    /** Field types whose value is copy the merchant writes per locale (`translatable: true`). */
+    public const TRANSLATABLE_TYPES = ['text', 'textarea', 'richtext', 'lines'];
+
+    /**
+     * Every page definition with `translatable` flags resolved on each field (and
+     * repeater sub-field). The storage shape is one full copy per locale
+     * (`{en: {...}, ar: {...}}`), so the flag tells the editor which fields need a
+     * per-locale value and which (images, urls, toggles) are shared copy-overs.
+     *
+     * @return array<string, array<string, mixed>>
+     */
     public static function all(): array
+    {
+        $pages = self::definitions();
+        foreach ($pages as &$page) {
+            $page['fields'] = self::flagFields($page['fields']);
+        }
+
+        return $pages;
+    }
+
+    /** @param  array<int, array<string, mixed>>  $fields */
+    private static function flagFields(array $fields): array
+    {
+        foreach ($fields as &$field) {
+            $field['translatable'] = in_array($field['type'] ?? 'text', self::TRANSLATABLE_TYPES, true);
+            if (($field['type'] ?? null) === 'repeater' && is_array($field['item'] ?? null)) {
+                $field['item'] = self::flagFields($field['item']);
+            }
+        }
+
+        return $fields;
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private static function definitions(): array
     {
         return [
             'home' => [

@@ -8,28 +8,125 @@
   "is_marketplace": true,
   "is_featured": false,
   "min_platform_version": "1.0.0",
-  "preview_image": "/media/theme-previews/voltage.svg",
-  "supported_features": ["rtl", "dark-mode", "compare", "quick-view", "reviews"],
+  "preview_image": "/media/theme-previews/voltage.jpg",
+  "supported_features": [
+    "rtl",
+    "dark-mode",
+    "compare",
+    "quick-view",
+    "reviews"
+  ],
   "bundle_url": "builtin:voltage@1.0.0",
   "changelog": "Initial Sellchaze storefront release.",
   "settings_schema": [
-    {"id":"appearance","label":"Appearance","fields":[
-      {"id":"color_scheme","type":"select","label":"Colour scheme","default":"dark","options":["auto","dark","light"]},
-      {"id":"primary_color","type":"color","label":"Voltage cyan","default":"#22D3EE"},
-      {"id":"accent_color","type":"color","label":"Signal lime","default":"#A3E635"}
-    ]},
-    {"id":"layout","label":"Layout","fields":[
-      {"id":"container_width","type":"range","label":"Content width","default":1520,"min":1360,"max":1600}
-    ]}
+    {
+      "id": "appearance",
+      "label": "Appearance",
+      "fields": [
+        {
+          "id": "color_scheme",
+          "type": "select",
+          "label": "Colour scheme",
+          "default": "dark",
+          "options": [
+            "auto",
+            "dark",
+            "light"
+          ]
+        },
+        {
+          "id": "primary_color",
+          "type": "color",
+          "label": "Voltage cyan",
+          "default": "#22D3EE"
+        },
+        {
+          "id": "accent_color",
+          "type": "color",
+          "label": "Signal lime",
+          "default": "#A3E635"
+        }
+      ]
+    },
+    {
+      "id": "layout",
+      "label": "Layout",
+      "fields": [
+        {
+          "id": "container_width",
+          "type": "range",
+          "label": "Content width",
+          "default": 1520,
+          "min": 1360,
+          "max": 1600
+        }
+      ]
+    }
   ],
   "sections_schema": {
-    "hero":{"label":"Hero","settings":[{"id":"section_spacing","type":"range","label":"Vertical spacing","default":72,"min":0,"max":240,"step":4,"responsive":true,"css_property":"padding-block"}]},"category-list":{"label":"Categories","settings":[]},
-    "product-grid":{"label":"Products","settings":[]},"category-header":{"label":"Category header","settings":[]},
-    "product-details":{"label":"Product details","settings":[]}
+    "hero": {
+      "label": "Hero",
+      "settings": [
+        {
+          "id": "section_spacing",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 72,
+          "min": 0,
+          "max": 240,
+          "step": 4,
+          "responsive": true,
+          "css_property": "padding-block"
+        }
+      ]
+    },
+    "category-list": {
+      "label": "Categories",
+      "settings": []
+    },
+    "product-grid": {
+      "label": "Products",
+      "settings": []
+    },
+    "category-header": {
+      "label": "Category header",
+      "settings": []
+    },
+    "product-details": {
+      "label": "Product details",
+      "settings": []
+    }
   },
   "templates": {
-    "home":{"sections":[{"type":"hero"},{"type":"product-grid"},{"type":"category-list"}]},
-    "product":{"sections":[{"type":"product-details"}]},
-    "category":{"sections":[{"type":"category-header"},{"type":"product-grid"}]}
+    "home": {
+      "sections": [
+        {
+          "type": "hero"
+        },
+        {
+          "type": "product-grid"
+        },
+        {
+          "type": "category-list"
+        }
+      ]
+    },
+    "product": {
+      "sections": [
+        {
+          "type": "product-details"
+        }
+      ]
+    },
+    "category": {
+      "sections": [
+        {
+          "type": "category-header"
+        },
+        {
+          "type": "product-grid"
+        }
+      ]
+    }
   }
 }

@@ -3,16 +3,23 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
+use App\Models\Concerns\HasTranslations;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Phase 7 prep — a purchasable variant of a Product. Store-scoped.
  * `price_override` null means the variant inherits the product's price.
+ *
+ * @property array|null $translations
  */
 class ProductVariant extends Model
 {
     use BelongsToStore;
+    use HasTranslations;
+
+    /** Attributes carried per-locale in the `translations` json (see HasTranslations). */
+    protected array $translatable = ['name'];
 
     protected $table = 'store_product_variants';
 

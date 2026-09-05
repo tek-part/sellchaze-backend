@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Invitation;
 use App\Models\Product;
-use App\Models\Store;
+use App\Services\Stores\StoreProvisioner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,10 +24,12 @@ class OnboardingController extends Controller
     private const PRODUCTS_TARGET = 5;
 
     /** GET /me/onboarding */
-    public function show(Request $request): JsonResponse
+    public function show(Request $request, StoreProvisioner $provisioner): JsonResponse
     {
         $user = $request->user();
-        $store = Store::query()->where('owner_user_id', $user->id)->first();
+        // Owners always have exactly one store (provisioned on first access);
+        // non-owners (Admin/Staff/Customer) get null and a store-less checklist.
+        $store = $provisioner->ensureFor($user);
 
         $productCount = $store
             ? Product::query()->withoutGlobalScopes()->where('store_id', $store->id)->count()
@@ -44,7 +46,7 @@ class OnboardingController extends Controller
             [
                 'key' => 'logo',
                 'done' => (bool) ($store?->logo),
-                'href' => '/store/settings',
+                'href' => '/store/settings/general',
             ],
             [
                 'key' => 'products',

@@ -68,6 +68,13 @@ class StoreOrderService
 
         StoreAnalyticsService::forget($order->store_id); // delivered revenue/status counts changed
 
+        // One-way mirror onto the bridged B2B order (cancelled only). Never let it break the transition.
+        try {
+            app(StorefrontOrderBridge::class)->syncStatus($order);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         return $order;
     }
 

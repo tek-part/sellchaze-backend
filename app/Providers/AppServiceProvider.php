@@ -8,13 +8,20 @@ use App\Models\EmailTemplate;
 use App\Models\Order;
 use App\Models\OrderQuotations;
 use App\Models\Setting;
+use App\Models\User;
 use App\Services\EmailTemplateService;
+use App\Services\Stores\Ssl\SslProviderManager;
+use App\Services\Stores\TrustedHostRegistry;
+use App\Services\Themes\ThemeSettingsMigrator;
+use App\Support\AttributeBadgeCache;
+use App\Support\Localization\LocaleContext;
+use App\Support\Tenancy\CurrentStore;
 use Auth;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Database\Schema\Builder;
-use Illuminate\Support\Facades\File;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -30,22 +37,25 @@ class AppServiceProvider extends ServiceProvider
     public function register()
     {
         // Request-scoped tenant holder (Octane-safe: reset between requests).
-        $this->app->scoped(\App\Support\Tenancy\CurrentStore::class);
+        $this->app->scoped(CurrentStore::class);
+
+        // Request-scoped storefront locale (Octane-safe twin of CurrentStore).
+        $this->app->scoped(LocaleContext::class);
 
         // Request-scoped memo for order attribute-badge lookups (Octane-safe).
-        $this->app->scoped(\App\Support\AttributeBadgeCache::class);
+        $this->app->scoped(AttributeBadgeCache::class);
 
         // Theme settings migrations registry (Phase 4D, Task 4).
-        if (class_exists(\App\Services\Themes\ThemeSettingsMigrator::class)) {
-            $this->app->singleton(\App\Services\Themes\ThemeSettingsMigrator::class);
+        if (class_exists(ThemeSettingsMigrator::class)) {
+            $this->app->singleton(ThemeSettingsMigrator::class);
         }
 
         // SSL provider registry. A singleton so providers registered at runtime
         // via extend() are visible to every later resolution.
-        $this->app->singleton(\App\Services\Stores\Ssl\SslProviderManager::class);
+        $this->app->singleton(SslProviderManager::class);
 
         // Trusted-host lookup runs on every request; keep one instance.
-        $this->app->singleton(\App\Services\Stores\TrustedHostRegistry::class);
+        $this->app->singleton(TrustedHostRegistry::class);
     }
 
     /**
@@ -73,10 +83,10 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Phase 4D: Default theme 1.0.0 -> 1.1.0 renames "primary" to "brand_primary".
-        if (class_exists(\App\Services\Themes\ThemeSettingsMigrator::class)) {
-            app(\App\Services\Themes\ThemeSettingsMigrator::class)->register(
+        if (class_exists(ThemeSettingsMigrator::class)) {
+            app(ThemeSettingsMigrator::class)->register(
                 'default', '1.0.0', '1.1.0',
-                \App\Services\Themes\ThemeSettingsMigrator::rename(['primary' => 'brand_primary']),
+                ThemeSettingsMigrator::rename(['primary' => 'brand_primary']),
             );
         }
 
@@ -252,7 +262,7 @@ class AppServiceProvider extends ServiceProvider
         // Share notifications only on main layout (not on every view)
         view()->composer(config('settings.KT_THEME_LAYOUT_DIR').'.master', function ($view) {
             if (Auth::check()) {
-                /** @var \App\Models\User $user */
+                /** @var User $user */
                 $user = Auth::user();
                 $orders_notifications = $user->notifications->where('type', 'App\Notifications\OrderCreated')->all();
                 $quotations_notifications = $user->notifications->where('type', 'App\Notifications\QuotationCreated')->all();
@@ -270,6 +280,7 @@ class AppServiceProvider extends ServiceProvider
             return Schema::hasTable('settings');
         } catch (\Throwable $e) {
             report($e);
+
             return false;
         }
     }

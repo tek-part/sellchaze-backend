@@ -8,6 +8,7 @@ use App\Models\StorePage;
 use App\Models\StoreTheme;
 use App\Models\Theme;
 use App\Models\ThemeVersion;
+use App\Services\Storefront\PublishedPageResolver;
 use App\Services\Storefront\StorefrontContextBuilder;
 use App\Services\Storefront\StorefrontRenderer;
 use App\Services\Storefront\StorefrontService;
@@ -18,7 +19,6 @@ use App\Services\Themes\ThemeSettingsMigrator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Public storefront pages, now rendered by the Phase 4B theme runtime:
@@ -51,6 +51,17 @@ class StorefrontPageController extends Controller
                 'api' => url('/api/v1'),
                 'frontend' => 'Run the React app separately (see frontend/README.md).',
             ]);
+        }
+
+        // Owner draft preview of the `home` template page (signed page token, bound to this store).
+        if (is_string($token = $request->query('__preview')) && $token !== '') {
+            $previewPageId = app(ThemePreviewToken::class)->verifyPage($token, $store->id);
+            $page = $previewPageId !== null ? StorePage::query()->where('store_id', $store->id)->where('template', 'home')->find($previewPageId) : null;
+            if ($page) {
+                $context = $this->builder->buildPage($store, $page);
+
+                return response($this->renderer->renderFresh($context))->header('X-Robots-Tag', 'noindex, nofollow');
+            }
         }
 
         return $this->renderTemplate($request, $store, 'home');
@@ -172,19 +183,13 @@ class StorefrontPageController extends Controller
 
         $page = $previewPageId !== null
             ? StorePage::query()->where('store_id', $store->id)->find($previewPageId)
-            : StorePage::query()->where('store_id', $store->id)->where(function ($query) use ($slug) {
-                $query->where('published_slug', $slug)->orWhere(fn ($legacy) => $legacy->whereNull('published_slug')->where('slug', $slug));
-            })->first();
+            : $this->pageForLocale($store, $slug);
         abort_if($page === null, 404, 'Page not found.');
 
         $isPreview = $previewPageId !== null && (int) $previewPageId === (int) $page->id;
         abort_unless($isPreview || $page->isPubliclyVisible(), 404, 'Page not found.'); // drafts/future hidden
 
-        $publication = null;
-        if (! $isPreview) {
-            $json = DB::table('store_page_publications')->where('store_page_id', $page->id)->orderByDesc('version')->value('snapshot');
-            $publication = is_string($json) ? json_decode($json, true) : null;
-        }
+        $publication = $isPreview ? null : app(PublishedPageResolver::class)->latestPublication($page);
         $context = $this->builder->buildPage($store, $page, null, $publication);
 
         if ($isPreview) {
@@ -192,6 +197,12 @@ class StorefrontPageController extends Controller
         }
 
         return $this->publicResponse($this->renderer->render($request, $context), $context);
+    }
+
+    /** Sibling selection (one slug per locale) lives in PublishedPageResolver, shared with the JSON layout API. */
+    private function pageForLocale(Store $store, string $slug): ?StorePage
+    {
+        return app(PublishedPageResolver::class)->forSlug($store, $slug);
     }
 
     public function sitemap(Request $request): Response

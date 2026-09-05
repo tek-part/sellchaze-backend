@@ -50,7 +50,7 @@
             "id": "header",
             "label": "Header & Footer",
             "fields": [
-                { "id": "announcement", "type": "text", "label": "Announcement bar text", "default": "" }
+                { "id": "announcement", "type": "text", "label": "Announcement bar text", "default": "", "translatable": true }
             ]
         }
     ],

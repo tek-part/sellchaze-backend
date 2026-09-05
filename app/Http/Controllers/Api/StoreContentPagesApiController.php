@@ -7,10 +7,13 @@ use App\Models\Store;
 use App\Models\StoreContentPage;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
+use App\Support\Localization\LocaleContext;
 use App\Support\StoreContent\ContentPageSchema;
+use App\Support\StoreContent\ContentPageValidator;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Intervention\Image\Facades\Image;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -21,10 +24,14 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  */
 class StoreContentPagesApiController extends Controller
 {
-    /** The dashboard tenant store, set by ResolveOwnStore (/my-store) or ScopeToStore (/stores/{store}). */
-    private function scopedStore(): Store
+    /**
+     * The dashboard tenant store, set by ResolveOwnStore (/my-store) or ScopeToStore (/stores/{store}).
+     * Both middlewares also expose it as the `{store}` route parameter, which the actions type-hint so
+     * Laravel's positional parameter resolution stays correct for `{key}`.
+     */
+    private function scopedStore(?Store $routeStore = null): Store
     {
-        $store = app(CurrentStore::class)->get();
+        $store = $routeStore ?? app(CurrentStore::class)->get();
         if (! $store) {
             throw new NotFoundHttpException;
         }
@@ -36,9 +43,9 @@ class StoreContentPagesApiController extends Controller
      * Dashboard: upload an image used by a content field (hero/editorial/blog cover, …).
      * Stores under public/storage/uploads/content and returns the absolute URL the field saves.
      */
-    public function uploadImage(Request $request): JsonResponse
+    public function uploadImage(Request $request, ?Store $store = null): JsonResponse
     {
-        $this->scopedStore();
+        $this->scopedStore($store);
         $request->validate([
             'image' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192'],
         ]);
@@ -61,9 +68,9 @@ class StoreContentPagesApiController extends Controller
     }
 
     /** Dashboard: the full set of system pages with their schema + current data. */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, ?Store $store = null): JsonResponse
     {
-        $store = $this->scopedStore();
+        $store = $this->scopedStore($store);
         $rows = StoreContentPage::query()->where('store_id', $store->id)->get()->keyBy('key');
 
         $pages = [];
@@ -80,22 +87,26 @@ class StoreContentPagesApiController extends Controller
             ];
         }
 
-        return response()->json(['data' => $pages], 200, [], JSON_UNESCAPED_UNICODE);
+        return response()->json([
+            'data' => $pages,
+            'locales' => ['default' => LocaleContext::storeDefault($store), 'supported' => LocaleContext::storeSupported($store)],
+        ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
-    /** Dashboard: save one page's payload. */
-    public function update(Request $request, string $key): JsonResponse
+    /** Dashboard: save one page's payload — validated per locale/field against the schema (422 on errors). */
+    public function update(Request $request, Store $store, string $key, ContentPageValidator $validator): JsonResponse
     {
         if (! ContentPageSchema::has($key)) {
             throw new NotFoundHttpException;
         }
 
-        $store = $this->scopedStore();
+        $store = $this->scopedStore($store);
 
-        $data = $request->input('data', []);
-        if (! is_array($data)) {
-            $data = [];
+        $result = $validator->validate($key, $request->input('data', []), LocaleContext::storeSupported($store));
+        if ($result['errors'] !== []) {
+            throw ValidationException::withMessages($result['errors']);
         }
+        $data = $result['data'];
 
         $row = StoreContentPage::query()->updateOrCreate(
             ['store_id' => $store->id, 'key' => $key],

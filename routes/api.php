@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\OrderQuotationsApiController;
 use App\Http\Controllers\Api\OrdersApiController;
 use App\Http\Controllers\Api\OrganizationFollowController;
 use App\Http\Controllers\Api\PartnersApiController;
+use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\PlatformHealthController;
 use App\Http\Controllers\Api\PostCommentController;
 use App\Http\Controllers\Api\PostController;
@@ -75,20 +76,24 @@ use App\Http\Controllers\Api\Storefront\StorefrontCollectionController;
 use App\Http\Controllers\Api\Storefront\StorefrontController;
 use App\Http\Controllers\Api\Storefront\StorefrontCouponController;
 use App\Http\Controllers\Api\Storefront\StorefrontEngagementController;
+use App\Http\Controllers\Api\Storefront\StorefrontLayoutController;
 use App\Http\Controllers\Api\Storefront\StorefrontProductController;
 use App\Http\Controllers\Api\Storefront\StoreOrderController;
 use App\Http\Controllers\Api\Storefront\WishlistController;
 use App\Http\Controllers\Api\StorefrontContextController;
+use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
 use App\Http\Controllers\Api\StorePagesApiController;
+use App\Http\Controllers\Api\StorePaymentsApiController;
+use App\Http\Controllers\Api\StorePublishingApiController;
 use App\Http\Controllers\Api\StoreReusableSectionsApiController;
 use App\Http\Controllers\Api\StoresApiController;
 use App\Http\Controllers\Api\StoreThemesApiController;
-use App\Http\Controllers\Api\StorePaymentsApiController;
-use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SuppliersApiController;
 use App\Http\Controllers\Api\SuppliersDirectoryController;
+use App\Http\Controllers\Api\ThemeLicensePurchaseController;
+use App\Http\Controllers\Api\ThemeLicenseWebhookController;
 use App\Http\Controllers\Api\TicketsApiController;
 use App\Http\Controllers\Api\UsersApiController;
 use App\Http\Controllers\Api\V2\OrganizationAuditExportController;
@@ -117,6 +122,8 @@ use App\Http\Controllers\Api\Wavex\WavexSettingsApiController;
 use App\Http\Controllers\Api\Wavex\WavexTemplatesApiController;
 use App\Http\Controllers\Api\Wavex\WavexWebhookController;
 use App\Http\Controllers\Api\WigpleasureSyncApiController;
+use App\Http\Middleware\ResolveOwnStore;
+use App\Services\PageBuilder\StorePageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -182,10 +189,10 @@ Route::prefix('v2')->middleware(['jwt.auth', 'pending.restrict'])->group(functio
         Route::put('themes/settings', [StoreThemesApiController::class, 'settings']);
         Route::post('themes/publish', [StoreThemesApiController::class, 'publish']);
         Route::put('themes/custom-css', [StoreThemesApiController::class, 'customCss']);
-        Route::get('media', [\App\Http\Controllers\Api\StoreMediaApiController::class, 'index']);
-        Route::post('media', [\App\Http\Controllers\Api\StoreMediaApiController::class, 'store']);
-        Route::patch('media/{asset}', [\App\Http\Controllers\Api\StoreMediaApiController::class, 'update'])->whereNumber('asset');
-        Route::delete('media/{asset}', [\App\Http\Controllers\Api\StoreMediaApiController::class, 'destroy'])->whereNumber('asset');
+        Route::get('media', [StoreMediaApiController::class, 'index']);
+        Route::post('media', [StoreMediaApiController::class, 'store']);
+        Route::patch('media/{asset}', [StoreMediaApiController::class, 'update'])->whereNumber('asset');
+        Route::delete('media/{asset}', [StoreMediaApiController::class, 'destroy'])->whereNumber('asset');
         Route::get('page-drafts', [StorePagesApiController::class, 'index']);
         Route::post('page-drafts', [StorePagesApiController::class, 'store']);
         Route::get('page-drafts/schema', [StorePagesApiController::class, 'schema']);
@@ -263,7 +270,7 @@ Route::prefix('v1')->group(function () {
 
     // Phase 2: resolve the current Host to a store (subdomain-based). Storefront
     // rendering itself is Phase 3 — this only proves/exposes host resolution.
-    Route::middleware(['resolve.store', 'throttle:storefront-read'])->get('/storefront/resolve', StorefrontContextController::class);
+    Route::middleware(['resolve.store', 'storefront.locale', 'throttle:storefront-read'])->get('/storefront/resolve', StorefrontContextController::class);
     Route::post('/payment-webhooks/{store}/{gateway}', [PaymentWebhookController::class, 'handle'])
         ->whereNumber('store')->whereIn('gateway', ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'fawaterak', 'paytabs', 'fawry']);
     Route::post('/payment-webhooks/{store}/fawaterak_json', [PaymentWebhookController::class, 'fawaterak'])
@@ -273,7 +280,7 @@ Route::prefix('v1')->group(function () {
     Route::match(['get', 'post'], '/payment-returns/fawry/{transaction}', [PaymentWebhookController::class, 'fawryReturn']);
 
     // Phase 3: public storefront API (host-resolved, store-scoped, read-only).
-    Route::middleware(['resolve.store', 'throttle:storefront-read'])->prefix('storefront')->group(function () {
+    Route::middleware(['resolve.store', 'storefront.locale', 'throttle:storefront-read'])->prefix('storefront')->group(function () {
         Route::get('/', [StorefrontController::class, 'index']);
         Route::get('home', [StorefrontController::class, 'home']);
         Route::get('context', [StorefrontController::class, 'context']);
@@ -294,6 +301,10 @@ Route::prefix('v1')->group(function () {
 
         // ---- Editable system pages (about/contact/faq/shipping/returns/blog) ----
         Route::get('content/{key}', [StoreContentPagesApiController::class, 'storefront'])->where('key', '[a-z0-9\-]+');
+
+        // ---- Theme customizer: published section layouts for the SPA (home template + custom pages) ----
+        Route::get('layout', [StorefrontLayoutController::class, 'layout']);
+        Route::get('pages/{slug}', [StorefrontLayoutController::class, 'page'])->where('slug', '[a-z0-9\-]+');
 
         // ---- Phase 6: public product reviews (approved only + average summary) ----
         Route::get('products/{slug}/reviews', [ProductReviewController::class, 'index'])->where('slug', '[a-z0-9\-]+');
@@ -716,9 +727,17 @@ Route::prefix('v1')->group(function () {
             Route::get('payments', [StorePaymentsApiController::class, 'index']);
             Route::match(['put', 'post'], 'payments', [StorePaymentsApiController::class, 'update']);
 
+            // ---- Publishing (owner + admin): readiness gate, publish/unpublish ----
+            Route::get('readiness', [StorePublishingApiController::class, 'readiness']);
+            Route::post('publish', [StorePublishingApiController::class, 'publish']);
+            Route::post('unpublish', [StorePublishingApiController::class, 'unpublish']);
+            // Currency codes available to store settings (no rates, no admin permission).
+            Route::get('currencies', [CurrencySettingsApiController::class, 'codes']);
+
             // ---- Page Builder (Phase 4E): pages, reusable sections, menus ----
             $pages = StorePagesApiController::class;
             Route::get('pages/schema', [$pages, 'schema']);
+            Route::get('pages/template/{template}', [$pages, 'ensureTemplate'])->whereIn('template', StorePageService::TEMPLATE_PAGES);
             Route::get('pages', [$pages, 'index']);
             Route::post('pages', [$pages, 'store']);
             Route::get('pages/{page}', [$pages, 'show'])->whereNumber('page');
@@ -737,10 +756,10 @@ Route::prefix('v1')->group(function () {
             Route::get('content', [$content, 'index']);
             Route::put('content/{key}', [$content, 'update'])->where('key', '[a-z0-9\-]+');
             Route::post('content/upload-image', [$content, 'uploadImage']);
-            Route::get('media', [\App\Http\Controllers\Api\StoreMediaApiController::class, 'index']);
-            Route::post('media', [\App\Http\Controllers\Api\StoreMediaApiController::class, 'store']);
-            Route::patch('media/{asset}', [\App\Http\Controllers\Api\StoreMediaApiController::class, 'update'])->whereNumber('asset');
-            Route::delete('media/{asset}', [\App\Http\Controllers\Api\StoreMediaApiController::class, 'destroy'])->whereNumber('asset');
+            Route::get('media', [StoreMediaApiController::class, 'index']);
+            Route::post('media', [StoreMediaApiController::class, 'store']);
+            Route::patch('media/{asset}', [StoreMediaApiController::class, 'update'])->whereNumber('asset');
+            Route::delete('media/{asset}', [StoreMediaApiController::class, 'destroy'])->whereNumber('asset');
 
             $reusable = StoreReusableSectionsApiController::class;
             Route::get('reusable-sections', [$reusable, 'index']);
@@ -951,12 +970,12 @@ Route::prefix('v1')->group(function () {
 });
 
 // Paid theme marketplace: platform-owned Stripe Checkout and signed fulfillment webhook.
-Route::post('/theme-marketplace/stripe/webhook', [\App\Http\Controllers\Api\ThemeLicenseWebhookController::class, 'stripe']);
-Route::middleware(['auth:sanctum', \App\Http\Middleware\ResolveOwnStore::class])
-    ->post('/my-store/themes/{theme}/purchase', [\App\Http\Controllers\Api\ThemeLicensePurchaseController::class, 'store']);
+Route::post('/theme-marketplace/stripe/webhook', [ThemeLicenseWebhookController::class, 'stripe']);
+Route::middleware(['auth:sanctum', ResolveOwnStore::class])
+    ->post('/my-store/themes/{theme}/purchase', [ThemeLicensePurchaseController::class, 'store']);
 Route::middleware(['auth:sanctum', 'store.scope'])
-    ->post('/stores/{store}/themes/{theme}/purchase', [\App\Http\Controllers\Api\ThemeLicensePurchaseController::class, 'store']);
-Route::middleware(['auth:sanctum', \App\Http\Middleware\ResolveOwnStore::class])
-    ->get('/my-store/theme-purchases/{session}', [\App\Http\Controllers\Api\ThemeLicensePurchaseController::class, 'status']);
+    ->post('/stores/{store}/themes/{theme}/purchase', [ThemeLicensePurchaseController::class, 'store']);
+Route::middleware(['auth:sanctum', ResolveOwnStore::class])
+    ->get('/my-store/theme-purchases/{session}', [ThemeLicensePurchaseController::class, 'status']);
 Route::middleware(['auth:sanctum', 'store.scope'])
-    ->get('/stores/{store}/theme-purchases/{session}', [\App\Http\Controllers\Api\ThemeLicensePurchaseController::class, 'status']);
+    ->get('/stores/{store}/theme-purchases/{session}', [ThemeLicensePurchaseController::class, 'status']);

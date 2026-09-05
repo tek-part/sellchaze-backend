@@ -11,6 +11,7 @@ use App\Models\OrderSuppliers;
 use App\Models\PaymentGateway;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\Orders\SupplierRoutingService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -19,6 +20,13 @@ use Illuminate\Validation\ValidationException;
 
 class OrderSyncService
 {
+    private SupplierRoutingService $routing;
+
+    public function __construct(?SupplierRoutingService $routing = null)
+    {
+        $this->routing = $routing ?? app(SupplierRoutingService::class);
+    }
+
     /**
      * Update existing synced order rows.
      *
@@ -215,6 +223,7 @@ class OrderSyncService
 
             $orderData = [
                 'code' => 'ORD-'.$wigpleasureOrderId.'-1',
+                'source' => Order::SOURCE_EXTERNAL_STORE,
                 'quantity' => max($totalQuantity, 1),
                 'image' => $firstLine['image_url'] ?? null,
                 'product_id' => (int) ($firstLine['product_id'] ?? 0),
@@ -538,17 +547,7 @@ class OrderSyncService
      */
     private function getAcceptedSupplierUserIds(?User $merchantUser): array
     {
-        if (! $merchantUser) {
-            return [];
-        }
-
-        return $merchantUser->suppliersAsMerchant()
-            ->wherePivot('status', 'accepted')
-            ->select('users.id')
-            ->pluck('id')
-            ->unique()
-            ->values()
-            ->all();
+        return $this->routing->acceptedSupplierIds($merchantUser);
     }
 
     private function extractWigpleasureCategoryId(array $p): ?int
@@ -572,17 +571,7 @@ class OrderSyncService
      */
     private function filterOutAdminSupplierIds(array $ids): array
     {
-        if ($ids === []) {
-            return [];
-        }
-
-        return User::query()
-            ->whereIn('id', $ids)
-            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'Admin'))
-            ->pluck('id')
-            ->unique()
-            ->values()
-            ->all();
+        return $this->routing->filterOutAdminSupplierIds($ids);
     }
 
     /**
@@ -678,43 +667,7 @@ class OrderSyncService
      */
     private function resolveFallbackSupplierIds(?User $merchantUser, array $acceptedSupplierIds): array
     {
-        $fid = (int) config('services.sellchase_fallback_supplier_user_id', 0);
-        if ($fid > 0) {
-            $u = User::find($fid);
-            if ($u && $u->hasRole('Supplier')) {
-                $clean = $this->filterOutAdminSupplierIds([$fid]);
-                if ($clean === []) {
-                    return [];
-                }
-                $skipInvite = (bool) config('services.sellchase_fallback_supplier_skip_invite_check');
-                if ($skipInvite || in_array($fid, $acceptedSupplierIds, true)) {
-                    Log::info('OrderSyncService: using SELLCHASE_FALLBACK_SUPPLIER_USER_ID', ['supplier_user_id' => $fid]);
-
-                    return $clean;
-                }
-            }
-        }
-
-        if (! config('services.sellchase_sync_use_first_supplier_when_empty')) {
-            return [];
-        }
-
-        $firstId = User::query()
-            ->whereHas('roles', fn ($q) => $q->where('name', 'Supplier'))
-            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'Admin'))
-            ->orderBy('id')
-            ->value('id');
-
-        if ($firstId) {
-            Log::warning('OrderSyncService: no supplier resolved; using first non-Admin Supplier (SELLCHASE_SYNC_USE_FIRST_SUPPLIER_WHEN_EMPTY)', [
-                'supplier_user_id' => $firstId,
-                'merchant_id' => $merchantUser?->id,
-            ]);
-
-            return [(int) $firstId];
-        }
-
-        return [];
+        return $this->routing->fallbackSupplierIds($merchantUser, $acceptedSupplierIds);
     }
 
     private function buildAttributesMap(): array

@@ -11,7 +11,7 @@ class SecurityHeadersTest extends TestCase
         $response = $this->getJson('/api/v2/plans');
 
         $response
-            ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
+            ->assertHeaderMissing('X-Frame-Options')
             ->assertHeader('X-Content-Type-Options', 'nosniff')
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
             ->assertHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
@@ -20,5 +20,10 @@ class SecurityHeadersTest extends TestCase
             "frame-ancestors 'self'",
             (string) $response->headers->get('Content-Security-Policy-Report-Only'),
         );
+
+        // Enforced framing policy: self + the dashboard origin + tenant hosts on the base domain.
+        $enforced = (string) $response->headers->get('Content-Security-Policy');
+        self::assertStringStartsWith("frame-ancestors 'self'", $enforced);
+        self::assertStringContainsString('https://*.'.config('sellchase.storefront.base_domain'), $enforced);
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Phase 5: a storefront order. Separate from the legacy B2B Order model.
@@ -57,5 +58,15 @@ class StoreOrder extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(StoreCustomer::class, 'store_customer_id');
+    }
+
+    /**
+     * The B2B order bridged from this storefront order (see StorefrontOrderBridge).
+     *
+     * @return HasOne<Order, $this>
+     */
+    public function b2bOrder(): HasOne
+    {
+        return $this->hasOne(Order::class, 'store_order_id');
     }
 }

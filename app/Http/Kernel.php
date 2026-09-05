@@ -18,6 +18,7 @@ use App\Http\Middleware\PreventRequestsDuringMaintenance;
 use App\Http\Middleware\RedirectIfAuthenticated;
 use App\Http\Middleware\ResolveOwnStore;
 use App\Http\Middleware\ResolveStoreFromHost;
+use App\Http\Middleware\ResolveStorefrontLocale;
 use App\Http\Middleware\RestrictPendingApiUser;
 use App\Http\Middleware\ScopeOrganizationRoute;
 use App\Http\Middleware\ScopeToStore;
@@ -141,5 +142,6 @@ class Kernel extends HttpKernel
         'store.scope' => ScopeToStore::class,
         'store.own' => ResolveOwnStore::class,
         'store.customer' => AuthenticateStoreCustomer::class,
+        'storefront.locale' => ResolveStorefrontLocale::class,
     ];
 }

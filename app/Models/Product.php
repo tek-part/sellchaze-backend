@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\HasImageUrl;
 use App\Models\Concerns\HasStoreTenancy;
+use App\Models\Concerns\HasTranslations;
 use App\Models\Scopes\StoreScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * The single canonical product model. Serves BOTH the global B2B catalog (store_id = NULL) and the
@@ -74,6 +76,10 @@ class Product extends Model
 {
     use HasImageUrl;
     use HasStoreTenancy;
+    use HasTranslations;
+
+    /** Attributes carried per-locale in the `translations` json (see HasTranslations). */
+    protected array $translatable = ['name', 'description', 'short_description'];
 
     /**
      * @var list<string>
@@ -153,7 +159,7 @@ class Product extends Model
         // Use the public disk (APP_URL host) so the URL is reachable regardless of the request host.
         $path = str_contains($this->image, '/') ? $this->image : 'uploads/products/original/'.$this->image;
 
-        return \Illuminate\Support\Facades\Storage::disk('public')->url($path);
+        return Storage::disk('public')->url($path);
     }
 
     // ---- Legacy B2B relationships (unchanged) --------------------------------------------------

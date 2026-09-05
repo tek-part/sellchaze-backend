@@ -6,6 +6,7 @@ use App\Models\Store;
 use App\Models\StoreTheme;
 use App\Models\Theme;
 use App\Models\ThemeVersion;
+use App\Support\Localization\LocaleContext;
 
 /**
  * Resolves a Store into its Theme Context: the active theme + pinned version +
@@ -20,12 +21,16 @@ class ThemeResolver
     ) {}
 
     /**
+     * `settings` are flat scalars resolved for `$locale` (request locale by default,
+     * then the store default) so themes stay locale-agnostic; `settings_i18n` keeps
+     * the raw `{locale: string}` maps for editors.
+     *
      * @return array{
      *   theme_version_id:int, key:string, version:string,
-     *   settings:array, sections_schema:array, templates:array
+     *   settings:array, settings_i18n:array, sections_schema:array, templates:array
      * }|null
      */
-    public function resolve(Store $store): ?array
+    public function resolve(Store $store, ?string $locale = null): ?array
     {
         $active = StoreTheme::query()
             ->where('store_id', $store->id)
@@ -52,7 +57,7 @@ class ThemeResolver
             'theme_version_id' => $version->id,
             'key' => $theme?->key ?? 'unknown',
             'version' => $version->version,
-            'settings' => $this->validator->coerce($rawSettings, $schema),
+            ...$this->settingsBlocks($rawSettings, $schema, $store, $locale),
             'sections_schema' => $version->sections_schema ?? [],
             'templates' => $version->templates ?? [],
             'bundle_url' => $version->bundle_url,
@@ -62,7 +67,7 @@ class ThemeResolver
     }
 
     /** Resolve a theme context from a specific install (used for preview). */
-    public function resolveForInstall(StoreTheme $install): array
+    public function resolveForInstall(StoreTheme $install, ?string $locale = null): array
     {
         $version = ThemeVersion::query()->find($install->theme_version_id);
         if (! $version instanceof ThemeVersion) {
@@ -75,7 +80,7 @@ class ThemeResolver
             'theme_version_id' => $version->id,
             'key' => $theme?->key ?? 'unknown',
             'version' => $version->version,
-            'settings' => $this->validator->coerce($install->draft_settings ?? $install->settings ?? [], $schema),
+            ...$this->settingsBlocks($install->draft_settings ?? $install->settings ?? [], $schema, $install->store, $locale),
             'sections_schema' => $version->sections_schema ?? [],
             'templates' => $version->templates ?? [],
             'bundle_url' => $version->bundle_url,
@@ -85,7 +90,7 @@ class ThemeResolver
     }
 
     /** Resolve a theme context for an explicit version + settings (upgrade preview). */
-    public function resolveForVersion(ThemeVersion $version, array $settings): array
+    public function resolveForVersion(ThemeVersion $version, array $settings, ?string $locale = null, ?Store $store = null): array
     {
         $theme = Theme::query()->find($version->theme_id);
         $schema = $version->settings_schema ?? [];
@@ -94,12 +99,32 @@ class ThemeResolver
             'theme_version_id' => $version->id,
             'key' => $theme?->key ?? 'unknown',
             'version' => $version->version,
-            'settings' => $this->validator->coerce($settings, $schema),
+            ...$this->settingsBlocks($settings, $schema, $store, $locale),
             'sections_schema' => $version->sections_schema ?? [],
             'templates' => $version->templates ?? [],
             'bundle_url' => $version->bundle_url,
             'bundle_integrity' => $version->bundle_integrity,
             'custom_css' => null,
+        ];
+    }
+
+    /**
+     * `settings` (flat, for the locale) + `settings_i18n` (coerced maps). The locale
+     * defaults to the request LocaleContext, then the store default, then the app locale.
+     *
+     * @return array{settings: array, settings_i18n: array}
+     */
+    private function settingsBlocks(array $raw, array $schema, ?Store $store, ?string $locale): array
+    {
+        $context = app(LocaleContext::class);
+        $fallback = $store ? LocaleContext::storeDefault($store) : $context->fallback();
+        $locale ??= $context->has() ? $context->current() : $fallback;
+
+        $coerced = $this->validator->coerce($raw, $schema);
+
+        return [
+            'settings' => $this->validator->flatten($coerced, $schema, $locale, $fallback),
+            'settings_i18n' => $coerced,
         ];
     }
 
@@ -121,6 +146,7 @@ class ThemeResolver
             'key' => 'builtin',
             'version' => '0.0.0',
             'settings' => [],
+            'settings_i18n' => [],
             'sections_schema' => array_fill_keys($core, ['settings' => []]),
             'templates' => [
                 'home' => ['sections' => [['type' => 'hero'], ['type' => 'category-list'], ['type' => 'product-grid']]],

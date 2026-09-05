@@ -9,6 +9,7 @@ use App\Models\StorePageSection;
 use App\Services\PageBuilder\StoreMenuService;
 use App\Services\Themes\SectionRegistry;
 use App\Services\Themes\ThemeResolver;
+use App\Support\Localization\LocaleContext;
 
 /**
  * Builds the full, presentation-agnostic render context for a storefront page:
@@ -25,7 +26,27 @@ class StorefrontContextBuilder
         private readonly StorefrontService $storefront,
         private readonly StoreSeoService $seo,
         private readonly StoreMenuService $menus,
+        private readonly LocaleContext $locale,
+        private readonly PublishedPageResolver $published,
     ) {}
+
+    /** The resolved request locale, or the store default outside a storefront request. */
+    private function currentLocale(Store $store): string
+    {
+        return $this->locale->has() ? $this->locale->current() : LocaleContext::storeDefault($store);
+    }
+
+    /** The `locale {current, fallback, supported, dir}` block every render context carries. */
+    private function localeBlock(Store $store): array
+    {
+        if ($this->locale->has()) {
+            return $this->locale->toArray();
+        }
+        $context = new LocaleContext;
+        $context->setFromStore($store);
+
+        return $context->toArray();
+    }
 
     /**
      * Build the render context for a dynamic page (Task 11): same shape as build(),
@@ -34,7 +55,7 @@ class StorefrontContextBuilder
      */
     public function buildPage(Store $store, StorePage $page, ?array $themeOverride = null, ?array $publication = null): array
     {
-        $theme = $themeOverride ?? $this->resolver->resolve($store);
+        $theme = $themeOverride ?? $this->resolver->resolve($store, $this->currentLocale($store));
 
         // Eager-load sections + their reusable blocks in a constant number of
         // queries (idempotent — no-op if the caller already loaded them). Prevents
@@ -55,6 +76,7 @@ class StorefrontContextBuilder
 
         return [
             'store' => $this->storeSummary($store),
+            'locale' => $this->localeBlock($store),
             'seo' => $this->seo->forPage($store, $page),
             'theme' => [...$this->themeBlock($theme), 'responsive_css' => $responsiveCss],
             'page' => [
@@ -97,11 +119,12 @@ class StorefrontContextBuilder
             ->get()->keyBy('handle');
         $header = $menus->get('header');
         $footer = $menus->get('footer');
+        $locale = $this->currentLocale($store);
 
         return [
             'branding' => ['name' => $store->name, 'logo_url' => $store->logoUrl()],
-            'header' => $header ? $this->menus->tree($header) : [],
-            'footer' => $footer ? $this->menus->tree($footer) : [],
+            'header' => $header ? $this->menus->tree($header, $locale) : [],
+            'footer' => $footer ? $this->menus->tree($footer, $locale) : [],
         ];
     }
 
@@ -114,6 +137,7 @@ class StorefrontContextBuilder
             'bundle_url' => $theme['bundle_url'] ?? null,
             'bundle_integrity' => $theme['bundle_integrity'] ?? null,
             'settings' => $theme['settings'],
+            'settings_i18n' => $theme['settings_i18n'] ?? [],
             'custom_css' => $theme['custom_css'] ?? null,
         ];
     }
@@ -129,14 +153,21 @@ class StorefrontContextBuilder
      */
     public function build(Store $store, string $template, array $params = [], ?array $themeOverride = null): ?array
     {
-        $theme = $themeOverride ?? $this->resolver->resolve($store);
+        $theme = $themeOverride ?? $this->resolver->resolve($store, $this->currentLocale($store));
 
         if ($theme === null) {
             return null;
         }
 
         $templateDef = $this->resolver->template($theme, $template) ?? ['sections' => []];
-        $pageSections = $this->sections->resolveSections($theme['sections_schema'], $templateDef['sections'] ?? []);
+        $rawSections = $templateDef['sections'] ?? [];
+        $homePage = null;
+        if ($template === 'home' && ($homePage = $this->published->publishedHome($store, $this->currentLocale($store))) !== null) {
+            // The merchant's published home layout wins over the manifest template so the
+            // Blade/SSR fallback and the SPA (`/storefront/layout`) render the same sections.
+            $rawSections = $this->published->publicSections($homePage);
+        }
+        $pageSections = $this->sections->resolveSections($theme['sections_schema'], $rawSections);
 
         [$seo, $data] = $this->pageData($store, $template, $params);
         if ($data === null) {
@@ -145,11 +176,14 @@ class StorefrontContextBuilder
 
         return [
             'store' => $this->storeSummary($store),
+            'locale' => $this->localeBlock($store),
             'seo' => $seo,
             'theme' => $this->themeBlock($theme),
             'page' => [
                 'template' => $template,
                 'sections' => $pageSections,
+                'source' => $homePage ? 'store' : 'theme',
+                'page_id' => $homePage?->id,
             ],
             'data' => $data,
             'navigation' => $this->navigation($store),
@@ -166,7 +200,7 @@ class StorefrontContextBuilder
                     return [[], null];
                 }
 
-                $product->loadMissing('category:id,name,slug');
+                $product->loadMissing('category:id,name,name_en,name_ar,slug,translations');
                 $related = collect($this->storefront->products($product->category?->slug, 12)->items())
                     ->reject(fn ($p) => (int) $p->id === (int) $product->id)
                     ->take(8)
@@ -179,7 +213,7 @@ class StorefrontContextBuilder
                     [
                         'product' => array_merge(
                             $this->storefront->productArray($product),
-                            ['description' => $product->description],
+                            ['description' => $product->translated('description')],
                         ),
                         'related' => $related,
                     ],
@@ -197,10 +231,10 @@ class StorefrontContextBuilder
                 return [
                     $this->seo->forCategory($store, $category),
                     [
-                        'category' => ['id' => $category->id, 'name' => $category->name, 'slug' => $category->slug, 'description' => $category->description, 'image_url' => $category->imageUrl()],
+                        'category' => ['id' => $category->id, 'name' => $category->translated('name'), 'slug' => $category->slug, 'description' => $category->translated('description'), 'image_url' => $category->imageUrl()],
                         'products' => $rows,
                         'categories' => $this->storefront->categories()->map(fn ($c) => [
-                            'id' => $c->id, 'name' => $c->name, 'slug' => $c->slug,
+                            'id' => $c->id, 'name' => $c->translated('name'), 'slug' => $c->slug,
                             'products_count' => (int) $c->products_count,
                         ])->all(),
                         'total' => $products->total(),
@@ -232,6 +266,8 @@ class StorefrontContextBuilder
             'slug' => $store->slug,
             'description' => $store->description,
             'currency' => $store->currency,
+            'default_locale' => LocaleContext::storeDefault($store),
+            'supported_locales' => LocaleContext::storeSupported($store),
             'status' => $store->status,
             'email' => $store->email,
             'phone' => $store->phone,

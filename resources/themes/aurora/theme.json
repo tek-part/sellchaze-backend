@@ -19,7 +19,7 @@
             "label": "Brand",
             "fields": [
                 { "id": "primary", "type": "color", "label": "Primary", "default": "#7c3aed" },
-                { "id": "headline", "type": "text", "label": "Homepage headline", "default": "Discover more" }
+                { "id": "headline", "type": "text", "label": "Homepage headline", "default": "Discover more", "translatable": true }
             ]
         },
         {

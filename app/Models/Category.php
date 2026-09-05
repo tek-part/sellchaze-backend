@@ -4,6 +4,9 @@ namespace App\Models;
 
 use App\Models\Concerns\HasImageUrl;
 use App\Models\Concerns\HasStoreTenancy;
+use App\Models\Concerns\HasTranslations;
+use App\Support\Localization\LocaleContext;
+use App\Support\Localization\LocalizedValue;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -38,6 +41,12 @@ class Category extends Model
 {
     use HasImageUrl;
     use HasStoreTenancy;
+    use HasTranslations {
+        mirrorTranslations as mirrorTranslationsBase;
+    }
+
+    /** Attributes carried per-locale in the `translations` json (see HasTranslations). */
+    protected array $translatable = ['name', 'description'];
 
     protected $hidden = ['updated_at', 'deleted_at'];
 
@@ -59,6 +68,67 @@ class Category extends Model
             'position' => 'integer',
             'translations' => 'array',
         ];
+    }
+
+    /**
+     * Categories carry the legacy bilingual `name_en`/`name_ar` columns next to the
+     * generic `translations.name` map; both must always agree. Rules:
+     *  1. A dirty `translations` payload wins: `translations.name.en/ar` are copied
+     *     into `name_en`/`name_ar` (an entry missing from the map leaves the column alone).
+     *  2. Otherwise a dirty `name_en`/`name_ar` is copied into `translations.name`.
+     *  3. Whatever remains empty on either side is filled from the other, then the
+     *     generic mirror (default locale → `name`) runs as for every model.
+     */
+    public function mirrorTranslations(): void
+    {
+        $map = LocalizedValue::normalize($this->translationsFor('name'), $this->translationDefaultLocale());
+        $columns = ['en' => 'name_en', 'ar' => 'name_ar'];
+
+        if ($this->isDirty('translations')) {
+            foreach ($columns as $locale => $column) {
+                if (($map[$locale] ?? '') !== '') {
+                    $this->{$column} = $map[$locale];
+                }
+            }
+        } else {
+            foreach ($columns as $locale => $column) {
+                $value = trim((string) ($this->{$column} ?? ''));
+                if ($value !== '' && ($this->isDirty($column) || ($map[$locale] ?? '') === '')) {
+                    $map[$locale] = $value;
+                }
+            }
+        }
+
+        foreach ($columns as $locale => $column) {
+            if (trim((string) ($this->{$column} ?? '')) === '' && ($map[$locale] ?? '') !== '') {
+                $this->{$column} = $map[$locale];
+            }
+        }
+
+        if ($map !== [] && $map !== $this->translationsFor('name')) {
+            $this->setTranslations('name', $map);
+        }
+
+        $this->mirrorTranslationsBase();
+    }
+
+    /** `name_ar`/`name_en` back the generic lookup when no `translations` entry exists. */
+    public function translated(string $attribute, ?string $locale = null): ?string
+    {
+        $locale ??= app(LocaleContext::class)->current();
+        $picked = LocalizedValue::pick($this->translationsFor($attribute), $locale, $this->translationDefaultLocale());
+        if ($picked !== '') {
+            return $picked;
+        }
+        if ($attribute === 'name' && ($this->name_en !== null || $this->name_ar !== null)) {
+            $label = $this->labelForLocale($locale);
+            if ($label !== '') {
+                return $label;
+            }
+        }
+        $base = $this->getAttribute($attribute);
+
+        return $base === null ? null : (string) $base;
     }
 
     protected static function booted(): void

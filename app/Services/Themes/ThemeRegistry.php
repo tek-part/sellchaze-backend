@@ -115,7 +115,106 @@ class ThemeRegistry
             }
         }
 
+        if (is_array($manifest['sections_schema'] ?? null)) {
+            foreach ($manifest['sections_schema'] as $type => $definition) {
+                array_push($errors, ...$this->validateSectionDefinition((string) $type, $definition));
+            }
+        }
+        if (is_array($manifest['settings_schema'] ?? null)) {
+            foreach ($manifest['settings_schema'] as $index => $group) {
+                $groupId = is_array($group) ? (string) ($group['id'] ?? $index) : (string) $index;
+                foreach ((is_array($group) ? ($group['fields'] ?? []) : []) as $field) {
+                    array_push($errors, ...$this->validateField("settings group '{$groupId}'", $field));
+                }
+            }
+        }
+
         return $errors;
+    }
+
+    /**
+     * A sections_schema entry: `{label, description?, category?, icon?, settings[], presets?}`.
+     * Extra descriptive keys are allowed (the frontend section library generates them);
+     * only the shape of `settings` and each field's `options`/`item` is enforced.
+     *
+     * @return string[]
+     */
+    private function validateSectionDefinition(string $type, mixed $definition): array
+    {
+        if (! is_array($definition)) {
+            return ["section '{$type}' must be an object"];
+        }
+        $errors = [];
+        if (array_key_exists('settings', $definition) && ! is_array($definition['settings'])) {
+            $errors[] = "section '{$type}' settings must be a list of fields";
+
+            return $errors;
+        }
+        foreach (($definition['settings'] ?? []) as $field) {
+            array_push($errors, ...$this->validateField("section '{$type}'", $field));
+        }
+
+        return $errors;
+    }
+
+    /** @return string[] */
+    private function validateField(string $where, mixed $field, bool $nested = false): array
+    {
+        if (! is_array($field) || ! isset($field['id']) || ! is_string($field['id'])) {
+            return ["{$where} has a field without an id"];
+        }
+        $errors = [];
+        $id = $field['id'];
+        if (array_key_exists('options', $field) && ! SchemaOptions::isWellFormed($field['options'])) {
+            $errors[] = "{$where} field '{$id}' options must be strings or {value,label} objects";
+        }
+        if (($field['type'] ?? null) === 'list') {
+            if ($nested) {
+                $errors[] = "{$where} field '{$id}' nests a list inside a list item";
+            } elseif (array_key_exists('item', $field)) {
+                if (! is_array($field['item'])) {
+                    $errors[] = "{$where} field '{$id}' item must be a list of fields";
+                } else {
+                    foreach ($field['item'] as $itemField) {
+                        array_push($errors, ...$this->validateField("{$where} list '{$id}'", $itemField, true));
+                    }
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Every first-party manifest on disk, in registration order: the legacy hand-written
+     * themes plus every generated `resources/themes/storefront/<key>.json`. The seeder and
+     * the `themes:register` command both use this so the two can never diverge.
+     *
+     * @return list<string> absolute paths (existing files only, de-duplicated)
+     */
+    public static function manifestPaths(): array
+    {
+        $legacy = [
+            resource_path('themes/default/theme.json'),
+            resource_path('themes/default/v1.1.0.json'),   // Phase 4D: 2nd version
+            resource_path('themes/aurora/theme.json'),      // Phase 4D: 2nd theme
+            resource_path('themes/modern/theme.json'),      // Theme 01: premium theme-driven
+            resource_path('themes/atlas/theme.json'),       // Industrial/B2B
+            resource_path('themes/verde/theme.json'),       // Food & agriculture
+        ];
+        $generated = File::isDirectory(resource_path('themes/storefront'))
+            ? array_map(fn ($file) => $file->getPathname(), File::files(resource_path('themes/storefront')))
+            : [];
+        sort($generated);
+
+        $paths = [];
+        foreach ([...$legacy, ...$generated] as $path) {
+            if (str_ends_with($path, '.json') && File::exists($path) && ! in_array($path, $paths, true)) {
+                $paths[] = $path;
+            }
+        }
+
+        return $paths;
     }
 
     public function defaultTheme(): ?Theme

@@ -16,9 +16,9 @@ class StorefrontCategoryResource extends JsonResource
         return [
             'id' => $this->id,
             'store_id' => $this->store_id,
-            'name' => $this->name,
+            'name' => $this->translated('name'),
             'slug' => $this->slug,
-            'description' => $this->description,
+            'description' => $this->translated('description'),
             'image' => $this->image,
             'image_url' => $this->imageUrl(),
             'is_active' => $this->is_active,
