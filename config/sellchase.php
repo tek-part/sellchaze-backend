@@ -71,6 +71,13 @@ return [
         /** Seconds to cache host -> store resolution. */
         'resolve_cache_ttl' => (int) env('SELLCHASE_STOREFRONT_RESOLVE_CACHE_TTL', 300),
 
+        /**
+         * Key of the first-party theme that is installed + activated for every new
+         * store and used as the render fallback for stores without an active install.
+         * Must match one of the manifests in resources/themes/storefront/<key>.json.
+         */
+        'default_theme' => (string) env('SELLCHASE_DEFAULT_THEME', 'naseem'),
+
         /*
         |----------------------------------------------------------------------
         | Custom domains (Sprint 2)

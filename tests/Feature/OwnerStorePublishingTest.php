@@ -30,7 +30,7 @@ class OwnerStorePublishingTest extends TestCase
         $this->seed(StorePermissionsSeeder::class);
         // Registered before any store is provisioned so the default theme is
         // installed + activated automatically (mirrors production bootstrap).
-        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/default/theme.json'));
+        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/storefront/naseem.json'));
     }
 
     private function owner(string $role = 'Supplier'): User

@@ -29,7 +29,11 @@ class PageBuilderMoreTest extends TestCase
         parent::setUp();
         $this->seed(PermissionTableSeeder::class);
         $this->seed(RolesTableSeeder::class);
-        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/default/theme.json'));
+        // Blade fallback rendering only has views for the core section types
+        // (hero, product-grid, rich-text, …): activate the test fixture theme that
+        // declares exactly those, as the store default.
+        app(ThemeRegistry::class)->registerFromFile(base_path('tests/Fixtures/themes/blade-sections.json'));
+        config(['sellchase.storefront.default_theme' => 'blade-sections']);
         $this->owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $this->owner->assignRole('Merchant');
         $this->store = Store::create(['owner_user_id' => $this->owner->id, 'owner_type' => 'merchant', 'name' => 'Nike', 'slug' => 'nike', 'currency' => 'USD', 'status' => 'active']);

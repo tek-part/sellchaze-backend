@@ -36,7 +36,7 @@ class HomeLayoutTest extends TestCase
         parent::setUp();
         $this->seed(PermissionTableSeeder::class);
         $this->seed(RolesTableSeeder::class);
-        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/default/theme.json'));
+        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/storefront/naseem.json'));
 
         $this->owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $this->owner->assignRole('Merchant');
@@ -80,14 +80,17 @@ class HomeLayoutTest extends TestCase
             ->assertJsonPath('data.status', 'draft')
             ->assertJsonPath('data.locale', 'en')
             ->assertJsonPath('data.has_unpublished_changes', true)
-            ->assertJsonCount(3, 'data.sections');
+            ->assertJsonCount(12, 'data.sections');
 
-        // Seeded from templates.home of the default theme: defaults + template-level settings kept.
-        $first->assertJsonPath('data.sections.0.type', 'hero')
-            ->assertJsonPath('data.sections.0.settings.show_tagline', true)
-            ->assertJsonPath('data.sections.2.type', 'product-grid')
+        // Seeded from templates.home of the default (naseem) theme: schema defaults + template-level settings kept.
+        $first->assertJsonPath('data.sections.0.type', 'hero-slider')
+            ->assertJsonPath('data.sections.0.settings.height', 'medium')
+            ->assertJsonPath('data.sections.0.settings.autoplay', true)
+            ->assertJsonCount(2, 'data.sections.0.settings.slides')
+            ->assertJsonPath('data.sections.2.type', 'featured-products')
+            ->assertJsonPath('data.sections.2.settings.collection', 'newest')
             ->assertJsonPath('data.sections.2.settings.limit', 8)
-            ->assertJsonPath('data.sections.2.settings.featured_only', true);
+            ->assertJsonPath('data.sections.2.settings.title.en', 'New arrivals');
 
         $second = $this->api()->getJson($this->base().'/template/home')->assertOk();
         $this->assertSame($first->json('data.id'), $second->json('data.id'));
@@ -181,14 +184,14 @@ class HomeLayoutTest extends TestCase
             ->assertJsonPath('data.template', 'home')
             ->assertJsonPath('data.source', 'theme')
             ->assertJsonPath('data.page_id', null)
-            ->assertJsonCount(3, 'data.sections')
-            ->assertJsonPath('data.sections.0.type', 'hero')
+            ->assertJsonCount(12, 'data.sections')
+            ->assertJsonPath('data.sections.0.type', 'hero-slider')
             ->assertJsonPath('data.sections.2.settings.limit', 8);
 
         // A draft (unpublished) home page changes nothing publicly.
         $id = $this->api()->getJson($this->base().'/template/home')->json('data.id');
-        $this->api()->putJson($this->base()."/{$id}/sections", ['sections' => [['type' => 'hero', 'settings' => ['headline' => 'Draft only']]]])->assertOk();
-        $this->getJson($this->storefront().'/layout?template=home')->assertOk()->assertJsonPath('data.source', 'theme')->assertJsonCount(3, 'data.sections');
+        $this->api()->putJson($this->base()."/{$id}/sections", ['sections' => [['type' => 'hero-banner', 'settings' => ['heading' => 'Draft only']]]])->assertOk();
+        $this->getJson($this->storefront().'/layout?template=home')->assertOk()->assertJsonPath('data.source', 'theme')->assertJsonCount(12, 'data.sections');
 
         $this->getJson($this->storefront().'/layout?template=product')->assertStatus(422);
     }
@@ -197,8 +200,8 @@ class HomeLayoutTest extends TestCase
     {
         $id = $this->api()->getJson($this->base().'/template/home')->json('data.id');
         $this->api()->putJson($this->base()."/{$id}/sections", ['sections' => [
-            ['type' => 'hero', 'settings' => ['headline' => 'Published hero']],
-            ['type' => 'category-list', 'is_visible' => false],
+            ['type' => 'hero-banner', 'settings' => ['heading' => 'Published hero']],
+            ['type' => 'category-grid', 'is_visible' => false],
             ['type' => 'product-grid', 'settings' => ['limit' => 4]],
         ]])->assertOk();
         $this->api()->postJson($this->base()."/{$id}/publish")->assertOk()->assertJsonPath('data.status', 'published');
@@ -208,27 +211,29 @@ class HomeLayoutTest extends TestCase
             ->assertJsonPath('data.page_id', $id)
             ->assertJsonCount(2, 'data.sections')
             ->assertJsonPath('data.sections.0.id', 'published-0')
-            ->assertJsonPath('data.sections.0.settings.headline', 'Published hero')
+            ->assertJsonPath('data.sections.0.settings.heading', 'Published hero')
             ->assertJsonPath('data.sections.1.id', 'published-1')
             ->assertJsonPath('data.sections.1.type', 'product-grid')
             ->assertJsonPath('data.sections.1.settings.limit', 4);
-        $this->assertNotContains('category-list', array_column($layout->json('data.sections'), 'type'));
+        $this->assertNotContains('category-grid', array_column($layout->json('data.sections'), 'type'));
+
+        // The Blade/SSR home render agrees with the API: the published store layout (which has a
+        // product-grid) is rendered instead of the manifest template (which has none).
+        $this->get('http://nike.sellchase.com/')->assertOk()->assertSee('data-section="product-grid"', false);
 
         // Draft edits after publishing stay private until the next publish.
-        $this->api()->putJson($this->base()."/{$id}/sections", ['sections' => [['type' => 'hero', 'settings' => ['headline' => 'Newer draft']]]])->assertOk();
-        $this->getJson($this->storefront().'/layout?template=home')->assertOk()->assertJsonCount(2, 'data.sections')->assertJsonPath('data.sections.0.settings.headline', 'Published hero');
+        $this->api()->putJson($this->base()."/{$id}/sections", ['sections' => [['type' => 'hero-banner', 'settings' => ['heading' => 'Newer draft']]]])->assertOk();
+        $this->getJson($this->storefront().'/layout?template=home')->assertOk()->assertJsonCount(2, 'data.sections')->assertJsonPath('data.sections.0.settings.heading', 'Published hero');
         $this->api()->postJson($this->base()."/{$id}/publish")->assertOk();
-        $this->getJson($this->storefront().'/layout?template=home')->assertOk()->assertJsonCount(1, 'data.sections')->assertJsonPath('data.sections.0.settings.headline', 'Newer draft');
+        $this->getJson($this->storefront().'/layout?template=home')->assertOk()->assertJsonCount(1, 'data.sections')->assertJsonPath('data.sections.0.settings.heading', 'Newer draft');
+        $this->get('http://nike.sellchase.com/')->assertOk()->assertDontSee('data-section="product-grid"', false);
 
         // Locale fallback: an Arabic request with no Arabic home falls back to the default-locale page.
         $this->getJson($this->storefront().'/layout?template=home&lang=ar')->assertOk()->assertJsonPath('data.source', 'store')->assertJsonPath('data.page_id', $id);
 
-        // The Blade/SSR home render agrees with the API (published store sections, not the manifest).
-        $this->get('http://nike.sellchase.com/')->assertOk()->assertSee('Newer draft');
-
         // Unpublish -> back to the manifest template; the home page is never served as a custom page.
         $this->api()->postJson($this->base()."/{$id}/unpublish")->assertOk();
-        $this->getJson($this->storefront().'/layout?template=home')->assertOk()->assertJsonPath('data.source', 'theme')->assertJsonCount(3, 'data.sections');
+        $this->getJson($this->storefront().'/layout?template=home')->assertOk()->assertJsonPath('data.source', 'theme')->assertJsonCount(12, 'data.sections');
         $this->getJson($this->storefront().'/pages/home')->assertNotFound();
         $this->get('http://nike.sellchase.com/pages/home')->assertNotFound();
     }
@@ -237,8 +242,8 @@ class HomeLayoutTest extends TestCase
     {
         $id = $this->api()->postJson($this->base(), ['title' => 'About us', 'slug' => 'about', 'seo' => ['description' => 'Who we are']])->assertCreated()->json('data.id');
         $this->api()->putJson($this->base()."/{$id}/sections", ['sections' => [
-            ['type' => 'rich-text', 'settings' => ['content' => 'Hello']],
-            ['type' => 'hero', 'is_visible' => false],
+            ['type' => 'rich-text', 'settings' => ['heading' => 'Hello']],
+            ['type' => 'hero-banner', 'is_visible' => false],
         ]])->assertOk();
 
         $this->getJson($this->storefront().'/pages/about')->assertNotFound(); // draft
@@ -253,7 +258,7 @@ class HomeLayoutTest extends TestCase
             ->assertJsonCount(1, 'data.sections')
             ->assertJsonPath('data.sections.0.id', 'published-0')
             ->assertJsonPath('data.sections.0.type', 'rich-text')
-            ->assertJsonPath('data.sections.0.settings.content', 'Hello');
+            ->assertJsonPath('data.sections.0.settings.heading', 'Hello');
 
         $this->getJson($this->storefront().'/pages/unknown')->assertNotFound()->assertJsonPath('message', 'Page not found.');
 
@@ -276,11 +281,12 @@ class HomeLayoutTest extends TestCase
         $this->assertSame(5, count($version->sections_schema));
 
         // Discovery covers every shipped manifest; `--only` narrows it; both are idempotent.
-        $this->artisan('themes:register', ['--only' => 'default'])->assertExitCode(0);
-        $this->assertSame(2, Theme::count());
+        $this->artisan('themes:register', ['--only' => 'naseem'])->assertExitCode(0);
+        $this->assertSame(2, Theme::count()); // naseem (from setUp) + rich-test
         $this->artisan('themes:register')->assertExitCode(0);
-        $this->assertGreaterThan(2, Theme::count());
-        $this->assertContains(resource_path('themes/storefront/luxury-fashion.json'), ThemeRegistry::manifestPaths());
+        $this->assertSame(6, Theme::count()); // the five first-party themes + rich-test
+        $this->assertContains(resource_path('themes/storefront/naseem.json'), ThemeRegistry::manifestPaths());
+        $this->assertCount(5, ThemeRegistry::manifestPaths());
 
         // Malformed options are rejected with a readable error.
         $errors = app(ThemeRegistry::class)->validate([

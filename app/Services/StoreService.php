@@ -109,7 +109,7 @@ class StoreService
         }
 
         try {
-            // Phase 4A: attach the active theme install (no-op if no Default theme yet).
+            // Phase 4A: install + activate the configured default theme (no-op if it is not registered yet).
             app(StoreThemeService::class)->installAndActivateDefault($store);
         } catch (\Throwable $e) {
             report($e);

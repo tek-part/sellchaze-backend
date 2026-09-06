@@ -30,7 +30,11 @@ class StorefrontRuntimeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/default/theme.json'));
+        // Blade fallback rendering only has views for the core section types
+        // (hero, product-grid, rich-text, …): activate the test fixture theme that
+        // declares exactly those, as the store default.
+        app(ThemeRegistry::class)->registerFromFile(base_path('tests/Fixtures/themes/blade-sections.json'));
+        config(['sellchase.storefront.default_theme' => 'blade-sections']);
         $this->makeStore('Nike', 'nike', ['Air Max', 'Pegasus']);
         $this->makeStore('Adidas', 'adidas', ['Ultraboost', 'Samba']);
     }
@@ -61,7 +65,7 @@ class StorefrontRuntimeTest extends TestCase
         $this->getJson('http://nike.sellchase.com/api/v1/storefront/context')
             ->assertOk()
             ->assertJsonPath('store.slug', 'nike')
-            ->assertJsonPath('theme.key', 'default')
+            ->assertJsonPath('theme.key', 'blade-sections')
             ->assertJsonPath('page.template', 'home')
             ->assertJsonStructure(['store', 'seo', 'theme' => ['settings'], 'page' => ['sections'], 'data']);
     }
@@ -70,7 +74,7 @@ class StorefrontRuntimeTest extends TestCase
     {
         $this->getJson('http://nike.sellchase.com/api/v1/storefront')
             ->assertOk()
-            ->assertJsonPath('theme.key', 'default')
+            ->assertJsonPath('theme.key', 'blade-sections')
             ->assertJsonPath('theme.version', '1.0.0')
             ->assertJsonStructure(['theme' => ['settings']]);
     }

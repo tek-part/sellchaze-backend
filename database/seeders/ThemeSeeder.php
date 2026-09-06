@@ -10,7 +10,9 @@ use App\Services\Themes\ThemeRegistry;
 use Illuminate\Database\Seeder;
 
 /**
- * Registers the first-party marketplace and backfills stores without an active install.
+ * Registers the first-party marketplace (resources/themes/storefront/*.json) and
+ * backfills stores without an active install with the configured default theme
+ * (`sellchase.storefront.default_theme`).
  */
 class ThemeSeeder extends Seeder
 {
@@ -28,6 +30,11 @@ class ThemeSeeder extends Seeder
             ->get()
             ->each(fn (Store $store) => $installer->installAndActivateDefault($store));
 
-        $this->command->info('Themes seeded: '.Theme::count().'; active installs='.StoreTheme::where('status', 'active')->count());
+        $this->command->info(sprintf(
+            'Themes seeded: %d (default=%s); active installs=%d',
+            Theme::count(),
+            ThemeRegistry::defaultThemeKey(),
+            StoreTheme::where('status', 'active')->count(),
+        ));
     }
 }

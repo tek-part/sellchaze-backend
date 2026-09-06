@@ -186,40 +186,44 @@ class ThemeRegistry
     }
 
     /**
-     * Every first-party manifest on disk, in registration order: the legacy hand-written
-     * themes plus every generated `resources/themes/storefront/<key>.json`. The seeder and
-     * the `themes:register` command both use this so the two can never diverge.
+     * Every first-party manifest on disk, in registration order: the generated
+     * `resources/themes/storefront/<key>.json` files (written by the frontend's
+     * `npm run themes:manifests`). The seeder and the `themes:register` command both
+     * use this so the two can never diverge.
      *
-     * @return list<string> absolute paths (existing files only, de-duplicated)
+     * @return list<string> absolute paths, sorted (existing .json files only)
      */
     public static function manifestPaths(): array
     {
-        $legacy = [
-            resource_path('themes/default/theme.json'),
-            resource_path('themes/default/v1.1.0.json'),   // Phase 4D: 2nd version
-            resource_path('themes/aurora/theme.json'),      // Phase 4D: 2nd theme
-            resource_path('themes/modern/theme.json'),      // Theme 01: premium theme-driven
-            resource_path('themes/atlas/theme.json'),       // Industrial/B2B
-            resource_path('themes/verde/theme.json'),       // Food & agriculture
-        ];
-        $generated = File::isDirectory(resource_path('themes/storefront'))
-            ? array_map(fn ($file) => $file->getPathname(), File::files(resource_path('themes/storefront')))
-            : [];
-        sort($generated);
+        $dir = resource_path('themes/storefront');
+        if (! File::isDirectory($dir)) {
+            return [];
+        }
 
         $paths = [];
-        foreach ([...$legacy, ...$generated] as $path) {
-            if (str_ends_with($path, '.json') && File::exists($path) && ! in_array($path, $paths, true)) {
+        foreach (File::files($dir) as $file) {
+            $path = $file->getPathname();
+            if (str_ends_with($path, '.json') && ! in_array($path, $paths, true)) {
                 $paths[] = $path;
             }
         }
+        sort($paths);
 
         return $paths;
     }
 
+    /** Key of the first-party theme new stores get (config `sellchase.storefront.default_theme`). */
+    public static function defaultThemeKey(): string
+    {
+        $key = trim((string) config('sellchase.storefront.default_theme', 'naseem'));
+
+        return $key !== '' ? $key : 'naseem';
+    }
+
+    /** The configured default theme, if it has been registered. */
     public function defaultTheme(): ?Theme
     {
-        return Theme::query()->where('key', 'default')->first();
+        return Theme::query()->where('key', self::defaultThemeKey())->first();
     }
 
     /** Resolve a specific version, or the highest-semver version of a theme. */

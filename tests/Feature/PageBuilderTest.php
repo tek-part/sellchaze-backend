@@ -31,7 +31,7 @@ class PageBuilderTest extends TestCase
         parent::setUp();
         $this->seed(PermissionTableSeeder::class);
         $this->seed(RolesTableSeeder::class);
-        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/default/theme.json'));
+        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/storefront/naseem.json'));
 
         [$this->ownerA, $this->storeA] = $this->makeStore('nike');
         [, $this->storeB] = $this->makeStore('adidas');
@@ -91,28 +91,28 @@ class PageBuilderTest extends TestCase
         $id = $this->createPage();
         // add three sections incl. a duplicate hero
         $this->ownerA()->putJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/sections", ['sections' => [
-            ['type' => 'hero', 'settings' => ['headline' => 'A']],
+            ['type' => 'hero-banner', 'settings' => ['heading' => 'A']],
             ['type' => 'product-grid'],
-            ['type' => 'hero', 'settings' => ['headline' => 'B']], // duplicate type allowed
+            ['type' => 'hero-banner', 'settings' => ['heading' => 'B']], // duplicate type allowed
         ]])->assertOk()->assertJsonCount(3, 'data.sections');
 
         $sections = StorePageSection::where('store_page_id', $id)->orderBy('position')->get();
-        $this->assertSame(['hero', 'product-grid', 'hero'], $sections->pluck('type')->all());
+        $this->assertSame(['hero-banner', 'product-grid', 'hero-banner'], $sections->pluck('type')->all());
         $this->assertSame([0, 1, 2], $sections->pluck('position')->all());
 
         // reorder + remove one
         $this->ownerA()->putJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/sections", ['sections' => [
             ['type' => 'product-grid'],
-            ['type' => 'hero', 'settings' => ['headline' => 'A']],
+            ['type' => 'hero-banner', 'settings' => ['heading' => 'A']],
         ]])->assertOk()->assertJsonCount(2, 'data.sections');
-        $this->assertSame(['product-grid', 'hero'], StorePageSection::where('store_page_id', $id)->orderBy('position')->pluck('type')->all());
+        $this->assertSame(['product-grid', 'hero-banner'], StorePageSection::where('store_page_id', $id)->orderBy('position')->pluck('type')->all());
     }
 
     public function test_unsupported_section_types_are_dropped(): void
     {
         $id = $this->createPage();
         $this->ownerA()->putJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/sections", ['sections' => [
-            ['type' => 'hero'],
+            ['type' => 'hero-banner'],
             ['type' => 'totally-unknown'],   // not in theme sections_schema -> dropped
             ['type' => 'product-grid'],
         ]])->assertOk()->assertJsonCount(2, 'data.sections');
@@ -122,7 +122,7 @@ class PageBuilderTest extends TestCase
     {
         $id = $this->createPage(['slug' => 'visibility']);
         $this->ownerA()->putJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/sections", ['sections' => [
-            ['type' => 'hero', 'settings' => ['headline' => 'Visible'], 'is_visible' => true],
+            ['type' => 'hero-banner', 'settings' => ['heading' => 'Visible'], 'is_visible' => true],
             ['type' => 'product-grid', 'is_visible' => false],
         ]])->assertOk()->assertJsonPath('data.sections.1.is_visible', false);
         $this->ownerA()->postJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/publish")->assertOk();
@@ -130,14 +130,14 @@ class PageBuilderTest extends TestCase
         $context = app(StorefrontContextBuilder::class)
             ->buildPage($this->storeA, StorePage::query()->findOrFail($id));
         $this->assertCount(1, $context['page']['sections']);
-        $this->assertSame('hero', $context['page']['sections'][0]['type']);
+        $this->assertSame('hero-banner', $context['page']['sections'][0]['type']);
     }
 
     public function test_builder_schema_endpoint_returns_theme_section_types(): void
     {
         $this->ownerA()->getJson("/api/v1/stores/{$this->storeA->id}/pages/schema")
-            ->assertOk()->assertJsonPath('theme.key', 'default')
-            ->assertJsonStructure(['sections_schema' => ['hero', 'product-grid']]);
+            ->assertOk()->assertJsonPath('theme.key', 'naseem')
+            ->assertJsonStructure(['sections_schema' => ['hero-banner', 'hero-slider', 'product-grid']]);
     }
 
     public function test_publish_schedule_unpublish_workflow(): void
@@ -168,14 +168,14 @@ class PageBuilderTest extends TestCase
     public function test_revisions_are_saved_and_restorable(): void
     {
         $id = $this->createPage(['slug' => 'r']);
-        $this->ownerA()->putJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/sections", ['sections' => [['type' => 'hero']]]);
+        $this->ownerA()->putJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/sections", ['sections' => [['type' => 'hero-banner']]]);
         $this->ownerA()->putJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}", ['title' => 'Changed']);
         $this->ownerA()->putJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/sections", ['sections' => [['type' => 'product-grid'], ['type' => 'rich-text']]]);
 
         $revs = $this->ownerA()->getJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/revisions")->assertOk()->json('data');
         $this->assertGreaterThanOrEqual(3, count($revs));
 
-        // restore the earliest revision (the one snapshotting the single-hero layout)
+        // restore the earliest revision (the one snapshotting the single-banner layout)
         $target = collect($revs)->firstWhere('sections_count', 1);
         $this->ownerA()->postJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}/revisions/{$target['id']}/restore")
             ->assertOk()->assertJsonCount(1, 'data.sections');

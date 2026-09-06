@@ -49,7 +49,9 @@ class StoreThemeService
                 'published_at' => now(),
             ],
         );
-        if ($install->wasRecentlyCreated) $theme->increment('installs_count');
+        if ($install->wasRecentlyCreated) {
+            $theme->increment('installs_count');
+        }
 
         return $install;
     }
@@ -275,8 +277,9 @@ class StoreThemeService
     }
 
     /**
-     * Install + activate the first-party Default theme. No-op (returns null) if
-     * no Default theme is registered, so store creation never depends on themes.
+     * Install + activate the configured default theme (`sellchase.storefront.default_theme`).
+     * No-op (returns null) if that theme is not registered, so store creation never
+     * depends on themes.
      */
     public function installAndActivateDefault(Store $store, ?int $actorId = null): ?StoreTheme
     {

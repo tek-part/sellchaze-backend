@@ -63,6 +63,7 @@ jobs:
 
             # Register/refresh storefront theme manifests (idempotent).
             "$PHP_BIN" artisan themes:register
+            "$PHP_BIN" artisan themes:prune-legacy
 
             "$PHP_BIN" artisan optimize
 

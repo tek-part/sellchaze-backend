@@ -46,7 +46,7 @@ class CriticalBusinessJourneyEndToEndTest extends TestCase
         $themePath = "/api/v2/organizations/{$merchant['organization_id']}/stores/{$store->id}/themes/settings";
         $this->withToken($merchant['token'])->putJson($themePath, [
             'theme_id' => $themeId,
-            'settings' => ['primary' => '#0A7A5A', 'products_per_row' => 4],
+            'settings' => ['primary_color' => '#0A7A5A', 'base_font_size' => 16],
             'source' => 'autosave',
         ])->assertOk();
         $this->assertDatabaseHas('store_theme_revisions', ['store_id' => $store->id, 'source' => 'autosave']);

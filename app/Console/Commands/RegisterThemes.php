@@ -8,9 +8,9 @@ use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
 
 /**
- * Registers (idempotently) every first-party theme manifest: the legacy hand-written
- * themes plus every generated `resources/themes/storefront/<key>.json` written by the
- * frontend's `npm run themes:manifests`. Uses the same discovery as ThemeSeeder.
+ * Registers (idempotently) every first-party theme manifest: the generated
+ * `resources/themes/storefront/<key>.json` files written by the frontend's
+ * `npm run themes:manifests`. Uses the same discovery as ThemeSeeder.
  */
 class RegisterThemes extends Command
 {
@@ -18,7 +18,7 @@ class RegisterThemes extends Command
         {--only= : Comma-separated theme keys to register (others are skipped)}
         {--path=* : Extra manifest file(s) to register in addition to the discovered ones}';
 
-    protected $description = 'Register theme manifests (resources/themes/**.json) into the theme registry.';
+    protected $description = 'Register theme manifests (resources/themes/storefront/*.json) into the theme registry.';
 
     public function handle(ThemeRegistry $registry): int
     {

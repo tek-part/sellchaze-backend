@@ -82,14 +82,6 @@ class AppServiceProvider extends ServiceProvider
             return app(EmailTemplateService::class)->mailMessage(EmailTemplate::KEY_AUTH_RESET_PASSWORD, $vars);
         });
 
-        // Phase 4D: Default theme 1.0.0 -> 1.1.0 renames "primary" to "brand_primary".
-        if (class_exists(ThemeSettingsMigrator::class)) {
-            app(ThemeSettingsMigrator::class)->register(
-                'default', '1.0.0', '1.1.0',
-                ThemeSettingsMigrator::rename(['primary' => 'brand_primary']),
-            );
-        }
-
         // Use Bootstrap 5 for pagination views
         Paginator::useBootstrapFive();
 

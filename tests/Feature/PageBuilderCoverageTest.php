@@ -32,7 +32,7 @@ class PageBuilderCoverageTest extends TestCase
         parent::setUp();
         $this->seed(PermissionTableSeeder::class);
         $this->seed(RolesTableSeeder::class);
-        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/default/theme.json'));
+        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/storefront/naseem.json'));
         [$this->ownerA, $this->a] = $this->store('nike');
         [, $this->b] = $this->store('adidas');
     }
@@ -71,7 +71,7 @@ class PageBuilderCoverageTest extends TestCase
     public function test_all_theme_section_types_can_be_composed(): void
     {
         $id = $this->a()->postJson("/api/v1/stores/{$this->a->id}/pages", ['title' => 'All', 'slug' => 'all'])->json('data.id');
-        $types = ['hero', 'category-list', 'product-grid', 'category-header', 'product-details', 'rich-text'];
+        $types = ['hero-banner', 'category-grid', 'product-grid', 'category-header', 'product-details', 'rich-text'];
         $sections = array_map(fn ($t) => ['type' => $t], $types);
 
         $this->a()->putJson("/api/v1/stores/{$this->a->id}/pages/{$id}/sections", ['sections' => $sections])
@@ -84,21 +84,21 @@ class PageBuilderCoverageTest extends TestCase
     public function test_revision_snapshot_captures_page_and_sections(): void
     {
         $id = $this->a()->postJson("/api/v1/stores/{$this->a->id}/pages", ['title' => 'V1', 'slug' => 'v'])->json('data.id');
-        $this->a()->putJson("/api/v1/stores/{$this->a->id}/pages/{$id}/sections", ['sections' => [['type' => 'hero', 'settings' => ['headline' => 'X']]]]);
+        $this->a()->putJson("/api/v1/stores/{$this->a->id}/pages/{$id}/sections", ['sections' => [['type' => 'hero-banner', 'settings' => ['heading' => 'X']]]]);
         $this->a()->putJson("/api/v1/stores/{$this->a->id}/pages/{$id}", ['title' => 'V2']);
 
         $rev = StorePageRevision::where('store_page_id', $id)->orderByDesc('revision_number')->first();
         $this->assertIsArray($rev->snapshot);
         $this->assertArrayHasKey('page', $rev->snapshot);
         $this->assertArrayHasKey('sections', $rev->snapshot);
-        $this->assertSame('hero', $rev->snapshot['sections'][0]['type']);
-        $this->assertSame('X', $rev->snapshot['sections'][0]['settings']['headline']);
+        $this->assertSame('hero-banner', $rev->snapshot['sections'][0]['type']);
+        $this->assertSame('X', $rev->snapshot['sections'][0]['settings']['heading']);
     }
 
     public function test_restore_reverts_title_and_sections_exactly(): void
     {
         $id = $this->a()->postJson("/api/v1/stores/{$this->a->id}/pages", ['title' => 'Original', 'slug' => 'o'])->json('data.id');
-        $this->a()->putJson("/api/v1/stores/{$this->a->id}/pages/{$id}/sections", ['sections' => [['type' => 'hero'], ['type' => 'product-grid']]]);
+        $this->a()->putJson("/api/v1/stores/{$this->a->id}/pages/{$id}/sections", ['sections' => [['type' => 'hero-banner'], ['type' => 'product-grid']]]);
         $revId = $this->a()->getJson("/api/v1/stores/{$this->a->id}/pages/{$id}/revisions")->json('data.0.id');
 
         // now change everything
@@ -111,7 +111,7 @@ class PageBuilderCoverageTest extends TestCase
 
     public function test_reusable_sections_are_store_isolated(): void
     {
-        $aId = $this->a()->postJson("/api/v1/stores/{$this->a->id}/reusable-sections", ['key' => 'bar', 'name' => 'Bar', 'type' => 'hero', 'settings' => []])->json('data.id');
+        $aId = $this->a()->postJson("/api/v1/stores/{$this->a->id}/reusable-sections", ['key' => 'bar', 'name' => 'Bar', 'type' => 'hero-banner', 'settings' => []])->json('data.id');
 
         // store B does not see store A's reusable section, and cannot fetch it under B
         $this->a()->getJson("/api/v1/stores/{$this->a->id}/reusable-sections")->assertOk()->assertJsonCount(1, 'data');

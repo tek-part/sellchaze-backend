@@ -39,9 +39,9 @@ class ThemeManagementTest extends TestCase
         $this->seed(RolesTableSeeder::class);
 
         $registry = app(ThemeRegistry::class);
-        $registry->registerFromFile(resource_path('themes/default/theme.json'));
+        $registry->registerFromFile(resource_path('themes/storefront/naseem.json'));
         $registry->register($this->minimalManifest());
-        $this->defaultThemeId = Theme::where('key', 'default')->value('id');
+        $this->defaultThemeId = Theme::where('key', 'naseem')->value('id');
         $this->minimalThemeId = Theme::where('key', 'minimal')->value('id');
 
         [$this->ownerA, $this->storeA] = $this->makeMerchantStore('nike');
@@ -80,7 +80,7 @@ class ThemeManagementTest extends TestCase
             'name' => ucfirst($slug), 'slug' => $slug, 'currency' => 'USD', 'status' => 'active',
         ]);
         StoreDomain::create(['store_id' => $store->id, 'host' => "{$slug}.sellchase.com", 'type' => 'subdomain', 'is_primary' => true]);
-        // store creation already installed+activated the default theme (StoreService path is bypassed here) -> do it explicitly:
+        // StoreService (which auto-installs the default theme) is bypassed here -> do it explicitly:
         app(StoreThemeService::class)->installAndActivateDefault($store);
 
         return [$user, $store];
@@ -159,7 +159,7 @@ class ThemeManagementTest extends TestCase
             ->assertSee('data-theme="minimal"', false);
 
         // Public visitor (no token) still sees the active default theme.
-        $this->get('http://nike.sellchase.com/')->assertOk()->assertSee('data-theme="default"', false);
+        $this->get('http://nike.sellchase.com/')->assertOk()->assertSee('data-theme="naseem"', false);
 
         // Active theme unchanged.
         $this->assertSame($this->defaultThemeId, (int) $this->storeA->fresh()->theme_id);
@@ -188,19 +188,19 @@ class ThemeManagementTest extends TestCase
 
     public function test_settings_are_coerced_and_invalid_settings_rejected(): void
     {
-        // valid but out-of-range -> coerced (products_per_row clamped to 6)
+        // valid but out-of-range -> coerced (base_font_size clamped to its max of 18)
         $this->asOwnerA()->postJson("/api/v1/stores/{$this->storeA->id}/themes/settings", [
             'theme_id' => $this->defaultThemeId,
-            'settings' => ['primary' => '#ffffff', 'products_per_row' => 99],
+            'settings' => ['primary_color' => '#ffffff', 'base_font_size' => 99],
         ])->assertOk();
         $settings = StoreTheme::where('store_id', $this->storeA->id)->where('theme_id', $this->defaultThemeId)->value('draft_settings');
-        $this->assertSame(6, $settings['products_per_row']);
-        $this->assertSame('#ffffff', $settings['primary']);
+        $this->assertSame(18, $settings['base_font_size']);
+        $this->assertSame('#ffffff', $settings['primary_color']);
 
         // invalid type -> 422
         $this->asOwnerA()->putJson("/api/v1/stores/{$this->storeA->id}/themes/settings", [
             'theme_id' => $this->defaultThemeId,
-            'settings' => ['products_per_row' => 'not-a-number'],
+            'settings' => ['base_font_size' => 'not-a-number'],
         ])->assertStatus(422)->assertJsonValidationErrors('settings');
     }
 
@@ -254,7 +254,7 @@ class ThemeManagementTest extends TestCase
 
         $this->asOwnerA()->putJson('/api/v1/my-store/themes/settings', [
             'theme_id' => $this->defaultThemeId,
-            'settings' => ['primary' => '#123456', 'products_per_row' => 4],
+            'settings' => ['primary_color' => '#123456', 'base_font_size' => 16],
             'source' => 'manual',
         ])->assertOk();
 

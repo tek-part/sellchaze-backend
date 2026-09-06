@@ -56,9 +56,9 @@ class StorefrontRenderer
 
         // Hybrid fallback: server-rendered Blade, section-driven from the same context.
         // Theme-driven shell: a theme may ship its own Blade shell at
-        // storefront.themes.<key>.render (mirroring its SSR Layout/styles). Themes
-        // without one keep the built-in storefront.render view unchanged — so
-        // Default/Aurora fallback output is byte-for-byte preserved.
+        // storefront.themes.<key>.render (mirroring its SSR Layout/styles). None of
+        // the first-party themes do today, so they all render through the built-in
+        // storefront.render view.
         $themeKey = $context['theme']['key'] ?? null;
         $view = ($themeKey && View::exists("storefront.themes.{$themeKey}.render"))
             ? "storefront.themes.{$themeKey}.render"

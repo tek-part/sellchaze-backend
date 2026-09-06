@@ -9,7 +9,6 @@ use App\Models\User;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Themes\StoreThemeService;
 use App\Services\Themes\ThemeRegistry;
-use App\Support\Tenancy\CurrentStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -53,7 +52,7 @@ class StorefrontPageCacheTest extends TestCase
 
     public function test_theme_activation_and_catalog_changes_flush_the_store(): void
     {
-        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/default/theme.json'));
+        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/storefront/naseem.json'));
         $store = Store::create([
             'owner_user_id' => User::factory()->create()->id,
             'owner_type' => 'merchant', 'name' => 'Nike', 'slug' => 'nike',

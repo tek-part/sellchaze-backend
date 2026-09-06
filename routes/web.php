@@ -4,7 +4,6 @@ use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\InvitationsController;
 use App\Http\Controllers\Storefront\StorefrontPageController;
-use App\Http\Controllers\Storefront\StorefrontStaticController;
 use App\Http\Controllers\Storefront\ThemeBundleController;
 use Illuminate\Support\Facades\Route;
 
@@ -23,35 +22,9 @@ Route::middleware(['resolve.store', 'storefront.locale'])->group(function () {
     Route::get('/products/{slug}', [StorefrontPageController::class, 'product'])->where('slug', '[a-z0-9\-]+');
     Route::get('/categories/{slug}', [StorefrontPageController::class, 'category'])->where('slug', '[a-z0-9\-]+');
     Route::get('/pages/{slug}', [StorefrontPageController::class, 'page'])->where('slug', '[a-z0-9\-]+');
-
-    // Transactional / account storefront pages (static previews with mock data for
-    // design/style testing — real flows are API-driven). Auth previews live under
-    // /account/* to avoid colliding with the platform "/login" SPA redirect below.
-    Route::get('/cart', [StorefrontStaticController::class, 'cart']);
-    Route::get('/checkout', [StorefrontStaticController::class, 'checkout']);
-    Route::get('/checkout/success', [StorefrontStaticController::class, 'orderSuccess']);
-    Route::get('/wishlist', [StorefrontStaticController::class, 'wishlist']);
-    Route::get('/compare', [StorefrontStaticController::class, 'compare']);
-    Route::get('/account/login', [StorefrontStaticController::class, 'login']);
-    Route::get('/account/register', [StorefrontStaticController::class, 'register']);
-    Route::get('/forgot-password', [StorefrontStaticController::class, 'forgotPassword']);
-    // Account module
-    Route::get('/account', [StorefrontStaticController::class, 'dashboard']);
-    Route::get('/account/orders', [StorefrontStaticController::class, 'orders']);
-    Route::get('/account/orders/{number}', [StorefrontStaticController::class, 'orderDetails'])->where('number', '[A-Za-z0-9\-]+');
-    Route::get('/account/addresses', [StorefrontStaticController::class, 'addresses']);
-    Route::get('/account/reviews', [StorefrontStaticController::class, 'reviews']);
-    Route::get('/account/profile', [StorefrontStaticController::class, 'profile']);
-    Route::get('/account/settings', [StorefrontStaticController::class, 'settings']);
-    // Info / legal / utility
-    Route::get('/contact', [StorefrontStaticController::class, 'contact']);
-    Route::get('/about', [StorefrontStaticController::class, 'about']);
-    Route::get('/faq', [StorefrontStaticController::class, 'faq']);
-    Route::get('/legal/{doc}', [StorefrontStaticController::class, 'legal'])->where('doc', 'privacy|terms|shipping|returns');
-    Route::get('/search', [StorefrontStaticController::class, 'search']);
-    Route::get('/not-found', [StorefrontStaticController::class, 'notFound']);
-    Route::get('/maintenance', [StorefrontStaticController::class, 'maintenance']);
-    Route::get('/coming-soon', [StorefrontStaticController::class, 'comingSoon']);
+    // Transactional / account pages (cart, checkout, account, …) are rendered by the
+    // React storefront SPA; the legacy Blade "modern" previews were removed with the
+    // legacy theme shells.
 
     Route::get('/sitemap.xml', [StorefrontPageController::class, 'sitemap']);
     Route::get('/robots.txt', [StorefrontPageController::class, 'robots']);

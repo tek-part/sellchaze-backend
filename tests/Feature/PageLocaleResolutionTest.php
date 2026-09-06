@@ -28,7 +28,7 @@ class PageLocaleResolutionTest extends TestCase
         parent::setUp();
         $this->seed(PermissionTableSeeder::class);
         $this->seed(RolesTableSeeder::class);
-        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/default/theme.json'));
+        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/storefront/naseem.json'));
         $this->owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $this->owner->assignRole('Merchant');
         $this->store = Store::create([

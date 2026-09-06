@@ -48,16 +48,31 @@ class ThemeManifestValidationTest extends TestCase
 
     public function test_the_shipped_default_theme_is_valid(): void
     {
-        $manifest = json_decode(file_get_contents(resource_path('themes/default/theme.json')), true);
+        $key = ThemeRegistry::defaultThemeKey();
+        $this->assertSame('naseem', $key);
+        $manifest = json_decode(file_get_contents(resource_path("themes/storefront/{$key}.json")), true);
         $this->assertSame([], $this->registry->validate($manifest));
     }
 
     public function test_all_react_storefront_manifests_are_valid_and_keyed_consistently(): void
     {
-        foreach (['luxury-fashion', 'voltage', 'hearth', 'rouge'] as $key) {
-            $manifest = json_decode(file_get_contents(resource_path("themes/storefront/{$key}.json")), true);
-            $this->assertSame($key, $manifest['key']);
+        $keys = [];
+        foreach (ThemeRegistry::manifestPaths() as $path) {
+            $key = basename($path, '.json');
+            $manifest = json_decode(file_get_contents($path), true);
+            $this->assertSame($key, $manifest['key'], "Manifest file name and key differ: {$path}");
             $this->assertSame([], $this->registry->validate($manifest), "Invalid manifest: {$key}");
+            $this->assertSame("builtin:{$key}@{$manifest['version']}", $manifest['bundle_url']);
+            $keys[] = $key;
+        }
+        $this->assertSame(['bazaar', 'fresh', 'naseem', 'sahra', 'techno'], $keys);
+
+        // The legacy manifests are gone for good.
+        foreach (['default', 'aurora', 'modern', 'atlas', 'verde'] as $legacy) {
+            $this->assertDirectoryDoesNotExist(resource_path("themes/{$legacy}"));
+        }
+        foreach (['luxury-fashion', 'voltage', 'hearth', 'rouge'] as $legacy) {
+            $this->assertFileDoesNotExist(resource_path("themes/storefront/{$legacy}.json"));
         }
     }
 

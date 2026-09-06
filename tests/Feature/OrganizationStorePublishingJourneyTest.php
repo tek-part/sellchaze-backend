@@ -18,7 +18,7 @@ class OrganizationStorePublishingJourneyTest extends TestCase
 
     public function test_company_store_is_provisioned_then_published_only_when_ready(): void
     {
-        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/default/theme.json'));
+        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/storefront/naseem.json'));
         $owner = User::factory()->create([
             'is_active' => true,
             'pending_approval' => false,

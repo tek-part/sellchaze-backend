@@ -27,8 +27,8 @@ class StoreThemeActivationTest extends TestCase
     {
         parent::setUp();
         $registry = app(ThemeRegistry::class);
-        $registry->registerFromFile(resource_path('themes/default/theme.json'));
-        $registry->registerFromFile(resource_path('themes/aurora/theme.json'));
+        $registry->registerFromFile(resource_path('themes/storefront/naseem.json'));
+        $registry->registerFromFile(resource_path('themes/storefront/bazaar.json'));
 
         $this->store = Store::create([
             'owner_user_id' => User::factory()->create()->id,
@@ -38,11 +38,11 @@ class StoreThemeActivationTest extends TestCase
         app(StoreThemeService::class)->installAndActivateDefault($this->store);
     }
 
-    private function installAurora(): StoreTheme
+    private function installBazaar(): StoreTheme
     {
-        $aurora = Theme::query()->where('key', 'aurora')->firstOrFail();
+        $bazaar = Theme::query()->where('key', 'bazaar')->firstOrFail();
 
-        return app(StoreThemeService::class)->install($this->store, $aurora, app(ThemeRegistry::class)->resolveThemeVersion($aurora));
+        return app(StoreThemeService::class)->install($this->store, $bazaar, app(ThemeRegistry::class)->resolveThemeVersion($bazaar));
     }
 
     public function test_activation_rolls_back_completely_on_failure(): void
@@ -51,7 +51,7 @@ class StoreThemeActivationTest extends TestCase
         $defaultThemeId = $this->store->theme_id;
         $this->assertNotNull($defaultThemeId);
 
-        $install = $this->installAurora();
+        $install = $this->installBazaar();
         $this->assertSame('installed', $install->status);
         $activationsBefore = StoreThemeActivation::query()->count();
 
@@ -69,20 +69,20 @@ class StoreThemeActivationTest extends TestCase
         // No partial state: everything the transaction touched is rolled back.
         $this->store->refresh();
         $this->assertSame($defaultThemeId, $this->store->theme_id, 'store theme pointer unchanged');
-        $this->assertSame('installed', $install->fresh()->status, 'aurora was not left active');
+        $this->assertSame('installed', $install->fresh()->status, 'bazaar was not left active');
         $this->assertSame($activationsBefore, StoreThemeActivation::query()->count(), 'no orphan audit row');
         $this->assertSame(1, StoreTheme::query()->where('store_id', $this->store->id)->where('status', 'active')->count(), 'still exactly one active theme');
     }
 
     public function test_successful_activation_commits_a_consistent_state(): void
     {
-        $aurora = Theme::query()->where('key', 'aurora')->firstOrFail();
-        $install = $this->installAurora();
+        $bazaar = Theme::query()->where('key', 'bazaar')->firstOrFail();
+        $install = $this->installBazaar();
 
         app(StoreThemeService::class)->activate($this->store, $install);
 
         $this->store->refresh();
-        $this->assertSame($aurora->id, $this->store->theme_id);
+        $this->assertSame($bazaar->id, $this->store->theme_id);
         $this->assertSame('active', $install->fresh()->status);
         $this->assertSame(1, StoreTheme::query()->where('store_id', $this->store->id)->where('status', 'active')->count());
     }

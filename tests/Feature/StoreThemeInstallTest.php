@@ -26,7 +26,7 @@ class StoreThemeInstallTest extends TestCase
         parent::setUp();
         $this->registry = new ThemeRegistry;
         $this->installer = app(StoreThemeService::class);
-        $this->registry->registerFromFile(resource_path('themes/default/theme.json'));
+        $this->registry->registerFromFile(resource_path('themes/storefront/naseem.json'));
     }
 
     private function makeStore(): Store
@@ -49,8 +49,9 @@ class StoreThemeInstallTest extends TestCase
         $store->refresh();
         $this->assertSame($install->theme_id, (int) $store->theme_id);
         // settings seeded from the manifest defaults
-        $this->assertSame('#2563eb', $store->theme_settings['primary']);
-        $this->assertSame(4, $store->theme_settings['products_per_row']);
+        $this->assertSame('#1D4ED8', $store->theme_settings['primary_color']);
+        $this->assertSame(16, $store->theme_settings['base_font_size']);
+        $this->assertSame('naseem', $install->theme->key);
     }
 
     public function test_resolve_active_theme_returns_the_active_version(): void

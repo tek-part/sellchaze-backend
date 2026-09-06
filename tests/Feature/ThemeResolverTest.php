@@ -17,7 +17,7 @@ class ThemeResolverTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/default/theme.json'));
+        app(ThemeRegistry::class)->registerFromFile(resource_path('themes/storefront/naseem.json'));
     }
 
     private function makeStore(): Store
@@ -36,11 +36,11 @@ class ThemeResolverTest extends TestCase
 
         $ctx = app(ThemeResolver::class)->resolve($store);
 
-        $this->assertSame('default', $ctx['key']);
+        $this->assertSame('naseem', $ctx['key']);
         $this->assertSame('1.0.0', $ctx['version']);
-        $this->assertSame('#2563eb', $ctx['settings']['primary']);   // validated/defaulted
+        $this->assertSame('#1D4ED8', $ctx['settings']['primary_color']);   // validated/defaulted
         $this->assertArrayHasKey('home', $ctx['templates']);
-        $this->assertArrayHasKey('hero', $ctx['sections_schema']);
+        $this->assertArrayHasKey('hero-slider', $ctx['sections_schema']);
     }
 
     public function test_falls_back_to_default_theme_when_no_install(): void
@@ -49,7 +49,7 @@ class ThemeResolverTest extends TestCase
 
         $ctx = app(ThemeResolver::class)->resolve($store);
 
-        $this->assertSame('default', $ctx['key']);
+        $this->assertSame('naseem', $ctx['key']);
         $this->assertSame('1.0.0', $ctx['version']);
     }
 }

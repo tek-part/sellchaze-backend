@@ -13,10 +13,13 @@ class MarketplaceThemesTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** Every first-party storefront theme, as shipped in resources/themes/storefront. */
+    private const KEYS = ['bazaar', 'fresh', 'naseem', 'sahra', 'techno'];
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed(ThemeSeeder::class); // registers default (1.0.0, 1.1.0) + aurora
+        $this->seed(ThemeSeeder::class); // registers the five first-party storefront themes
     }
 
     private function auth(): self
@@ -30,38 +33,43 @@ class MarketplaceThemesTest extends TestCase
     {
         $res = $this->auth()->getJson('/api/v1/marketplace/themes')->assertOk();
         $keys = array_column($res->json('data'), 'key');
-        $this->assertContains('default', $keys);
-        $this->assertContains('aurora', $keys);
-        $this->assertContains('modern', $res->json('categories'));
+        sort($keys);
+        $this->assertSame(self::KEYS, $keys);
         $this->assertContains('general', $res->json('categories'));
+        $this->assertContains('luxury', $res->json('categories'));
+        $this->assertContains('electronics', $res->json('categories'));
     }
 
     public function test_featured_filter_returns_featured_themes(): void
     {
         $res = $this->auth()->getJson('/api/v1/marketplace/themes?filter=featured')->assertOk();
         $keys = array_column($res->json('data'), 'key');
-        $this->assertContains('aurora', $keys);       // aurora is featured
-        $this->assertNotContains('default', $keys);   // default is not featured
+        $this->assertContains('naseem', $keys);      // featured
+        $this->assertContains('sahra', $keys);       // featured
+        $this->assertNotContains('techno', $keys);   // not featured
+        $this->assertNotContains('fresh', $keys);    // not featured
     }
 
     public function test_category_filter(): void
     {
-        $res = $this->auth()->getJson('/api/v1/marketplace/themes?category=modern')->assertOk();
-        $this->assertSame(['aurora'], array_column($res->json('data'), 'key'));
+        $res = $this->auth()->getJson('/api/v1/marketplace/themes?category=luxury')->assertOk();
+        $this->assertSame(['sahra'], array_column($res->json('data'), 'key'));
     }
 
     public function test_theme_detail_exposes_versions_and_compatibility(): void
     {
-        $res = $this->auth()->getJson('/api/v1/marketplace/themes/default')->assertOk();
+        $res = $this->auth()->getJson('/api/v1/marketplace/themes/naseem')->assertOk();
+        $this->assertSame('naseem', $res->json('theme.key'));
         $versions = array_column($res->json('versions'), 'version');
-        $this->assertContains('1.0.0', $versions);
-        $this->assertContains('1.1.0', $versions);
-        $this->assertArrayHasKey('min_platform_version', $res->json('versions')[0]);
+        $this->assertSame(['1.0.0'], $versions);
+        $this->assertSame('1.0.0', $res->json('versions.0.min_platform_version'));
+        $this->assertContains('rtl', $res->json('versions.0.supported_features'));
     }
 
     public function test_unpublished_theme_is_not_visible(): void
     {
-        Theme::where('key', 'aurora')->update(['status' => 'draft']);
-        $this->auth()->getJson('/api/v1/marketplace/themes/aurora')->assertNotFound();
+        Theme::where('key', 'bazaar')->update(['status' => 'draft']);
+        $this->auth()->getJson('/api/v1/marketplace/themes/bazaar')->assertNotFound();
+        $this->assertNotContains('bazaar', array_column($this->auth()->getJson('/api/v1/marketplace/themes')->json('data'), 'key'));
     }
 }
