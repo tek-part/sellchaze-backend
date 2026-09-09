@@ -19,52 +19,69 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     environment: production
     env:
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USERNAME }}
+      SSH_FINGERPRINT: ${{ secrets.SSH_HOST_FINGERPRINT }}
 
     steps:
+      # The host's brute-force protection (cPHulk) periodically locks SSH for everyone after
+      # bots fail against root. Instead of failing the deploy, wait the lockout out: every SSH
+      # step below retries for up to ~25 minutes. The host key is pinned to SSH_HOST_FINGERPRINT.
+      - name: Prepare SSH (pinned host key, waits out lockouts)
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          for i in $(seq 1 50); do
+            ssh-keyscan -T 15 -p 22 "$SSH_HOST" > ~/.ssh/scanned 2>/dev/null || true
+            if [ -s ~/.ssh/scanned ]; then break; fi
+            echo "attempt $i: host not accepting SSH yet (lockout?) — retrying in 30s"; sleep 30
+          done
+          test -s ~/.ssh/scanned || { echo "SSH never became available"; exit 1; }
+          if ssh-keygen -lf ~/.ssh/scanned | grep -qF "$SSH_FINGERPRINT" \
+             || ssh-keygen -E md5 -lf ~/.ssh/scanned | grep -qF "$SSH_FINGERPRINT"; then
+            cp ~/.ssh/scanned ~/.ssh/known_hosts
+          else
+            echo "Host key fingerprint mismatch:"; ssh-keygen -lf ~/.ssh/scanned; exit 1
+          fi
+
       - name: Deploy Backend to Production
-        uses: appleboy/ssh-action@v1.2.0
-
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
-          port: 22
-          command_timeout: 30m
-          script_stop: true
-          envs: DEPLOY_SHA
-
-          script: |
-            set -e
-
-            APP_DIR=/home/sellchaze/public_html/api.sellchaze.com
-            PHP_BIN=/opt/cpanel/ea-php83/root/usr/bin/php
-
-            printf '%s\n' "$DEPLOY_SHA" | grep -Eq '^[0-9a-f]{40}$'
-            test -x "$PHP_BIN"
-
-            cd "$APP_DIR"
-            if [ ! -d .git ]; then
-              git init
-              git remote add origin https://github.com/tek-part/sellchaze-backend.git
-            fi
-
-            git fetch --prune origin main
-            git cat-file -e "${DEPLOY_SHA}^{commit}"
-            git reset --hard "$DEPLOY_SHA"
-
-            "$PHP_BIN" /usr/local/bin/composer install --no-dev --optimize-autoloader
-
-            "$PHP_BIN" artisan migrate --force
-
-            # Register/refresh storefront theme manifests (idempotent).
-            "$PHP_BIN" artisan themes:register
-            "$PHP_BIN" artisan themes:prune-legacy
-
-            "$PHP_BIN" artisan optimize
-
-            "$PHP_BIN" artisan queue:restart || true
+        run: |
+          set -e
+          cat > remote.sh <<'REMOTE'
+          set -e
+          APP_DIR=/home/sellchaze/public_html/api.sellchaze.com
+          PHP_BIN=/opt/cpanel/ea-php83/root/usr/bin/php
+          printf '%s\n' "$DEPLOY_SHA" | grep -Eq '^[0-9a-f]{40}$'
+          test -x "$PHP_BIN"
+          cd "$APP_DIR"
+          if [ ! -d .git ]; then
+            git init
+            git remote add origin https://github.com/tek-part/sellchaze-backend.git
+          fi
+          git fetch --prune origin main
+          git cat-file -e "${DEPLOY_SHA}^{commit}"
+          git reset --hard "$DEPLOY_SHA"
+          "$PHP_BIN" /usr/local/bin/composer install --no-dev --optimize-autoloader
+          "$PHP_BIN" artisan migrate --force
+          # Register/refresh storefront theme manifests, then retire legacy themes (idempotent).
+          "$PHP_BIN" artisan themes:register
+          "$PHP_BIN" artisan themes:prune-legacy
+          "$PHP_BIN" artisan optimize
+          "$PHP_BIN" artisan queue:restart || true
+          echo "Deployed $DEPLOY_SHA"
+          REMOTE
+          OPTS="-i $HOME/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15"
+          # Retry only on SSH connection failures (exit 255), for ~25 minutes.
+          for i in $(seq 1 50); do
+            if ssh $OPTS -p 22 "$SSH_USER@$SSH_HOST" DEPLOY_SHA="$DEPLOY_SHA" 'bash -s' < remote.sh; then exit 0; fi
+            rc=$?; [ "$rc" -eq 255 ] || exit "$rc"
+            echo "attempt $i: connection failed — retrying in 30s"; sleep 30
+          done
+          echo "SSH never became available"; exit 1
