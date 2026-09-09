@@ -152,6 +152,14 @@ return [
          * Phase 4B: React SSR runtime endpoint (Node service). When null/empty,
          * the storefront renders via the Blade section fallback (Hybrid).
          */
+        /*
+         | React storefront shell served on tenant hosts (copied from the frontend build's
+         | storefront.html by the frontend deploy). When the file is missing, the Blade
+         | fallback renders instead. spa_origin = where the SPA bundles are hosted.
+         */
+        'spa_shell' => env('SELLCHASE_STOREFRONT_SPA_SHELL', storage_path('app/storefront/shell.html')),
+        'spa_origin' => env('SELLCHASE_STOREFRONT_SPA_ORIGIN', env('FRONTEND_URL', 'https://sellchaze.com')),
+
         'ssr_url' => env('SELLCHASE_STOREFRONT_SSR_URL'),
         'ssr_timeout' => (int) env('SELLCHASE_STOREFRONT_SSR_TIMEOUT', 2),
 

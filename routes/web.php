@@ -63,5 +63,9 @@ Route::middleware('auth')->group(function () {
     Route::get('invitations', [InvitationsController::class, 'index'])->name('invitations.index');
 });
 
+// Any other GET on a resolved tenant host is a React-storefront route (cart, checkout,
+// account, search, …). Registered as a fallback so it never shadows the app-host routes.
+Route::fallback([StorefrontPageController::class, 'spa'])->middleware(['resolve.store', 'storefront.locale']);
+
 // "/" is handled host-agnostically by StorefrontPageController@root above:
 // resolved store -> storefront homepage; main domain -> app welcome JSON.

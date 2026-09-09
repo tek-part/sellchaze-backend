@@ -67,6 +67,23 @@ class StorefrontPageController extends Controller
         return $this->renderTemplate($request, $store, 'home');
     }
 
+    /**
+     * Fallback for every other GET on a tenant host (cart, checkout, account, search, …): the
+     * React storefront owns client-side routing, so serve the shell with the store's SEO defaults.
+     */
+    public function spa(Request $request): Response
+    {
+        abort_unless($request->isMethod('GET') || $request->isMethod('HEAD'), 404);
+        abort_if($request->is('api/*') || $request->is('api'), 404, 'Not found.');
+        $store = $this->store($request);
+        abort_unless($this->renderer->usesSpaShell(), 404, 'Not found.');
+
+        $context = $this->builder->build($store, 'home');
+        abort_if($context === null, 404, 'Store not found.');
+
+        return $this->publicResponse($this->renderer->render($request, $context), $context);
+    }
+
     private function isAppHost(string $host): bool
     {
         $host = strtolower($host);
@@ -232,7 +249,7 @@ class StorefrontPageController extends Controller
             'ETag' => $etag,
             'Vary' => 'Accept-Encoding, Accept-Language',
             'Surrogate-Key' => 'store-'.($context['store']['id'] ?? 0).' theme-'.($context['theme']['theme_version_id'] ?? 0),
-            'X-Storefront-Renderer' => str_contains($html, 'data-rendered-by="blade"') ? 'blade-fallback' : 'ssr',
+            'X-Storefront-Renderer' => str_contains($html, 'data-rendered-by="spa"') ? 'spa' : (str_contains($html, 'data-rendered-by="blade"') ? 'blade-fallback' : 'ssr'),
         ]);
     }
 }

@@ -18,7 +18,10 @@ use Illuminate\Support\Facades\View;
  */
 class StorefrontRenderer
 {
-    public function __construct(private readonly StorefrontPageCache $cache) {}
+    public function __construct(
+        private readonly StorefrontPageCache $cache,
+        private readonly SpaShell $shell,
+    ) {}
 
     public function render(Request $request, array $context): string
     {
@@ -27,6 +30,12 @@ class StorefrontRenderer
         $key = $this->cache->key($context, $path, $locale);
 
         return $this->cache->remember($key, fn () => $this->renderHtml($context));
+    }
+
+    /** True when tenant hosts are served by the React storefront shell. */
+    public function usesSpaShell(): bool
+    {
+        return config('sellchase.storefront.ssr_url', '') === '' && $this->shell->available();
     }
 
     /** Uncached render — used for owner theme preview (never touches the page cache). */
@@ -52,6 +61,13 @@ class StorefrontRenderer
             } catch (\Throwable $e) {
                 Log::warning('Storefront SSR unreachable; falling back to Blade: '.$e->getMessage());
             }
+        }
+
+        // React storefront: the SPA shell (deployed by the frontend) renders every theme and
+        // section on the client from /api/v1/storefront/*; the Blade fallback below only knows
+        // the legacy section types.
+        if ($this->shell->available()) {
+            return $this->shell->render($context);
         }
 
         // Hybrid fallback: server-rendered Blade, section-driven from the same context.
