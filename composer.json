@@ -14,7 +14,7 @@
         "laravel/socialite": "^5.25",
         "laravel/tinker": "^3.0",
         "openspout/openspout": "^4.28",
-        "predis/predis": "3.0",
+        "predis/predis": "^3.3",
         "pusher/pusher-php-server": "^7.2",
         "rinvex/countries": "^9.0",
         "spatie/laravel-html": "^3.7",

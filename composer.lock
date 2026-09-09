@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8a6085a9e2050e2be9d497cf76fd76b9",
+    "content-hash": "891843cfb30c14d8a49099550d5cba15",
     "packages": [
         {
             "name": "brick/math",
@@ -3370,16 +3370,16 @@
         },
         {
             "name": "predis/predis",
-            "version": "v3.0.0",
+            "version": "v3.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/predis/predis.git",
-                "reference": "7d86f7afb37940bfc7aaa2909147616881377667"
+                "reference": "2ff20c08bb63697245ffee3f198d1673086c302d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/predis/predis/zipball/7d86f7afb37940bfc7aaa2909147616881377667",
-                "reference": "7d86f7afb37940bfc7aaa2909147616881377667",
+                "url": "https://api.github.com/repos/predis/predis/zipball/2ff20c08bb63697245ffee3f198d1673086c302d",
+                "reference": "2ff20c08bb63697245ffee3f198d1673086c302d",
                 "shasum": ""
             },
             "require": {
@@ -3421,7 +3421,7 @@
             ],
             "support": {
                 "issues": "https://github.com/predis/predis/issues",
-                "source": "https://github.com/predis/predis/tree/v3.0.0"
+                "source": "https://github.com/predis/predis/tree/v3.6.0"
             },
             "funding": [
                 {
@@ -3429,7 +3429,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-05-02T23:18:59+00:00"
+            "time": "2026-08-14T23:07:56+00:00"
         },
         {
             "name": "psr/clock",
