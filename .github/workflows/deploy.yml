@@ -109,8 +109,13 @@ jobs:
           OPTS="-i $HOME/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15"
           # Retry only on SSH connection failures (exit 255), for ~25 minutes.
           for i in $(seq 1 100); do
-            if ssh $OPTS -p 22 "$SSH_USER@$SSH_HOST" DEPLOY_SHA="$DEPLOY_SHA" 'bash -s' < remote.sh; then exit 0; fi
-            rc=$?; [ "$rc" -eq 255 ] || exit "$rc"
+            # Capture ssh's own exit status (after an `if` statement `$?` would be the if's, i.e. 0).
+            if ssh $OPTS -p 22 "$SSH_USER@$SSH_HOST" DEPLOY_SHA="$DEPLOY_SHA" 'bash -s' < remote.sh; then
+              exit 0
+            else
+              rc=$?
+            fi
+            [ "$rc" -eq 255 ] || exit "$rc"
             echo "attempt $i: connection failed — retrying in 30s"; sleep 30
           done
           echo "SSH never became available"; exit 1
