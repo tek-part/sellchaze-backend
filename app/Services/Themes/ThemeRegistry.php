@@ -133,9 +133,10 @@ class ThemeRegistry
     }
 
     /**
-     * A sections_schema entry: `{label, description?, category?, icon?, settings[], presets?}`.
-     * Extra descriptive keys are allowed (the frontend section library generates them);
-     * only the shape of `settings` and each field's `options`/`item` is enforced.
+     * A sections_schema entry: `{label, description?, category?, icon?, settings[], presets?,
+     * variants?, blocks?, style?}` (contract §2 + §7). Extra descriptive keys are allowed
+     * (the frontend section library generates them); only the shape of `settings`, each
+     * field's `options`/`item`, and the §7 composition keys is enforced.
      *
      * @return string[]
      */
@@ -145,13 +146,118 @@ class ThemeRegistry
             return ["section '{$type}' must be an object"];
         }
         $errors = [];
+        $where = "section '{$type}'";
         if (array_key_exists('settings', $definition) && ! is_array($definition['settings'])) {
-            $errors[] = "section '{$type}' settings must be a list of fields";
+            $errors[] = "{$where} settings must be a list of fields";
 
             return $errors;
         }
         foreach (($definition['settings'] ?? []) as $field) {
-            array_push($errors, ...$this->validateField("section '{$type}'", $field));
+            array_push($errors, ...$this->validateField($where, $field));
+        }
+        if (array_key_exists('variants', $definition)) {
+            array_push($errors, ...$this->validateVariants($where, $definition['variants']));
+        }
+        if (array_key_exists('blocks', $definition)) {
+            array_push($errors, ...$this->validateBlocks($where, $definition['blocks']));
+        }
+        if (array_key_exists('style', $definition) && ! is_bool($definition['style'])) {
+            $errors[] = "{$where} style must be a boolean";
+        }
+
+        return $errors;
+    }
+
+    /**
+     * `variants: {field: string, options: [{value, label, description?, icon?}]}`.
+     *
+     * @return string[]
+     */
+    private function validateVariants(string $where, mixed $variants): array
+    {
+        if (! is_array($variants)) {
+            return ["{$where} variants must be an object"];
+        }
+        $errors = [];
+        if (! isset($variants['field']) || ! is_string($variants['field']) || $variants['field'] === '') {
+            $errors[] = "{$where} variants.field must be a non-empty string";
+        }
+        if (! isset($variants['options']) || ! is_array($variants['options']) || $variants['options'] === []) {
+            $errors[] = "{$where} variants.options must be a non-empty list";
+
+            return $errors;
+        }
+        foreach ($variants['options'] as $index => $option) {
+            if (! is_array($option) || ! isset($option['value']) || ! is_scalar($option['value']) || ! isset($option['label']) || ! is_string($option['label'])) {
+                $errors[] = "{$where} variants.options[{$index}] must be a {value,label} object";
+
+                continue;
+            }
+            foreach (['description', 'icon'] as $optional) {
+                if (array_key_exists($optional, $option) && ! is_string($option[$optional])) {
+                    $errors[] = "{$where} variants.options[{$index}] {$optional} must be a string";
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * `blocks: {types: [{type, label, icon?, settings: SettingField[], limit?}], min?, max?}`.
+     * Block settings follow exactly the section-field rules (types, option shapes, list items).
+     *
+     * @return string[]
+     */
+    private function validateBlocks(string $where, mixed $blocks): array
+    {
+        if (! is_array($blocks)) {
+            return ["{$where} blocks must be an object"];
+        }
+        $errors = [];
+        foreach (['min', 'max'] as $bound) {
+            if (array_key_exists($bound, $blocks) && (! is_int($blocks[$bound]) || $blocks[$bound] < 0)) {
+                $errors[] = "{$where} blocks.{$bound} must be a non-negative integer";
+            }
+        }
+        if (is_int($blocks['min'] ?? null) && is_int($blocks['max'] ?? null) && $blocks['min'] > $blocks['max']) {
+            $errors[] = "{$where} blocks.min must not exceed blocks.max";
+        }
+        if (! isset($blocks['types']) || ! is_array($blocks['types']) || ! array_is_list($blocks['types'])) {
+            $errors[] = "{$where} blocks.types must be a list of block types";
+
+            return $errors;
+        }
+        $seen = [];
+        foreach ($blocks['types'] as $index => $block) {
+            if (! is_array($block) || ! isset($block['type']) || ! is_string($block['type']) || $block['type'] === '') {
+                $errors[] = "{$where} blocks.types[{$index}] must have a string type";
+
+                continue;
+            }
+            $blockType = $block['type'];
+            $blockWhere = "{$where} block '{$blockType}'";
+            if (isset($seen[$blockType])) {
+                $errors[] = "{$blockWhere} is declared more than once";
+            }
+            $seen[$blockType] = true;
+            if (! isset($block['label']) || ! is_string($block['label'])) {
+                $errors[] = "{$blockWhere} must have a string label";
+            }
+            if (array_key_exists('icon', $block) && ! is_string($block['icon'])) {
+                $errors[] = "{$blockWhere} icon must be a string";
+            }
+            if (array_key_exists('limit', $block) && (! is_int($block['limit']) || $block['limit'] < 0)) {
+                $errors[] = "{$blockWhere} limit must be a non-negative integer";
+            }
+            if (! isset($block['settings']) || ! is_array($block['settings']) || ! array_is_list($block['settings'])) {
+                $errors[] = "{$blockWhere} settings must be a list of fields";
+
+                continue;
+            }
+            foreach ($block['settings'] as $field) {
+                array_push($errors, ...$this->validateField($blockWhere, $field));
+            }
         }
 
         return $errors;

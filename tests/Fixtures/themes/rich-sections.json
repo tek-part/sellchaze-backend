@@ -41,12 +41,55 @@
           ] }
       ]
     },
-    "product-grid": { "label": "Product grid", "category": "products", "settings": [ { "id": "limit", "type": "number", "label": "Limit", "default": 8 } ] },
+    "product-grid": { "label": "Product grid", "category": "products", "style": false, "settings": [ { "id": "limit", "type": "number", "label": "Limit", "default": 8 } ] },
+    "testimonials": {
+      "label": "Testimonials",
+      "description": "Customer quotes with an optional call to action",
+      "category": "social-proof",
+      "icon": "HiOutlineChatBubbleLeftRight",
+      "style": true,
+      "variants": {
+        "field": "layout",
+        "options": [
+          { "value": "grid", "label": "Grid", "description": "Cards side by side", "icon": "HiOutlineSquares2X2" },
+          { "value": "carousel", "label": "Carousel", "icon": "HiOutlineArrowsRightLeft" }
+        ]
+      },
+      "blocks": {
+        "min": 1,
+        "max": 3,
+        "types": [
+          { "type": "quote", "label": "Quote", "icon": "HiOutlineChatBubbleLeft", "settings": [
+            { "id": "text", "type": "textarea", "label": "Quote", "translatable": true, "default": { "en": "Great store", "ar": "متجر رائع" } },
+            { "id": "author", "type": "text", "label": "Author", "default": "" },
+            { "id": "rating", "type": "range", "label": "Rating", "default": 5, "min": 1, "max": 5 },
+            { "id": "tags", "type": "list", "label": "Tags", "max": 2, "default": [], "item": [ { "id": "label", "type": "text", "label": "Label" } ] }
+          ] },
+          { "type": "cta", "label": "Call to action", "limit": 1, "settings": [
+            { "id": "label", "type": "text", "label": "Label", "translatable": true, "default": "Shop now" },
+            { "id": "style", "type": "select", "label": "Style", "default": "primary", "options": [ { "value": "primary", "label": "Primary" }, { "value": "ghost", "label": "Ghost" } ] }
+          ] }
+        ]
+      },
+      "settings": [
+        { "id": "heading", "type": "text", "label": "Heading", "translatable": true, "default": { "en": "What customers say", "ar": "آراء العملاء" } },
+        { "id": "layout", "type": "select", "label": "Layout", "default": "grid", "options": [ { "value": "grid", "label": "Grid" }, { "value": "carousel", "label": "Carousel" } ] },
+        { "id": "quotes", "type": "list", "label": "Quotes (legacy)", "default": [], "item": [ { "id": "text", "type": "text", "label": "Text" } ] }
+      ]
+    },
     "category-header": { "label": "Category header", "category": "categories", "settings": [] },
     "product-details": { "label": "Product details", "category": "products", "settings": [] }
   },
   "templates": {
-    "home": { "sections": [ { "type": "hero", "settings": { "headline": { "en": "Rich home", "ar": "رئيسية" } } }, { "type": "feature-list" }, { "type": "product-grid", "settings": { "limit": 4 } } ] },
+    "home": { "sections": [
+      { "type": "hero", "settings": { "headline": { "en": "Rich home", "ar": "رئيسية" } } },
+      { "type": "feature-list" },
+      { "type": "product-grid", "settings": { "limit": 4 } },
+      { "type": "testimonials", "settings": { "layout": "carousel", "blocks": [
+        { "id": "b_seed_1", "type": "quote", "settings": { "author": "Sara" } },
+        { "type": "cta", "settings": { "style": "ghost" } }
+      ] } }
+    ] },
     "product": { "sections": [ { "type": "product-details" } ] },
     "category": { "sections": [ { "type": "category-header" }, { "type": "product-grid" } ] }
   }

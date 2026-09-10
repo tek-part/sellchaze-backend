@@ -169,7 +169,7 @@ class StorePageService
                     'store_page_id' => $page->id,
                     'store_id' => $page->store_id,
                     'type' => $type,
-                    'settings' => $this->sections->sanitizeSettings($schema[$type]['settings'] ?? [], $section['settings'] ?? []),
+                    'settings' => $this->sections->sanitizeSectionSettings(is_array($schema[$type] ?? null) ? $schema[$type] : [], is_array($section['settings'] ?? null) ? $section['settings'] : []),
                     'reusable_section_id' => $section['reusable_section_id'] ?? null,
                     'position' => $position++,
                     'is_visible' => $section['is_visible'] ?? true,

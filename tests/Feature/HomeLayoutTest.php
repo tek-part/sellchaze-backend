@@ -278,7 +278,10 @@ class HomeLayoutTest extends TestCase
         $this->assertSame('hero', $version->sections_schema['hero']['category']);
         $this->assertSame('HiOutlineSparkles', $version->sections_schema['feature-list']['icon']);
         $this->assertSame('start', $version->sections_schema['hero']['settings'][1]['options'][0]['value']);
-        $this->assertSame(5, count($version->sections_schema));
+        $this->assertSame(6, count($version->sections_schema));
+        $this->assertSame('layout', $version->sections_schema['testimonials']['variants']['field']);
+        $this->assertSame('cta', $version->sections_schema['testimonials']['blocks']['types'][1]['type']);
+        $this->assertFalse($version->sections_schema['product-grid']['style']);
 
         // Discovery covers every shipped manifest; `--only` narrows it; both are idempotent.
         $this->artisan('themes:register', ['--only' => 'naseem'])->assertExitCode(0);
