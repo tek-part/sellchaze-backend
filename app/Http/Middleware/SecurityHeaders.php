@@ -35,8 +35,7 @@ class SecurityHeaders
         ."style-src 'self' 'unsafe-inline' https:; "
         ."script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; "
         ."font-src 'self' data: https:; "
-        ."connect-src 'self' https: wss:; "
-        ."frame-ancestors 'self'";
+        ."connect-src 'self' https: wss:";
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -56,7 +55,12 @@ class SecurityHeaders
         }
 
         if (! $response->headers->has('Content-Security-Policy-Report-Only')) {
-            $response->headers->set('Content-Security-Policy-Report-Only', self::CSP_REPORT_ONLY);
+            // Same frame-ancestors list as the enforced policy, so dashboard previews of the
+            // storefront do not log spurious report-only violations in the console.
+            $response->headers->set(
+                'Content-Security-Policy-Report-Only',
+                self::CSP_REPORT_ONLY.'; frame-ancestors '.implode(' ', $this->frameAncestors()),
+            );
         }
 
         return $response;
