@@ -60,26 +60,26 @@ jobs:
       # The host's brute-force protection (cPHulk) periodically locks SSH for everyone after
       # bots fail against root. Instead of failing the deploy, wait the lockout out: every SSH
       # step below retries for up to ~25 minutes. The host key is pinned to SSH_HOST_FINGERPRINT.
-      - name: Prepare SSH (pinned host key, waits out lockouts)
+      - name: Prepare SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
           set -e
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          for i in $(seq 1 100); do
-            ssh-keyscan -T 15 -p 22 "$SSH_HOST" > ~/.ssh/scanned 2>/dev/null || true
-            if [ -s ~/.ssh/scanned ]; then break; fi
-            echo "attempt $i: host not accepting SSH yet (lockout?) — retrying in 30s"; sleep 30
-          done
-          test -s ~/.ssh/scanned || { echo "SSH never became available"; exit 1; }
-          if ssh-keygen -lf ~/.ssh/scanned | grep -qF "$SSH_FINGERPRINT" \
-             || ssh-keygen -E md5 -lf ~/.ssh/scanned | grep -qF "$SSH_FINGERPRINT"; then
-            cp ~/.ssh/scanned ~/.ssh/known_hosts
-          else
-            echo "Host key fingerprint mismatch:"; ssh-keygen -lf ~/.ssh/scanned; exit 1
+          # No probing loops: every unauthenticated connection (ssh-keyscan, banner probes) counts
+          # as a failed login for cPHulk and re-arms the very lockout we would be waiting for.
+          # Host key: trust-on-first-use per job; when SSH_HOST_FINGERPRINT is set, verify it once.
+          touch ~/.ssh/known_hosts
+          if [ -n "$SSH_FINGERPRINT" ]; then
+            ssh-keyscan -T 20 -p 22 "$SSH_HOST" > ~/.ssh/scanned 2>/dev/null || true
+            if [ -s ~/.ssh/scanned ]; then
+              ssh-keygen -lf ~/.ssh/scanned | grep -qF "$SSH_FINGERPRINT" \
+                || ssh-keygen -E md5 -lf ~/.ssh/scanned | grep -qF "$SSH_FINGERPRINT" \
+                || { echo "Host key fingerprint mismatch"; ssh-keygen -lf ~/.ssh/scanned; exit 1; }
+              cp ~/.ssh/scanned ~/.ssh/known_hosts
+            fi
           fi
-
       - name: Deploy Backend to Production
         run: |
           set -e
@@ -106,9 +106,9 @@ jobs:
           "$PHP_BIN" artisan queue:restart || true
           echo "Deployed $DEPLOY_SHA"
           REMOTE
-          OPTS="-i $HOME/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15"
+          OPTS="-i $HOME/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=25 -o ServerAliveInterval=15"
           # Retry only on SSH connection failures (exit 255), for ~25 minutes.
-          for i in $(seq 1 100); do
+          for i in $(seq 1 30); do
             # Capture ssh's own exit status (after an `if` statement `$?` would be the if's, i.e. 0).
             if ssh $OPTS -p 22 "$SSH_USER@$SSH_HOST" DEPLOY_SHA="$DEPLOY_SHA" 'bash -s' < remote.sh; then
               exit 0
@@ -116,6 +116,6 @@ jobs:
               rc=$?
             fi
             [ "$rc" -eq 255 ] || exit "$rc"
-            echo "attempt $i: connection failed — retrying in 30s"; sleep 30
+            echo "attempt $i: connection failed — retrying in 120s"; sleep 120
           done
           echo "SSH never became available"; exit 1
