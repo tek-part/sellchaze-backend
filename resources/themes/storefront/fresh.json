@@ -31,7 +31,7 @@
           "id": "primary_color",
           "type": "color",
           "label": "Primary",
-          "default": "#16A34A",
+          "default": "#15803D",
           "hint": "Buttons, links, quick-add, active states."
         },
         {
@@ -58,7 +58,7 @@
           "id": "sale_color",
           "type": "color",
           "label": "Sale / discount",
-          "default": "#EF4444"
+          "default": "#DC2626"
         }
       ]
     },
@@ -267,6 +267,34 @@
       "category": "hero",
       "settings": [
         {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "slider",
+          "options": [
+            {
+              "value": "slider",
+              "label": "Slider"
+            },
+            {
+              "value": "split",
+              "label": "Split"
+            },
+            {
+              "value": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "value": "video",
+              "label": "Video"
+            },
+            {
+              "value": "full-bleed-compact",
+              "label": "Compact banner"
+            }
+          ]
+        },
+        {
           "id": "slides",
           "type": "list",
           "label": "Slides",
@@ -274,6 +302,7 @@
             {
               "image": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1920&h=900&q=80",
               "mobile_image": "",
+              "video": "",
               "eyebrow": {
                 "ar": "تشكيلة الموسم",
                 "en": "This season"
@@ -291,12 +320,15 @@
                 "en": "Shop now"
               },
               "cta_url": "/shop",
+              "cta2_label": "",
+              "cta2_url": "",
               "align": "start",
               "overlay": 35
             },
             {
               "image": "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1920&h=900&q=80",
               "mobile_image": "",
+              "video": "",
               "eyebrow": {
                 "ar": "عروض محدودة",
                 "en": "Limited offers"
@@ -314,6 +346,8 @@
                 "en": "See the deals"
               },
               "cta_url": "/collections/best-sellers",
+              "cta2_label": "",
+              "cta2_url": "",
               "align": "center",
               "overlay": 40
             }
@@ -332,6 +366,12 @@
               "label": "Mobile image",
               "default": "",
               "hint": "Optional portrait crop for phones."
+            },
+            {
+              "id": "video",
+              "type": "url",
+              "label": "Video (MP4 / WebM)",
+              "default": ""
             },
             {
               "id": "eyebrow",
@@ -368,6 +408,19 @@
               "default": "/shop"
             },
             {
+              "id": "cta2_label",
+              "type": "text",
+              "label": "Second button label",
+              "default": "",
+              "translatable": true
+            },
+            {
+              "id": "cta2_url",
+              "type": "url",
+              "label": "Second button link",
+              "default": ""
+            },
+            {
               "id": "align",
               "type": "select",
               "label": "Text alignment",
@@ -397,7 +450,13 @@
               "step": 5
             }
           ],
-          "max": 6
+          "max": 8
+        },
+        {
+          "id": "video_url",
+          "type": "url",
+          "label": "Video URL (fallback for the Video layout)",
+          "default": ""
         },
         {
           "id": "height",
@@ -462,8 +521,154 @@
           "hint": "Off = edge-to-edge."
         }
       ],
-      "description": "Rotating full-width promotional slides with headline and button.",
-      "icon": "HiOutlinePhoto"
+      "style": true,
+      "description": "Rotating promotional slides with headline and button.",
+      "icon": "HiOutlinePhoto",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "slider",
+            "label": "Slider",
+            "description": "Full-width image with text over a scrim.",
+            "icon": "HiOutlinePhoto"
+          },
+          {
+            "value": "split",
+            "label": "Split",
+            "description": "Image on one side, text on the other.",
+            "icon": "HiOutlineViewColumns"
+          },
+          {
+            "value": "minimal",
+            "label": "Minimal",
+            "description": "Text on the surface, no image.",
+            "icon": "HiOutlineBars3CenterLeft"
+          },
+          {
+            "value": "video",
+            "label": "Video",
+            "description": "A looping muted video behind the text.",
+            "icon": "HiOutlinePlayCircle"
+          },
+          {
+            "value": "full-bleed-compact",
+            "label": "Compact banner",
+            "description": "Short edge-to-edge banner.",
+            "icon": "HiOutlineRectangleStack"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "slide",
+            "label": "Slide",
+            "settings": [
+              {
+                "id": "image",
+                "type": "image",
+                "label": "Image",
+                "default": "",
+                "hint": "Recommended 1920×800."
+              },
+              {
+                "id": "mobile_image",
+                "type": "image",
+                "label": "Mobile image",
+                "default": "",
+                "hint": "Optional portrait crop for phones."
+              },
+              {
+                "id": "video",
+                "type": "url",
+                "label": "Video (MP4 / WebM)",
+                "default": ""
+              },
+              {
+                "id": "eyebrow",
+                "type": "text",
+                "label": "Eyebrow",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "heading",
+                "type": "text",
+                "label": "Heading",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "text",
+                "type": "textarea",
+                "label": "Text",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "cta_label",
+                "type": "text",
+                "label": "Button label",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "cta_url",
+                "type": "url",
+                "label": "Button link",
+                "default": "/shop"
+              },
+              {
+                "id": "cta2_label",
+                "type": "text",
+                "label": "Second button label",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "cta2_url",
+                "type": "url",
+                "label": "Second button link",
+                "default": ""
+              },
+              {
+                "id": "align",
+                "type": "select",
+                "label": "Text alignment",
+                "default": "start",
+                "options": [
+                  {
+                    "value": "start",
+                    "label": "Start"
+                  },
+                  {
+                    "value": "center",
+                    "label": "Center"
+                  },
+                  {
+                    "value": "end",
+                    "label": "End"
+                  }
+                ]
+              },
+              {
+                "id": "overlay",
+                "type": "range",
+                "label": "Overlay darkness",
+                "default": 35,
+                "min": 0,
+                "max": 90,
+                "step": 5
+              }
+            ],
+            "icon": "HiOutlinePhoto",
+            "limit": 8
+          }
+        ],
+        "max": 8,
+        "legacy": "slides"
+      }
     },
     "hero-banner": {
       "label": "Hero banner",
@@ -621,6 +826,7 @@
           "default": false
         }
       ],
+      "style": true,
       "description": "One large image with headline, text and up to two buttons.",
       "icon": "HiOutlineRectangleStack"
     },
@@ -628,6 +834,26 @@
       "label": "Announcement strip",
       "category": "marketing",
       "settings": [
+        {
+          "id": "mode",
+          "type": "select",
+          "label": "Display",
+          "default": "rotate",
+          "options": [
+            {
+              "value": "rotate",
+              "label": "Rotate"
+            },
+            {
+              "value": "marquee",
+              "label": "Marquee"
+            },
+            {
+              "value": "static",
+              "label": "Inline"
+            }
+          ]
+        },
         {
           "id": "items",
           "type": "list",
@@ -666,26 +892,6 @@
           "max": 6
         },
         {
-          "id": "mode",
-          "type": "select",
-          "label": "Display",
-          "default": "rotate",
-          "options": [
-            {
-              "value": "rotate",
-              "label": "Rotate one at a time"
-            },
-            {
-              "value": "marquee",
-              "label": "Scrolling marquee"
-            },
-            {
-              "value": "static",
-              "label": "Show all inline"
-            }
-          ]
-        },
-        {
           "id": "interval",
           "type": "range",
           "label": "Rotate every (s)",
@@ -709,8 +915,59 @@
           "hint": "Leave empty to use the theme colour."
         }
       ],
+      "style": true,
       "description": "A slim band of short messages — shipping, promo codes, news.",
-      "icon": "HiOutlineMegaphone"
+      "icon": "HiOutlineMegaphone",
+      "variants": {
+        "field": "mode",
+        "options": [
+          {
+            "value": "rotate",
+            "label": "Rotate",
+            "description": "One message at a time.",
+            "icon": "HiOutlineArrowPath"
+          },
+          {
+            "value": "marquee",
+            "label": "Marquee",
+            "description": "Continuous scrolling text.",
+            "icon": "HiOutlineForward"
+          },
+          {
+            "value": "static",
+            "label": "Inline",
+            "description": "All messages side by side.",
+            "icon": "HiOutlineBars3"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "message",
+            "label": "Message",
+            "settings": [
+              {
+                "id": "text",
+                "type": "text",
+                "label": "Text",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "url",
+                "type": "url",
+                "label": "Link",
+                "default": ""
+              }
+            ],
+            "icon": "HiOutlineMegaphone",
+            "limit": 6
+          }
+        ],
+        "max": 6,
+        "legacy": "items"
+      }
     },
     "category-circles": {
       "label": "Category circles",
@@ -732,6 +989,26 @@
           "label": "Subtitle",
           "default": "",
           "translatable": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "scroll",
+          "options": [
+            {
+              "value": "scroll",
+              "label": "Scroll row"
+            },
+            {
+              "value": "wrap",
+              "label": "Wrap"
+            },
+            {
+              "value": "chips",
+              "label": "Chips"
+            }
+          ]
         },
         {
           "id": "limit",
@@ -763,22 +1040,6 @@
           ]
         },
         {
-          "id": "layout",
-          "type": "select",
-          "label": "Layout",
-          "default": "scroll",
-          "options": [
-            {
-              "value": "scroll",
-              "label": "Scroll row"
-            },
-            {
-              "value": "wrap",
-              "label": "Wrap into rows"
-            }
-          ]
-        },
-        {
           "id": "show_count",
           "type": "toggle",
           "label": "Show product counts",
@@ -802,8 +1063,32 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "Round category thumbnails in a scrollable row.",
-      "icon": "HiOutlineSquares2X2"
+      "icon": "HiOutlineSquares2X2",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "scroll",
+            "label": "Scroll row",
+            "description": "Circles in one scrollable row.",
+            "icon": "HiOutlineArrowsRightLeft"
+          },
+          {
+            "value": "wrap",
+            "label": "Wrap",
+            "description": "Circles wrapped into centred rows.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "chips",
+            "label": "Chips",
+            "description": "Compact pills with a small thumbnail.",
+            "icon": "HiOutlineTag"
+          }
+        ]
+      }
     },
     "category-grid": {
       "label": "Category grid",
@@ -825,6 +1110,26 @@
           "label": "Subtitle",
           "default": "",
           "translatable": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "cards-overlay",
+          "options": [
+            {
+              "value": "cards-overlay",
+              "label": "Overlay cards"
+            },
+            {
+              "value": "tiles-with-count",
+              "label": "Tiles"
+            },
+            {
+              "value": "list",
+              "label": "List"
+            }
+          ]
         },
         {
           "id": "columns",
@@ -862,22 +1167,6 @@
           "min": 1,
           "max": 24,
           "step": 1
-        },
-        {
-          "id": "style",
-          "type": "select",
-          "label": "Tile style",
-          "default": "overlay",
-          "options": [
-            {
-              "value": "overlay",
-              "label": "Name over image"
-            },
-            {
-              "value": "below",
-              "label": "Name below image"
-            }
-          ]
         },
         {
           "id": "aspect",
@@ -931,8 +1220,32 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "Category tiles with image and name.",
-      "icon": "HiOutlineViewColumns"
+      "icon": "HiOutlineViewColumns",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "cards-overlay",
+            "label": "Overlay cards",
+            "description": "Name over the image.",
+            "icon": "HiOutlinePhoto"
+          },
+          {
+            "value": "tiles-with-count",
+            "label": "Tiles",
+            "description": "Image with name and count below.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "list",
+            "label": "List",
+            "description": "Thumbnail rows with name and count.",
+            "icon": "HiOutlineListBullet"
+          }
+        ]
+      }
     },
     "featured-products": {
       "label": "Featured products",
@@ -975,6 +1288,14 @@
             {
               "value": "carousel",
               "label": "Carousel"
+            },
+            {
+              "value": "list",
+              "label": "List"
+            },
+            {
+              "value": "featured-first",
+              "label": "Featured first"
             }
           ]
         },
@@ -1064,7 +1385,8 @@
           "step": 4
         }
       ],
-      "description": "A product collection as a grid or carousel.",
+      "style": true,
+      "description": "A product collection as a grid, carousel or list.",
       "icon": "HiOutlineShoppingBag",
       "presets": [
         {
@@ -1098,8 +1420,49 @@
             "collection": "trending",
             "layout": "carousel"
           }
+        },
+        {
+          "label": "Editor’s pick",
+          "settings": {
+            "title": {
+              "ar": "اختيارات المحرر",
+              "en": "Editor’s picks"
+            },
+            "collection": "featured",
+            "layout": "featured-first",
+            "limit": 5
+          }
         }
-      ]
+      ],
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "grid",
+            "label": "Grid",
+            "description": "Even columns of product cards.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "carousel",
+            "label": "Carousel",
+            "description": "A scrolling rail with arrows.",
+            "icon": "HiOutlineArrowsRightLeft"
+          },
+          {
+            "value": "list",
+            "label": "List",
+            "description": "Horizontal cards with more detail.",
+            "icon": "HiOutlineListBullet"
+          },
+          {
+            "value": "featured-first",
+            "label": "Featured first",
+            "description": "The first product large, the rest in a grid.",
+            "icon": "HiOutlineRectangleGroup"
+          }
+        ]
+      }
     },
     "product-tabs": {
       "label": "Product tabs",
@@ -1173,6 +1536,14 @@
             {
               "value": "carousel",
               "label": "Carousel"
+            },
+            {
+              "value": "list",
+              "label": "List"
+            },
+            {
+              "value": "featured-first",
+              "label": "Featured first"
             }
           ]
         },
@@ -1269,8 +1640,66 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "Tabs that switch between product collections.",
-      "icon": "HiOutlineTableCells"
+      "icon": "HiOutlineTableCells",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "grid",
+            "label": "Grid",
+            "description": "Even columns of product cards.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "carousel",
+            "label": "Carousel",
+            "description": "A scrolling rail with arrows.",
+            "icon": "HiOutlineArrowsRightLeft"
+          },
+          {
+            "value": "list",
+            "label": "List",
+            "description": "Horizontal cards with more detail.",
+            "icon": "HiOutlineListBullet"
+          },
+          {
+            "value": "featured-first",
+            "label": "Featured first",
+            "description": "The first product large, the rest in a grid.",
+            "icon": "HiOutlineRectangleGroup"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "tab",
+            "label": "Tab",
+            "settings": [
+              {
+                "id": "label",
+                "type": "text",
+                "label": "Tab label",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "collection",
+                "type": "collection",
+                "label": "Collection",
+                "default": "newest",
+                "hint": "newest · featured · bestsellers · sale · trending — or a collection id/slug."
+              }
+            ],
+            "icon": "HiOutlineTag",
+            "limit": 6
+          }
+        ],
+        "max": 6,
+        "legacy": "tabs"
+      }
     },
     "flash-deals": {
       "label": "Flash deals",
@@ -1300,7 +1729,7 @@
           "id": "ends_at",
           "type": "text",
           "label": "Ends at (date & time)",
-          "default": "2026-09-11T22:00",
+          "default": "2026-09-17T14:00",
           "hint": "ISO format, e.g. 2026-12-31T23:59 (store time zone)."
         },
         {
@@ -1323,6 +1752,14 @@
             {
               "value": "carousel",
               "label": "Carousel"
+            },
+            {
+              "value": "list",
+              "label": "List"
+            },
+            {
+              "value": "featured-first",
+              "label": "Featured first"
             }
           ]
         },
@@ -1429,8 +1866,38 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "A countdown timer with the products on offer.",
-      "icon": "HiOutlineBolt"
+      "icon": "HiOutlineBolt",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "grid",
+            "label": "Grid",
+            "description": "Even columns of product cards.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "carousel",
+            "label": "Carousel",
+            "description": "A scrolling rail with arrows.",
+            "icon": "HiOutlineArrowsRightLeft"
+          },
+          {
+            "value": "list",
+            "label": "List",
+            "description": "Horizontal cards with more detail.",
+            "icon": "HiOutlineListBullet"
+          },
+          {
+            "value": "featured-first",
+            "label": "Featured first",
+            "description": "The first product large, the rest in a grid.",
+            "icon": "HiOutlineRectangleGroup"
+          }
+        ]
+      }
     },
     "banner-grid": {
       "label": "Banner grid",
@@ -1442,6 +1909,34 @@
           "label": "Title",
           "default": "",
           "translatable": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "two",
+          "options": [
+            {
+              "value": "two",
+              "label": "Two across"
+            },
+            {
+              "value": "three",
+              "label": "Three across"
+            },
+            {
+              "value": "mosaic",
+              "label": "Mosaic"
+            },
+            {
+              "value": "four",
+              "label": "Four across"
+            },
+            {
+              "value": "single-wide",
+              "label": "Single wide"
+            }
+          ]
         },
         {
           "id": "banners",
@@ -1475,6 +1970,24 @@
               "title": {
                 "ar": "تشكيلة النساء",
                 "en": "Women’s edit"
+              },
+              "subtitle": "",
+              "cta_label": {
+                "ar": "تسوق",
+                "en": "Shop"
+              },
+              "link": "/shop",
+              "align": "start"
+            },
+            {
+              "image": "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=1200&h=800&q=80",
+              "eyebrow": {
+                "ar": "إكسسوارات",
+                "en": "Accessories"
+              },
+              "title": {
+                "ar": "اللمسة الأخيرة",
+                "en": "The finishing touch"
               },
               "subtitle": "",
               "cta_label": {
@@ -1547,31 +2060,7 @@
               ]
             }
           ],
-          "max": 6
-        },
-        {
-          "id": "columns",
-          "type": "select",
-          "label": "Columns",
-          "default": "2",
-          "options": [
-            {
-              "value": "1",
-              "label": "1"
-            },
-            {
-              "value": "2",
-              "label": "2"
-            },
-            {
-              "value": "3",
-              "label": "3"
-            },
-            {
-              "value": "4",
-              "label": "4"
-            }
-          ]
+          "max": 8
         },
         {
           "id": "aspect",
@@ -1638,13 +2127,598 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "Promotional image tiles with a title and link.",
-      "icon": "HiOutlineViewColumns"
+      "icon": "HiOutlineViewColumns",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "two",
+            "label": "Two across",
+            "description": "Two equal tiles per row.",
+            "icon": "HiOutlineViewColumns"
+          },
+          {
+            "value": "three",
+            "label": "Three across",
+            "description": "Three equal tiles per row.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "mosaic",
+            "label": "Mosaic",
+            "description": "One tall tile beside two stacked tiles.",
+            "icon": "HiOutlineRectangleGroup"
+          },
+          {
+            "value": "four",
+            "label": "Four across",
+            "description": "Four compact tiles per row.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "single-wide",
+            "label": "Single wide",
+            "description": "One banner spanning the full width.",
+            "icon": "HiOutlineRectangleStack"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "banner",
+            "label": "Banner",
+            "settings": [
+              {
+                "id": "image",
+                "type": "image",
+                "label": "Image",
+                "default": ""
+              },
+              {
+                "id": "eyebrow",
+                "type": "text",
+                "label": "Eyebrow",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "title",
+                "type": "text",
+                "label": "Title",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "subtitle",
+                "type": "text",
+                "label": "Subtitle",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "cta_label",
+                "type": "text",
+                "label": "Button label",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "link",
+                "type": "url",
+                "label": "Link",
+                "default": "/shop"
+              },
+              {
+                "id": "align",
+                "type": "select",
+                "label": "Text position",
+                "default": "start",
+                "options": [
+                  {
+                    "value": "start",
+                    "label": "Bottom start"
+                  },
+                  {
+                    "value": "center",
+                    "label": "Center"
+                  },
+                  {
+                    "value": "end",
+                    "label": "Bottom end"
+                  }
+                ]
+              }
+            ],
+            "icon": "HiOutlinePhoto",
+            "limit": 8
+          }
+        ],
+        "max": 8,
+        "legacy": "banners"
+      }
+    },
+    "collage": {
+      "label": "Collage",
+      "category": "marketing",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "left",
+          "options": [
+            {
+              "value": "left",
+              "label": "Large first"
+            },
+            {
+              "value": "right",
+              "label": "Large last"
+            }
+          ]
+        },
+        {
+          "id": "overlay",
+          "type": "range",
+          "label": "Overlay darkness",
+          "default": 30,
+          "min": 0,
+          "max": 80,
+          "step": 5
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "style": true,
+      "description": "A mosaic of images, video, a product and a category.",
+      "icon": "HiOutlineRectangleGroup",
+      "presets": [
+        {
+          "label": "Season collage",
+          "settings": {
+            "blocks": [
+              {
+                "id": "demo-1",
+                "type": "tile",
+                "settings": {
+                  "size": "large",
+                  "kind": "image",
+                  "image": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&h=1200&q=80",
+                  "heading": {
+                    "ar": "تشكيلة الموسم",
+                    "en": "The season edit"
+                  },
+                  "text": {
+                    "ar": "قطع مختارة لكل يوم",
+                    "en": "Hand-picked pieces for every day"
+                  },
+                  "url": "/shop"
+                }
+              },
+              {
+                "id": "demo-2",
+                "type": "tile",
+                "settings": {
+                  "size": "small",
+                  "kind": "product",
+                  "product": ""
+                }
+              },
+              {
+                "id": "demo-3",
+                "type": "tile",
+                "settings": {
+                  "size": "small",
+                  "kind": "collection",
+                  "collection": ""
+                }
+              },
+              {
+                "id": "demo-4",
+                "type": "tile",
+                "settings": {
+                  "size": "small",
+                  "kind": "image",
+                  "image": "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=900&h=900&q=80",
+                  "heading": {
+                    "ar": "وصل حديثاً",
+                    "en": "Just in"
+                  },
+                  "url": "/collections/new-arrivals"
+                }
+              },
+              {
+                "id": "demo-5",
+                "type": "tile",
+                "settings": {
+                  "size": "small",
+                  "kind": "image",
+                  "image": "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&h=900&q=80",
+                  "heading": {
+                    "ar": "الأكثر مبيعاً",
+                    "en": "Best sellers"
+                  },
+                  "url": "/collections/best-sellers"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "left",
+            "label": "Large first",
+            "description": "The large tile leads on the start side.",
+            "icon": "HiOutlineRectangleGroup"
+          },
+          {
+            "value": "right",
+            "label": "Large last",
+            "description": "The large tile sits on the end side.",
+            "icon": "HiOutlineRectangleGroup"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "tile",
+            "label": "Tile",
+            "settings": [
+              {
+                "id": "size",
+                "type": "select",
+                "label": "Size",
+                "default": "small",
+                "options": [
+                  {
+                    "value": "small",
+                    "label": "Small"
+                  },
+                  {
+                    "value": "large",
+                    "label": "Large (2×2)"
+                  }
+                ]
+              },
+              {
+                "id": "kind",
+                "type": "select",
+                "label": "Content",
+                "default": "image",
+                "options": [
+                  {
+                    "value": "image",
+                    "label": "Image"
+                  },
+                  {
+                    "value": "video",
+                    "label": "Video"
+                  },
+                  {
+                    "value": "product",
+                    "label": "Product"
+                  },
+                  {
+                    "value": "collection",
+                    "label": "Category"
+                  }
+                ]
+              },
+              {
+                "id": "image",
+                "type": "image",
+                "label": "Image",
+                "default": ""
+              },
+              {
+                "id": "video",
+                "type": "url",
+                "label": "Video (MP4 / WebM)",
+                "default": ""
+              },
+              {
+                "id": "product",
+                "type": "product",
+                "label": "Product",
+                "default": ""
+              },
+              {
+                "id": "collection",
+                "type": "category",
+                "label": "Category",
+                "default": ""
+              },
+              {
+                "id": "heading",
+                "type": "text",
+                "label": "Heading",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "text",
+                "type": "text",
+                "label": "Text",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "url",
+                "type": "url",
+                "label": "Link",
+                "default": ""
+              }
+            ],
+            "icon": "HiOutlineSquare2Stack",
+            "limit": 8
+          }
+        ],
+        "max": 8
+      }
+    },
+    "countdown-banner": {
+      "label": "Countdown banner",
+      "category": "marketing",
+      "settings": [
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "centered",
+          "options": [
+            {
+              "value": "centered",
+              "label": "Centered"
+            },
+            {
+              "value": "inline",
+              "label": "Inline"
+            },
+            {
+              "value": "image",
+              "label": "With image"
+            }
+          ]
+        },
+        {
+          "id": "eyebrow",
+          "type": "text",
+          "label": "Eyebrow",
+          "default": {
+            "ar": "لفترة محدودة",
+            "en": "Limited time"
+          },
+          "translatable": true
+        },
+        {
+          "id": "heading",
+          "type": "text",
+          "label": "Heading",
+          "default": {
+            "ar": "تخفيضات نهاية الموسم",
+            "en": "End-of-season sale"
+          },
+          "translatable": true
+        },
+        {
+          "id": "text",
+          "type": "textarea",
+          "label": "Text",
+          "default": {
+            "ar": "خصومات تصل إلى ٥٠٪ على تشكيلة مختارة — حتى انتهاء العد.",
+            "en": "Up to 50% off selected styles — until the clock runs out."
+          },
+          "translatable": true
+        },
+        {
+          "id": "ends_at",
+          "type": "text",
+          "label": "Ends at (date & time)",
+          "default": "2026-09-13T14:00",
+          "hint": "ISO format, e.g. 2026-12-31T23:59 (store time zone)."
+        },
+        {
+          "id": "image",
+          "type": "image",
+          "label": "Background image (With image layout)",
+          "default": "https://images.unsplash.com/photo-1607083206968-13611e3d76db?auto=format&fit=crop&w=1920&h=800&q=80"
+        },
+        {
+          "id": "overlay",
+          "type": "range",
+          "label": "Overlay darkness",
+          "default": 50,
+          "min": 0,
+          "max": 90,
+          "step": 5
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "primary",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
+            }
+          ]
+        },
+        {
+          "id": "hide_when_expired",
+          "type": "toggle",
+          "label": "Hide the section when the timer ends",
+          "default": true
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "style": true,
+      "description": "A promo band with a countdown and buttons.",
+      "icon": "HiOutlineClock",
+      "presets": [
+        {
+          "label": "Sale countdown",
+          "settings": {
+            "blocks": [
+              {
+                "id": "demo-1",
+                "type": "cta",
+                "settings": {
+                  "label": {
+                    "ar": "تسوق العرض",
+                    "en": "Shop the sale"
+                  },
+                  "url": "/collections/sale",
+                  "style": "primary"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "centered",
+            "label": "Centered",
+            "description": "Heading, timer and buttons stacked in the middle.",
+            "icon": "HiOutlineClock"
+          },
+          {
+            "value": "inline",
+            "label": "Inline",
+            "description": "Text on one side, timer and buttons on the other.",
+            "icon": "HiOutlineArrowsRightLeft"
+          },
+          {
+            "value": "image",
+            "label": "With image",
+            "description": "Text over a background image.",
+            "icon": "HiOutlinePhoto"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "cta",
+            "label": "Button",
+            "settings": [
+              {
+                "id": "label",
+                "type": "text",
+                "label": "Label",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "url",
+                "type": "url",
+                "label": "Link",
+                "default": "/shop"
+              },
+              {
+                "id": "style",
+                "type": "select",
+                "label": "Style",
+                "default": "primary",
+                "options": [
+                  {
+                    "value": "primary",
+                    "label": "Primary"
+                  },
+                  {
+                    "value": "secondary",
+                    "label": "Secondary"
+                  },
+                  {
+                    "value": "ghost",
+                    "label": "Ghost"
+                  }
+                ]
+              }
+            ],
+            "icon": "HiOutlineCursorArrowRays",
+            "limit": 3
+          }
+        ],
+        "max": 3
+      }
     },
     "image-with-text": {
       "label": "Image with text",
       "category": "content",
       "settings": [
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "image-left",
+          "options": [
+            {
+              "value": "image-left",
+              "label": "Image first"
+            },
+            {
+              "value": "image-right",
+              "label": "Image last"
+            },
+            {
+              "value": "overlay",
+              "label": "Overlay"
+            },
+            {
+              "value": "stacked",
+              "label": "Stacked"
+            }
+          ]
+        },
         {
           "id": "image",
           "type": "image",
@@ -1698,22 +2772,6 @@
           "default": "/about"
         },
         {
-          "id": "media_side",
-          "type": "select",
-          "label": "Image side",
-          "default": "start",
-          "options": [
-            {
-              "value": "start",
-              "label": "Start"
-            },
-            {
-              "value": "end",
-              "label": "End"
-            }
-          ]
-        },
-        {
           "id": "aspect",
           "type": "select",
           "label": "Image ratio",
@@ -1740,6 +2798,15 @@
               "label": "Portrait 3:4"
             }
           ]
+        },
+        {
+          "id": "overlay",
+          "type": "range",
+          "label": "Overlay darkness (Overlay layout)",
+          "default": 45,
+          "min": 0,
+          "max": 90,
+          "step": 5
         },
         {
           "id": "background",
@@ -1777,8 +2844,293 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "An image beside a headline, paragraph and button.",
-      "icon": "HiOutlinePhoto"
+      "icon": "HiOutlinePhoto",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "image-left",
+            "label": "Image first",
+            "description": "Image on the start side, text beside it.",
+            "icon": "HiOutlineViewColumns"
+          },
+          {
+            "value": "image-right",
+            "label": "Image last",
+            "description": "Text first, image on the end side.",
+            "icon": "HiOutlineViewColumns"
+          },
+          {
+            "value": "overlay",
+            "label": "Overlay",
+            "description": "Text over the image with a scrim.",
+            "icon": "HiOutlinePhoto"
+          },
+          {
+            "value": "stacked",
+            "label": "Stacked",
+            "description": "Image above the text, centred.",
+            "icon": "HiOutlineRectangleStack"
+          }
+        ]
+      }
+    },
+    "image-gallery": {
+      "label": "Image gallery",
+      "category": "content",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "من أجوائنا",
+            "en": "Our world"
+          },
+          "translatable": true
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "label": "Subtitle",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "grid",
+          "options": [
+            {
+              "value": "grid",
+              "label": "Grid"
+            },
+            {
+              "value": "masonry",
+              "label": "Masonry"
+            },
+            {
+              "value": "carousel",
+              "label": "Carousel"
+            }
+          ]
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "3",
+          "options": [
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            },
+            {
+              "value": "5",
+              "label": "5"
+            },
+            {
+              "value": "6",
+              "label": "6"
+            }
+          ]
+        },
+        {
+          "id": "aspect",
+          "type": "select",
+          "label": "Image ratio (Grid)",
+          "default": "square",
+          "options": [
+            {
+              "value": "auto",
+              "label": "Natural"
+            },
+            {
+              "value": "square",
+              "label": "Square 1:1"
+            },
+            {
+              "value": "landscape",
+              "label": "Landscape 4:3"
+            },
+            {
+              "value": "wide",
+              "label": "Wide 16:9"
+            },
+            {
+              "value": "portrait",
+              "label": "Portrait 3:4"
+            }
+          ]
+        },
+        {
+          "id": "show_captions",
+          "type": "toggle",
+          "label": "Show captions",
+          "default": true
+        },
+        {
+          "id": "rounded",
+          "type": "toggle",
+          "label": "Rounded corners",
+          "default": true
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "style": true,
+      "description": "A grid, masonry or carousel of images with captions.",
+      "icon": "HiOutlinePhoto",
+      "presets": [
+        {
+          "label": "Lookbook",
+          "settings": {
+            "blocks": [
+              {
+                "id": "demo-1",
+                "type": "image",
+                "settings": {
+                  "image": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&h=900&q=80",
+                  "caption": {
+                    "ar": "تفاصيل تصنع الفرق",
+                    "en": "Details that matter"
+                  },
+                  "url": ""
+                }
+              },
+              {
+                "id": "demo-2",
+                "type": "image",
+                "settings": {
+                  "image": "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=900&h=1200&q=80",
+                  "caption": {
+                    "ar": "في المتجر",
+                    "en": "In store"
+                  },
+                  "url": ""
+                }
+              },
+              {
+                "id": "demo-3",
+                "type": "image",
+                "settings": {
+                  "image": "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=900&h=900&q=80",
+                  "caption": {
+                    "ar": "تشكيلة الموسم",
+                    "en": "This season"
+                  },
+                  "url": ""
+                }
+              },
+              {
+                "id": "demo-4",
+                "type": "image",
+                "settings": {
+                  "image": "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&h=1200&q=80",
+                  "caption": "",
+                  "url": ""
+                }
+              },
+              {
+                "id": "demo-5",
+                "type": "image",
+                "settings": {
+                  "image": "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&h=900&q=80",
+                  "caption": {
+                    "ar": "من عملائنا",
+                    "en": "From our customers"
+                  },
+                  "url": ""
+                }
+              },
+              {
+                "id": "demo-6",
+                "type": "image",
+                "settings": {
+                  "image": "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=900&h=700&q=80",
+                  "caption": "",
+                  "url": ""
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "grid",
+            "label": "Grid",
+            "description": "Even tiles with one ratio.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "masonry",
+            "label": "Masonry",
+            "description": "Natural heights flowing in columns.",
+            "icon": "HiOutlineRectangleGroup"
+          },
+          {
+            "value": "carousel",
+            "label": "Carousel",
+            "description": "A scrolling rail of images.",
+            "icon": "HiOutlineArrowsRightLeft"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "image",
+            "label": "Image",
+            "settings": [
+              {
+                "id": "image",
+                "type": "image",
+                "label": "Image",
+                "default": ""
+              },
+              {
+                "id": "caption",
+                "type": "text",
+                "label": "Caption",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "url",
+                "type": "url",
+                "label": "Link",
+                "default": ""
+              }
+            ],
+            "icon": "HiOutlinePhoto",
+            "limit": 24
+          }
+        ],
+        "max": 24
+      }
     },
     "video": {
       "label": "Video",
@@ -1873,6 +3225,7 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "A YouTube, Vimeo or MP4 video with a cover image.",
       "icon": "HiOutlinePlayCircle"
     },
@@ -1880,6 +3233,26 @@
       "label": "Rich text",
       "category": "content",
       "settings": [
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "centered",
+          "options": [
+            {
+              "value": "centered",
+              "label": "Centered"
+            },
+            {
+              "value": "left",
+              "label": "Start aligned"
+            },
+            {
+              "value": "two-columns",
+              "label": "Two columns"
+            }
+          ]
+        },
         {
           "id": "eyebrow",
           "type": "text",
@@ -1908,10 +3281,336 @@
           "translatable": true
         },
         {
+          "id": "cta_label",
+          "type": "text",
+          "label": "Button label",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "cta_url",
+          "type": "url",
+          "label": "Button link",
+          "default": "/about"
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "none",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "style": true,
+      "description": "A headline and formatted paragraph text.",
+      "icon": "HiOutlineBars3BottomLeft",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "centered",
+            "label": "Centered",
+            "description": "Centred heading and text in a reading measure.",
+            "icon": "HiOutlineBars3CenterLeft"
+          },
+          {
+            "value": "left",
+            "label": "Start aligned",
+            "description": "Heading and text aligned to the start edge.",
+            "icon": "HiOutlineBars3BottomLeft"
+          },
+          {
+            "value": "two-columns",
+            "label": "Two columns",
+            "description": "Heading on one side, text flowing in two columns.",
+            "icon": "HiOutlineViewColumns"
+          }
+        ]
+      }
+    },
+    "text-with-buttons": {
+      "label": "Text with buttons",
+      "category": "content",
+      "settings": [
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "centered",
+          "options": [
+            {
+              "value": "centered",
+              "label": "Centered"
+            },
+            {
+              "value": "left",
+              "label": "Start aligned"
+            },
+            {
+              "value": "split",
+              "label": "Split"
+            }
+          ]
+        },
+        {
+          "id": "eyebrow",
+          "type": "text",
+          "label": "Eyebrow",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "heading",
+          "type": "text",
+          "label": "Heading",
+          "default": {
+            "ar": "جاهز للبدء؟",
+            "en": "Ready to start?"
+          },
+          "translatable": true
+        },
+        {
+          "id": "text",
+          "type": "textarea",
+          "label": "Text",
+          "default": {
+            "ar": "آلاف المنتجات، شحن سريع، وإرجاع بدون تعقيد.",
+            "en": "Thousands of products, fast shipping and hassle-free returns."
+          },
+          "translatable": true
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "surface",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "style": true,
+      "description": "A headline, a line of text and call-to-action buttons.",
+      "icon": "HiOutlineCursorArrowRays",
+      "presets": [
+        {
+          "label": "Call to action",
+          "settings": {
+            "blocks": [
+              {
+                "id": "demo-1",
+                "type": "button",
+                "settings": {
+                  "label": {
+                    "ar": "تسوق الآن",
+                    "en": "Shop now"
+                  },
+                  "url": "/shop",
+                  "style": "primary"
+                }
+              },
+              {
+                "id": "demo-2",
+                "type": "button",
+                "settings": {
+                  "label": {
+                    "ar": "تعرّف علينا",
+                    "en": "About us"
+                  },
+                  "url": "/about",
+                  "style": "secondary"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "centered",
+            "label": "Centered",
+            "description": "Everything centred in a reading measure.",
+            "icon": "HiOutlineBars3CenterLeft"
+          },
+          {
+            "value": "left",
+            "label": "Start aligned",
+            "description": "Text and buttons aligned to the start.",
+            "icon": "HiOutlineBars3BottomLeft"
+          },
+          {
+            "value": "split",
+            "label": "Split",
+            "description": "Text on one side, buttons on the other.",
+            "icon": "HiOutlineArrowsRightLeft"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "button",
+            "label": "Button",
+            "settings": [
+              {
+                "id": "label",
+                "type": "text",
+                "label": "Label",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "url",
+                "type": "url",
+                "label": "Link",
+                "default": "/shop"
+              },
+              {
+                "id": "style",
+                "type": "select",
+                "label": "Style",
+                "default": "primary",
+                "options": [
+                  {
+                    "value": "primary",
+                    "label": "Primary"
+                  },
+                  {
+                    "value": "secondary",
+                    "label": "Secondary"
+                  },
+                  {
+                    "value": "ghost",
+                    "label": "Ghost"
+                  }
+                ]
+              }
+            ],
+            "icon": "HiOutlineCursorArrowRays",
+            "limit": 4
+          }
+        ],
+        "max": 4
+      }
+    },
+    "multicolumn": {
+      "label": "Multicolumn",
+      "category": "content",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "لماذا تتسوق معنا",
+            "en": "Why shop with us"
+          },
+          "translatable": true
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "label": "Subtitle",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "cards",
+          "options": [
+            {
+              "value": "cards",
+              "label": "Cards"
+            },
+            {
+              "value": "plain",
+              "label": "Plain"
+            }
+          ]
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns",
+          "default": "3",
+          "options": [
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            }
+          ]
+        },
+        {
           "id": "align",
           "type": "select",
           "label": "Alignment",
-          "default": "center",
+          "default": "start",
           "options": [
             {
               "value": "start",
@@ -1928,18 +3627,22 @@
           ]
         },
         {
-          "id": "width",
+          "id": "image_shape",
           "type": "select",
-          "label": "Width",
-          "default": "narrow",
+          "label": "Image shape",
+          "default": "landscape",
           "options": [
             {
-              "value": "narrow",
-              "label": "Narrow (reading measure)"
+              "value": "landscape",
+              "label": "Landscape"
             },
             {
-              "value": "wide",
-              "label": "Full container"
+              "value": "square",
+              "label": "Square"
+            },
+            {
+              "value": "circle",
+              "label": "Circle"
             }
           ]
         },
@@ -1979,8 +3682,222 @@
           "step": 4
         }
       ],
-      "description": "A headline and formatted paragraph text.",
-      "icon": "HiOutlineBars3BottomLeft"
+      "style": true,
+      "description": "Columns of icon or image, heading, text and button.",
+      "icon": "HiOutlineViewColumns",
+      "presets": [
+        {
+          "label": "Three reasons",
+          "settings": {
+            "blocks": [
+              {
+                "id": "demo-1",
+                "type": "column",
+                "settings": {
+                  "icon": "box",
+                  "image": "",
+                  "heading": {
+                    "ar": "منتجات أصلية",
+                    "en": "Genuine products"
+                  },
+                  "text": {
+                    "ar": "نتعامل مباشرة مع العلامات التجارية والموزعين المعتمدين.",
+                    "en": "We work directly with brands and authorised distributors."
+                  },
+                  "button_label": "",
+                  "button_url": ""
+                }
+              },
+              {
+                "id": "demo-2",
+                "type": "column",
+                "settings": {
+                  "icon": "truck",
+                  "image": "",
+                  "heading": {
+                    "ar": "توصيل سريع",
+                    "en": "Fast delivery"
+                  },
+                  "text": {
+                    "ar": "نشحن خلال ٢٤ ساعة ونوصّل لجميع مدن المملكة.",
+                    "en": "Dispatched within 24 hours to every city."
+                  },
+                  "button_label": "",
+                  "button_url": ""
+                }
+              },
+              {
+                "id": "demo-3",
+                "type": "column",
+                "settings": {
+                  "icon": "heart",
+                  "image": "",
+                  "heading": {
+                    "ar": "خدمة تهتم بك",
+                    "en": "Care that shows"
+                  },
+                  "text": {
+                    "ar": "فريق دعم حقيقي يرد خلال دقائق على واتساب والبريد.",
+                    "en": "A real support team that replies within minutes."
+                  },
+                  "button_label": {
+                    "ar": "تواصل معنا",
+                    "en": "Contact us"
+                  },
+                  "button_url": "/contact"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "cards",
+            "label": "Cards",
+            "description": "Each column on its own card.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "plain",
+            "label": "Plain",
+            "description": "Open columns without borders.",
+            "icon": "HiOutlineViewColumns"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "column",
+            "label": "Column",
+            "settings": [
+              {
+                "id": "icon",
+                "type": "select",
+                "label": "Icon",
+                "default": "none",
+                "options": [
+                  {
+                    "value": "truck",
+                    "label": "Truck"
+                  },
+                  {
+                    "value": "shield",
+                    "label": "Shield"
+                  },
+                  {
+                    "value": "refresh",
+                    "label": "Refresh"
+                  },
+                  {
+                    "value": "headset",
+                    "label": "Headset"
+                  },
+                  {
+                    "value": "card",
+                    "label": "Card"
+                  },
+                  {
+                    "value": "star",
+                    "label": "Star"
+                  },
+                  {
+                    "value": "gift",
+                    "label": "Gift"
+                  },
+                  {
+                    "value": "clock",
+                    "label": "Clock"
+                  },
+                  {
+                    "value": "check",
+                    "label": "Check"
+                  },
+                  {
+                    "value": "tag",
+                    "label": "Tag"
+                  },
+                  {
+                    "value": "lock",
+                    "label": "Lock"
+                  },
+                  {
+                    "value": "globe",
+                    "label": "Globe"
+                  },
+                  {
+                    "value": "leaf",
+                    "label": "Leaf"
+                  },
+                  {
+                    "value": "heart",
+                    "label": "Heart"
+                  },
+                  {
+                    "value": "phone",
+                    "label": "Phone"
+                  },
+                  {
+                    "value": "chat",
+                    "label": "Chat"
+                  },
+                  {
+                    "value": "box",
+                    "label": "Box"
+                  },
+                  {
+                    "value": "medal",
+                    "label": "Medal"
+                  },
+                  {
+                    "value": "none",
+                    "label": "No icon"
+                  }
+                ]
+              },
+              {
+                "id": "image",
+                "type": "image",
+                "label": "Image",
+                "default": ""
+              },
+              {
+                "id": "heading",
+                "type": "text",
+                "label": "Heading",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "text",
+                "type": "textarea",
+                "label": "Text",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "button_label",
+                "type": "text",
+                "label": "Button label",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "button_url",
+                "type": "url",
+                "label": "Button link",
+                "default": ""
+              }
+            ],
+            "icon": "HiOutlineViewColumns",
+            "limit": 8
+          }
+        ],
+        "max": 8
+      }
     },
     "features": {
       "label": "Store features",
@@ -1999,6 +3916,30 @@
           "label": "Subtitle",
           "default": "",
           "translatable": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "cards",
+          "options": [
+            {
+              "value": "icons-row",
+              "label": "Icons row"
+            },
+            {
+              "value": "cards",
+              "label": "Cards"
+            },
+            {
+              "value": "list",
+              "label": "List"
+            },
+            {
+              "value": "strip",
+              "label": "Strip"
+            }
+          ]
         },
         {
           "id": "items",
@@ -2100,6 +4041,42 @@
                 {
                   "value": "tag",
                   "label": "Tag"
+                },
+                {
+                  "value": "lock",
+                  "label": "Lock"
+                },
+                {
+                  "value": "globe",
+                  "label": "Globe"
+                },
+                {
+                  "value": "leaf",
+                  "label": "Leaf"
+                },
+                {
+                  "value": "heart",
+                  "label": "Heart"
+                },
+                {
+                  "value": "phone",
+                  "label": "Phone"
+                },
+                {
+                  "value": "chat",
+                  "label": "Chat"
+                },
+                {
+                  "value": "box",
+                  "label": "Box"
+                },
+                {
+                  "value": "medal",
+                  "label": "Medal"
+                },
+                {
+                  "value": "none",
+                  "label": "No icon"
                 }
               ]
             },
@@ -2151,26 +4128,6 @@
             {
               "value": "6",
               "label": "6"
-            }
-          ]
-        },
-        {
-          "id": "style",
-          "type": "select",
-          "label": "Style",
-          "default": "cards",
-          "options": [
-            {
-              "value": "cards",
-              "label": "Cards"
-            },
-            {
-              "value": "plain",
-              "label": "Plain"
-            },
-            {
-              "value": "inline",
-              "label": "Inline row"
             }
           ]
         },
@@ -2230,8 +4187,749 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "Icons with short reasons to shop with you.",
-      "icon": "HiOutlineSparkles"
+      "icon": "HiOutlineSparkles",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "icons-row",
+            "label": "Icons row",
+            "description": "Centred icon, title and text per column.",
+            "icon": "HiOutlineSparkles"
+          },
+          {
+            "value": "cards",
+            "label": "Cards",
+            "description": "Each feature on its own card.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "list",
+            "label": "List",
+            "description": "Icon beside text, two columns.",
+            "icon": "HiOutlineListBullet"
+          },
+          {
+            "value": "strip",
+            "label": "Strip",
+            "description": "One compact line, divided by rules.",
+            "icon": "HiOutlineMinus"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "feature",
+            "label": "Feature",
+            "settings": [
+              {
+                "id": "icon",
+                "type": "select",
+                "label": "Icon",
+                "default": "truck",
+                "options": [
+                  {
+                    "value": "truck",
+                    "label": "Truck"
+                  },
+                  {
+                    "value": "shield",
+                    "label": "Shield"
+                  },
+                  {
+                    "value": "refresh",
+                    "label": "Refresh"
+                  },
+                  {
+                    "value": "headset",
+                    "label": "Headset"
+                  },
+                  {
+                    "value": "card",
+                    "label": "Card"
+                  },
+                  {
+                    "value": "star",
+                    "label": "Star"
+                  },
+                  {
+                    "value": "gift",
+                    "label": "Gift"
+                  },
+                  {
+                    "value": "clock",
+                    "label": "Clock"
+                  },
+                  {
+                    "value": "check",
+                    "label": "Check"
+                  },
+                  {
+                    "value": "tag",
+                    "label": "Tag"
+                  },
+                  {
+                    "value": "lock",
+                    "label": "Lock"
+                  },
+                  {
+                    "value": "globe",
+                    "label": "Globe"
+                  },
+                  {
+                    "value": "leaf",
+                    "label": "Leaf"
+                  },
+                  {
+                    "value": "heart",
+                    "label": "Heart"
+                  },
+                  {
+                    "value": "phone",
+                    "label": "Phone"
+                  },
+                  {
+                    "value": "chat",
+                    "label": "Chat"
+                  },
+                  {
+                    "value": "box",
+                    "label": "Box"
+                  },
+                  {
+                    "value": "medal",
+                    "label": "Medal"
+                  },
+                  {
+                    "value": "none",
+                    "label": "No icon"
+                  }
+                ]
+              },
+              {
+                "id": "title",
+                "type": "text",
+                "label": "Title",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "text",
+                "type": "text",
+                "label": "Text",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "url",
+                "type": "url",
+                "label": "Link",
+                "default": ""
+              }
+            ],
+            "icon": "HiOutlineSparkles",
+            "limit": 8
+          }
+        ],
+        "max": 8,
+        "legacy": "items"
+      }
+    },
+    "icon-list": {
+      "label": "Icon list",
+      "category": "content",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": {
+            "ar": "ما الذي تحصل عليه",
+            "en": "What you get"
+          },
+          "translatable": true
+        },
+        {
+          "id": "subtitle",
+          "type": "text",
+          "label": "Subtitle",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "list",
+          "options": [
+            {
+              "value": "list",
+              "label": "List"
+            },
+            {
+              "value": "inline",
+              "label": "Inline"
+            },
+            {
+              "value": "two-columns",
+              "label": "Two columns"
+            }
+          ]
+        },
+        {
+          "id": "align",
+          "type": "select",
+          "label": "Alignment",
+          "default": "start",
+          "options": [
+            {
+              "value": "start",
+              "label": "Start"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            },
+            {
+              "value": "end",
+              "label": "End"
+            }
+          ]
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "none",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 48,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "style": true,
+      "description": "Short lines with an icon — perks, steps, highlights.",
+      "icon": "HiOutlineListBullet",
+      "presets": [
+        {
+          "label": "Perks",
+          "settings": {
+            "blocks": [
+              {
+                "id": "demo-1",
+                "type": "item",
+                "settings": {
+                  "icon": "check",
+                  "text": {
+                    "ar": "شحن مجاني للطلبات فوق ٢٠٠ ر.س",
+                    "en": "Free shipping on orders over 200"
+                  },
+                  "url": ""
+                }
+              },
+              {
+                "id": "demo-2",
+                "type": "item",
+                "settings": {
+                  "icon": "check",
+                  "text": {
+                    "ar": "تغليف هدايا مجاني عند الطلب",
+                    "en": "Complimentary gift wrapping"
+                  },
+                  "url": ""
+                }
+              },
+              {
+                "id": "demo-3",
+                "type": "item",
+                "settings": {
+                  "icon": "check",
+                  "text": {
+                    "ar": "الدفع عند الاستلام في مدن مختارة",
+                    "en": "Cash on delivery in selected cities"
+                  },
+                  "url": ""
+                }
+              },
+              {
+                "id": "demo-4",
+                "type": "item",
+                "settings": {
+                  "icon": "check",
+                  "text": {
+                    "ar": "نقاط ولاء مع كل طلب",
+                    "en": "Loyalty points with every order"
+                  },
+                  "url": "/account"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "list",
+            "label": "List",
+            "description": "One item per line.",
+            "icon": "HiOutlineListBullet"
+          },
+          {
+            "value": "inline",
+            "label": "Inline",
+            "description": "Items as a row of pills.",
+            "icon": "HiOutlineMinus"
+          },
+          {
+            "value": "two-columns",
+            "label": "Two columns",
+            "description": "Items split across two columns.",
+            "icon": "HiOutlineViewColumns"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "item",
+            "label": "Item",
+            "settings": [
+              {
+                "id": "icon",
+                "type": "select",
+                "label": "Icon",
+                "default": "check",
+                "options": [
+                  {
+                    "value": "truck",
+                    "label": "Truck"
+                  },
+                  {
+                    "value": "shield",
+                    "label": "Shield"
+                  },
+                  {
+                    "value": "refresh",
+                    "label": "Refresh"
+                  },
+                  {
+                    "value": "headset",
+                    "label": "Headset"
+                  },
+                  {
+                    "value": "card",
+                    "label": "Card"
+                  },
+                  {
+                    "value": "star",
+                    "label": "Star"
+                  },
+                  {
+                    "value": "gift",
+                    "label": "Gift"
+                  },
+                  {
+                    "value": "clock",
+                    "label": "Clock"
+                  },
+                  {
+                    "value": "check",
+                    "label": "Check"
+                  },
+                  {
+                    "value": "tag",
+                    "label": "Tag"
+                  },
+                  {
+                    "value": "lock",
+                    "label": "Lock"
+                  },
+                  {
+                    "value": "globe",
+                    "label": "Globe"
+                  },
+                  {
+                    "value": "leaf",
+                    "label": "Leaf"
+                  },
+                  {
+                    "value": "heart",
+                    "label": "Heart"
+                  },
+                  {
+                    "value": "phone",
+                    "label": "Phone"
+                  },
+                  {
+                    "value": "chat",
+                    "label": "Chat"
+                  },
+                  {
+                    "value": "box",
+                    "label": "Box"
+                  },
+                  {
+                    "value": "medal",
+                    "label": "Medal"
+                  },
+                  {
+                    "value": "none",
+                    "label": "No icon"
+                  }
+                ]
+              },
+              {
+                "id": "text",
+                "type": "text",
+                "label": "Text",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "url",
+                "type": "url",
+                "label": "Link",
+                "default": ""
+              }
+            ],
+            "icon": "HiOutlineCheckCircle",
+            "limit": 12
+          }
+        ],
+        "max": 12
+      }
+    },
+    "trust-badges": {
+      "label": "Trust badges",
+      "category": "marketing",
+      "settings": [
+        {
+          "id": "title",
+          "type": "text",
+          "label": "Title",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "row",
+          "options": [
+            {
+              "value": "row",
+              "label": "Row"
+            },
+            {
+              "value": "grid",
+              "label": "Grid"
+            }
+          ]
+        },
+        {
+          "id": "columns",
+          "type": "select",
+          "label": "Columns (Grid)",
+          "default": "4",
+          "options": [
+            {
+              "value": "2",
+              "label": "2"
+            },
+            {
+              "value": "3",
+              "label": "3"
+            },
+            {
+              "value": "4",
+              "label": "4"
+            },
+            {
+              "value": "5",
+              "label": "5"
+            },
+            {
+              "value": "6",
+              "label": "6"
+            }
+          ]
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "surface",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
+            }
+          ]
+        },
+        {
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 32,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "style": true,
+      "description": "Small icons with guarantees and payment reassurance.",
+      "icon": "HiOutlineShieldCheck",
+      "presets": [
+        {
+          "label": "Store guarantees",
+          "settings": {
+            "blocks": [
+              {
+                "id": "demo-1",
+                "type": "badge",
+                "settings": {
+                  "icon": "lock",
+                  "image": "",
+                  "text": {
+                    "ar": "دفع آمن ١٠٠٪",
+                    "en": "100% secure checkout"
+                  },
+                  "caption": {
+                    "ar": "تشفير SSL",
+                    "en": "SSL encrypted"
+                  }
+                }
+              },
+              {
+                "id": "demo-2",
+                "type": "badge",
+                "settings": {
+                  "icon": "medal",
+                  "image": "",
+                  "text": {
+                    "ar": "ضمان الجودة",
+                    "en": "Quality guarantee"
+                  },
+                  "caption": {
+                    "ar": "منتجات أصلية",
+                    "en": "Genuine products"
+                  }
+                }
+              },
+              {
+                "id": "demo-3",
+                "type": "badge",
+                "settings": {
+                  "icon": "refresh",
+                  "image": "",
+                  "text": {
+                    "ar": "إرجاع خلال ١٤ يوماً",
+                    "en": "14-day returns"
+                  },
+                  "caption": {
+                    "ar": "بدون أسئلة",
+                    "en": "No questions asked"
+                  }
+                }
+              },
+              {
+                "id": "demo-4",
+                "type": "badge",
+                "settings": {
+                  "icon": "headset",
+                  "image": "",
+                  "text": {
+                    "ar": "دعم ٧ أيام",
+                    "en": "Support 7 days a week"
+                  },
+                  "caption": {
+                    "ar": "واتساب وبريد",
+                    "en": "WhatsApp & email"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "row",
+            "label": "Row",
+            "description": "One centred line of badges.",
+            "icon": "HiOutlineMinus"
+          },
+          {
+            "value": "grid",
+            "label": "Grid",
+            "description": "Badges wrapped into equal tiles.",
+            "icon": "HiOutlineSquares2X2"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "badge",
+            "label": "Badge",
+            "settings": [
+              {
+                "id": "icon",
+                "type": "select",
+                "label": "Icon",
+                "default": "shield",
+                "options": [
+                  {
+                    "value": "truck",
+                    "label": "Truck"
+                  },
+                  {
+                    "value": "shield",
+                    "label": "Shield"
+                  },
+                  {
+                    "value": "refresh",
+                    "label": "Refresh"
+                  },
+                  {
+                    "value": "headset",
+                    "label": "Headset"
+                  },
+                  {
+                    "value": "card",
+                    "label": "Card"
+                  },
+                  {
+                    "value": "star",
+                    "label": "Star"
+                  },
+                  {
+                    "value": "gift",
+                    "label": "Gift"
+                  },
+                  {
+                    "value": "clock",
+                    "label": "Clock"
+                  },
+                  {
+                    "value": "check",
+                    "label": "Check"
+                  },
+                  {
+                    "value": "tag",
+                    "label": "Tag"
+                  },
+                  {
+                    "value": "lock",
+                    "label": "Lock"
+                  },
+                  {
+                    "value": "globe",
+                    "label": "Globe"
+                  },
+                  {
+                    "value": "leaf",
+                    "label": "Leaf"
+                  },
+                  {
+                    "value": "heart",
+                    "label": "Heart"
+                  },
+                  {
+                    "value": "phone",
+                    "label": "Phone"
+                  },
+                  {
+                    "value": "chat",
+                    "label": "Chat"
+                  },
+                  {
+                    "value": "box",
+                    "label": "Box"
+                  },
+                  {
+                    "value": "medal",
+                    "label": "Medal"
+                  },
+                  {
+                    "value": "none",
+                    "label": "No icon"
+                  }
+                ]
+              },
+              {
+                "id": "image",
+                "type": "image",
+                "label": "Image (replaces the icon)",
+                "default": ""
+              },
+              {
+                "id": "text",
+                "type": "text",
+                "label": "Text",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "caption",
+                "type": "text",
+                "label": "Caption",
+                "default": "",
+                "translatable": true
+              }
+            ],
+            "icon": "HiOutlineShieldCheck",
+            "limit": 8
+          }
+        ],
+        "max": 8
+      }
     },
     "testimonials": {
       "label": "Testimonials",
@@ -2253,6 +4951,30 @@
           "label": "Subtitle",
           "default": "",
           "translatable": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "carousel",
+          "options": [
+            {
+              "value": "carousel",
+              "label": "Carousel"
+            },
+            {
+              "value": "cards",
+              "label": "Cards"
+            },
+            {
+              "value": "quote-wall",
+              "label": "Quote wall"
+            },
+            {
+              "value": "single-large",
+              "label": "Single large"
+            }
+          ]
         },
         {
           "id": "items",
@@ -2355,22 +5077,6 @@
           "default": true
         },
         {
-          "id": "layout",
-          "type": "select",
-          "label": "Layout",
-          "default": "carousel",
-          "options": [
-            {
-              "value": "grid",
-              "label": "Grid"
-            },
-            {
-              "value": "carousel",
-              "label": "Carousel"
-            }
-          ]
-        },
-        {
           "id": "columns",
           "type": "select",
           "label": "Columns",
@@ -2430,8 +5136,88 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "Customer quotes with ratings.",
-      "icon": "HiOutlineChatBubbleLeftRight"
+      "icon": "HiOutlineChatBubbleLeftRight",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "carousel",
+            "label": "Carousel",
+            "description": "Quote cards in a scrolling rail.",
+            "icon": "HiOutlineArrowsRightLeft"
+          },
+          {
+            "value": "cards",
+            "label": "Cards",
+            "description": "A grid of quote cards.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "quote-wall",
+            "label": "Quote wall",
+            "description": "Masonry columns of quotes.",
+            "icon": "HiOutlineRectangleGroup"
+          },
+          {
+            "value": "single-large",
+            "label": "Single large",
+            "description": "One big quote at a time.",
+            "icon": "HiOutlineChatBubbleOvalLeft"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "quote",
+            "label": "Quote",
+            "settings": [
+              {
+                "id": "quote",
+                "type": "textarea",
+                "label": "Quote",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "author",
+                "type": "text",
+                "label": "Name",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "role",
+                "type": "text",
+                "label": "Role / city",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "rating",
+                "type": "range",
+                "label": "Rating",
+                "default": 5,
+                "min": 1,
+                "max": 5,
+                "step": 1
+              },
+              {
+                "id": "avatar",
+                "type": "image",
+                "label": "Photo",
+                "default": ""
+              }
+            ],
+            "icon": "HiOutlineChatBubbleLeftRight",
+            "limit": 12
+          }
+        ],
+        "max": 12,
+        "legacy": "items"
+      }
     },
     "brand-logos": {
       "label": "Brand logos",
@@ -2448,6 +5234,26 @@
           "translatable": true
         },
         {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "row",
+          "options": [
+            {
+              "value": "row",
+              "label": "Row"
+            },
+            {
+              "value": "grid",
+              "label": "Grid"
+            },
+            {
+              "value": "marquee",
+              "label": "Marquee"
+            }
+          ]
+        },
+        {
           "id": "source",
           "type": "select",
           "label": "Source",
@@ -2459,7 +5265,7 @@
             },
             {
               "value": "custom",
-              "label": "Custom list"
+              "label": "Custom logos"
             }
           ]
         },
@@ -2507,22 +5313,6 @@
           "default": true
         },
         {
-          "id": "layout",
-          "type": "select",
-          "label": "Layout",
-          "default": "row",
-          "options": [
-            {
-              "value": "row",
-              "label": "Scrolling row"
-            },
-            {
-              "value": "wrap",
-              "label": "Wrap"
-            }
-          ]
-        },
-        {
           "id": "padding_block",
           "type": "range",
           "label": "Vertical spacing",
@@ -2534,13 +5324,94 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "A row of the brands you carry.",
-      "icon": "HiOutlineBuildingStorefront"
+      "icon": "HiOutlineBuildingStorefront",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "row",
+            "label": "Row",
+            "description": "A scrollable single row.",
+            "icon": "HiOutlineArrowsRightLeft"
+          },
+          {
+            "value": "grid",
+            "label": "Grid",
+            "description": "Logos wrapped into rows.",
+            "icon": "HiOutlineSquares2X2"
+          },
+          {
+            "value": "marquee",
+            "label": "Marquee",
+            "description": "A slow auto-scrolling strip.",
+            "icon": "HiOutlineForward"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "logo",
+            "label": "Logo",
+            "settings": [
+              {
+                "id": "image",
+                "type": "image",
+                "label": "Logo",
+                "default": ""
+              },
+              {
+                "id": "name",
+                "type": "text",
+                "label": "Name",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "url",
+                "type": "url",
+                "label": "Link",
+                "default": ""
+              }
+            ],
+            "icon": "HiOutlineBuildingStorefront",
+            "limit": 16
+          }
+        ],
+        "max": 16,
+        "legacy": "items"
+      }
     },
     "newsletter": {
       "label": "Newsletter",
       "category": "marketing",
       "settings": [
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "band",
+          "options": [
+            {
+              "value": "band",
+              "label": "Band"
+            },
+            {
+              "value": "card",
+              "label": "Card"
+            },
+            {
+              "value": "inline",
+              "label": "Inline"
+            },
+            {
+              "value": "split-image",
+              "label": "Split image"
+            }
+          ]
+        },
         {
           "id": "eyebrow",
           "type": "text",
@@ -2593,6 +5464,12 @@
           "translatable": true
         },
         {
+          "id": "image",
+          "type": "image",
+          "label": "Image (Split image layout)",
+          "default": "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=1200&h=900&q=80"
+        },
+        {
           "id": "align",
           "type": "select",
           "label": "Alignment",
@@ -2637,18 +5514,148 @@
           ]
         },
         {
-          "id": "style",
+          "id": "padding_block",
+          "type": "range",
+          "label": "Vertical spacing",
+          "default": 64,
+          "responsive": true,
+          "css_property": "padding-block",
+          "min": 0,
+          "max": 200,
+          "step": 4
+        }
+      ],
+      "style": true,
+      "description": "Email sign-up with a headline and note.",
+      "icon": "HiOutlineEnvelope",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "band",
+            "label": "Band",
+            "description": "Full-width coloured band.",
+            "icon": "HiOutlineRectangleStack"
+          },
+          {
+            "value": "card",
+            "label": "Card",
+            "description": "A rounded card inside the container.",
+            "icon": "HiOutlineSquare2Stack"
+          },
+          {
+            "value": "inline",
+            "label": "Inline",
+            "description": "Heading on one side, form on the other.",
+            "icon": "HiOutlineArrowsRightLeft"
+          },
+          {
+            "value": "split-image",
+            "label": "Split image",
+            "description": "A photo beside the sign-up form.",
+            "icon": "HiOutlinePhoto"
+          }
+        ]
+      }
+    },
+    "contact-form": {
+      "label": "Contact form",
+      "category": "content",
+      "settings": [
+        {
+          "id": "layout",
           "type": "select",
-          "label": "Style",
-          "default": "band",
+          "label": "Layout",
+          "default": "stacked",
           "options": [
             {
-              "value": "band",
-              "label": "Full-width band"
+              "value": "stacked",
+              "label": "Stacked"
+            },
+            {
+              "value": "split",
+              "label": "Split"
             },
             {
               "value": "card",
-              "label": "Card inside the container"
+              "label": "Card"
+            }
+          ]
+        },
+        {
+          "id": "eyebrow",
+          "type": "text",
+          "label": "Eyebrow",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "heading",
+          "type": "text",
+          "label": "Heading",
+          "default": {
+            "ar": "تواصل معنا",
+            "en": "Get in touch"
+          },
+          "translatable": true
+        },
+        {
+          "id": "text",
+          "type": "textarea",
+          "label": "Text",
+          "default": {
+            "ar": "سؤال عن طلب أو منتج؟ اكتب لنا وسنرد خلال يوم عمل.",
+            "en": "A question about an order or a product? Write to us and we reply within a business day."
+          },
+          "translatable": true
+        },
+        {
+          "id": "show_subject",
+          "type": "toggle",
+          "label": "Ask for a subject",
+          "default": false
+        },
+        {
+          "id": "button_label",
+          "type": "text",
+          "label": "Button label",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "success",
+          "type": "text",
+          "label": "Success message",
+          "default": "",
+          "translatable": true
+        },
+        {
+          "id": "show_details",
+          "type": "toggle",
+          "label": "Show store phone & email (Split layout)",
+          "default": true
+        },
+        {
+          "id": "background",
+          "type": "select",
+          "label": "Background",
+          "default": "none",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "surface",
+              "label": "Surface"
+            },
+            {
+              "value": "primary",
+              "label": "Primary"
+            },
+            {
+              "value": "accent",
+              "label": "Accent"
             }
           ]
         },
@@ -2664,8 +5671,32 @@
           "step": 4
         }
       ],
-      "description": "Email sign-up with a headline and note.",
-      "icon": "HiOutlineEnvelope"
+      "style": true,
+      "description": "A message form that emails the store.",
+      "icon": "HiOutlineEnvelopeOpen",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "stacked",
+            "label": "Stacked",
+            "description": "Heading above the form in a reading measure.",
+            "icon": "HiOutlineBars3CenterLeft"
+          },
+          {
+            "value": "split",
+            "label": "Split",
+            "description": "Contact details beside the form.",
+            "icon": "HiOutlineViewColumns"
+          },
+          {
+            "value": "card",
+            "label": "Card",
+            "description": "The form on a raised card.",
+            "icon": "HiOutlineSquare2Stack"
+          }
+        ]
+      }
     },
     "faq": {
       "label": "FAQ",
@@ -2687,6 +5718,26 @@
           "label": "Subtitle",
           "default": "",
           "translatable": true
+        },
+        {
+          "id": "layout",
+          "type": "select",
+          "label": "Layout",
+          "default": "accordion",
+          "options": [
+            {
+              "value": "accordion",
+              "label": "Accordion"
+            },
+            {
+              "value": "two-columns",
+              "label": "Two columns"
+            },
+            {
+              "value": "list-open",
+              "label": "Open list"
+            }
+          ]
         },
         {
           "id": "items",
@@ -2749,22 +5800,6 @@
           "default": true
         },
         {
-          "id": "layout",
-          "type": "select",
-          "label": "Layout",
-          "default": "accordion",
-          "options": [
-            {
-              "value": "accordion",
-              "label": "Accordion"
-            },
-            {
-              "value": "columns",
-              "label": "Two columns"
-            }
-          ]
-        },
-        {
           "id": "open_first",
           "type": "toggle",
           "label": "Open the first question",
@@ -2782,8 +5817,60 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "Expandable questions and answers.",
-      "icon": "HiOutlineQuestionMarkCircle"
+      "icon": "HiOutlineQuestionMarkCircle",
+      "variants": {
+        "field": "layout",
+        "options": [
+          {
+            "value": "accordion",
+            "label": "Accordion",
+            "description": "One column of expandable questions.",
+            "icon": "HiOutlineBars3"
+          },
+          {
+            "value": "two-columns",
+            "label": "Two columns",
+            "description": "Expandable questions in two columns.",
+            "icon": "HiOutlineViewColumns"
+          },
+          {
+            "value": "list-open",
+            "label": "Open list",
+            "description": "All answers visible, no toggles.",
+            "icon": "HiOutlineListBullet"
+          }
+        ]
+      },
+      "blocks": {
+        "types": [
+          {
+            "type": "question",
+            "label": "Question",
+            "settings": [
+              {
+                "id": "question",
+                "type": "text",
+                "label": "Question",
+                "default": "",
+                "translatable": true
+              },
+              {
+                "id": "answer",
+                "type": "richtext",
+                "label": "Answer",
+                "default": "",
+                "translatable": true
+              }
+            ],
+            "icon": "HiOutlineQuestionMarkCircle",
+            "limit": 20
+          }
+        ],
+        "max": 20,
+        "legacy": "items"
+      }
     },
     "blog-posts": {
       "label": "Blog posts",
@@ -2865,6 +5952,7 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "Latest articles from the store blog.",
       "icon": "HiOutlineNewspaper"
     },
@@ -2986,6 +6074,7 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "A photo grid linking to your Instagram.",
       "icon": "HiOutlineCamera"
     },
@@ -3018,6 +6107,7 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "Your own HTML block (scripts are not allowed).",
       "icon": "HiOutlineCodeBracket"
     },
@@ -3052,6 +6142,7 @@
           "default": false
         }
       ],
+      "style": true,
       "description": "Empty vertical space between sections.",
       "icon": "HiOutlineArrowsUpDown"
     },
@@ -3125,6 +6216,7 @@
           ]
         }
       ],
+      "style": true,
       "description": "Title, breadcrumbs and banner of a category page.",
       "icon": "HiOutlineTag"
     },
@@ -3219,6 +6311,7 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "The product listing of a category page.",
       "icon": "HiOutlineSquares2X2"
     },
@@ -3239,6 +6332,7 @@
           "default": false
         }
       ],
+      "style": true,
       "description": "Gallery, price, options and add-to-cart of a product page.",
       "icon": "HiOutlineShoppingCart"
     },
@@ -3352,6 +6446,7 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "Products similar to the one being viewed.",
       "icon": "HiOutlineArrowsRightLeft"
     },
@@ -3399,6 +6494,7 @@
           "step": 4
         }
       ],
+      "style": true,
       "description": "Products the visitor looked at recently.",
       "icon": "HiOutlineClock"
     }
