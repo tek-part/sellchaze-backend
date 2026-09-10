@@ -52,7 +52,8 @@ class SpaShellTest extends TestCase
 HTML);
         config()->set('sellchase.storefront.spa_shell', $this->shellPath);
         config()->set('sellchase.storefront.spa_origin', 'https://sellchaze.com');
-        config()->set('sellchase.storefront.ssr_url', '');
+        // Deliberately left as the real default (null): the shell must be used when SSR is unset.
+        config()->set('sellchase.storefront.ssr_url', null);
     }
 
     protected function tearDown(): void
@@ -86,7 +87,7 @@ HTML);
 
     public function test_client_side_routes_fall_back_to_the_shell_on_a_tenant_host(): void
     {
-        foreach (['/cart', '/checkout', '/account/orders', '/search?q=shoes', '/collections/new-in'] as $path) {
+        foreach (['/cart', '/checkout', '/account/orders', '/search?q=shoes', '/collections/new-in', '/products'] as $path) {
             $this->get('http://nike.sellchase.com'.$path)
                 ->assertOk()
                 ->assertHeader('X-Storefront-Renderer', 'spa');

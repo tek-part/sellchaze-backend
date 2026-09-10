@@ -96,6 +96,11 @@ class StorefrontPageController extends Controller
     /** Lightweight non-theme listing (all products). */
     public function products(Request $request): Response
     {
+        // The React storefront owns the catalogue listing when the shell is deployed.
+        if ($this->renderer->usesSpaShell()) {
+            return $this->spa($request);
+        }
+
         $store = $this->store($request);
 
         return response(

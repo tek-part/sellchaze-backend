@@ -20,6 +20,8 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Blade-fallback suites must not pick up a locally deployed storefront shell. -->
+        <env name="SELLCHASE_STOREFRONT_SPA_SHELL" value="/nonexistent/storefront-shell.html"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_DRIVER" value="array"/>
         <!-- Disposable in-memory database: tests can never touch local/production data. -->

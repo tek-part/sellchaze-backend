@@ -35,7 +35,8 @@ class StorefrontRenderer
     /** True when tenant hosts are served by the React storefront shell. */
     public function usesSpaShell(): bool
     {
-        return config('sellchase.storefront.ssr_url', '') === '' && $this->shell->available();
+        // `ssr_url` is null when the env var is unset — compare as a string.
+        return trim((string) config('sellchase.storefront.ssr_url', '')) === '' && $this->shell->available();
     }
 
     /** Uncached render — used for owner theme preview (never touches the page cache). */
