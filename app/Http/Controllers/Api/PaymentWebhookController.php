@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentWebhookEvent;
 use App\Models\Store;
+use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\StorePaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PaymentWebhookController extends Controller
 {
@@ -37,26 +39,41 @@ class PaymentWebhookController extends Controller
         };
         $eventId = (string) ($event['_event_id'] ?? data_get($event, 'id'));
         abort_if($eventId === '', 422, 'Missing event ID.');
-        $receipt = PaymentWebhookEvent::query()->firstOrCreate(
-            ['gateway' => $gateway, 'event_id' => $eventId],
-            ['store_id' => $store->id, 'event_type' => data_get($event, 'type') ?? data_get($event, 'event_type')]
-        );
-        if (! $receipt->wasRecentlyCreated || $receipt->status === 'processed') {
-            return response()->json(['received' => true, 'duplicate' => true]);
-        }
-        switch ($gateway) {
-            case 'stripe': $this->processStripe($event); break;
-            case 'paypal': $this->processPayPal($event, $setting); break;
-            case 'tabby': $this->processTabby($event, $setting); break;
-            case 'tamara': $this->processTamara($event, $setting); break;
-            case 'paymob': $this->processPaymob($event); break;
-            case 'tap': $this->processTap($event); break;
-            case 'fawaterak': $this->processFawaterak($event); break;
-            case 'paytabs': $this->processPayTabs($event); break;
-            case 'fawry': $this->processFawry($event); break;
-        }
-        $receipt->update(['status' => 'processed', 'processed_at' => now()]);
-        return response()->json(['received' => true]);
+
+        return DB::transaction(function () use ($gateway, $eventId, $event, $store, $setting) {
+            $receipt = PaymentWebhookEvent::query()->firstOrCreate(
+                ['gateway' => $gateway, 'event_id' => $eventId],
+                ['store_id' => $store->id, 'event_type' => data_get($event, 'type') ?? data_get($event, 'event_type')]
+            );
+            abort_unless((int) $receipt->store_id === (int) $store->id, 422, 'Payment event belongs to a different store.');
+            $receipt = PaymentWebhookEvent::query()->whereKey($receipt->id)->lockForUpdate()->firstOrFail();
+            if ($receipt->status === 'processed') {
+                return response()->json(['received' => true, 'duplicate' => true]);
+            }
+            switch ($gateway) {
+                case 'stripe': $this->processStripe($event, $setting);
+                    break;
+                case 'paypal': $this->processPayPal($event, $setting);
+                    break;
+                case 'tabby': $this->processTabby($event, $setting);
+                    break;
+                case 'tamara': $this->processTamara($event, $setting);
+                    break;
+                case 'paymob': $this->processPaymob($event, $setting);
+                    break;
+                case 'tap': $this->processTap($event, $setting);
+                    break;
+                case 'fawaterak': $this->processFawaterak($event, $setting);
+                    break;
+                case 'paytabs': $this->processPayTabs($event, $setting);
+                    break;
+                case 'fawry': $this->processFawry($event, $setting);
+                    break;
+            }
+            $receipt->update(['status' => 'processed', 'processed_at' => now()]);
+
+            return response()->json(['received' => true]);
+        });
     }
 
     public function hyperpayReturn(Request $request, StorePaymentTransaction $transaction)
@@ -82,22 +99,32 @@ class PaymentWebhookController extends Controller
         return redirect()->away($this->payments->paymentRedirectUrl($transaction, $status));
     }
 
-    public function fawrySession(StorePaymentTransaction $transaction): JsonResponse
+    public function hyperpaySession(Request $request, StorePaymentTransaction $transaction): JsonResponse
     {
-        abort_unless($transaction->gateway === 'fawry' && $transaction->status === 'pending', 404);
+        abort_unless($request->hasValidSignature(), 403, 'This payment session link is invalid or expired.');
+        abort_unless($transaction->gateway === 'hyperpay' && $transaction->status === 'redirect_pending', 404);
+
+        return response()->json($this->payments->hyperpaySession($transaction))->header('Cache-Control', 'private, no-store');
+    }
+
+    public function fawrySession(Request $request, StorePaymentTransaction $transaction): JsonResponse
+    {
+        abort_unless($request->hasValidSignature(), 403, 'This payment session link is invalid or expired.');
+        abort_unless($transaction->gateway === 'fawry' && in_array($transaction->status, ['pending', 'redirect_pending'], true), 404);
         $setting = StorePaymentGateway::query()
             ->where('store_id', $transaction->store_id)
             ->where('gateway', 'fawry')
             ->where('enabled', true)
             ->firstOrFail();
 
-        return response()->json($this->payments->fawrySession($transaction, $setting));
+        return response()->json($this->payments->fawrySession($transaction, $setting))->header('Cache-Control', 'private, no-store');
     }
 
     public function fawryReturn(Request $request, StorePaymentTransaction $transaction)
     {
         abort_unless($transaction->gateway === 'fawry', 404);
         $setting = StorePaymentGateway::query()->where('store_id', $transaction->store_id)->where('gateway', 'fawry')->firstOrFail();
+        abort_if(trim((string) data_get($setting->credentials, 'security_key')) === '', 422, 'Fawry security key is not configured.');
         $event = $request->all();
         $merchantRef = (string) ($event['merchantRefNumber'] ?? $event['merchantRefNum'] ?? '');
         abort_unless($merchantRef === (string) $transaction->id, 422, 'Fawry transaction mismatch.');
@@ -130,12 +157,14 @@ class PaymentWebhookController extends Controller
         abort_if($secret === '', 422, 'Stripe webhook secret is not configured.');
         $parts = collect(explode(',', (string) $request->header('Stripe-Signature')))->mapWithKeys(function (string $part) {
             [$key, $value] = array_pad(explode('=', trim($part), 2), 2, '');
+
             return [$key => $value];
         });
         $timestamp = (int) $parts->get('t');
         abort_if($timestamp <= 0 || abs(time() - $timestamp) > 300, 401, 'Expired Stripe signature.');
         $expected = hash_hmac('sha256', $timestamp.'.'.$request->getContent(), $secret);
         abort_unless(hash_equals($expected, (string) $parts->get('v1')), 401, 'Invalid Stripe signature.');
+
         return $request->json()->all();
     }
 
@@ -153,6 +182,7 @@ class PaymentWebhookController extends Controller
                 'webhook_id' => $webhookId, 'webhook_event' => $event,
             ])->throw()->json();
         abort_unless(data_get($verification, 'verification_status') === 'SUCCESS', 401, 'Invalid PayPal signature.');
+
         return $event;
     }
 
@@ -163,6 +193,7 @@ class PaymentWebhookController extends Controller
         $transaction = StorePaymentTransaction::query()->where('gateway', 'tabby')->where('provider_reference', $paymentId)->firstOrFail();
         $event = $this->payments->retrieveTabby($setting, $paymentId, $transaction->currency);
         $event['_event_id'] = $paymentId.':'.data_get($event, 'status').':'.count(data_get($event, 'captures', []));
+
         return $event;
     }
 
@@ -179,6 +210,7 @@ class PaymentWebhookController extends Controller
         abort_if(isset($payload['exp']) && (int) $payload['exp'] < time(), 401, 'Expired Tamara token.');
         $event = $request->json()->all();
         $event['_event_id'] = data_get($event, 'order_id').':'.data_get($event, 'event_type');
+
         return $event;
     }
 
@@ -197,6 +229,7 @@ class PaymentWebhookController extends Controller
         $provided = (string) ($request->query('hmac') ?: $request->input('hmac'));
         abort_unless($provided !== '' && hash_equals($expected, $provided), 401, 'Invalid Paymob signature.');
         $obj['_event_id'] = data_get($obj, 'id').':'.$this->scalar(data_get($obj, 'success')).':'.$this->scalar(data_get($obj, 'pending'));
+
         return $obj;
     }
 
@@ -206,6 +239,7 @@ class PaymentWebhookController extends Controller
         abort_if($chargeId === '', 422, 'Missing Tap charge ID.');
         $event = $this->payments->retrieveTap($setting, $chargeId);
         $event['_event_id'] = $chargeId.':'.data_get($event, 'status');
+
         return $event;
     }
 
@@ -218,11 +252,13 @@ class PaymentWebhookController extends Controller
         $expected = hash_hmac('sha256', $message, $vendorKey);
         abort_unless(hash_equals($expected, (string) data_get($event, 'hashKey')), 401, 'Invalid Fawaterak signature.');
         $event['_event_id'] = data_get($event, 'invoice_id').':'.data_get($event, 'invoice_status');
+
         return $event;
     }
 
     private function verifiedFawryEvent(Request $request, StorePaymentGateway $setting): array
     {
+        abort_if(trim((string) data_get($setting->credentials, 'security_key')) === '', 422, 'Fawry security key is not configured.');
         $event = $request->json()->all();
         $message = (string) data_get($event, 'fawryRefNumber').(string) data_get($event, 'merchantRefNumber').
             $this->money(data_get($event, 'paymentAmount')).$this->money(data_get($event, 'orderAmount')).
@@ -249,13 +285,27 @@ class PaymentWebhookController extends Controller
         return $event;
     }
 
-    private function processStripe(array $event): void
+    private function processStripe(array $event, StorePaymentGateway $setting): void
     {
         $type = (string) data_get($event, 'type');
         $transactionId = data_get($event, 'data.object.metadata.transaction_id') ?? data_get($event, 'data.object.client_reference_id');
-        $transaction = StorePaymentTransaction::query()->find($transactionId);
-        if ($transaction === null) return;
+        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', 'stripe')->find($transactionId);
+        if ($transaction === null || $transaction->status === 'paid') {
+            return;
+        }
+        if (! in_array($type, ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.expired', 'checkout.session.async_payment_failed'], true)) {
+            return;
+        }
+        abort_unless(
+            filled($transaction->provider_reference)
+            && hash_equals((string) $transaction->provider_reference, (string) data_get($event, 'data.object.id'))
+            && (string) $transaction->store_order_id === (string) data_get($event, 'data.object.metadata.store_order_id'),
+            422, 'Stripe session does not match this payment.'
+        );
         if (in_array($type, ['checkout.session.completed', 'checkout.session.async_payment_succeeded'], true)) {
+            if (data_get($event, 'data.object.payment_status') !== 'paid') {
+                return;
+            }
             $this->markPaid($transaction, (string) (data_get($event, 'data.object.payment_intent') ?? data_get($event, 'data.object.id')));
         } elseif (in_array($type, ['checkout.session.expired', 'checkout.session.async_payment_failed'], true)) {
             $this->markFailed($transaction);
@@ -266,11 +316,15 @@ class PaymentWebhookController extends Controller
     {
         $type = (string) data_get($event, 'event_type');
         $providerReference = (string) (data_get($event, 'resource.supplementary_data.related_ids.order_id') ?? data_get($event, 'resource.id'));
-        $transaction = StorePaymentTransaction::query()->where('gateway', 'paypal')->where('provider_reference', $providerReference)->first();
-        if ($transaction === null) return;
+        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', 'paypal')->where('provider_reference', $providerReference)->first();
+        if ($transaction === null) {
+            return;
+        }
         if ($type === 'CHECKOUT.ORDER.APPROVED') {
             $capture = $this->payments->capturePayPal($setting, $providerReference, $transaction->idempotency_key.'-capture');
-            if (data_get($capture, 'status') === 'COMPLETED') $this->markPaid($transaction, $providerReference);
+            if (data_get($capture, 'status') === 'COMPLETED') {
+                $this->markPaid($transaction, $providerReference);
+            }
         } elseif ($type === 'PAYMENT.CAPTURE.COMPLETED') {
             $this->markPaid($transaction, (string) data_get($event, 'resource.id'));
         } elseif (in_array($type, ['PAYMENT.CAPTURE.DENIED', 'CHECKOUT.PAYMENT-APPROVAL.REVERSED'], true)) {
@@ -280,12 +334,16 @@ class PaymentWebhookController extends Controller
 
     private function processTabby(array $event, StorePaymentGateway $setting): void
     {
-        $transaction = StorePaymentTransaction::query()->where('gateway', 'tabby')->where('provider_reference', data_get($event, 'id'))->first();
-        if ($transaction === null) return;
+        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', 'tabby')->where('provider_reference', data_get($event, 'id'))->first();
+        if ($transaction === null) {
+            return;
+        }
         $status = strtoupper((string) data_get($event, 'status'));
         if ($status === 'AUTHORIZED') {
             $captured = $this->payments->captureTabby($setting, $transaction);
-            if (strtoupper((string) data_get($captured, 'status')) === 'CLOSED') $this->markPaid($transaction, (string) data_get($captured, 'id'));
+            if (strtoupper((string) data_get($captured, 'status')) === 'CLOSED') {
+                $this->markPaid($transaction, (string) data_get($captured, 'id'));
+            }
         } elseif ($status === 'CLOSED') {
             $this->markPaid($transaction, (string) data_get($event, 'id'));
         } elseif (in_array($status, ['REJECTED', 'EXPIRED'], true)) {
@@ -295,8 +353,10 @@ class PaymentWebhookController extends Controller
 
     private function processTamara(array $event, StorePaymentGateway $setting): void
     {
-        $transaction = StorePaymentTransaction::query()->where('gateway', 'tamara')->where('provider_reference', data_get($event, 'order_id'))->first();
-        if ($transaction === null) return;
+        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', 'tamara')->where('provider_reference', data_get($event, 'order_id'))->first();
+        if ($transaction === null) {
+            return;
+        }
         $type = (string) data_get($event, 'event_type');
         if ($type === 'order_approved') {
             $this->payments->authoriseTamara($setting, (string) data_get($event, 'order_id'));
@@ -307,56 +367,73 @@ class PaymentWebhookController extends Controller
         }
     }
 
-    private function processPaymob(array $event): void
+    private function processPaymob(array $event, StorePaymentGateway $setting): void
     {
-        $transaction = StorePaymentTransaction::query()->where('gateway', 'paymob')
+        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', 'paymob')
             ->where('provider_reference', (string) data_get($event, 'order.id'))->first();
-        if ($transaction === null) return;
+        if ($transaction === null) {
+            return;
+        }
         $success = filter_var(data_get($event, 'success'), FILTER_VALIDATE_BOOLEAN);
         $pending = filter_var(data_get($event, 'pending'), FILTER_VALIDATE_BOOLEAN);
         $error = filter_var(data_get($event, 'error_occured'), FILTER_VALIDATE_BOOLEAN);
-        if ($success && ! $pending && ! $error) $this->markPaid($transaction, (string) data_get($event, 'id'));
-        elseif (! $pending) $this->markFailed($transaction);
+        if ($success && ! $pending && ! $error) {
+            $this->markPaid($transaction, (string) data_get($event, 'id'));
+        } elseif (! $pending) {
+            $this->markFailed($transaction);
+        }
     }
 
     private function scalar(mixed $value): string
     {
-        if (is_bool($value)) return $value ? 'true' : 'false';
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
         return $value === null ? '' : (string) $value;
     }
 
-    private function processTap(array $event): void
+    private function processTap(array $event, StorePaymentGateway $setting): void
     {
-        $transaction = StorePaymentTransaction::query()->where('gateway', 'tap')->where('provider_reference', data_get($event, 'id'))->first();
-        if ($transaction === null) return;
+        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', 'tap')->where('provider_reference', data_get($event, 'id'))->first();
+        if ($transaction === null) {
+            return;
+        }
         $status = strtoupper((string) data_get($event, 'status'));
-        if ($status === 'CAPTURED') $this->markPaid($transaction, (string) data_get($event, 'id'));
-        elseif (in_array($status, ['FAILED', 'DECLINED', 'CANCELLED', 'ABANDONED', 'RESTRICTED', 'VOID'], true)) $this->markFailed($transaction);
+        if ($status === 'CAPTURED') {
+            $this->markPaid($transaction, (string) data_get($event, 'id'));
+        } elseif (in_array($status, ['FAILED', 'DECLINED', 'CANCELLED', 'ABANDONED', 'RESTRICTED', 'VOID'], true)) {
+            $this->markFailed($transaction);
+        }
     }
 
-    private function processFawaterak(array $event): void
+    private function processFawaterak(array $event, StorePaymentGateway $setting): void
     {
-        $transaction = StorePaymentTransaction::query()->where('gateway', 'fawaterak')->where('provider_reference', data_get($event, 'invoice_key'))->first();
-        if ($transaction === null) return;
+        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', 'fawaterak')->where('provider_reference', data_get($event, 'invoice_key'))->first();
+        if ($transaction === null) {
+            return;
+        }
         if (strtolower((string) data_get($event, 'invoice_status')) === 'paid') {
             $this->markPaid($transaction, (string) (data_get($event, 'referenceNumber') ?: data_get($event, 'invoice_id')));
         }
     }
 
-    private function processPayTabs(array $event): void
+    private function processPayTabs(array $event, StorePaymentGateway $setting): void
     {
-        $transaction = StorePaymentTransaction::query()
+        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)
             ->where('gateway', 'paytabs')
             ->where('provider_reference', data_get($event, 'tran_ref'))
             ->first();
 
         if ($transaction === null && filled(data_get($event, 'cart_id'))) {
-            $transaction = StorePaymentTransaction::query()
+            $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)
                 ->where('gateway', 'paytabs')
                 ->whereKey(data_get($event, 'cart_id'))
                 ->first();
         }
-        if ($transaction === null) return;
+        if ($transaction === null) {
+            return;
+        }
 
         if (data_get($event, 'payment_result.response_status') === 'A') {
             $this->markPaid($transaction, (string) data_get($event, 'tran_ref'));
@@ -365,13 +442,15 @@ class PaymentWebhookController extends Controller
         }
     }
 
-    private function processFawry(array $event): void
+    private function processFawry(array $event, StorePaymentGateway $setting): void
     {
-        $transaction = StorePaymentTransaction::query()
+        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)
             ->where('gateway', 'fawry')
             ->whereKey(data_get($event, 'merchantRefNumber'))
             ->first();
-        if ($transaction === null) return;
+        if ($transaction === null) {
+            return;
+        }
 
         $status = strtoupper((string) data_get($event, 'orderStatus'));
         if ($status === 'PAID') {
@@ -393,15 +472,32 @@ class PaymentWebhookController extends Controller
 
     private function markPaid(StorePaymentTransaction $transaction, string $reference): void
     {
-        if ($transaction->status === 'paid') return;
-        $transaction->update(['status' => 'paid', 'provider_reference' => $reference, 'paid_at' => now(), 'failed_at' => null]);
-        $transaction->order()->update(['payment_status' => 'paid', 'payment_reference' => $reference]);
+        $this->transitionPayment($transaction, 'paid', $reference);
     }
 
     private function markFailed(StorePaymentTransaction $transaction): void
     {
-        if ($transaction->status === 'paid') return;
-        $transaction->update(['status' => 'failed', 'failed_at' => now()]);
-        $transaction->order()->update(['payment_status' => 'failed']);
+        $this->transitionPayment($transaction, 'failed');
+    }
+
+    private function transitionPayment(StorePaymentTransaction $transaction, string $status, ?string $reference = null): void
+    {
+        DB::transaction(function () use ($transaction, $status, $reference) {
+            $locked = StorePaymentTransaction::query()->whereKey($transaction->id)->lockForUpdate()->firstOrFail();
+            if ($locked->status === 'paid') {
+                return;
+            }
+            // Webhooks run without a host-resolved CurrentStore. Bind explicitly.
+            $order = StoreOrder::forStore($locked->store_id)->whereKey($locked->store_order_id)->lockForUpdate()->firstOrFail();
+            $locked->update($status === 'paid'
+                ? ['status' => 'paid', 'provider_reference' => $reference, 'paid_at' => now(), 'failed_at' => null]
+                : ['status' => 'failed', 'failed_at' => now()]);
+            // A delayed failure from another attempt cannot undo a settled order.
+            if ($status === 'paid') {
+                $order->update(['payment_status' => 'paid', 'payment_reference' => $reference]);
+            } elseif ($order->payment_status !== 'paid') {
+                $order->update(['payment_status' => 'failed']);
+            }
+        });
     }
 }

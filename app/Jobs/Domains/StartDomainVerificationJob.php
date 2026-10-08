@@ -5,7 +5,7 @@ namespace App\Jobs\Domains;
 use App\Services\Stores\StoreDomainService;
 
 /**
- * Kicks off verification: rotates the challenge token, then chains the DNS check.
+ * Kicks off verification without invalidating the TXT record already shown to the owner.
  *
  * Dispatched when a domain is connected or when the owner presses "Verify" — the
  * HTTP request returns immediately and never blocks on DNS.
@@ -25,7 +25,8 @@ class StartDomainVerificationJob extends DomainJob
             return;
         }
 
-        $service->startVerification($domain);
+        // Rotation is explicit via the verification endpoint. A normal Verify click
+        // must keep the published challenge valid, including queued retries.
 
         CheckDomainDnsJob::dispatch($domain->id);
     }

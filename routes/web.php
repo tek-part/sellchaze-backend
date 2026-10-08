@@ -5,6 +5,8 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\InvitationsController;
 use App\Http\Controllers\Storefront\StorefrontPageController;
 use App\Http\Controllers\Storefront\ThemeBundleController;
+use App\Models\Store;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -15,6 +17,7 @@ use Illuminate\Support\Facades\Route;
 | the app welcome on the main domain; other storefront paths 404 on unknown hosts.
 */
 Route::middleware(['resolve.store', 'storefront.locale'])->group(function () {
+    Route::get('/storefront.webmanifest', [StorefrontPageController::class, 'manifest']);
     Route::get('/theme-bundles/{version}/{checksum}.js', [ThemeBundleController::class, 'show'])
         ->whereNumber('version')->where('checksum', '[a-f0-9]{64}');
     Route::get('/', [StorefrontPageController::class, 'root']);
@@ -37,11 +40,15 @@ Route::middleware(['resolve.store', 'storefront.locale'])->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::get('login', function () {
+Route::get('login', function (Request $request) {
+    if ($request->attributes->get('store') instanceof Store) {
+        return app(StorefrontPageController::class)->spa($request);
+    }
+
     $front = rtrim((string) config('sellchase.frontend_url', env('FRONTEND_URL', 'http://localhost:5173')), '/');
 
     return redirect()->away($front.'/login');
-})->name('login');
+})->middleware(['resolve.store', 'storefront.locale'])->name('login');
 
 /** Legacy Blade layouts (e.g. Growtech 404) link here; keeps session locale for optional SetLocale middleware. */
 Route::get('locale/{locale}', function (string $locale) {

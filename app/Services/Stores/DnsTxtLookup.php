@@ -2,6 +2,9 @@
 
 namespace App\Services\Stores;
 
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
+
 /**
  * Thin seam over the system DNS resolver.
  *
@@ -21,6 +24,9 @@ class DnsTxtLookup
      */
     public function txt(string $name): array
     {
+        if (config('sellchase.storefront.domains.dns_resolver') === 'google') {
+            return $this->publicRecords($name, 16);
+        }
         $records = @dns_get_record($name, DNS_TXT);
 
         if ($records === false || $records === null) {
@@ -68,6 +74,11 @@ class DnsTxtLookup
      *
      * @return list<string>
      */
+    public function ns(string $name): array
+    {
+        return $this->records($name, DNS_NS, 'target');
+    }
+
     public function aaaa(string $name): array
     {
         return $this->records($name, DNS_AAAA, 'ipv6');
@@ -78,6 +89,9 @@ class DnsTxtLookup
      */
     private function records(string $name, int $type, string $key): array
     {
+        if (config('sellchase.storefront.domains.dns_resolver') === 'google') {
+            return $this->publicRecords($name, [DNS_A => 1, DNS_NS => 2, DNS_CNAME => 5, DNS_AAAA => 28][$type]);
+        }
         $records = @dns_get_record($name, $type);
 
         if (! is_array($records)) {
@@ -90,6 +104,35 @@ class DnsTxtLookup
             if (is_string($value) && $value !== '') {
                 $values[] = strtolower(rtrim(trim($value), '.'));
             }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /** Use public recursion so a locally prepared zone cannot fake global DNS propagation. */
+    private function publicRecords(string $name, int $type): array
+    {
+        $body = Http::acceptJson()->connectTimeout(3)->timeout(8)
+            ->get('https://dns.google/resolve', ['name' => $name, 'type' => $type])->throw()->json();
+        $status = $body['Status'] ?? null;
+        if ($status === 3) {
+            return [];
+        } // NXDOMAIN is a conclusive negative answer.
+        if ($status !== 0) {
+            throw new RuntimeException('Public DNS resolver could not complete the lookup.');
+        }
+        $values = [];
+        foreach ($body['Answer'] ?? [] as $record) {
+            if (($record['type'] ?? null) !== $type || ! is_string($record['data'] ?? null)) {
+                continue;
+            }
+            $value = trim($record['data']);
+            if ($type === 16) {
+                $value = str_replace('" "', '', trim($value, '"'));
+            } else {
+                $value = strtolower(rtrim($value, '.'));
+            }
+            $values[] = $value;
         }
 
         return array_values(array_unique($values));

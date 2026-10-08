@@ -41,6 +41,11 @@ class SecurityHeaders
     {
         $response = $next($request);
 
+        // Account responses and token rotations must never be reused from a browser/proxy cache.
+        if ($request->is('api/*') && ($request->bearerToken() !== null || $request->is('api/*/auth/*', 'api/*/storefront/account*'))) {
+            $response->headers->set('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0');
+        }
+
         foreach (self::HEADERS as $header => $value) {
             if (! $response->headers->has($header)) {
                 $response->headers->set($header, $value);

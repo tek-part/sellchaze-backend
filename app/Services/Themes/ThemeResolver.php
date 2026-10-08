@@ -66,6 +66,55 @@ class ThemeResolver
         ];
     }
 
+    /** Resolve a signed preview consistently for the HTML shell and SPA APIs. */
+    public function resolvePreview(Store $store, mixed $token, ?string $locale = null): ?array
+    {
+        if (! is_string($token) || $token === '') {
+            return null;
+        }
+        $ctx = app(ThemePreviewToken::class)->verifyContext($token, $store->id);
+        if ($ctx === null) {
+            return null;
+        }
+
+        $resolver = $this;
+
+        // Marketplace preview is intentionally resolved before looking for a
+        // StoreTheme install: paid catalog themes must be previewable without
+        // granting a license or creating tenant state.
+        if (! empty($ctx['catalog_version_id'])) {
+            $version = ThemeVersion::query()->find($ctx['catalog_version_id']);
+            if ($version && Theme::query()->whereKey($version->theme_id)->where('status', 'published')->exists()) {
+                return $resolver->resolveForVersion($version, [], $locale, $store);
+            }
+
+            return null;
+        }
+
+        $install = StoreTheme::query()->where('store_id', $store->id)->find($ctx['store_theme_id']);
+        if ($install === null) {
+            return null;
+        }
+
+        // Upgrade preview: render a specific (newer) version with migrated settings.
+        if (! empty($ctx['version_id'])) {
+            $version = ThemeVersion::query()->find($ctx['version_id']);
+            if ($version && (int) $version->theme_id === (int) $install->theme_id) {
+                $current = ThemeVersion::query()->find($install->theme_version_id);
+                $migrated = app(ThemeSettingsMigrator::class)->migrate(
+                    $install->theme?->key ?? '',
+                    $current?->version ?? '',
+                    $version->version,
+                    $install->settings ?? [],
+                );
+
+                return $resolver->resolveForVersion($version, $migrated, $locale, $store);
+            }
+        }
+
+        return $resolver->resolveForInstall($install, $locale);
+    }
+
     /** Resolve a theme context from a specific install (used for preview). */
     public function resolveForInstall(StoreTheme $install, ?string $locale = null): array
     {
@@ -121,6 +170,23 @@ class ThemeResolver
         $locale ??= $context->has() ? $context->current() : $fallback;
 
         $coerced = $this->validator->coerce($raw, $schema);
+        if ($store && isset($coerced['announcement_text'])) {
+            $field = collect($schema)->flatMap(fn ($group) => $group['fields'] ?? [])->firstWhere('id', 'announcement_text');
+            $renderer = app(ThemeAnnouncementCurrency::class);
+            // The SPA localizes these maps again when switching language. Resolve currency
+            // in both public representations; stored editor settings remain unchanged.
+            if (is_array($coerced['announcement_text'])) {
+                foreach ($coerced['announcement_text'] as $language => $text) {
+                    $coerced['announcement_text'][$language] = $renderer->render(
+                        $text, $field['default'] ?? null, $store->currency, $language === 'default' ? $fallback : $language,
+                    );
+                }
+            } elseif (is_string($coerced['announcement_text'])) {
+                $coerced['announcement_text'] = $renderer->render(
+                    $coerced['announcement_text'], $field['default'] ?? null, $store->currency, $locale,
+                );
+            }
+        }
 
         return [
             'settings' => $this->validator->flatten($coerced, $schema, $locale, $fallback),

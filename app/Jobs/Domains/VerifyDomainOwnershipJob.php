@@ -27,6 +27,10 @@ class VerifyDomainOwnershipJob extends DomainJob
         // Only chase a certificate once ownership is proven, and only when the
         // domain has just become servable — this is what prevents certificate
         // farming through repeatedly attached, unverified domains.
+        if ($verified && config('sellchase.storefront.domains.cpanel.enabled') && $domain->hosting_status !== 'ready') {
+            PrepareDomainHostingJob::dispatch($domain->id);
+        }
+
         if ($verified && ! $wasVerified) {
             IssueDomainCertificateJob::dispatch($domain->id);
         }

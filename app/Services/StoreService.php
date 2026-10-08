@@ -156,6 +156,13 @@ class StoreService
         if (! empty($data['status'])) {
             $store->status = $data['status'];
         }
+        // Detach branding without deleting assets still used by cached pages.
+        if (! $logo && ! empty($data['remove_logo'])) {
+            $store->logo = null;
+        }
+        if (! $banner && ! empty($data['remove_banner'])) {
+            $store->banner = null;
+        }
         if ($logo) {
             $this->deleteImage($store->logo);
             $store->logo = $this->storeImage($logo);

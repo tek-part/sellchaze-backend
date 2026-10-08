@@ -72,6 +72,22 @@ class TlsProbe
         ];
     }
 
+    /** Require the same certificate chain and hostname validation a browser expects. */
+    public function isTrusted(string $host): bool
+    {
+        $context = stream_context_create(['ssl' => [
+            'verify_peer' => true, 'verify_peer_name' => true, 'allow_self_signed' => false,
+            'SNI_enabled' => true, 'peer_name' => $host,
+        ]]);
+        $client = @stream_socket_client('ssl://'.$host.':443', $errno, $error, $this->timeoutSeconds, STREAM_CLIENT_CONNECT, $context);
+        if ($client === false) {
+            return false;
+        }
+        fclose($client);
+
+        return true;
+    }
+
     /**
      * Does this certificate actually cover $host?
      *

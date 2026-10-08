@@ -7,6 +7,7 @@ use App\Models\Store;
 use App\Models\StorePage;
 use App\Models\StorePageRevision;
 use App\Models\ThemeVersion;
+use App\Services\PageBuilder\CustomizerPublicationService;
 use App\Services\PageBuilder\StorePageService;
 use App\Services\Storefront\StorefrontUrlGenerator;
 use App\Services\Themes\ThemePreviewToken;
@@ -14,6 +15,7 @@ use App\Services\Themes\ThemeResolver;
 use App\Support\Localization\LocaleContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
@@ -111,19 +113,40 @@ class StorePagesApiController extends Controller
     {
         $model = StorePage::query()->findOrFail($page);
         $data = $request->validate([
+            'expected_checksum' => ['sometimes', 'required', 'string', 'size:64'],
             'sections' => ['present', 'array', 'max:60'],
             'sections.*.type' => ['required', 'string', 'max:40'],
             'sections.*.settings' => ['nullable', 'array'],
             'sections.*.reusable_section_id' => ['nullable', 'integer'],
             'sections.*.is_visible' => ['nullable', 'boolean'],
         ]);
-        $model = $this->service->syncSections($model, $data['sections'], $request->user()?->id);
+        $model = DB::transaction(function () use ($store, $page, $data, $request) {
+            $locked = StorePage::query()->where('store_id', $store->id)->whereKey($page)->lockForUpdate()->firstOrFail();
+            if (isset($data['expected_checksum'])) {
+                abort_unless(hash_equals(app(CustomizerPublicationService::class)->pageChecksum($locked), $data['expected_checksum']), 409, 'This draft was changed in another editor. Reload it before saving.');
+            }
 
-        return response()->json(['data' => $this->pageArray($model, true)], 200, [], JSON_UNESCAPED_UNICODE);
+            $saved = $this->service->syncSections($locked, $data['sections'], $request->user()?->id);
+
+            return $this->pageArray($saved, true);
+        });
+
+        return response()->json(['data' => $model], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
     public function publish(Request $request, Store $store, int $page): JsonResponse
     {
+        $data = $request->validate([
+            'theme_id' => ['sometimes', 'required', 'integer'],
+            'page_checksum' => ['required_with:theme_id', 'string', 'size:64'],
+            'theme_checksum' => ['required_with:theme_id', 'string', 'size:64'],
+        ]);
+        if (isset($data['theme_id'])) {
+            $published = app(CustomizerPublicationService::class)->publish($store, $page, $data['theme_id'], $data['page_checksum'], $data['theme_checksum'], $request->user()?->id);
+
+            return $this->stateChange($published);
+        }
+
         return $this->stateChange($this->service->publish(StorePage::query()->findOrFail($page)));
     }
 
@@ -222,6 +245,7 @@ class StorePagesApiController extends Controller
                 'reusable_section_id' => $s->reusable_section_id, 'position' => $s->position,
                 'is_visible' => (bool) $s->is_visible,
             ])->values();
+            $out['draft_checksum'] = app(CustomizerPublicationService::class)->pageChecksum($page);
             $out['has_unpublished_changes'] = $this->service->hasUnpublishedChanges($page);
         }
 

@@ -76,6 +76,8 @@ class UpdateStoreRequest extends FormRequest
             'shipping_flat_rate' => ['sometimes', 'numeric', 'min:0', 'max:9999999999'],
             'shipping_free_over' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:9999999999'],
             'status' => ['sometimes', 'nullable', Rule::in(Store::STATUSES)],
+            'remove_logo' => ['sometimes', 'boolean'],
+            'remove_banner' => ['sometimes', 'boolean'],
             'logo' => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'banner' => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ];

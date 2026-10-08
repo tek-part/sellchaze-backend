@@ -82,7 +82,7 @@ class ThemeRegistryTest extends TestCase
 
         $this->assertSame(['bazaar', 'fresh', 'naseem', 'sahra', 'techno'], $keys);
         foreach (ThemeRegistry::manifestPaths() as $path) {
-            $this->assertStringStartsWith(resource_path('themes/storefront/'), $path);
+            $this->assertStringStartsWith(realpath(resource_path('themes/storefront')).DIRECTORY_SEPARATOR, realpath($path));
         }
     }
 }

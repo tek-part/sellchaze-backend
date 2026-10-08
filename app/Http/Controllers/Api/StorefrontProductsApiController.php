@@ -23,6 +23,7 @@ class StorefrontProductsApiController extends Controller
 
     public function index(Request $request, Store $store): JsonResponse
     {
+        $request->validate(['status' => ['nullable', 'in:active,draft']]);
         $query = Product::query()->with('category:id,name,slug'); // StoreScope -> this store only
 
         if ($request->filled('search')) {
@@ -31,6 +32,10 @@ class StorefrontProductsApiController extends Controller
         }
         if ($request->filled('category_id')) {
             $query->where('category_id', (int) $request->get('category_id'));
+        }
+
+        if ($request->filled('status')) {
+            $query->where('is_active', $request->get('status') === 'active');
         }
 
         $perPage = min(max((int) $request->get('per_page', 15), 1), 100);

@@ -244,6 +244,17 @@ class ContentPageSchema
                     ]],
                 ],
             ],
+            'payment-methods' => [
+                'label' => 'store_payment_images',
+                'icon' => 'doc',
+                'path' => '/',
+                'fields' => [
+                    ['key' => 'methods', 'type' => 'repeater', 'label' => 'store_payment_images', 'item' => [
+                        ['key' => 'name', 'type' => 'text', 'label' => 'col_name'],
+                        ['key' => 'image', 'type' => 'image', 'label' => 'cpf_image'],
+                    ]],
+                ],
+            ],
         ];
     }
 

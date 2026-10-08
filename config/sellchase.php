@@ -24,7 +24,7 @@ return [
     'jwt' => [
         'secret' => env('JWT_SECRET') ?: '',
         'access_ttl_minutes' => (int) env('JWT_ACCESS_TTL_MINUTES', 1440),
-        'refresh_ttl_hours' => (int) env('JWT_REFRESH_TTL_HOURS', 24),
+        'refresh_ttl_hours' => (int) env('JWT_REFRESH_TTL_HOURS', 2400),
     ],
 
     /**
@@ -117,6 +117,15 @@ return [
         ],
 
         'domains' => [
+            'dns_resolver' => env('SELLCHASE_DOMAIN_DNS_RESOLVER', 'system'),
+            // Enable only after the hosting provider can provision tenant DNS zones.
+            'nameservers' => array_values(array_filter(array_map('trim', explode(',', (string) env('SELLCHASE_DOMAIN_NAMESERVERS', ''))))),
+            'nameservers_ready' => (bool) env('SELLCHASE_DOMAIN_NAMESERVERS_READY', false),
+            'cpanel' => [
+                'enabled' => (bool) env('SELLCHASE_DOMAIN_CPANEL_ENABLED', false),
+                'document_root' => env('SELLCHASE_DOMAIN_DOCUMENT_ROOT', 'public_html/api.sellchaze.com/public'),
+            ],
+
             /** Queue connection/name for all domain work. Never runs inline. */
             'queue' => env('SELLCHASE_DOMAIN_QUEUE', 'domains'),
 

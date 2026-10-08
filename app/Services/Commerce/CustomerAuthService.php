@@ -79,9 +79,10 @@ class CustomerAuthService
 
         $token = StoreCustomerToken::query()
             ->where('token_hash', hash('sha256', $plain))
+            ->where('created_at', '>', now()->subDays(100))
             ->first();
 
-        if ($token === null) {
+        if ($token === null || ! $token->customer?->is_active) {
             return null;
         }
 

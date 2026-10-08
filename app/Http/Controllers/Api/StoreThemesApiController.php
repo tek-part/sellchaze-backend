@@ -6,20 +6,21 @@ use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Models\StoreTheme;
 use App\Models\StoreThemeActivation;
+use App\Models\StoreThemeLicense;
 use App\Models\StoreThemeRevision;
 use App\Models\Theme;
 use App\Models\ThemeVersion;
-use App\Models\StoreThemeLicense;
-use App\Services\Storefront\StorefrontPageCache;
+use App\Services\PageBuilder\CustomizerPublicationService;
 use App\Services\Storefront\StorefrontUrlGenerator;
 use App\Services\Themes\CustomCssSanitizer;
 use App\Services\Themes\StoreThemeService;
-use App\Services\Themes\ThemeRegistry;
-use App\Services\Themes\ThemeSettingsValidator;
 use App\Services\Themes\ThemeLicenseService;
 use App\Services\Themes\ThemePreviewToken;
+use App\Services\Themes\ThemeRegistry;
+use App\Services\Themes\ThemeSettingsValidator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
@@ -111,6 +112,7 @@ class StoreThemesApiController extends Controller
                 'status' => $install->status,
                 'settings' => $install->settings,
                 'draft_settings' => $install->draft_settings ?? $install->settings,
+                'draft_checksum' => app(CustomizerPublicationService::class)->themeChecksum($install),
                 'published_settings' => $install->settings,
                 'custom_css' => $install->custom_css,
                 'draft_custom_css' => $install->draft_custom_css ?? $install->custom_css,
@@ -242,6 +244,7 @@ class StoreThemesApiController extends Controller
             'theme_id' => ['required', 'integer'],
             'settings' => ['required', 'array'],
             'source' => ['nullable', 'in:manual,autosave'],
+            'expected_checksum' => ['sometimes', 'required', 'string', 'size:64'],
         ]);
 
         $install = StoreTheme::query()->where('store_id', $store->id)->where('theme_id', $data['theme_id'])->firstOrFail();
@@ -251,12 +254,14 @@ class StoreThemesApiController extends Controller
             return response()->json(['message' => 'Invalid settings.', 'errors' => ['settings' => $errors]], 422);
         }
 
-        $install = $this->service->updateSettings(
-            $install,
-            $data['settings'],
-            $request->user()?->id,
-            $data['source'] ?? 'manual',
-        );
+        $install = DB::transaction(function () use ($store, $data, $request) {
+            $locked = StoreTheme::query()->where('store_id', $store->id)->where('theme_id', $data['theme_id'])->lockForUpdate()->firstOrFail();
+            if (isset($data['expected_checksum'])) {
+                abort_unless(hash_equals(app(CustomizerPublicationService::class)->themeChecksum($locked), $data['expected_checksum']), 409, 'This draft was changed in another editor. Reload it before saving.');
+            }
+
+            return $this->service->updateSettings($locked, $data['settings'], $request->user()?->id, $data['source'] ?? 'manual');
+        });
 
         return response()->json(['data' => $this->installArray($install)], 200, [], JSON_UNESCAPED_UNICODE);
     }
@@ -332,6 +337,7 @@ class StoreThemesApiController extends Controller
             'status' => $install->status,
             'settings' => $install->settings,
             'draft_settings' => $install->draft_settings ?? $install->settings,
+            'draft_checksum' => app(CustomizerPublicationService::class)->themeChecksum($install),
             'custom_css' => $install->custom_css,
             'draft_custom_css' => $install->draft_custom_css ?? $install->custom_css,
             'published_at' => $install->published_at,

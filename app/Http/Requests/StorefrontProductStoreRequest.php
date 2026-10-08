@@ -24,8 +24,8 @@ class StorefrontProductStoreRequest extends FormRequest
             'barcode' => ['nullable', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:20000'],
             'short_description' => ['nullable', 'string', 'max:500'],
-            'price' => ['nullable', 'numeric', 'min:0'],
-            'compare_price' => ['nullable', 'numeric', 'min:0'],
+            'price' => ['sometimes', 'required', 'numeric', 'min:0', 'max:999999999.99', 'decimal:0,2'],
+            'compare_price' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', 'decimal:0,2'],
             // Category must belong to the SAME store (tenant-safe existence check).
             'category_id' => ['nullable', 'integer', Rule::exists('categories', 'id')->where('store_id', $storeId)],
             'is_active' => ['nullable', 'boolean'],

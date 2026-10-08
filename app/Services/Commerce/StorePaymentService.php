@@ -9,6 +9,7 @@ use App\Models\StorePaymentTransaction;
 use App\Services\Storefront\StorefrontUrlGenerator;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -32,6 +33,7 @@ class StorePaymentService
 
         if (in_array($setting->gateway, ['cod', 'bank_transfer'], true)) {
             $transaction->update(['status' => 'pending']);
+
             return $this->result($transaction->fresh());
         }
 
@@ -54,6 +56,13 @@ class StorePaymentService
         }
 
         if (in_array($transaction->status, ['paid', 'pending', 'redirect_pending'], true)) {
+            if ($setting->gateway === 'fawry' && $transaction->status !== 'paid') {
+                $transaction->update($this->fawry($store, $order, $setting, $transaction));
+            } elseif ($setting->gateway === 'hyperpay' && $transaction->status !== 'paid') {
+                $this->hyperpaySession($transaction);
+                $transaction->update(['redirect_url' => $this->hyperpaySessionUrl($store, $transaction)]);
+            }
+
             return $this->result($transaction);
         }
 
@@ -250,6 +259,7 @@ class StorePaymentService
     public function authoriseTamara(StorePaymentGateway $setting, string $orderId): array
     {
         $base = $setting->test_mode ? 'https://api-sandbox.tamara.co' : 'https://api.tamara.co';
+
         return Http::withToken((string) data_get($setting->credentials, 'api_token'))->acceptJson()
             ->post($base.'/orders/'.$orderId.'/authorise')->throw()->json();
     }
@@ -363,25 +373,46 @@ class StorePaymentService
 
         $checkoutId = (string) data_get($response, 'id');
         abort_if($checkoutId === '', 422, 'HyperPay did not return a checkout ID.');
-        $returnUrl = url('/api/v1/payment-returns/hyperpay/'.$transaction->id);
-        $brands = trim((string) data_get($credentials, 'brands', 'VISA MASTER MADA'));
-        $query = http_build_query([
-            'checkout_id' => $checkoutId,
-            'return_url' => $returnUrl,
-            'mode' => $setting->test_mode ? 'test' : 'live',
-            'brands' => $brands,
-            'order' => $order->order_number,
-        ]);
 
         return [
             'provider_reference' => $checkoutId,
-            'redirect_url' => $this->urls->publicUrl($store, '/payment/hyperpay?'.$query),
+            'redirect_url' => $this->hyperpaySessionUrl($store, $transaction),
+            'metadata' => array_merge($transaction->metadata ?? [], ['hyperpay' => [
+                'checkout_id' => $checkoutId,
+                'test_mode' => (bool) $setting->test_mode,
+                'brands' => trim((string) data_get($credentials, 'brands', 'VISA MASTER MADA')),
+            ]]),
+        ];
+    }
+
+    private function hyperpaySessionUrl(Store $store, StorePaymentTransaction $transaction): string
+    {
+        return $this->urls->publicUrl($store, '/payment/hyperpay?'.http_build_query([
+            'session_url' => URL::temporarySignedRoute('payments.hyperpay.session', now()->addHour(), ['transaction' => $transaction->id]),
+        ]));
+    }
+
+    public function hyperpaySession(StorePaymentTransaction $transaction): array
+    {
+        $config = data_get($transaction->metadata, 'hyperpay');
+        abort_unless(is_array($config) && filled($config['checkout_id'] ?? null) && array_key_exists('test_mode', $config), 422, 'This payment session must be restarted.');
+        $order = StoreOrder::forStore($transaction->store_id)->findOrFail($transaction->store_order_id);
+        abort_if($order->status === 'cancelled' || $order->payment_status === 'paid', 404);
+
+        return [
+            'store_id' => (int) $transaction->store_id,
+            'checkout_id' => $config['checkout_id'],
+            'return_url' => url('/api/v1/payment-returns/hyperpay/'.$transaction->id),
+            'mode' => $config['test_mode'] ? 'test' : 'live',
+            'brands' => $config['brands'] ?? 'VISA MASTER MADA',
+            'order' => $order->order_number,
         ];
     }
 
     public function verifyHyperpayResult(StorePaymentTransaction $transaction, StorePaymentGateway $setting, string $resourcePath): array
     {
-        $expectedPath = '/v1/checkouts/'.$transaction->provider_reference.'/payment';
+        $checkoutId = data_get($transaction->metadata, 'hyperpay.checkout_id', $transaction->provider_reference);
+        $expectedPath = '/v1/checkouts/'.$checkoutId.'/payment';
         abort_unless($resourcePath === $expectedPath, 422, 'Invalid HyperPay resource path.');
         $entityId = trim((string) data_get($setting->credentials, 'entity_id'));
         $accessToken = trim((string) data_get($setting->credentials, 'access_token'));
@@ -389,7 +420,7 @@ class StorePaymentService
         $this->requireCredential($accessToken, 'HyperPay access token');
 
         $response = Http::withToken($accessToken)
-            ->get($this->hyperpayBase($setting).$resourcePath, ['entityId' => $entityId])
+            ->get($this->hyperpayBase($setting, data_get($transaction->metadata, 'hyperpay.test_mode')).$resourcePath, ['entityId' => $entityId])
             ->throw()->json();
         abort_unless((string) data_get($response, 'merchantTransactionId') === (string) $transaction->id, 422, 'HyperPay transaction mismatch.');
 
@@ -398,12 +429,13 @@ class StorePaymentService
 
     public function paymentRedirectUrl(StorePaymentTransaction $transaction, string $status): string
     {
-        $transaction->loadMissing(['store', 'order']);
+        $transaction->loadMissing('store');
+        $order = StoreOrder::forStore($transaction->store_id)->findOrFail($transaction->store_order_id);
         if ($status === 'success') {
-            return $this->urls->publicUrl($transaction->store, '/order/success?number='.rawurlencode($transaction->order->order_number).'&payment=success');
+            return $this->urls->publicUrl($transaction->store, '/order/success?number='.rawurlencode($order->order_number).'&payment=success');
         }
         if ($status === 'pending') {
-            return $this->urls->publicUrl($transaction->store, '/order/success?number='.rawurlencode($transaction->order->order_number).'&payment=pending');
+            return $this->urls->publicUrl($transaction->store, '/order/success?number='.rawurlencode($order->order_number).'&payment=pending');
         }
 
         return $this->urls->publicUrl($transaction->store, '/checkout?payment=failed');
@@ -416,7 +448,7 @@ class StorePaymentService
         $this->requireCredential(trim((string) data_get($credentials, 'merchant_code')), 'Fawry merchant code');
         $this->requireCredential(trim((string) data_get($credentials, 'security_key')), 'Fawry security key');
         $query = http_build_query([
-            'session_url' => url('/api/v1/payment-sessions/fawry/'.$transaction->id),
+            'session_url' => URL::temporarySignedRoute('payments.fawry.session', now()->addHour(), ['transaction' => $transaction->id]),
             'mode' => $setting->test_mode ? 'test' : 'live',
             'order' => $order->order_number,
         ]);
@@ -429,19 +461,29 @@ class StorePaymentService
 
     public function fawrySession(StorePaymentTransaction $transaction, StorePaymentGateway $setting): array
     {
-        $transaction->loadMissing(['order.items', 'store']);
-        $order = $transaction->order;
+        $transaction->loadMissing('store');
+        $order = StoreOrder::forStore($transaction->store_id)
+            ->with(['items' => fn ($query) => $query->forStore($transaction->store_id)])
+            ->findOrFail($transaction->store_order_id);
         $merchantCode = trim((string) data_get($setting->credentials, 'merchant_code'));
         $securityKey = trim((string) data_get($setting->credentials, 'security_key'));
         $this->requireCredential($merchantCode, 'Fawry merchant code');
         $this->requireCredential($securityKey, 'Fawry security key');
         $returnUrl = url('/api/v1/payment-returns/fawry/'.$transaction->id);
-        $items = $order->items->map(fn ($item) => [
-            'itemId' => (string) $item->id,
-            'description' => (string) $item->name,
-            'price' => (float) number_format((float) $item->unit_price, 2, '.', ''),
-            'quantity' => (float) $item->quantity,
-        ])->sortBy('itemId')->values();
+        if (bccomp((string) $transaction->amount, (string) $order->grand_total, 2) !== 0
+            || strtoupper($transaction->currency) !== strtoupper($order->currency)
+            || bccomp((string) $transaction->amount, '0', 2) <= 0) {
+            throw ValidationException::withMessages(['payment' => 'The payment amount does not match this order.']);
+        }
+        // Hosted checkout charges the sum of its items. Use the recorded payable
+        // total so shipping, tax and order-level discounts are included exactly once.
+        // Detailed purchased items remain on the order and customer invoice.
+        $items = collect([[
+            'itemId' => 'order-'.$order->id,
+            'description' => 'Order '.$order->order_number,
+            'price' => (float) $transaction->amount,
+            'quantity' => 1,
+        ]]);
         $signatureItems = $items->map(fn (array $item) => $item['itemId'].$item['quantity'].number_format($item['price'], 2, '.', ''))->implode('');
         $signature = hash('sha256', $merchantCode.$transaction->id.''.$returnUrl.$signatureItems.$securityKey);
 
@@ -460,9 +502,9 @@ class StorePaymentService
         ];
     }
 
-    private function hyperpayBase(StorePaymentGateway $setting): string
+    private function hyperpayBase(StorePaymentGateway $setting, ?bool $testMode = null): string
     {
-        return $setting->test_mode ? 'https://eu-test.oppwa.com' : 'https://eu-prod.oppwa.com';
+        return ($testMode ?? $setting->test_mode) ? 'https://eu-test.oppwa.com' : 'https://eu-prod.oppwa.com';
     }
 
     private function paymobBase(string $region): string
@@ -534,6 +576,7 @@ class StorePaymentService
     public function retrieveTabby(StorePaymentGateway $setting, string $paymentId, string $currency): array
     {
         $base = strtoupper($currency) === 'SAR' ? 'https://api.tabby.sa' : 'https://api.tabby.ai';
+
         return Http::withToken((string) data_get($setting->credentials, 'secret_key'))->acceptJson()
             ->get($base.'/api/v2/payments/'.$paymentId)->throw()->json();
     }
@@ -541,6 +584,7 @@ class StorePaymentService
     public function captureTabby(StorePaymentGateway $setting, StorePaymentTransaction $transaction): array
     {
         $base = strtoupper($transaction->currency) === 'SAR' ? 'https://api.tabby.sa' : 'https://api.tabby.ai';
+
         return Http::withToken((string) data_get($setting->credentials, 'secret_key'))->acceptJson()
             ->post($base.'/api/v2/payments/'.$transaction->provider_reference.'/captures', [
                 'amount' => (string) $transaction->amount,
@@ -560,6 +604,7 @@ class StorePaymentService
         $clientSecret = trim((string) data_get($setting->credentials, 'client_secret'));
         $this->requireCredential($clientId, 'PayPal client ID');
         $this->requireCredential($clientSecret, 'PayPal client secret');
+
         return (string) Http::asForm()->withBasicAuth($clientId, $clientSecret)
             ->post($this->paypalBase($setting).'/v1/oauth2/token', ['grant_type' => 'client_credentials'])
             ->throw()->json('access_token');
@@ -597,12 +642,15 @@ class StorePaymentService
     private function minorAmount(string $amount, string $currency): int
     {
         $zeroDecimal = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];
+
         return in_array(strtoupper($currency), $zeroDecimal, true) ? (int) round((float) $amount) : (int) round(((float) $amount) * 100);
     }
 
     private function requireCredential(string $value, string $label): void
     {
-        if ($value === '') throw ValidationException::withMessages(['payment_method' => $label.' is missing in store payment settings.']);
+        if ($value === '') {
+            throw ValidationException::withMessages(['payment_method' => $label.' is missing in store payment settings.']);
+        }
     }
 
     /** @return array{transaction_id:int,status:string,redirect_url:?string} */

@@ -515,6 +515,10 @@ class StoreDomainService
             ]);
         }
 
+        if ($domain->isCustom() && config('sellchase.storefront.domains.cpanel.enabled') && (! $domain->dns_target_ok || $domain->ssl_status !== StoreDomain::SSL_ACTIVE)) {
+            throw ValidationException::withMessages(['host' => [__('Complete DNS routing and SSL before making this domain primary.')]]);
+        }
+
         [$updated, $previousHost] = DB::transaction(function () use ($domain, $actor): array {
             Store::query()->whereKey($domain->store_id)->lockForUpdate()->first();
 
