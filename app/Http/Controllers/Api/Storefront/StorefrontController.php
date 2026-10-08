@@ -44,7 +44,8 @@ class StorefrontController extends Controller
     public function index(Request $request): JsonResponse
     {
         $store = $this->currentStore($request);
-        $theme = $this->themes->resolve($store, $this->locale->current());
+        $preview = $this->themes->resolvePreview($store, $request->query('__preview'), $this->locale->current());
+        $theme = $preview ?? $this->themes->resolve($store, $this->locale->current());
 
         return response()->json([
             'store' => $this->storeSummary($store),
@@ -59,7 +60,7 @@ class StorefrontController extends Controller
             ],
             'homepage' => $this->storefront->homepage($store),
             'navigation' => $this->navigation($store),
-        ], 200, [], JSON_UNESCAPED_UNICODE);
+        ], 200, $preview !== null ? ['Cache-Control' => 'private, no-store', 'X-Robots-Tag' => 'noindex, nofollow'] : [], JSON_UNESCAPED_UNICODE);
     }
 
     /** Header/footer menu trees for the current locale; empty arrays when the store has none. */
@@ -89,10 +90,11 @@ class StorefrontController extends Controller
             : 'home';
         $params = $request->filled('slug') ? ['slug' => (string) $request->query('slug')] : [];
 
-        $context = $this->builder->build($store, $template, $params);
+        $preview = $this->themes->resolvePreview($store, $request->query('__preview'), $this->locale->current());
+        $context = $this->builder->build($store, $template, $params, $preview);
         abort_if($context === null, 404, 'Not found.');
 
-        return response()->json($context, 200, [], JSON_UNESCAPED_UNICODE);
+        return response()->json($context, 200, $preview !== null ? ['Cache-Control' => 'private, no-store'] : [], JSON_UNESCAPED_UNICODE);
     }
 
     /**

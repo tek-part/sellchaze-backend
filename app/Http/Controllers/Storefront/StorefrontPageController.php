@@ -5,17 +5,15 @@ namespace App\Http\Controllers\Storefront;
 use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Models\StorePage;
-use App\Models\StoreTheme;
 use App\Models\Theme;
-use App\Models\ThemeVersion;
 use App\Services\Storefront\PublishedPageResolver;
+use App\Services\Storefront\SpaShell;
 use App\Services\Storefront\StorefrontContextBuilder;
 use App\Services\Storefront\StorefrontRenderer;
 use App\Services\Storefront\StorefrontService;
 use App\Services\Storefront\StoreSeoService;
 use App\Services\Themes\ThemePreviewToken;
 use App\Services\Themes\ThemeResolver;
-use App\Services\Themes\ThemeSettingsMigrator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -34,6 +32,31 @@ class StorefrontPageController extends Controller
         private readonly StorefrontContextBuilder $builder,
         private readonly StorefrontRenderer $renderer,
     ) {}
+
+    /** Serve a same-origin manifest instead of letting the SPA fallback return HTML. */
+    public function manifest(Request $request): JsonResponse
+    {
+        $store = $this->store($request);
+
+        return response()->json([
+            'id' => '/',
+            'name' => $store->name,
+            'short_name' => $store->name,
+            'start_url' => '/?source=pwa',
+            'scope' => '/',
+            'display' => 'standalone',
+            'background_color' => '#ffffff',
+            'theme_color' => '#073f4b',
+            'lang' => app()->getLocale(),
+            'dir' => app()->getLocale() === 'ar' ? 'rtl' : 'ltr',
+            'icons' => [[
+                'src' => app(SpaShell::class)->assetOrigin().'/pwa/icon.svg',
+                'sizes' => 'any',
+                'type' => 'image/svg+xml',
+                'purpose' => 'any maskable',
+            ]],
+        ], 200, ['Content-Type' => 'application/manifest+json', 'Cache-Control' => 'private, no-cache'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
 
     /**
      * Host-agnostic root. A resolved store renders its themed homepage; the main
@@ -145,51 +168,7 @@ class StorefrontPageController extends Controller
      */
     private function resolvePreview(Request $request, Store $store): ?array
     {
-        $token = $request->query('__preview');
-        if (! is_string($token) || $token === '') {
-            return null;
-        }
-        $ctx = app(ThemePreviewToken::class)->verifyContext($token, $store->id);
-        if ($ctx === null) {
-            return null;
-        }
-
-        $resolver = app(ThemeResolver::class);
-
-        // Marketplace preview is intentionally resolved before looking for a
-        // StoreTheme install: paid catalog themes must be previewable without
-        // granting a license or creating tenant state.
-        if (! empty($ctx['catalog_version_id'])) {
-            $version = ThemeVersion::query()->find($ctx['catalog_version_id']);
-            if ($version && Theme::query()->whereKey($version->theme_id)->where('status', 'published')->exists()) {
-                return $resolver->resolveForVersion($version, []);
-            }
-
-            return null;
-        }
-
-        $install = StoreTheme::query()->where('store_id', $store->id)->find($ctx['store_theme_id']);
-        if ($install === null) {
-            return null;
-        }
-
-        // Upgrade preview: render a specific (newer) version with migrated settings.
-        if (! empty($ctx['version_id'])) {
-            $version = ThemeVersion::query()->find($ctx['version_id']);
-            if ($version && (int) $version->theme_id === (int) $install->theme_id) {
-                $current = ThemeVersion::query()->find($install->theme_version_id);
-                $migrated = app(ThemeSettingsMigrator::class)->migrate(
-                    $install->theme?->key ?? '',
-                    $current?->version ?? '',
-                    $version->version,
-                    $install->settings ?? [],
-                );
-
-                return $resolver->resolveForVersion($version, $migrated);
-            }
-        }
-
-        return $resolver->resolveForInstall($install);
+        return app(ThemeResolver::class)->resolvePreview($store, $request->query('__preview'));
     }
 
     /** GET /pages/{slug} — dynamic Page Builder page (Task 11). */
@@ -248,9 +227,11 @@ class StorefrontPageController extends Controller
     private function publicResponse(string $html, array $context): Response
     {
         $etag = '"'.hash('sha256', $html).'"';
+        $isSpa = str_contains($html, 'data-rendered-by="spa"');
 
         return response($html)->withHeaders([
-            'Cache-Control' => 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400, stale-if-error=86400',
+            // A cached SPA entry can keep loading old bundles after a deployment.
+            'Cache-Control' => $isSpa ? 'private, no-store, no-cache, must-revalidate, max-age=0' : 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400, stale-if-error=86400',
             'ETag' => $etag,
             'Vary' => 'Accept-Encoding, Accept-Language',
             'Surrogate-Key' => 'store-'.($context['store']['id'] ?? 0).' theme-'.($context['theme']['theme_version_id'] ?? 0),

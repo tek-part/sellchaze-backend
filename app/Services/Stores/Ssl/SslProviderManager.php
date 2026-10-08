@@ -17,6 +17,7 @@ class SslProviderManager
     /** @var array<string, class-string<SslProvider>> */
     private array $providers = [
         'none' => NullSslProvider::class,
+        'cpanel' => CpanelSslProvider::class,
         'acme' => AcmeSslProvider::class,
         'letsencrypt' => AcmeSslProvider::class, // alias: LE is one ACME CA among many
         'cloudflare' => CloudflareSslProvider::class,

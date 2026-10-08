@@ -63,6 +63,7 @@ use App\Http\Controllers\Api\ShippingCompaniesApiController;
 use App\Http\Controllers\Api\SocialSafetyController;
 use App\Http\Controllers\Api\StockTransfersApiController;
 use App\Http\Controllers\Api\StoreAnalyticsController;
+use App\Http\Controllers\Api\StoreArticlesApiController;
 use App\Http\Controllers\Api\StoreContentPagesApiController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
 use App\Http\Controllers\Api\Storefront\CartController;
@@ -81,6 +82,9 @@ use App\Http\Controllers\Api\Storefront\StorefrontProductController;
 use App\Http\Controllers\Api\Storefront\StoreOrderController;
 use App\Http\Controllers\Api\Storefront\WishlistController;
 use App\Http\Controllers\Api\StorefrontContextController;
+use App\Http\Controllers\Api\StorefrontProductsApiController;
+use App\Http\Controllers\Api\StoreCategoriesApiController;
+use App\Http\Controllers\Api\StoreCustomersApiController;
 use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
 use App\Http\Controllers\Api\StorePagesApiController;
@@ -276,7 +280,8 @@ Route::prefix('v1')->group(function () {
     Route::post('/payment-webhooks/{store}/fawaterak_json', [PaymentWebhookController::class, 'fawaterak'])
         ->whereNumber('store');
     Route::get('/payment-returns/hyperpay/{transaction}', [PaymentWebhookController::class, 'hyperpayReturn']);
-    Route::get('/payment-sessions/fawry/{transaction}', [PaymentWebhookController::class, 'fawrySession']);
+    Route::get('/payment-sessions/hyperpay/{transaction}', [PaymentWebhookController::class, 'hyperpaySession'])->name('payments.hyperpay.session');
+    Route::get('/payment-sessions/fawry/{transaction}', [PaymentWebhookController::class, 'fawrySession'])->name('payments.fawry.session');
     Route::match(['get', 'post'], '/payment-returns/fawry/{transaction}', [PaymentWebhookController::class, 'fawryReturn']);
 
     // Phase 3: public storefront API (host-resolved, store-scoped, read-only).
@@ -642,6 +647,7 @@ Route::prefix('v1')->group(function () {
             Route::prefix('domains')->group(function () {
                 Route::middleware('throttle:domain-read')->group(function () {
                     Route::get('/', [StoreDomainsApiController::class, 'index']);
+                    Route::get('setup', [StoreDomainsApiController::class, 'setup']);
                     Route::get('health', [StoreDomainsApiController::class, 'healthSummary']);
                     Route::get('events', [StoreDomainsApiController::class, 'events']);
                     Route::get('{domain}/health', [StoreDomainsApiController::class, 'health'])->whereNumber('domain');
@@ -660,6 +666,7 @@ Route::prefix('v1')->group(function () {
 
                 Route::middleware('throttle:domain-verify')->group(function () {
                     Route::post('{domain}/verification', [StoreDomainsApiController::class, 'startVerification'])->whereNumber('domain');
+                    Route::post('{domain}/hosting', [StoreDomainsApiController::class, 'prepareHosting'])->whereNumber('domain');
                     Route::post('{domain}/verify', [StoreDomainsApiController::class, 'verify'])->whereNumber('domain');
                     Route::post('{domain}/dns', [StoreDomainsApiController::class, 'refreshDns'])->whereNumber('domain');
                     Route::post('{domain}/ssl/retry', [StoreDomainsApiController::class, 'retrySsl'])->whereNumber('domain');
@@ -667,11 +674,20 @@ Route::prefix('v1')->group(function () {
                 });
             });
 
-            // ---- Catalog ----
-            // Removed: the per-store catalog CRUD (products/categories/variants) is
-            // superseded by the unified per-owner catalog managed at /products and
-            // /categories. A store surfaces its owner's catalog automatically via
-            // ProductScope, so there is no separate store-scoped catalog to manage.
+            // Storefront catalog remains tenant-scoped and separate from the B2B catalog.
+            Route::prefix('catalog/products')->group(function () {
+                Route::middleware('permission:products-list')->get('/', [StorefrontProductsApiController::class, 'index']);
+                Route::middleware('permission:products-create')->post('/', [StorefrontProductsApiController::class, 'store']);
+                Route::middleware('permission:products-list')->get('{product}', [StorefrontProductsApiController::class, 'show'])->whereNumber('product');
+                Route::middleware('permission:products-edit')->match(['put', 'post'], '{product}', [StorefrontProductsApiController::class, 'update'])->whereNumber('product');
+            });
+
+            Route::prefix('catalog/categories')->group(function () {
+                Route::middleware('permission:categories-list')->get('/', [StoreCategoriesApiController::class, 'index']);
+                Route::middleware('permission:categories-create')->post('/', [StoreCategoriesApiController::class, 'store']);
+                Route::middleware('permission:categories-list')->get('{category}', [StoreCategoriesApiController::class, 'show'])->whereNumber('category');
+                Route::middleware('permission:categories-edit')->match(['put', 'post'], '{category}', [StoreCategoriesApiController::class, 'update'])->whereNumber('category');
+            });
 
             // ---- Coupons (Phase 6D) ----
             Route::prefix('coupons')->group(function () {
@@ -690,11 +706,16 @@ Route::prefix('v1')->group(function () {
                 Route::get('customers', [StoreAnalyticsController::class, 'customers']);
             });
 
+            Route::middleware('permission:store.orders.manage')->prefix('customers')->group(function () {
+                Route::get('/', [StoreCustomersApiController::class, 'index']);
+                Route::get('{customer}', [StoreCustomersApiController::class, 'show'])->whereNumber('customer');
+            });
+
             // ---- Orders (Phase 6E) ----
             Route::prefix('orders')->group(function () {
                 Route::get('/', [MerchantOrderController::class, 'index']);
                 Route::get('{order}', [MerchantOrderController::class, 'show'])->whereNumber('order');
-                Route::patch('{order}/status', [MerchantOrderController::class, 'updateStatus'])->whereNumber('order');
+                Route::match(['patch', 'post'], '{order}/status', [MerchantOrderController::class, 'updateStatus'])->whereNumber('order');
                 Route::post('{order}/note', [MerchantOrderController::class, 'addNote'])->whereNumber('order');
             });
 
@@ -750,6 +771,18 @@ Route::prefix('v1')->group(function () {
             Route::post('pages/{page}/preview', [$pages, 'preview'])->whereNumber('page');
             Route::get('pages/{page}/revisions', [$pages, 'revisions'])->whereNumber('page');
             Route::post('pages/{page}/revisions/{revision}/restore', [$pages, 'restoreRevision'])->whereNumber('page')->whereNumber('revision');
+
+            // Independent merchant articles. POST aliases support restrictive hosting proxies.
+            $articles = StoreArticlesApiController::class;
+            Route::get('articles', [$articles, 'index']);
+            Route::post('articles', [$articles, 'store']);
+            Route::post('articles/import-legacy', [$articles, 'importLegacy']);
+            Route::get('articles/{article}', [$articles, 'show'])->whereNumber('article');
+            Route::match(['put', 'post'], 'articles/{article}', [$articles, 'update'])->whereNumber('article');
+            Route::post('articles/{article}/preview', [$articles, 'preview'])->whereNumber('article');
+            Route::post('articles/{article}/publish', [$articles, 'publish'])->whereNumber('article');
+            Route::post('articles/{article}/unpublish', [$articles, 'unpublish'])->whereNumber('article');
+            Route::post('articles/{article}/archive', [$articles, 'archive'])->whereNumber('article');
 
             // ---- Content pages (fixed system pages: about/contact/faq/shipping/returns/blog) ----
             $content = StoreContentPagesApiController::class;

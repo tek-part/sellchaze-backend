@@ -75,7 +75,7 @@ class JwtTokenService
 
     private static function refreshTtlSeconds(): int
     {
-        $hours = max(1, (int) config('sellchase.jwt.refresh_ttl_hours', 24));
+        $hours = max(1, (int) config('sellchase.jwt.refresh_ttl_hours', 2400));
 
         return $hours * 3600;
     }
@@ -161,6 +161,12 @@ class JwtTokenService
             return null;
         }
 
+        $sid = (string) ($payload['sid'] ?? '');
+        if ($sid !== '' && ! AuthSession::query()->whereKey($sid)->where('user_id', $id)
+            ->whereNull('revoked_at')->where('expires_at', '>', now())->exists()) {
+            return null;
+        }
+
         return Cache::remember('jwt_access_user:'.$id, now()->addSeconds(30), fn () => User::query()->find($id));
     }
 
@@ -194,7 +200,15 @@ class JwtTokenService
             return null;
         }
         $jti = (string) ($payload['jti'] ?? '');
-        if ($jti === '' || ! Cache::has('jwt_refresh:'.$jti)) {
+        // Session state is durable: cache eviction must never log out a valid user.
+        $sid = (string) ($payload['sid'] ?? '');
+        if ($jti === '' || $sid === '' || ! AuthSession::query()
+            ->whereKey($sid)
+            ->where('user_id', (int) ($payload['sub'] ?? 0))
+            ->where('refresh_jti', $jti)
+            ->whereNull('revoked_at')
+            ->where('expires_at', '>', now())
+            ->exists()) {
             return null;
         }
 

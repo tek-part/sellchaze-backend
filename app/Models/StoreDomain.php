@@ -44,7 +44,7 @@ class StoreDomain extends Model
     public const VERIFICATION_TXT_NAME = '_sellchase-challenge';
 
     protected $fillable = [
-        'store_id', 'host', 'type', 'status', 'is_primary',
+        'store_id', 'host', 'type', 'status', 'is_primary', 'hosting_status', 'hosting_error',
         'verification_token', 'verified_at', 'last_checked_at', 'last_error',
         'ssl_status', 'ssl_provider', 'ssl_issued_at', 'ssl_expires_at',
         'created_by_user_id',

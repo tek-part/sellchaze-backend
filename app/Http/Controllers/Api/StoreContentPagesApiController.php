@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Store;
+use App\Models\StoreArticle;
 use App\Models\StoreContentPage;
+use App\Services\Articles\ArticlePreviewToken;
+use App\Services\Articles\StoreBlogContent;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
 use App\Support\Localization\LocaleContext;
@@ -13,6 +16,7 @@ use App\Support\StoreContent\ContentPageValidator;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Intervention\Image\Facades\Image;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -107,11 +111,20 @@ class StoreContentPagesApiController extends Controller
             throw ValidationException::withMessages($result['errors']);
         }
         $data = $result['data'];
+        $row = DB::transaction(function () use ($store, $key, $data, $request) {
+            Store::query()->whereKey($store->id)->lockForUpdate()->firstOrFail();
+            if ($key === 'blog') {
+                $slugs = app(StoreBlogContent::class)->reservedLegacySlugs($store, $data);
+                if (StoreArticle::query()->where('store_id', $store->id)->whereIn('slug', $slugs)->exists()) {
+                    throw ValidationException::withMessages(['data' => 'An article URL is already used by the independent article editor. Choose a different URL.']);
+                }
+            }
 
-        $row = StoreContentPage::query()->updateOrCreate(
-            ['store_id' => $store->id, 'key' => $key],
-            ['data' => $data, 'is_published' => $request->boolean('is_published', true)],
-        );
+            return StoreContentPage::query()->updateOrCreate(
+                ['store_id' => $store->id, 'key' => $key],
+                ['data' => $data, 'is_published' => $request->boolean('is_published', true)],
+            );
+        });
 
         $this->flushStorefront($store->id);
 
@@ -136,10 +149,22 @@ class StoreContentPagesApiController extends Controller
         $row = StoreContentPage::query()
             ->where('store_id', $store->id)
             ->where('key', $key)
-            ->where('is_published', true)
             ->first();
 
-        return response()->json(['data' => $row?->data], 200, [], JSON_UNESCAPED_UNICODE);
+        if ($key === 'blog') {
+            $preview = null;
+            if ($request->filled('article_preview')) {
+                $preview = app(ArticlePreviewToken::class)->resolve((string) $request->query('article_preview'), $store->id);
+                abort_if(! $preview, 403, 'This article preview has expired or changed. Generate a new preview from the editor.');
+            }
+
+            return response()->json(app(StoreBlogContent::class)->publicContent($store, $row, $preview), 200, ['Cache-Control' => 'no-store, private'], JSON_UNESCAPED_UNICODE);
+        }
+
+        return response()->json([
+            'data' => $row?->is_published ? $row->data : null,
+            'is_published' => $row ? (bool) $row->is_published : null,
+        ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
     private function flushStorefront(int $storeId): void

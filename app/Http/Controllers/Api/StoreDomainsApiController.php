@@ -8,6 +8,7 @@ use App\Http\Resources\StoreDomainEventResource;
 use App\Http\Resources\StoreDomainResource;
 use App\Jobs\Domains\CheckDomainDnsJob;
 use App\Jobs\Domains\IssueDomainCertificateJob;
+use App\Jobs\Domains\PrepareDomainHostingJob;
 use App\Jobs\Domains\RefreshSslStatusJob;
 use App\Jobs\Domains\StartDomainVerificationJob;
 use App\Models\Store;
@@ -36,6 +37,32 @@ class StoreDomainsApiController extends Controller
         private readonly StoreDomainService $service,
         private readonly DomainHealthService $health,
     ) {}
+
+    public function setup(Request $request, Store $store): JsonResponse
+    {
+        $this->authorize('manageDomains', $store);
+
+        $nameservers = array_values(array_filter(config('sellchase.storefront.domains.nameservers', [])));
+
+        return response()->json(['data' => [
+            'nameservers' => $nameservers,
+            'nameservers_available' => count($nameservers) >= 2 && (bool) config('sellchase.storefront.domains.nameservers_ready'),
+            'cname_target' => config('sellchase.storefront.domains.cname_target'),
+            'a_target' => config('sellchase.storefront.domains.a_target'),
+            'ssl_configured' => config('sellchase.storefront.ssl.provider', 'none') !== 'none',
+        ]]);
+    }
+
+    public function prepareHosting(Request $request, Store $store, string $domain): JsonResponse
+    {
+        $this->authorize('manageDomains', $store);
+        $model = $this->find($store, $domain);
+        abort_unless($model->isServable(), 422, 'Verify ownership before preparing DNS hosting.');
+        abort_unless(config('sellchase.storefront.domains.cpanel.enabled'), 422, 'DNS hosting is not configured.');
+        PrepareDomainHostingJob::dispatch($model->id);
+
+        return response()->json(['queued' => true], 202);
+    }
 
     public function index(Request $request, Store $store): AnonymousResourceCollection
     {

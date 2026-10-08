@@ -51,11 +51,12 @@ class StorefrontLayoutController extends Controller
         $template = $data['template'] ?? 'home';
         $locale = $this->locale->current();
 
-        $theme = $this->themes->resolve($store, $locale) ?? [];
-        $page = $this->pages->publishedHome($store, $locale);
+        $preview = $this->themes->resolvePreview($store, $request->query('__preview'), $locale);
+        $theme = $preview ?? $this->themes->resolve($store, $locale) ?? [];
+        $page = $preview === null ? $this->pages->publishedHome($store, $locale) : null;
 
         $key = $this->key($store, 'layout', $template, $locale, $theme, $page);
-        $payload = Cache::remember($key, $this->ttl(), function () use ($template, $theme, $page) {
+        $build = function () use ($template, $theme, $page) {
             $source = $page ? 'store' : 'theme';
             $raw = $page
                 ? $this->pages->publicSections($page)
@@ -69,10 +70,11 @@ class StorefrontLayoutController extends Controller
                 'locale' => $page?->locale,
                 'sections' => $this->sections->resolveSections($theme['sections_schema'] ?? [], $raw),
             ];
-        });
+        };
+        $payload = $preview !== null ? $build() : Cache::remember($key, $this->ttl(), $build);
         $payload['locale'] ??= $locale;
 
-        return response()->json(['data' => $payload], 200, [], JSON_UNESCAPED_UNICODE);
+        return response()->json(['data' => $payload], 200, $preview !== null ? ['Cache-Control' => 'private, no-store'] : [], JSON_UNESCAPED_UNICODE);
     }
 
     /**

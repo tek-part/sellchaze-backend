@@ -24,6 +24,7 @@ class StoreDomainResource extends JsonResource
             'status' => $this->status,
             'is_primary' => (bool) $this->is_primary,
             'is_servable' => $this->isServable(),
+            'hosting' => ['status' => $this->hosting_status, 'error' => $this->hosting_error],
 
             // Everything the owner UI needs to render DNS instructions without
             // the frontend having to know the record format.

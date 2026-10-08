@@ -24,7 +24,9 @@ class CurrencyRateService
             return null;
         }
 
-        return (float) $row->rate_to_usd;
+        $rate = (float) $row->rate_to_usd;
+
+        return is_finite($rate) && $rate > 0 ? $rate : null;
     }
 
     public function convertToUsd(float $amount, ?string $currencyCode): ?float
@@ -39,13 +41,21 @@ class CurrencyRateService
 
     public function conversionMultiplier(?string $fromCurrency, ?string $toCurrency): ?float
     {
+        $fromCode = $this->normalizeCode($fromCurrency) ?: 'USD';
+        $toCode = $this->normalizeCode($toCurrency) ?: 'USD';
+        if ($fromCode === $toCode) {
+            return 1.0;
+        }
+
         $from = $this->getEffectiveRateToUsd($fromCurrency);
         $to = $this->getEffectiveRateToUsd($toCurrency);
         if ($from === null || $to === null || $to <= 0) {
             return null;
         }
 
-        return round($from / $to, 8);
+        $multiplier = round($from / $to, 8);
+
+        return is_finite($multiplier) && $multiplier > 0 ? $multiplier : null;
     }
 
     public function upsertManualRate(string $currencyCode, float $rateToUsd): CurrencyRate
