@@ -8,4 +8,6 @@ The two September 23 migrations are already recorded as applied in production. T
 
 Production `.env`, credentials, database contents, vendor dependencies, runtime caches, and customer uploads are intentionally excluded. The deployed storefront shell is preserved with the frontend production artifact instead of being tracked as backend runtime storage.
 
+The local Windows test run initially passed 499 tests and failed two path-string assertions because filesystem discovery returned backslashes. Those two assertions now compare canonical filesystem paths, and their two test classes pass all 14 tests. PHPStan passes. The initial baseline commit preserves all 51 production files exactly; the follow-up only sorts imports in `routes/api.php` for Pint and fixes those portable test assertions. It does not change production behavior.
+
 The frontend production bundles are newer than the available React/TypeScript source. Coordinate deployment with the matching frontend baseline; do not deploy a fresh build of the older frontend source simply because this backend has been synchronized.

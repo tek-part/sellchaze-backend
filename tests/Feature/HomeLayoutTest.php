@@ -288,7 +288,7 @@ class HomeLayoutTest extends TestCase
         $this->assertSame(2, Theme::count()); // naseem (from setUp) + rich-test
         $this->artisan('themes:register')->assertExitCode(0);
         $this->assertSame(6, Theme::count()); // the five first-party themes + rich-test
-        $this->assertContains(resource_path('themes/storefront/naseem.json'), ThemeRegistry::manifestPaths());
+        $this->assertContains(realpath(resource_path('themes/storefront/naseem.json')), array_map('realpath', ThemeRegistry::manifestPaths()));
         $this->assertCount(5, ThemeRegistry::manifestPaths());
 
         // Malformed options are rejected with a readable error.
