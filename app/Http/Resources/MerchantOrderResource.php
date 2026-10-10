@@ -38,6 +38,7 @@ class MerchantOrderResource extends JsonResource
             'tax_total' => $this->tax_total,
             'payment_method' => $this->payment_method,
             'payment_status' => $this->payment_status,
+            'payment_reference' => $this->payment_reference,
             'fulfillment' => $this->whenLoaded('items', fn () => $this->resource->fulfillment()),
             'next_statuses' => $this->whenLoaded('items', fn () => app(StoreOrderService::class)->nextStatuses($this->resource)),
             'grand_total' => $this->grand_total,

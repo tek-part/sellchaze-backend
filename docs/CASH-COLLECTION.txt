@@ -1,0 +1,48 @@
+Cash on delivery collection
+
+POST /api/my-store/orders/{order}/payment/confirm-cash (also available under
+the existing /stores/{store} scope) requires store.orders.manage and is limited
+to 20 requests per minute. The tenant-bound route rejects foreign order IDs.
+
+The merchant reviews a collection reference, the full immutable grand total,
+the currency, an explicit collected acknowledgement and an optional internal
+note. Decimal amounts accept up to two decimal places, without exponent
+notation. Partial, overpaid, mismatched currency, cancelled, non-COD and
+inconsistent payment states are rejected. Legacy COD orders without a matching
+pending transaction fail closed; this endpoint does not create replacement
+transactions or infer a payment from shipping events.
+
+ManualCashPayment locks the COD transaction before the order, matching payment
+callbacks. Payment updates, the actor/time/reference audit entry, digital paid
+outbox event and B2B customer payment synchronization share one transaction.
+Failure rolls them all back. A matching paid reference and cash metadata makes
+an identical retry a no-op; a different reference or inconsistent paid state
+is rejected. The original audit and note remain unchanged on replay.
+
+Physical delivery remains independent of collection. A delivered parcel does
+not release digital values. Confirming collection does not change order or
+shipment status, consume physical stock, transfer money or update a wallet.
+B2B stores the full customer payment, while its quantity includes physical
+lines only. Internal notes and transaction metadata are not returned through
+the buyer receipt. The private receipt and paid email expose digital values
+only after confirmed payment.
+
+The merchant UI captures a review payload and prevents concurrent clicks.
+After a network/5xx uncertainty it retains the same reference for retry or
+offers a status refresh. Responsive Arabic/English copy explains collection
+and digital release. Pending COD buyer receipts and receipt emails explain
+that delivery alone is not confirmation of payment.
+
+Validation: CashCollectionTest covers real synthetic checkout, carrier
+delivery without payment, receipt/code privacy, authorization/tenant isolation,
+exact amounts, duplicate/conflicting references, physical inventory stability,
+malformed metadata, audit actor, rollback and array-mail publication. A guarded
+local SQLite browser order also verifies a stale second-tab replay, a single
+audit/outbox event, one paid array email and repeat publication of zero.
+
+No schema migration or live provider action is introduced. Actual provider,
+SMTP and simultaneous MySQL acceptance remain separate deployment checks.
+Transport success does not prove buyer inbox delivery; SMTP retries after a
+missing database acknowledgement may duplicate mail. Partial collection,
+refunds and returns are outside this endpoint. Full competitor parity and
+editable source parity with captured production remain unfinished.

@@ -754,6 +754,7 @@ Route::prefix('v1')->group(function () {
                 Route::match(['patch', 'post'], '{order}/status', [MerchantOrderController::class, 'updateStatus'])->whereNumber('order');
                 Route::post('{order}/note', [MerchantOrderController::class, 'addNote'])->whereNumber('order');
                 Route::post('{order}/payment/confirm-bank', [MerchantOrderController::class, 'confirmBankPayment'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:20,1']);
+                Route::post('{order}/payment/confirm-cash', [MerchantOrderController::class, 'confirmCashPayment'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:20,1']);
                 Route::get('{order}/digital-email', [MerchantOrderController::class, 'digitalEmail'])->whereNumber('order')->middleware('permission:store.orders.manage');
                 Route::post('{order}/digital-email', [MerchantOrderController::class, 'resendDigitalEmail'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:10,1']);
                 Route::get('{order}/shipment', [StoreShipmentController::class, 'show'])->whereNumber('order');
