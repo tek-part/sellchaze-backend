@@ -8,6 +8,7 @@ use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Services\Storefront\StorefrontUrlGenerator;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
@@ -21,23 +22,42 @@ class StorePaymentService
     /** @return array{transaction_id:int,status:string,redirect_url:?string} */
     public function start(Store $store, StoreOrder $order, StorePaymentGateway $setting): array
     {
-        $transaction = StorePaymentTransaction::query()->create([
-            'store_id' => $store->id,
-            'store_order_id' => $order->id,
-            'gateway' => $setting->gateway,
-            'idempotency_key' => (string) Str::uuid(),
-            'status' => 'created',
-            'amount' => $order->grand_total,
-            'currency' => strtoupper($order->currency),
-        ]);
+        $transaction = DB::transaction(function () use ($store, $order, $setting) {
+            $current = StoreOrder::withoutGlobalScopes()->where('store_id', $store->id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            if ($current->status === 'cancelled' || $current->payment_method !== $setting->gateway) {
+                throw ValidationException::withMessages(['payment' => 'This order cannot start this payment.']);
+            }
+            $existing = StorePaymentTransaction::where('store_id', $store->id)->where('store_order_id', $order->id)->where('gateway', $setting->gateway)->latest('id')->first();
+            if ($existing) {
+                return $existing;
+            }
+
+            return StorePaymentTransaction::query()->create([
+                'store_id' => $store->id,
+                'store_order_id' => $order->id,
+                'gateway' => $setting->gateway,
+                'idempotency_key' => (string) Str::uuid(),
+                'status' => 'created',
+                'amount' => $order->grand_total,
+                'currency' => strtoupper($order->currency),
+            ]);
+        });
 
         if (in_array($setting->gateway, ['cod', 'bank_transfer'], true)) {
-            $transaction->update(['status' => 'pending']);
+            StorePaymentTransaction::whereKey($transaction->id)->where('status', 'created')->update(['status' => 'pending']);
 
             return $this->result($transaction->fresh());
         }
 
-        return $this->process($store, $order, $setting, $transaction);
+        if (in_array($transaction->status, ['paid', 'pending', 'redirect_pending'], true)) {
+            return $this->result($transaction);
+        }
+        $claimed = StorePaymentTransaction::whereKey($transaction->id)->where('status', 'created')->update(['status' => 'processing']);
+        if ($claimed !== 1) {
+            throw ValidationException::withMessages(['payment' => 'This payment already exists. Resume its payment status instead of starting another transaction.']);
+        }
+
+        return $this->process($store, $order, $setting, $transaction->fresh());
     }
 
     /** Retry the same provider request with the original idempotency key. */
@@ -84,10 +104,6 @@ class StorePaymentService
     /** @return array{transaction_id:int,status:string,redirect_url:?string} */
     private function process(Store $store, StoreOrder $order, StorePaymentGateway $setting, StorePaymentTransaction $transaction): array
     {
-        if ($transaction->status !== 'processing') {
-            $transaction->update(['status' => 'processing', 'failed_at' => null]);
-        }
-
         try {
             $payload = match ($setting->gateway) {
                 'stripe' => $this->stripe($store, $order, $setting, $transaction),
@@ -104,13 +120,23 @@ class StorePaymentService
                     'payment_method' => "{$setting->gateway} is enabled but its processor connection is not configured yet.",
                 ]),
             };
-            $transaction->update($payload + ['status' => 'redirect_pending']);
+            // A provider callback may have settled the transaction while this request was in flight.
+            $transaction->fill($payload + ['status' => 'redirect_pending']);
+            StorePaymentTransaction::whereKey($transaction->id)->where('status', 'processing')->update($transaction->getDirty());
         } catch (ValidationException $exception) {
-            $transaction->update(['status' => 'failed', 'failed_at' => now()]);
+            $transaction->refresh();
+            if ($transaction->status === 'paid') {
+                return $this->result($transaction);
+            }
+            StorePaymentTransaction::whereKey($transaction->id)->where('status', 'processing')->update(['status' => 'failed', 'failed_at' => now()]);
             throw $exception;
         } catch (Throwable $exception) {
             report($exception);
-            $transaction->update(['status' => 'failed', 'failed_at' => now()]);
+            $transaction->refresh();
+            if ($transaction->status === 'paid') {
+                return $this->result($transaction);
+            }
+            StorePaymentTransaction::whereKey($transaction->id)->where('status', 'processing')->update(['status' => 'failed', 'failed_at' => now()]);
             throw ValidationException::withMessages([
                 'payment_method' => 'The payment provider could not start the transaction. Please try again.',
             ]);
@@ -656,6 +682,6 @@ class StorePaymentService
     /** @return array{transaction_id:int,status:string,redirect_url:?string} */
     private function result(StorePaymentTransaction $transaction): array
     {
-        return ['transaction_id' => $transaction->id, 'status' => $transaction->status, 'redirect_url' => $transaction->redirect_url];
+        return ['transaction_id' => $transaction->id, 'status' => $transaction->status, 'redirect_url' => $transaction->status === 'paid' ? null : $transaction->redirect_url];
     }
 }

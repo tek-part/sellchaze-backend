@@ -14,6 +14,7 @@ use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\CartService;
+use App\Services\Commerce\CheckoutAttempts;
 use App\Services\Commerce\CheckoutFields;
 use App\Services\Commerce\CheckoutQuote;
 use App\Services\Commerce\CheckoutService;
@@ -97,6 +98,7 @@ class CheckoutController extends Controller
         // A funnel order has its own transient cart, even for a signed-in customer.
         // Do not merge, replace or convert their ordinary shopping cart.
         $order = DB::transaction(function () use ($request, $store, $customer, $payment, $shippingSelection) {
+            $attempt = app(CheckoutAttempts::class)->lock($request);
             $cart = $request->input('cart_mode') === 'direct'
                 ? $this->carts->create($store, null)
                 : $this->carts->resolve($request, $store, $customer);
@@ -129,7 +131,7 @@ class CheckoutController extends Controller
 
             $validated = $request->validated();
 
-            return $this->checkout->place(
+            $order = $this->checkout->place(
                 $store,
                 $cart,
                 $customer,
@@ -143,6 +145,9 @@ class CheckoutController extends Controller
                 $payment->gateway,
                 $shippingSelection,
             );
+            $attempt?->update(['store_order_id' => $order->id]);
+
+            return $order;
         });
 
         try {
@@ -163,6 +168,12 @@ class CheckoutController extends Controller
             'data' => new StoreOrderResource($order),
             'payment' => $paymentResult,
         ], 201, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** POST /storefront/checkout/recover */
+    public function recover(Request $request, CheckoutAttempts $attempts): JsonResponse
+    {
+        return $attempts->recover($request);
     }
 
     /** POST /storefront/checkout/payment/retry */
@@ -190,6 +201,11 @@ class CheckoutController extends Controller
             ->where('enabled', true)
             ->first();
         if ($setting === null) {
+            if ($order->payment_method === 'cod') {
+                $setting = (new StorePaymentGateway)->forceFill(['store_id' => $store->id, 'gateway' => 'cod', 'enabled' => true, 'credentials' => []]);
+            }
+        }
+        if ($setting === null) {
             throw ValidationException::withMessages(['payment' => 'This payment method is no longer available.']);
         }
 
@@ -198,9 +214,11 @@ class CheckoutController extends Controller
             ->where('store_order_id', $order->id)
             ->where('gateway', $setting->gateway)
             ->latest('id')
-            ->firstOrFail();
+            ->first();
 
-        $paymentResult = $this->payments->retry($store, $order, $setting, $transaction);
+        $paymentResult = $transaction && $transaction->status !== 'created'
+            ? $this->payments->retry($store, $order, $setting, $transaction)
+            : $this->payments->start($store, $order, $setting);
 
         return response()->json([
             'data' => new StoreOrderResource($order),

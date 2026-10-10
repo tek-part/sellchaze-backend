@@ -134,6 +134,7 @@ use App\Http\Controllers\Api\Wavex\WavexSettingsApiController;
 use App\Http\Controllers\Api\Wavex\WavexTemplatesApiController;
 use App\Http\Controllers\Api\Wavex\WavexWebhookController;
 use App\Http\Controllers\Api\WigpleasureSyncApiController;
+use App\Http\Middleware\IdempotentCheckout;
 use App\Http\Middleware\ResolveOwnStore;
 use App\Services\PageBuilder\StorePageService;
 use Illuminate\Http\Request;
@@ -332,7 +333,8 @@ Route::prefix('v1')->group(function () {
         Route::delete('cart/items/{item}', [CartController::class, 'removeItem'])->whereNumber('item');
         Route::delete('cart', [CartController::class, 'clear']);
         Route::get('payment-methods', [CheckoutController::class, 'paymentMethods']);
-        Route::post('checkout', [CheckoutController::class, 'store']);
+        Route::post('checkout', [CheckoutController::class, 'store'])->middleware(IdempotentCheckout::class);
+        Route::post('checkout/recover', [CheckoutController::class, 'recover']);
         Route::get('checkout/fields', [CheckoutController::class, 'fields']);
         Route::post('checkout/quote', [CheckoutController::class, 'quote']);
         Route::post('checkout/payment/retry', [CheckoutController::class, 'retryPayment']);

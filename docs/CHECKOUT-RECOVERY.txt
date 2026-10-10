@@ -1,0 +1,66 @@
+Storefront checkout recovery — 2026-10-10
+
+POST /api/v1/storefront/checkout accepts an Idempotency-Key UUID v4 header.
+Clients must persist a random key and the original JSON body before submission.
+The same store/key/customer/cart identity and body replay the same order; changed
+input or identity is rejected with 409. Object key order and language query do
+not change the request identity. Legacy callers without the header remain
+compatible but do not receive HTTP request deduplication.
+
+The database stores a SHA-256 key digest, HMAC of canonical request input,
+customer/cart identity digest, fenced two-minute claim lease, order pointer,
+and encrypted response. Order creation, cart conversion, coupon usage, stock
+reservation and claim attachment share one transaction. A worker whose lease
+was replaced cannot create an order. Payment starts after that transaction.
+Only a proven rejection before order creation removes the claim and returns
+checkout_rejected=true. Network errors and HTTP 5xx do not authorize a new key.
+
+POST /api/v1/storefront/checkout/recover accepts the same header, customer auth
+and X-Cart-Token identity. It returns a saved result, a renewed payment retry
+token for an existing order, 409 checkout_pending, or 409 checkout_retry for
+an expired claim with no order. A missing result is 404. Missing/expired claims
+may be resubmitted only with the ORIGINAL key and original body. Deleted orders
+leave tombstones (410); cancelled orders do not replay old payment redirects.
+No raw key or original request body is stored on the server. Do not log keys.
+
+Payment start locks the order, reuses its existing gateway transaction and
+conditionally claims created -> processing before contacting a provider.
+Recovery can start an interrupted created transaction or create a missing one.
+Concurrent calls cannot issue another provider start through this service.
+Late provider responses/failures cannot overwrite a paid callback. A paid
+transaction never returns its old redirect URL. Online recovery issues a fresh
+retry capability, then resumes the current transaction instead of replaying an
+old checkout response's payment URL. Existing COD orders can recover even if
+the default COD setting was implicit at order creation.
+
+The storefront keeps one unresolved attempt per store origin in sessionStorage
+for this tab, including the original delivery details (never card credentials).
+Cart and funnel pages share the attempt. It survives reload and external payment
+redirect/cancellation. A matching order-success page clears it; ordinary COD
+success clears it immediately. When storage is unavailable only in-memory
+recovery is possible. Recovery buttons remain available with an empty cart,
+missing product, changed shipping options or disabled ordinary form fields.
+The unsafe 'start a new order instead' action was removed. A retry token can
+be refreshed by recovering the saved order again. Separate tabs/new keys are
+separate checkout operations; this is not person-wide duplicate detection.
+
+Migration: 2026_10_10_080000_create_store_checkout_attempts.php. Deploy it before
+the new client/server routes. Preserve APP_KEY and normal encrypted-data key
+rotation support. No automatic attempt deletion/retention job is implemented:
+do not remove order pointers while a key can still be replayed. Retention,
+guest cancellation/restart and merchant reconciliation need explicit policy.
+An online processing transaction interrupted after provider submission remains
+blocked pending provider reconciliation. Do not blindly reclaim it by age:
+not every gateway supports equivalent provider-side idempotency. Refreshing
+expired gateway sessions and live provider acceptance remain future work.
+
+Verification: StoreCheckoutIdempotencyTest covers cart/direct replay, coupon
+and stock side effects, changed payloads, validation release, legacy requests,
+tenant/customer/cart ownership, stale-worker fencing, missing payment recovery,
+encrypted data, deletion tombstones, cancellation and provider callback races.
+The local browser fixture uses only isolated SQLite, synthetic contact details
+and COD. A temporary trigger interrupts payment insertion after order commit;
+the trigger is removed before retry. No production data or gateway is touched.
+SQLite tests do not establish multi-connection MySQL concurrency acceptance.
+Full competitor feature/theme/AI/design parity and production release remain
+unfinished; this pass is local on codex/commerce-rebuild.
