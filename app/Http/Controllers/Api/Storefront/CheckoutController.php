@@ -112,7 +112,7 @@ class CheckoutController extends Controller
                     if (! empty($items)) {
                         $this->carts->clear($cart);
                         foreach ($items as $line) {
-                            $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1), isset($line['variant_id']) ? (int) $line['variant_id'] : null);
+                            $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1), isset($line['variant_id']) ? (int) $line['variant_id'] : null, $line['personalization'] ?? []);
                         }
                     }
                     if ($request->has('coupon_code')) {

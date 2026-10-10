@@ -20,9 +20,11 @@ class CheckoutQuote
         $subtotal = '0.00';
         $lines = [];
         $counts = [];
+        $digitalCounts = [];
         foreach ($items as $item) {
             $variantId = isset($item['variant_id']) ? (int) $item['variant_id'] : null;
             $selection = $this->selections->resolve($store, (int) $item['product_id'], $variantId);
+            $custom = app(ProductPersonalization::class)->resolve($selection['product'], $item['personalization'] ?? []);
             $quantity = (int) $item['quantity'];
             $key = $item['product_id'].':'.($variantId ?? 'base');
             $counts[$key] = ($counts[$key] ?? 0) + $quantity;
@@ -30,9 +32,13 @@ class CheckoutQuote
                 throw ValidationException::withMessages(['quantity' => 'Choose between 1 and 999 items.']);
             }
             app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $counts[$key]);
+            $digitalId = $selection['product']->id;
+            $digitalCounts[$digitalId] = ($digitalCounts[$digitalId] ?? 0) + $quantity;
+            app(DigitalProducts::class)->assertAvailable($selection['product'], $digitalCounts[$digitalId]);
             $lineTotal = bcmul($selection['price'], (string) $quantity, 2);
             $subtotal = bcadd($subtotal, $lineTotal, 2);
             $lines[] = ['product_id' => $selection['product']->id, 'variant_id' => $variantId,
+                'personalization' => ProductPersonalization::present($custom['snapshot'], $store->id), 'personalization_key' => $custom['key'],
                 'name' => $selection['name'], 'unit_price' => $selection['price'], 'quantity' => $quantity, 'line_total' => $lineTotal];
         }
         $discount = '0.00';

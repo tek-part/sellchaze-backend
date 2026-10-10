@@ -3,6 +3,8 @@
 namespace App\Http\Resources\Storefront;
 
 use App\Models\StoreOrder;
+use App\Services\Commerce\DigitalProducts;
+use App\Services\Commerce\ProductPersonalization;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -44,13 +46,15 @@ class StoreOrderResource extends JsonResource
                 'variant_id' => $item->variant_id,
                 'variant_name' => $item->variant_name,
                 'variant_options' => $item->variant_options,
+                'personalization' => ProductPersonalization::present($item->personalization ?? [], $this->store_id),
+                'digital_delivery' => DigitalProducts::present($item, $this->resource),
                 'sku' => $item->sku,
                 'name' => $item->name,
                 'unit_price' => $item->unit_price,
                 'price' => $item->unit_price,
                 'quantity' => $item->quantity,
                 'line_total' => $item->line_total,
-            ])->values()),
+            ])->values()->all()),
             'created_at' => $this->created_at,
         ];
     }

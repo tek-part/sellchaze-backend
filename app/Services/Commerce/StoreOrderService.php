@@ -66,6 +66,7 @@ class StoreOrderService
             $order->status = $to;
             if ($to === 'cancelled') {
                 $order->cancelled_at = now();
+                app(DigitalProducts::class)->cancel($order);
             }
             $order->save();
 

@@ -5,6 +5,7 @@ namespace App\Services\Commerce;
 use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Cart;
 use App\Models\Coupon;
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreCustomer;
 use App\Models\StoreOrder;
@@ -47,13 +48,17 @@ class CheckoutService
             $subtotal = '0.00';
             $lines = [];
             $stocks = [];
+            $counts = [];
 
             foreach ($items as $item) {
                 $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id, true);
                 $product = $selection['product'];
                 $variant = $selection['variant'];
+                $custom = app(ProductPersonalization::class)->resolve($product, $item->personalization ?? [], true);
                 $stocks[] = $variant ?? $product;
-                $this->inventory->assertAvailable($variant ?? $product, $item->quantity);
+                $stockKey = $product->id.':'.($variant?->id ?? 'base');
+                $counts[$stockKey] = ($counts[$stockKey] ?? 0) + $item->quantity;
+                $this->inventory->assertAvailable($variant ?? $product, $counts[$stockKey]);
                 // Price validation: the snapshot must still match the live price.
                 if (bccomp($selection['price'], (string) $item->unit_price, 2) !== 0) {
                     throw ValidationException::withMessages([
@@ -69,6 +74,7 @@ class CheckoutService
                     'variant_name' => $variant?->name,
                     'variant_options' => $variant?->options,
                     'sku' => $variant?->sku ?? $product->sku,
+                    'personalization' => $custom['snapshot'] ?: null,
                     'name' => $selection['name'],
                     'unit_price' => $selection['price'],
                     'quantity' => $item->quantity,
@@ -117,6 +123,8 @@ class CheckoutService
             foreach ($lines as $index => $line) {
                 $item = $order->items()->create($line);
                 $this->inventory->reserve($stocks[$index], $item);
+                $digitalProduct = $stocks[$index] instanceof Product ? $stocks[$index] : Product::query()->where('store_id', $store->id)->findOrFail($item->store_product_id);
+                app(DigitalProducts::class)->reserve($digitalProduct, $item);
             }
 
             if ($coupon !== null) {

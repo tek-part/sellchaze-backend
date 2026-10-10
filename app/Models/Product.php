@@ -39,6 +39,9 @@ use Illuminate\Support\Facades\Storage;
  * @property array|null $specifications
  * @property array|null $content
  * @property array|null $option_display
+ * @property array|null $personalization_fields
+ * @property string $digital_type
+ * @property string|null $digital_url
  * @property array|null $dimensions
  * @property string $price
  * @property string|null $compare_price
@@ -75,6 +78,8 @@ use Illuminate\Support\Facades\Storage;
  */
 class Product extends Model
 {
+    protected $hidden = ['digital_url'];
+
     use HasImageUrl;
     use HasStoreTenancy;
     use HasTranslations;
@@ -92,7 +97,7 @@ class Product extends Model
         // ownership / taxonomy / tenancy
         'user_id', 'category_id', 'store_id', 'store_brand_id',
         // structured content
-        'tags', 'specifications', 'content', 'dimensions', 'option_display',
+        'tags', 'specifications', 'content', 'dimensions', 'option_display', 'personalization_fields', 'digital_type', 'digital_url',
         // pricing
         'price', 'compare_price', 'cost', 'vat_rate', 'discount_percent', 'currency',
         // logistics
@@ -115,6 +120,7 @@ class Product extends Model
     protected function casts(): array
     {
         return [
+            'digital_url' => 'encrypted',
             'price' => 'decimal:2',
             'compare_price' => 'decimal:2',
             'cost' => 'decimal:2',
@@ -134,6 +140,7 @@ class Product extends Model
             'specifications' => 'array',
             'content' => 'array',
             'option_display' => 'array',
+            'personalization_fields' => 'array',
             'dimensions' => 'array',
             'highlights' => 'array',
             'translations' => 'array',
