@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Store;
 use App\Services\Rbac\UserScope;
+use App\Services\Stores\StoreFontCatalog;
 use App\Services\StoreService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -60,6 +61,13 @@ class UpdateStoreRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'slug' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^[a-z0-9\-]+$/', Rule::notIn(StoreService::RESERVED_SLUGS), Rule::unique('stores', 'slug')->ignore($store)],
             'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
+            'site_title' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'header_mode' => ['sometimes', 'nullable', Rule::in(['theme', 'custom', 'hidden'])],
+            'header_text' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'primary_color' => ['sometimes', 'nullable', 'string', 'regex:/^#[a-fA-F0-9]{6}$/'],
+            'font_family' => ['sometimes', 'nullable', 'string', Rule::in(StoreFontCatalog::families())],
+            'remove_favicon' => ['sometimes', 'boolean'],
+            'favicon' => ['sometimes', 'nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:512', 'dimensions:min_width=16,min_height=16,max_width=512,max_height=512,ratio=1/1'],
             'email' => ['sometimes', 'nullable', 'email', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:40'],
             'currency' => ['sometimes', 'nullable', 'string', 'size:3', Rule::exists('currency_rates', 'currency_code')],

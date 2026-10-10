@@ -27,6 +27,7 @@ class StoreResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'description' => $this->description,
+            'identity' => $this->resource->identity(),
             'logo' => $this->logo,
             'logo_url' => $this->safeCall(fn () => $this->logoUrl()),
             'banner' => $this->banner,

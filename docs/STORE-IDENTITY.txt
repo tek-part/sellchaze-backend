@@ -1,0 +1,46 @@
+Store identity — 2026-10-10
+
+The existing permission-scoped PUT /api/v1/my-store and stores/{store} update
+routes accept site_title (255 characters), header_mode (theme/custom/hidden),
+header_text (500 characters), primary_color (#RRGGBB), and font_family.
+Fields omitted from a partial update retain their values. Null title uses the
+store name. Null color/font inherit the installed theme. The theme mode retains
+the theme's announcement; custom blank text and hidden mode hide it. General
+color/font/header settings take precedence across all five storefront themes,
+both color schemes and directions without rewriting the stored theme settings.
+
+Merchant and storefront resources expose these values inside identity, including
+favicon_url. The update request remains flat, including multipart _method=PUT.
+Homepage caches are invalidated after updates. The site title is used in page
+titles and og:site_name; the business name in structured data stays unchanged.
+The SPA shell replaces the build favicon and safely escapes title text. The
+basic Blade fallback also supports the custom title, font, icon, and header.
+
+favicon accepts a PNG/JPEG/WebP image, square 16–512 pixels, at most 512 KiB.
+Uploads receive generated tenant-scoped public paths under stores/{id}/icons.
+Raw paths, external URLs, and SVG are rejected. remove_favicon detaches the
+current image; a supplied upload takes precedence. Previous icon assets remain
+available to cached pages. Existing logo/banner removal is exposed in the editor.
+
+The pinned resources/store-fonts.json contains 1,950 Google Fonts families with
+supported weights and Arabic-subset metadata, from official Google Fonts
+metadata. The frontend src/shared/store-fonts.json must remain identical.
+Only catalog names or system are accepted. CSS2 URLs use the fixed Google Fonts
+origin, encoded family names, supported weights, and display=swap. Non-Arabic
+families include Cairo as a fallback. Molle requests its supported italic face.
+system and inherited fonts do not add a selected-font stylesheet. Rendering
+still depends on browser access to Google Fonts; computed font-family alone
+does not establish that the remote glyph files loaded.
+
+Apply migration 2026_10_10_210000_add_store_identity before releasing this code.
+All six columns are nullable; existing stores inherit their prior appearance.
+Local verification applies, reverses and reapplies the migration only in the
+named disposable SQLite review database. CI checks MySQL migrations separately.
+Merging code does not deploy or migrate production, or establish that editable
+frontend source reproduces the preserved live production bundles.
+
+Coverage: ownership, partial updates/cache refresh, null/default semantics,
+invalid styles/font names, icon file validation/tenant paths/removal, escaped
+titles, legacy Blade rendering, SEO, five-theme tokens, and contrast selection.
+Browser review exercises Arabic/English, mobile light/dark storefronts, saving
+custom/blank/hidden headers, title routing, icons, and restoring theme appearance.

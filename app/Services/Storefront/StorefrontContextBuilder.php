@@ -262,6 +262,7 @@ class StorefrontContextBuilder
     {
         return [
             'id' => $store->id,
+            'identity' => $store->identity(),
             'name' => $store->name,
             'slug' => $store->slug,
             'description' => $store->description,

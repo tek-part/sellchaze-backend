@@ -33,8 +33,10 @@
     </style>
     @if(!empty($theme['custom_css']))<style data-store-custom-css>{!! $theme['custom_css'] !!}</style>@endif
     @if(!empty($theme['responsive_css']))<style data-responsive-section-css>{!! $theme['responsive_css'] !!}</style>@endif
+    @include('storefront.identity-head', ['identity' => $store->identity ?? []])
 </head>
 <body id="storefront-root" data-rendered-by="blade" data-theme="{{ $theme['key'] }}" data-theme-version="{{ $theme['version'] }}">
+    @if(($store->identity['header_mode'] ?? 'theme') === 'custom' && !empty($store->identity['header_text']))<p class="wrap" data-store-announcement>{{ $store->identity['header_text'] }}</p>@endif
     <header>
         <div class="wrap">
             <h1 style="margin:0">{{ $store->name }}</h1>

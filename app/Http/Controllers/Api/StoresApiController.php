@@ -86,7 +86,7 @@ class StoresApiController extends Controller
     /**
      * Build a best-effort store payload when the full resource fails.
      *
-     * @param mixed $store
+     * @param  mixed  $store
      * @return array<string, mixed>
      */
     private function safeStorePayload($store): array
@@ -96,6 +96,7 @@ class StoresApiController extends Controller
                 return $fn();
             } catch (\Throwable $e) {
                 report($e);
+
                 return null;
             }
         };
@@ -160,6 +161,7 @@ class StoresApiController extends Controller
             $request->validated(),
             $request->file('logo'),
             $request->file('banner'),
+            $request->file('favicon'),
         );
 
         return response()->json(['data' => new StoreResource($store->fresh())], 200, [], JSON_UNESCAPED_UNICODE);

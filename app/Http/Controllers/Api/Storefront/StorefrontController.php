@@ -164,6 +164,8 @@ class StorefrontController extends Controller
         return [
             'id' => $store->id,
             'name' => $store->name,
+            'description' => $store->description,
+            'identity' => $store->identity(),
             'slug' => $store->slug,
             'currency' => $baseCurrency,
             'auto_select_variants' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
