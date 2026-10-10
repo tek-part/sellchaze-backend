@@ -38,6 +38,7 @@ use Illuminate\Support\Facades\Storage;
  * @property array|null $tags
  * @property array|null $specifications
  * @property array|null $content
+ * @property array|null $option_display
  * @property array|null $dimensions
  * @property string $price
  * @property string|null $compare_price
@@ -91,7 +92,7 @@ class Product extends Model
         // ownership / taxonomy / tenancy
         'user_id', 'category_id', 'store_id', 'store_brand_id',
         // structured content
-        'tags', 'specifications', 'content', 'dimensions',
+        'tags', 'specifications', 'content', 'dimensions', 'option_display',
         // pricing
         'price', 'compare_price', 'cost', 'vat_rate', 'discount_percent', 'currency',
         // logistics
@@ -132,6 +133,7 @@ class Product extends Model
             'tags' => 'array',
             'specifications' => 'array',
             'content' => 'array',
+            'option_display' => 'array',
             'dimensions' => 'array',
             'highlights' => 'array',
             'translations' => 'array',

@@ -49,6 +49,44 @@ class StoreCatalogEditorTest extends TestCase
         return $this->postJson($this->base, array_merge(['name' => 'حقيبة', 'slug' => 'bag', 'price' => 125, 'is_active' => true], $extra), $this->auth)->assertCreated()->json('data.id');
     }
 
+    public function test_option_display_round_trips_and_localizes_without_changing_variant_identity(): void
+    {
+        $id = $this->create();
+        $variant = $this->postJson($this->base.'/'.$id.'/variants', ['name' => 'Blue S', 'options' => ['Color' => 'Blue', 'Size' => 'S']], $this->auth)->assertCreated()->json('data.id');
+        $media = $this->post($this->base.'/'.$id, ['_method' => 'PUT', 'gallery' => [UploadedFile::fake()->image('blue.png')]], $this->auth + ['Accept' => 'application/json'])->assertOk()->json('data.media.0.id');
+        $display = [['name' => 'Color', 'type' => 'image', 'labels' => ['ar' => 'اللون', 'en' => 'Colour'], 'values' => [['value' => 'Blue', 'labels' => ['ar' => 'أزرق'], 'color' => '#0055ff', 'media_id' => $media]]]];
+        $this->putJson($this->base.'/'.$id, ['option_display' => $display], $this->auth)->assertOk()->assertJsonPath('data.option_display', $display);
+        $public = $this->getJson($this->public.'/products/bag?lang=ar')->assertOk()->assertJsonPath('data.option_display.0.label', 'اللون')->assertJsonPath('data.option_display.0.values.0.label', 'أزرق')->assertJsonPath('data.variants.0.id', $variant)->assertJsonMissingPath('data.option_display.0.labels');
+        $this->assertStringContainsString('/storage/store-catalog/', $public->json('data.option_display.0.values.0.image_url'));
+        $this->getJson($this->public.'/products/bag?lang=en')->assertOk()->assertJsonPath('data.option_display.0.label', 'Colour')->assertJsonPath('data.option_display.0.values.0.label', 'Blue');
+        $this->putJson($this->base.'/'.$id, ['price' => 130], $this->auth)->assertOk()->assertJsonPath('data.option_display', $display);
+        $this->putJson($this->base.'/'.$id, ['remove_media_ids' => [$media]], $this->auth)->assertOk();
+        $this->getJson($this->public.'/products/bag')->assertOk()->assertJsonPath('data.option_display.0.values.0.image_url', null);
+        $this->putJson($this->base.'/'.$id, ['option_display' => []], $this->auth)->assertOk()->assertJsonPath('data.option_display', []);
+    }
+
+    public function test_option_display_rejects_unknown_duplicate_unsafe_and_foreign_values_atomically(): void
+    {
+        $id = $this->create();
+        $this->postJson($this->base.'/'.$id.'/variants', ['name' => 'Blue', 'options' => ['Color' => 'Blue']], $this->auth)->assertCreated();
+        $other = $this->create(['slug' => 'other']);
+        $media = $this->post($this->base.'/'.$other, ['_method' => 'PUT', 'gallery' => [UploadedFile::fake()->image('other.png')]], $this->auth + ['Accept' => 'application/json'])->assertOk()->json('data.media.0.id');
+        $axis = ['name' => 'Color', 'type' => 'color', 'values' => [['value' => 'Blue', 'color' => '#123456']]];
+        $bad = [
+            [$axis, array_merge($axis, ['name' => ' COLOR '])],
+            [array_merge($axis, ['name' => 'Missing'])],
+            [array_merge($axis, ['type' => 'html'])],
+            [array_merge($axis, ['values' => [['value' => 'Green']]])],
+            [array_merge($axis, ['values' => [['value' => 'Blue'], ['value' => ' blue ']]])],
+            [array_merge($axis, ['values' => [['value' => 'Blue', 'color' => 'url(https://bad.test)']]])],
+            [array_merge($axis, ['values' => [['value' => 'Blue', 'media_id' => $media]]])],
+        ];
+        foreach ($bad as $display) {
+            $this->putJson($this->base.'/'.$id, ['name' => 'Do not save', 'option_display' => $display], $this->auth)->assertUnprocessable();
+        }
+        $this->getJson($this->base.'/'.$id, $this->auth)->assertOk()->assertJsonPath('data.name', 'حقيبة')->assertJsonPath('data.option_display', []);
+    }
+
     public function test_editor_round_trips_translations_cost_seo_and_zero_price_without_public_cost_leak(): void
     {
         $id = $this->create(['cost' => 70, 'compare_price' => 160, 'weight' => 0.45, 'seo_title' => 'عنوان البحث', 'seo_description' => 'وصف البحث',
