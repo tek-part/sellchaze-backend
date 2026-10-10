@@ -13,6 +13,11 @@ use Illuminate\Http\Request;
 
 class StorePhoneBlockController extends Controller
 {
+    private function scope(Request $request): string
+    {
+        return str_contains($request->route()?->uri() ?? '', '/blocked-phones') ? 'otp' : 'checkout';
+    }
+
     private function store(Request $request): Store
     {
         $store = $request->attributes->get('store');
@@ -27,7 +32,7 @@ class StorePhoneBlockController extends Controller
     {
         $store = $this->store($request);
         $data = $request->validate(['q' => ['nullable', 'string', 'max:64'], 'status' => ['nullable', 'in:active,inactive,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:50'], 'page' => ['nullable', 'integer', 'min:1']]);
-        $query = StorePhoneBlock::query()->where('store_id', $store->id);
+        $query = StorePhoneBlock::query()->where('store_id', $store->id)->where('scope', $this->scope($request));
         if (($data['status'] ?? 'active') !== 'all') {
             $query->where('active', ($data['status'] ?? 'active') === 'active');
         }
@@ -53,7 +58,7 @@ class StorePhoneBlockController extends Controller
         $store = $this->store($request);
         $data = $request->validate(['phone' => ['required', 'string', 'max:50'], 'note' => ['nullable', 'string', 'max:500', 'regex:/^[^\x00-\x08\x0b\x0c\x0e-\x1f\x7f]*$/u']]);
 
-        return response()->json(['data' => $blocking->add($store, $data['phone'], $data['note'] ?? null, $request->user()->id)], 200, ['Cache-Control' => 'private, no-store']);
+        return response()->json(['data' => $blocking->add($store, $data['phone'], $data['note'] ?? null, $request->user()->id, $this->scope($request))], 200, ['Cache-Control' => 'private, no-store']);
     }
 
     public function update(Request $request, Store $store, int $block, PhoneBlocking $blocking): JsonResponse
@@ -61,13 +66,13 @@ class StorePhoneBlockController extends Controller
         $store = $this->store($request);
         $data = $request->validate(['active' => ['required', 'boolean'], 'version' => ['required', 'integer', 'min:1'], 'note' => ['present', 'nullable', 'string', 'max:500', 'regex:/^[^\x00-\x08\x0b\x0c\x0e-\x1f\x7f]*$/u']]);
 
-        return response()->json(['data' => $blocking->update($store, $block, (bool) $data['active'], $data['note'], (int) $data['version'], $request->user()->id)], 200, ['Cache-Control' => 'private, no-store']);
+        return response()->json(['data' => $blocking->update($store, $block, (bool) $data['active'], $data['note'], (int) $data['version'], $request->user()->id, $this->scope($request))], 200, ['Cache-Control' => 'private, no-store']);
     }
 
     public function history(Request $request, Store $store, int $block): JsonResponse
     {
         $store = $this->store($request);
-        StorePhoneBlock::query()->where('store_id', $store->id)->whereKey($block)->firstOrFail();
+        StorePhoneBlock::query()->where('store_id', $store->id)->where('scope', $this->scope($request))->whereKey($block)->firstOrFail();
         $request->validate(['page' => ['nullable', 'integer', 'min:1']]);
         $page = StorePhoneBlockEvent::query()->where('store_id', $store->id)->where('store_phone_block_id', $block)->with('actor:id,name')->orderByDesc('id')->paginate(25);
 
