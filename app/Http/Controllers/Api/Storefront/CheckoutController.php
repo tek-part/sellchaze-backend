@@ -15,6 +15,7 @@ use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\CartService;
 use App\Services\Commerce\CheckoutAttempts;
+use App\Services\Commerce\CheckoutBasket;
 use App\Services\Commerce\CheckoutFields;
 use App\Services\Commerce\CheckoutQuote;
 use App\Services\Commerce\CheckoutService;
@@ -49,10 +50,15 @@ class CheckoutController extends Controller
 
     public function fields(Request $request, CheckoutFields $fields): JsonResponse
     {
-        $data = $request->validate(['payment_method' => ['nullable', 'string', 'max:80']]);
+        $data = $request->validate(['payment_method' => ['nullable', 'string', 'max:80'],
+            'product_ids' => ['sometimes', 'array', 'max:100'], 'product_ids.*' => ['required', 'integer', 'min:1']]);
+        $store = $this->currentStore($request);
+        $basket = isset($data['product_ids']) ? app(CheckoutBasket::class)->fromIds($store, $data['product_ids'], true) : app(CheckoutBasket::class)->forRequest($store, $request);
+        $shipping = $basket['requires_shipping'] ? app(StoreShipping::class)->publicConfiguration($store)
+            : ['enabled' => false, 'regions_enabled' => false, 'auto_select_region' => false, 'currency' => $store->currency ?: 'USD', 'flat_rate' => '0.00', 'free_over' => null, 'regions' => [], 'options' => []];
 
-        return response()->json(['data' => $fields->effective($this->currentStore($request), $data['payment_method'] ?? null),
-            'shipping' => app(StoreShipping::class)->publicConfiguration($this->currentStore($request))]);
+        return response()->json(['data' => $fields->effective($store, $data['payment_method'] ?? null, $basket['requires_shipping'], $basket['has_digital']),
+            'shipping' => $shipping, 'requires_shipping' => $basket['requires_shipping'], 'has_digital' => $basket['has_digital']]);
     }
 
     public function quote(CheckoutQuoteRequest $request, CheckoutQuote $quotes): JsonResponse
@@ -69,15 +75,19 @@ class CheckoutController extends Controller
     {
         $store = $this->currentStore($request);
         $shippingSelection = $request->safe()->only(array_keys(StoreShipping::SELECTION_RULES));
-        app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
+        $requiresShipping = app(CheckoutBasket::class)->forRequest($store, $request)['requires_shipping'];
+        if ($requiresShipping) {
+            app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
+        }
         $payment = StorePaymentGateway::query()
             ->where('store_id', $store->id)
             ->where('enabled', true)
+            ->when(! $requiresShipping, fn ($query) => $query->where('gateway', '!=', 'cod'))
             ->when($request->filled('payment_method'), fn ($query) => $query->where('gateway', $request->string('payment_method')->toString()))
             ->orderBy('sort_order')
             ->first();
 
-        if ($payment === null && ! $request->filled('payment_method')) {
+        if ($payment === null && ! $request->filled('payment_method') && $requiresShipping) {
             $payment = (new StorePaymentGateway)->forceFill([
                 'store_id' => $store->id,
                 'gateway' => 'cod',
@@ -230,6 +240,8 @@ class CheckoutController extends Controller
     public function paymentMethods(Request $request): JsonResponse
     {
         $store = $this->currentStore($request);
+        $data = $request->validate(['product_ids' => ['sometimes', 'array', 'max:100'], 'product_ids.*' => ['required', 'integer', 'min:1']]);
+        $basket = isset($data['product_ids']) ? app(CheckoutBasket::class)->fromIds($store, $data['product_ids'], true) : app(CheckoutBasket::class)->forRequest($store, $request);
         $names = [
             'cod' => 'Cash on delivery', 'bank_transfer' => 'Bank transfer', 'stripe' => 'Stripe',
             'paypal' => 'PayPal', 'tabby' => 'Tabby', 'tamara' => 'Tamara', 'paymob' => 'Paymob',
@@ -240,6 +252,7 @@ class CheckoutController extends Controller
         $methods = StorePaymentGateway::query()
             ->where('store_id', $store->id)
             ->where('enabled', true)
+            ->when(! $basket['requires_shipping'], fn ($query) => $query->where('gateway', '!=', 'cod'))
             ->orderBy('sort_order')
             ->get(['gateway', 'test_mode'])
             ->map(fn (StorePaymentGateway $setting) => [
@@ -256,7 +269,10 @@ class CheckoutController extends Controller
     {
         $store = $this->currentStore($request);
         $shippingSelection = $request->validate(StoreShipping::SELECTION_RULES);
-        app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
+        $requiresShipping = app(CheckoutBasket::class)->forRequest($store, $request)['requires_shipping'];
+        if ($requiresShipping) {
+            app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
+        }
         $customer = $this->auth->resolve($request);
         $cart = $this->carts->resolve($request, $store, $customer);
 
@@ -274,7 +290,7 @@ class CheckoutController extends Controller
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
             'coupon' => ['code' => $coupon->code, 'type' => $coupon->type, 'value' => $coupon->value],
-            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection),
+            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -283,7 +299,10 @@ class CheckoutController extends Controller
     {
         $store = $this->currentStore($request);
         $shippingSelection = $request->validate(StoreShipping::SELECTION_RULES);
-        app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
+        $requiresShipping = app(CheckoutBasket::class)->forRequest($store, $request)['requires_shipping'];
+        if ($requiresShipping) {
+            app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
+        }
         $customer = $this->auth->resolve($request);
         $cart = $this->carts->resolve($request, $store, $customer);
 
@@ -291,7 +310,7 @@ class CheckoutController extends Controller
 
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
-            'totals' => $this->pricing->forStore($store, $cart->subtotal(), '0.00', $shippingSelection),
+            'totals' => $this->pricing->forStore($store, $cart->subtotal(), '0.00', $shippingSelection, $requiresShipping),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 }

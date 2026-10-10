@@ -11,6 +11,7 @@ use App\Models\StoreCustomer;
 use App\Models\StoreOrder;
 use App\Services\Outbox\OutboxRecorder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -49,10 +50,14 @@ class CheckoutService
             $lines = [];
             $stocks = [];
             $counts = [];
+            $requiresShipping = false;
+            $hasDigital = false;
 
             foreach ($items as $item) {
                 $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id, true);
                 $product = $selection['product'];
+                $requiresShipping = $requiresShipping || $product->digital_type === 'physical';
+                $hasDigital = $hasDigital || $product->digital_type !== 'physical';
                 $variant = $selection['variant'];
                 $custom = app(ProductPersonalization::class)->resolve($product, $item->personalization ?? [], true);
                 $stocks[] = $variant ?? $product;
@@ -94,10 +99,27 @@ class CheckoutService
                 $discount = $this->coupons->computeDiscount($coupon, $subtotal);
             }
 
-            $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection);
-            $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection);
-            if ($shippingAddress !== null || $delivery['address'] !== []) {
-                $shippingAddress = array_merge($shippingAddress ?? [], $delivery['address'], ['shipping_details' => $delivery['details']]);
+            if ($hasDigital && (! is_string($contact['email']) || ! filter_var($contact['email'], FILTER_VALIDATE_EMAIL))) {
+                throw ValidationException::withMessages(['customer_email' => 'A valid email address is required for digital delivery.']);
+            }
+            if (! $requiresShipping && $paymentMethod === 'cod') {
+                throw ValidationException::withMessages(['payment_method' => 'Cash on delivery is not available for an entirely digital order.']);
+            }
+            // Recheck delivery fields after locking the authoritative cart. A
+            // concurrent cart edit must not turn a digital form into an addressless parcel.
+            if ($requiresShipping) {
+                $addressRules = array_filter(app(CheckoutFields::class)->rules($store, $paymentMethod, true, $hasDigital),
+                    fn (string $key) => str_starts_with($key, 'shipping_address'), ARRAY_FILTER_USE_KEY);
+                Validator::make(['shipping_address' => $shippingAddress], $addressRules)->validate();
+            }
+            $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping);
+            if ($requiresShipping) {
+                $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection);
+                if ($shippingAddress !== null || $delivery['address'] !== []) {
+                    $shippingAddress = array_merge($shippingAddress ?? [], $delivery['address'], ['shipping_details' => $delivery['details']]);
+                }
+            } else {
+                $shippingAddress = null;
             }
 
             $order = StoreOrder::create([
