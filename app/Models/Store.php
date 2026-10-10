@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Storage;
  * @property array<string,mixed>|null $order_limits
  * @property array<string,mixed>|null $phone_otp_configuration
  * @property array<string,mixed>|null $phone_otp_credentials
+ * @property array<string,mixed>|null $bot_protection_configuration
+ * @property array<string,mixed>|null $bot_protection_credentials
  */
 class Store extends Model
 {
@@ -35,9 +37,12 @@ class Store extends Model
         'digital_delivery_configuration', 'digital_delivery_credentials',
         'order_limits',
         'phone_otp_configuration', 'phone_otp_credentials',
+        'bot_protection_configuration', 'bot_protection_credentials',
     ];
 
     protected $casts = [
+        'bot_protection_configuration' => 'array',
+        'bot_protection_credentials' => 'encrypted:array',
         'phone_otp_configuration' => 'array',
         'phone_otp_credentials' => 'encrypted:array',
         'order_limits' => 'array',
@@ -57,7 +62,7 @@ class Store extends Model
         'shipping_free_over' => 'decimal:2',
     ];
 
-    protected $hidden = ['digital_delivery_credentials', 'phone_otp_credentials', 'phone_otp_configuration'];
+    protected $hidden = ['digital_delivery_credentials', 'phone_otp_credentials', 'phone_otp_configuration', 'bot_protection_configuration', 'bot_protection_credentials'];
 
     /** Task 6: any store change (status, name, settings...) invalidates its page cache. */
     protected static function booted(): void

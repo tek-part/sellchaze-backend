@@ -18,6 +18,7 @@ use App\Services\Commerce\BankTransferInstructions;
 use App\Services\Commerce\CartService;
 use App\Services\Commerce\CheckoutAttempts;
 use App\Services\Commerce\CheckoutBasket;
+use App\Services\Commerce\CheckoutBotProtection;
 use App\Services\Commerce\CheckoutFields;
 use App\Services\Commerce\CheckoutPhoneVerification;
 use App\Services\Commerce\CheckoutQuote;
@@ -63,7 +64,8 @@ class CheckoutController extends Controller
 
         return response()->json(['data' => $fields->effective($store, $data['payment_method'] ?? null, $basket['requires_shipping'], $basket['has_digital'], $basket['requires_whatsapp']),
             'shipping' => $shipping, 'requires_shipping' => $basket['requires_shipping'], 'has_digital' => $basket['has_digital'],
-            'phone_verification' => app(CheckoutPhoneVerification::class)->publicConfiguration($store)]);
+            'phone_verification' => app(CheckoutPhoneVerification::class)->publicConfiguration($store),
+            'bot_protection' => app(CheckoutBotProtection::class)->publicConfiguration($store)]);
     }
 
     public function quote(CheckoutQuoteRequest $request, CheckoutQuote $quotes): JsonResponse
@@ -156,6 +158,8 @@ class CheckoutController extends Controller
                     'email' => ($validated['customer_email'] ?? null),
                     'phone' => ($validated['customer_phone'] ?? null),
                     'phone_verification' => ($validated['phone_verification'] ?? null),
+                    'bot_proof' => ($validated['bot_proof'] ?? null),
+                    'bot_ip' => ($request->ip() ?? ''),
                     'notes' => ($validated['notes'] ?? null),
                 ],
                 ($validated['shipping_address'] ?? null),

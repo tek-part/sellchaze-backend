@@ -27,6 +27,7 @@ class CheckoutRequest extends FormRequest
         return app(CheckoutFields::class)->rules($store, is_string($this->input('payment_method')) ? $this->input('payment_method') : null, $basket['requires_shipping'], $basket['has_digital'], $basket['requires_whatsapp']) + StoreShipping::SELECTION_RULES + ProductPersonalization::inputRules('items.*.personalization') + [
             'payment_method' => ['nullable', 'string', 'max:80'],
             'phone_verification' => ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
+            'bot_proof' => ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'cart_mode' => ['sometimes', 'in:cart,direct'],
             // The storefront cart is client-side; the order's line items are submitted here and

@@ -15,6 +15,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->command('checkout-otp:prune')->daily()->withoutOverlapping();
+        $schedule->command('checkout-bot:prune')->daily()->withoutOverlapping();
         $schedule->command('outbox:publish --limit=200')
             ->everyMinute()
             ->withoutOverlapping()

@@ -39,6 +39,7 @@ class CheckoutService
     {
         return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress, $paymentMethod, $shippingSelection) {
             $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
+            $botProof = app(CheckoutBotProtection::class)->consume($store, $contact['bot_proof'] ?? null, $contact['bot_ip'] ?? null);
             $phone = app(OrderLimits::class)->assertPhone($store, $contact['phone'] ?? null);
             $phoneProof = app(CheckoutPhoneVerification::class)->consume($store, $phone, $contact['phone_verification'] ?? null);
             $cart = Cart::query()->where('store_id', $store->id)->whereKey($cart->id)->lockForUpdate()->firstOrFail();
@@ -163,6 +164,7 @@ class CheckoutService
             }
 
             $phoneProof?->update(['store_order_id' => $order->id]);
+            $botProof?->update(['store_order_id' => $order->id]);
 
             if ($coupon !== null) {
                 $this->coupons->recordUsage($coupon, $customer, $order, $totals['discount_total']);

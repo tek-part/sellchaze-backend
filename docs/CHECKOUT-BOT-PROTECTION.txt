@@ -1,0 +1,81 @@
+Observed read-only EasyOrders2.4.25 main-settings: the unchecked switch labelled
+"قفل الحماية من البوتات" says enabling it disables protection against scripts
+placing false orders. The algorithm/provider, public challenge and detection
+effectiveness were not visible or tested. Sellchaze now supports configured
+Cloudflare Turnstile for new cart/direct/funnel orders. This is a concrete bot
+protection capability, not proof of identical competitor detection or full parity.
+
+Owner/store.settings.manage configures a separate encrypted site/secret key pair
+per store. Saved secrets are hidden from model/API JSON. Public checkout fields
+expose only enabled, public site key, action and revision. Settings use an optimistic
+version and every change rotates generation. Saving keys never claims a working
+provider connection: acceptance requires an actual widget challenge/siteverify.
+Known Cloudflare dummy keys are rejected outside local/testing environments.
+Initial/default disabled preserves unconfigured stores; configured production
+activation and automatic platform-wide protection remain rollout/parity work.
+
+The official explicit widget is loaded only when required. Arabic/English shared
+cart/funnel form uses a compact widget, pending/error/expiry/retry states and gates
+new-order CTA until the server accepts proof. Widget callbacks alone do not unlock
+checkout. Locale/configuration/retry replace the256-bit client nonce. Stale async
+responses cannot restore invalidated proof. Widget errors/expiry clear readiness.
+Existing private receipt and payment-retry flows remain independent of new checks.
+
+Fixed-origin HTTPS siteverify has bounded connection/request timeouts and no
+redirects. Validation requires strict boolean success, exact checkout action and
+nonce cdata, an ISO timestamp with at most5 seconds future skew, and an allowlisted
+hostname. Hostnames derive from verified domains and the platform slug; localhost
+and127.0.0.1 are allowed only local/testing. Unverified custom domains never count.
+Expiry uses original provider challenge time plus300 seconds, not validation time.
+No failure/malformed/unknown provider response grants proof. No raw provider token,
+secret, client nonce or IP is persisted in the challenge model/database/log text.
+
+Nonce/token/IP digests use HMAC with the application key. A durable checking claim
+commits before provider I/O; exact retries return existing state without spending
+the token again or extending its deadline. Global token uniqueness rejects reuse
+by another nonce/store, including a database uniqueness race. Crash/lost-provider
+responses fail closed: obtain a fresh widget token. IP40/10minutes and store1000/hour
+budgets include failed/pending attempts and serialize under the Store lock; route
+throttle is10/minute. These controls are not a claim that all bots are eliminated.
+The app's trusted-proxy configuration determines the IP used for binding/budgets.
+
+CheckoutService rechecks enabled/generation/store/nonce/IP/state/strict expiry under
+the existing Store lock. Consumption and order/cart/stock/coupon/code allocation
+share one transaction, so later checkout failure restores availability. Consumed
+checks link to their order; a second new order cannot reuse proof. Durable checkout
+idempotency replay/recovery continues after check expiry or configuration change.
+Checking claims that lose their process remain unusable, not automatically retried.
+Daily checkout-bot:prune removes unused checks older than30 days, retaining consumed
+order audit. Migration190000 is default-disabled and reverses by dropping bot data.
+
+Primary provider references (implementation contract, not live acceptance evidence):
+https://developers.cloudflare.com/turnstile/get-started/server-side-validation/
+https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/widget-configurations/
+https://developers.cloudflare.com/turnstile/troubleshooting/testing/
+
+Feature tests cover configuration privacy/permissions/versions/removal, verified
+domains/production test-key rejection, immutable replay expiry, token reuse,
+hostname/action/cdata/timestamp mismatches, ambiguous/failed/connection transport,
+atomic rollback/single order, missing/changed-IP/expired/config-stale/cross-store
+proofs, direct idempotency/receipt/payment retry, durable budget and retained audit.
+Provider transport is faked in tests; SQLite does not prove MySQL locking/concurrency
+or real detection. A guarded local HTTP review adapter under audit accepts only
+the official dummy token/secret and synthesizes siteverify for the named disposable
+SQLite review fixture. That adapter is never part of either repository/release.
+
+Verification2026-10-10: backend736 tests/5430 assertions, dedicated13/181;
+frontend428 tests/54 files. Pint/PHPStan, full ESLint, TypeScript and final Vite
+build passed. Named disposable SQLite migration/one-step rollback/reapply passed.
+Actual official dummy widget accepted in Arabic; guarded synthetic siteverify
+created one75EGP pending-bank order22/ORD-20261010-0MSYLX. Receipt refresh produced
+no duplicate. Official failing dummy site key showed error in English; new-order
+CTA stayed disabled through retry. Mobile390px document client/scroll375/375,
+error14px and inherited dark text verified. Missing-key enable warning verified
+in Arabic. Dummy keys removed, original null configuration restored, own remaining
+cart removed, original Arabic locale/viewport restored and normal PHP router resumed.
+No real payment/email/provider Siteverify acceptance or production change occurred.
+The5756 production files reverified unchanged; editable source parity unverified.
+MySQL190000/concurrency, live provider readiness, competitor detection parity and
+all broader section/AI/theme/design/security/source requirements remain active.
+Work is local on codex/checkout-protection, based on unmerged codex/checkout-otp;
+neither new feature has been pushed/merged/deployed in this pass.
