@@ -22,6 +22,7 @@ use App\Services\Commerce\CustomerAuthService;
 use App\Services\Commerce\PaymentRetryToken;
 use App\Services\Commerce\PricingCalculator;
 use App\Services\Commerce\StorePaymentService;
+use App\Services\Commerce\StoreShipping;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -49,7 +50,8 @@ class CheckoutController extends Controller
     {
         $data = $request->validate(['payment_method' => ['nullable', 'string', 'max:80']]);
 
-        return response()->json(['data' => $fields->effective($this->currentStore($request), $data['payment_method'] ?? null)]);
+        return response()->json(['data' => $fields->effective($this->currentStore($request), $data['payment_method'] ?? null),
+            'shipping' => app(StoreShipping::class)->publicConfiguration($this->currentStore($request))]);
     }
 
     public function quote(CheckoutQuoteRequest $request, CheckoutQuote $quotes): JsonResponse
@@ -57,7 +59,7 @@ class CheckoutController extends Controller
         $data = $request->validated();
 
         return response()->json(['data' => $quotes->calculate(
-            $this->currentStore($request), $data['items'], $data['coupon_code'] ?? null, $this->auth->resolve($request),
+            $this->currentStore($request), $data['items'], $data['coupon_code'] ?? null, $this->auth->resolve($request), $data,
         )], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -65,6 +67,8 @@ class CheckoutController extends Controller
     public function store(CheckoutRequest $request): JsonResponse
     {
         $store = $this->currentStore($request);
+        $shippingSelection = $request->safe()->only(array_keys(StoreShipping::SELECTION_RULES));
+        app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
         $payment = StorePaymentGateway::query()
             ->where('store_id', $store->id)
             ->where('enabled', true)
@@ -135,6 +139,7 @@ class CheckoutController extends Controller
             ],
             ($validated['shipping_address'] ?? null),
             $payment->gateway,
+            $shippingSelection,
         );
 
         try {
@@ -229,6 +234,8 @@ class CheckoutController extends Controller
     public function applyCoupon(ApplyCouponRequest $request): JsonResponse
     {
         $store = $this->currentStore($request);
+        $shippingSelection = $request->validate(StoreShipping::SELECTION_RULES);
+        app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
         $customer = $this->auth->resolve($request);
         $cart = $this->carts->resolve($request, $store, $customer);
 
@@ -246,7 +253,7 @@ class CheckoutController extends Controller
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
             'coupon' => ['code' => $coupon->code, 'type' => $coupon->type, 'value' => $coupon->value],
-            'totals' => $this->pricing->forStore($store, $subtotal, $discount),
+            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -254,6 +261,8 @@ class CheckoutController extends Controller
     public function removeCoupon(Request $request): JsonResponse
     {
         $store = $this->currentStore($request);
+        $shippingSelection = $request->validate(StoreShipping::SELECTION_RULES);
+        app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
         $customer = $this->auth->resolve($request);
         $cart = $this->carts->resolve($request, $store, $customer);
 
@@ -261,7 +270,7 @@ class CheckoutController extends Controller
 
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
-            'totals' => $this->pricing->forStore($store, $cart->subtotal()),
+            'totals' => $this->pricing->forStore($store, $cart->subtotal(), '0.00', $shippingSelection),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 }

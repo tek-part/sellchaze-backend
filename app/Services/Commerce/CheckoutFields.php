@@ -58,10 +58,17 @@ class CheckoutFields
     {
         $online = ! in_array($this->paymentMethod($store, $paymentMethod), ['cod', 'bank_transfer'], true);
 
-        return collect($this->configured($store))->map(function (array $field) use ($online) {
+        $regions = app(StoreShipping::class)->regionsEnabled($store);
+
+        return collect($this->configured($store))->map(function (array $field) use ($online, $regions) {
             $field['payment_required'] = $online && in_array($field['key'], ['name', 'email'], true);
             if ($field['payment_required']) {
                 $field['enabled'] = $field['required'] = true;
+            }
+
+            $field['shipping_region'] = $regions && $field['key'] === 'city';
+            if ($regions && in_array($field['key'], ['country', 'city'], true)) {
+                $field['enabled'] = $field['required'] = $field['key'] === 'city';
             }
 
             return $field;
@@ -88,7 +95,7 @@ class CheckoutFields
             if ($store->checkout_fields === null && in_array($key, ['address', 'city'], true)) {
                 $presence = 'required_with:shipping_address';
             }
-            $rules[self::PATHS[$key]] = ! $field['enabled'] ? ['exclude'] : [$presence, $key === 'email' ? 'email' : 'string', 'max:'.$max];
+            $rules[self::PATHS[$key]] = (! $field['enabled'] || ($field['shipping_region'] ?? false)) ? ['exclude'] : [$presence, $key === 'email' ? 'email' : 'string', 'max:'.$max];
             if ($key === 'country' && $field['enabled']) {
                 $rules[self::PATHS[$key]][] = 'regex:/^[A-Za-z]{2}$/';
             }

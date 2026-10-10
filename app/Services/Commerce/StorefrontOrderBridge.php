@@ -217,7 +217,7 @@ class StorefrontOrderBridge
     private function formatShippingAddress(array $address): string
     {
         $parts = [];
-        foreach (['name', 'line1', 'line2', 'city', 'state', 'postal_code', 'country', 'national_address', 'phone_alt'] as $key) {
+        foreach (['name', 'line1', 'line2', 'city', 'state', 'postal_code', 'country', 'national_address', 'phone_alt', 'delivery_option'] as $key) {
             $v = trim((string) ($address[$key] ?? ''));
             if ($v !== '') {
                 $parts[] = $v;

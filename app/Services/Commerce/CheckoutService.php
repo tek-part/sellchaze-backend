@@ -32,7 +32,7 @@ class CheckoutService
      * @param  array{name:string,email:string|null,phone?:string|null,notes?:string|null}  $contact
      * @param  array<string,mixed>|null  $shippingAddress
      */
-    public function place(Store $store, Cart $cart, ?StoreCustomer $customer, array $contact, ?array $shippingAddress, string $paymentMethod): StoreOrder
+    public function place(Store $store, Cart $cart, ?StoreCustomer $customer, array $contact, ?array $shippingAddress, string $paymentMethod, array $shippingSelection = []): StoreOrder
     {
         $cart->load('items');
 
@@ -40,7 +40,7 @@ class CheckoutService
             throw ValidationException::withMessages(['cart' => 'Your cart is empty.']);
         }
 
-        return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress, $paymentMethod) {
+        return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress, $paymentMethod, $shippingSelection) {
             $subtotal = '0.00';
             $lines = [];
 
@@ -82,7 +82,11 @@ class CheckoutService
                 $discount = $this->coupons->computeDiscount($coupon, $subtotal);
             }
 
-            $totals = $this->pricing->forStore($store, $subtotal, $discount);
+            $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection);
+            $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection);
+            if ($shippingAddress !== null || $delivery['address'] !== []) {
+                $shippingAddress = array_merge($shippingAddress ?? [], $delivery['address'], ['shipping_details' => $delivery['details']]);
+            }
 
             $order = StoreOrder::create([
                 'store_customer_id' => $customer?->id,

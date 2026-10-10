@@ -94,6 +94,7 @@ use App\Http\Controllers\Api\StorePaymentsApiController;
 use App\Http\Controllers\Api\StorePublishingApiController;
 use App\Http\Controllers\Api\StoreReusableSectionsApiController;
 use App\Http\Controllers\Api\StoresApiController;
+use App\Http\Controllers\Api\StoreShippingController;
 use App\Http\Controllers\Api\StoreThemesApiController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SuppliersApiController;
@@ -755,6 +756,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('{theme}', [StoreThemesApiController::class, 'show'])->whereNumber('theme');
             });
 
+            Route::get('shipping', [StoreShippingController::class, 'index']);
+            Route::put('shipping', [StoreShippingController::class, 'update']);
             Route::get('checkout-fields', [StoreCheckoutFieldsController::class, 'index']);
             Route::put('checkout-fields', [StoreCheckoutFieldsController::class, 'update']);
 

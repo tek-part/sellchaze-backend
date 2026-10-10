@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Storefront;
 
+use App\Services\Commerce\StoreShipping;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CheckoutQuoteRequest extends FormRequest
@@ -13,7 +14,7 @@ class CheckoutQuoteRequest extends FormRequest
 
     public function rules(): array
     {
-        return [
+        return StoreShipping::SELECTION_RULES + [
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.product_id' => ['required', 'integer', 'min:1'],
             'items.*.variant_id' => ['nullable', 'integer', 'min:1'],

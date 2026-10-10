@@ -10,7 +10,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
-/** @property list<array<string,mixed>>|null $checkout_fields */
+/**
+ * @property list<array<string,mixed>>|null $checkout_fields
+ * @property array<string,mixed>|null $shipping_configuration
+ */
 class Store extends Model
 {
     public const STATUSES = ['draft', 'active', 'suspended'];
@@ -23,12 +26,13 @@ class Store extends Model
         'default_locale', 'supported_locales', 'supported_currencies', 'timezone',
         'tax_enabled', 'tax_rate', 'tax_prices_include', 'shipping_enabled',
         'shipping_flat_rate', 'shipping_free_over',
-        'theme_id', 'theme_settings', 'checkout_fields',
+        'theme_id', 'theme_settings', 'checkout_fields', 'shipping_configuration',
     ];
 
     protected $casts = [
         'theme_settings' => 'array',
         'checkout_fields' => 'array',
+        'shipping_configuration' => 'array',
         'is_primary' => 'boolean',
         'supported_locales' => 'array',
         'supported_currencies' => 'array',

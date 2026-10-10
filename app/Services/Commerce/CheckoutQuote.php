@@ -15,7 +15,7 @@ class CheckoutQuote
         private readonly PricingCalculator $pricing,
     ) {}
 
-    public function calculate(Store $store, array $items, ?string $code, ?StoreCustomer $customer): array
+    public function calculate(Store $store, array $items, ?string $code, ?StoreCustomer $customer, array $shippingSelection = []): array
     {
         $subtotal = '0.00';
         $lines = [];
@@ -45,6 +45,6 @@ class CheckoutQuote
         }
 
         return ['items' => $lines, 'currency' => $store->currency ?: 'USD',
-            'totals' => $this->pricing->forStore($store, $subtotal, $discount)];
+            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection)];
     }
 }
