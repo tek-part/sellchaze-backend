@@ -65,7 +65,42 @@ dark surface28/26/23 and text242/235/221; all five receipt views show paid deliv
 Final backend652 tests/4442 assertions; focused31/336; frontend393 tests/47 files;
 PHPStan/Pint, ESLint/TypeScript and Vite build passed. Production5756files unchanged.
 
-No new migration. Remaining: prepayment receipt email/resend/dead-letter merchant
-controls, actual SMTP/provider acceptance, digital/mixed B2B and carrier behavior,
+No new migration. Remaining: actual SMTP/provider acceptance, digital/mixed B2B and carrier behavior,
 shared code-pool client caps, all-theme appearance and MySQL concurrent acceptance,
 production deployment/source reconciliation and other outstanding competitor work.
+
+Prepayment and merchant email follow-up (2026-10-10):
+Checkout now records a separate StorefrontDigitalReceipt event for immutable
+digital/mixed order snapshots. A private receipt mail contains order/total,
+the saved bank-instruction whitelist and a purpose-separated private link. It
+never contains digital codes or URLs. If bank payment transaction creation is
+still in progress, publication retries rather than sending empty instructions.
+Paid-before-publication or cancelled orders skip the prepayment message; paid
+digital delivery still uses its separate durable event.
+
+GET/POST orders/{id}/digital-email requires tenant scope and store.orders.manage.
+GET returns only two latest email states: not_scheduled/queued/retrying/failed/
+sent/skipped/processed, attempt count and sanitized timing/error information.
+"Sent" means handed to the configured mail transport, not inbox confirmation.
+Historical paid events lacking mail_outcome metadata are labelled processed.
+POST accepts kind, expected message_id and a UUID request_key. It rechecks live
+order eligibility under a lock, rejects a stale message, queued email or send
+within 60 seconds of publication, and records a new audited ID-only event.
+An exhausted event remains failed for history; retry does not erase attempts.
+Same-key replay returns the existing result; using the key for another kind
+fails. No recipient override is accepted: the saved order email is used.
+The publisher and merchant service use event-before-order locking. Simultaneous
+MySQL acceptance is still pending; SQLite integration proves serial replay.
+
+Merchant UI shows saved recipient and localized status, requires review before
+queueing, and retains the request key after an uncertain HTTP result. Refreshing
+status does not create an email. Delivery resend requires paid/noncancelled state;
+receipt resend requires unpaid/noncancelled state. Recipient edits are not exposed.
+
+13 dedicated backend tests cover receipt privacy/snapshot/idempotent checkout,
+paid supersession, payment-transaction race retry, manual cooldown/stale source,
+duplicate request replay, tenant/employee authorization, five exhausted retries
+and retained failed history, immutable recipient, and physical checkout exclusion,
+in addition to the original signed webhook/manual bank/receipt contracts.
+No new migration or production deployment. External SMTP acknowledgement gaps
+remain subject to the duplicate-retry limitation documented above.

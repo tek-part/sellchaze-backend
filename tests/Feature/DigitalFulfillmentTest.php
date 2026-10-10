@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\BridgeStorefrontOrderJob;
 use App\Mail\DigitalOrderPaidMail;
+use App\Mail\DigitalOrderReceiptMail;
 use App\Models\OutboxMessage;
 use App\Models\Product;
 use App\Models\Store;
@@ -71,6 +72,150 @@ class DigitalFulfillmentTest extends TestCase
     {
         return $this->postJson('/api/v1/my-store/orders/'.$id.'/payment/confirm-bank', ['reference' => $reference],
             ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($this->owner)]);
+    }
+
+    private function emailStatus(int $id): TestResponse
+    {
+        return $this->getJson('/api/v1/my-store/orders/'.$id.'/digital-email',
+            ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($this->owner)]);
+    }
+
+    private function resend(int $id, string $kind, ?string $messageId, ?string $key = null): TestResponse
+    {
+        return $this->postJson('/api/v1/my-store/orders/'.$id.'/digital-email',
+            ['kind' => $kind, 'message_id' => $messageId, 'request_key' => $key ?? (string) Str::uuid(), 'recipient' => 'attacker@example.test'],
+            ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($this->owner)]);
+    }
+
+    public function test_receipt_before_payment_preserves_bank_snapshot_and_contains_no_delivery_values(): void
+    {
+        $key = (string) Str::uuid();
+        $data = $this->place($key);
+        $id = $data['data']['id'];
+        $this->postJson($this->base.'/checkout', $this->body(), ['Idempotency-Key' => $key])->assertCreated();
+        $this->assertSame(1, OutboxMessage::where('event_type', 'StorefrontDigitalReceipt')->count());
+        $this->emailStatus($id)->assertOk()->assertJsonPath('data.0.state', 'queued')->assertJsonPath('data.0.can_send', false)->assertJsonPath('data.1.can_send', false);
+        StorePaymentGateway::where('store_id', $this->store->id)->first()->update(['credentials' => ['iban' => 'CHANGED']]);
+        app(CurrentStore::class)->forget();
+        app(OutboxPublisher::class)->publishPending();
+        Mail::assertSent(DigitalOrderReceiptMail::class, function ($mail) {
+            $html = $mail->render();
+            foreach (['TEST-ACCOUNT', 'Use the order number', '#receipt='] as $value) {
+                $this->assertStringContainsString($value, $html);
+            }
+            foreach (['CHANGED', 'NEVER-PUBLIC', 'private-guide'] as $value) {
+                $this->assertStringNotContainsString($value, $html);
+            }
+
+            return $mail->hasTo('buyer@example.test');
+        });
+        $this->emailStatus($id)->assertJsonPath('data.0.state', 'sent')->assertJsonPath('data.0.can_send', false);
+        $this->confirm($id)->assertOk();
+        app(OutboxPublisher::class)->publishPending();
+        app(OutboxPublisher::class)->publishPending();
+        Mail::assertSent(DigitalOrderReceiptMail::class, 1);
+        Mail::assertSent(DigitalOrderPaidMail::class, 1);
+    }
+
+    public function test_queued_and_recent_receipts_cannot_resend_and_manual_requests_are_audited_and_idempotent(): void
+    {
+        $id = $this->place()['data']['id'];
+        $source = OutboxMessage::where('event_type', 'StorefrontDigitalReceipt')->firstOrFail();
+        $this->resend($id, 'receipt', $source->id)->assertUnprocessable();
+        app(OutboxPublisher::class)->publishPending();
+        $this->resend($id, 'receipt', $source->id)->assertUnprocessable();
+        $this->travel(61)->seconds();
+        $this->emailStatus($id)->assertJsonPath('data.0.can_send', true);
+        $key = (string) Str::uuid();
+        $this->resend($id, 'receipt', $source->id, $key)->assertStatus(202)->assertJsonPath('data.0.state', 'queued');
+        $latest = OutboxMessage::where('event_type', 'StorefrontDigitalReceipt')->orderByDesc('id')->firstOrFail();
+        $this->assertNotEquals($source->id, $latest->id);
+        $this->resend($id, 'receipt', $source->id, $key)->assertStatus(202);
+        $this->resend($id, 'receipt', $source->id)->assertUnprocessable();
+        $this->resend($id, 'delivery', $source->id, $key)->assertUnprocessable();
+        $this->assertSame(2, OutboxMessage::where('event_type', 'StorefrontDigitalReceipt')->count());
+        $this->assertDatabaseCount('store_order_status_changes', 1);
+        $this->assertDatabaseHas('store_order_status_changes', ['store_order_id' => $id, 'actor_id' => $this->owner->id, 'source' => 'email_resend']);
+        app(OutboxPublisher::class)->publishPending();
+        $this->resend($id, 'receipt', $source->id, $key)->assertStatus(202);
+        Mail::assertSent(DigitalOrderReceiptMail::class, 2);
+        Mail::assertNotSent(DigitalOrderReceiptMail::class, fn ($mail) => $mail->hasTo('attacker@example.test'));
+    }
+
+    public function test_exhausted_delivery_can_be_requeued_without_erasing_failed_history(): void
+    {
+        $id = $this->place()['data']['id'];
+        $this->confirm($id)->assertOk();
+        $fake = Mail::getFacadeRoot();
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('secret-private-guide'));
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            app(OutboxPublisher::class)->publishPending();
+            $this->travel(301)->seconds();
+        }
+        Mail::swap($fake);
+        $source = OutboxMessage::where('event_type', 'StorefrontDigitalPaid')->firstOrFail();
+        $this->assertNotNull($source->failed_at);
+        $this->assertSame(5, $source->attempts);
+        $this->emailStatus($id)->assertOk()->assertJsonPath('data.0.state', 'skipped')->assertJsonPath('data.1.state', 'failed')->assertJsonPath('data.1.can_send', true)
+            ->assertJsonMissing(['last_error' => 'secret-private-guide']);
+        $this->resend($id, 'delivery', $source->id)->assertStatus(202)->assertJsonPath('data.1.state', 'queued');
+        app(OutboxPublisher::class)->publishPending();
+        $this->emailStatus($id)->assertJsonPath('data.1.state', 'sent');
+        $this->assertNotNull($source->fresh()->failed_at);
+        Mail::assertSent(DigitalOrderPaidMail::class, 1);
+    }
+
+    public function test_receipt_waits_for_payment_transaction_then_retries_with_bank_instructions(): void
+    {
+        $id = $this->place()['data']['id'];
+        $transaction = StorePaymentTransaction::where('store_order_id', $id)->firstOrFail();
+        $original = $transaction->toArray();
+        $transaction->delete();
+        app(OutboxPublisher::class)->publishPending();
+        $event = OutboxMessage::where('event_type', 'StorefrontDigitalReceipt')->firstOrFail();
+        $this->assertSame(1, $event->attempts);
+        Mail::assertNothingSent();
+        // Model credentials/metadata casts are restored through Eloquent.
+        StorePaymentTransaction::create($original);
+        $this->travel(10)->seconds();
+        app(OutboxPublisher::class)->publishPending();
+        Mail::assertSent(DigitalOrderReceiptMail::class, fn ($mail) => str_contains($mail->render(), 'TEST-ACCOUNT'));
+        $this->assertNotNull($event->fresh()->published_at);
+    }
+
+    public function test_email_actions_require_store_permissions_and_scoped_message_and_order(): void
+    {
+        $id = $this->place()['data']['id'];
+        $employee = User::factory()->create(['is_active' => true, 'pending_approval' => false, 'parent_user_id' => $this->owner->id]);
+        $employee->assignRole('Employee');
+        $path = '/api/v1/my-store/orders/'.$id.'/digital-email';
+        $headers = ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($employee)];
+        $this->getJson($path, $headers)->assertForbidden();
+        $this->postJson($path, ['kind' => 'receipt', 'request_key' => (string) Str::uuid()], $headers)->assertForbidden();
+        $outsider = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
+        $outsider->assignRole('Merchant');
+        $this->getJson('/api/v1/stores/'.$this->store->id.'/orders/'.$id.'/digital-email', ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($outsider)])->assertForbidden();
+        $foreign = OutboxMessage::create(['event_type' => 'StorefrontDigitalReceipt', 'aggregate_type' => 'store_order', 'aggregate_id' => (string) $id,
+            'payload' => ['store_id' => 99999, 'store_order_id' => $id], 'metadata' => [], 'available_at' => now()]);
+        $this->resend($id, 'receipt', $foreign->id)->assertNotFound();
+        $this->resend($id, 'delivery', null)->assertUnprocessable();
+        $this->emailStatus(999999)->assertNotFound();
+        app(CurrentStore::class)->set($this->store);
+        app(StoreOrderService::class)->transition(StoreOrder::query()->findOrFail($id), 'cancelled');
+        app(OutboxPublisher::class)->publishPending();
+        Mail::assertNothingSent();
+        $this->emailStatus($id)->assertJsonPath('data.0.state', 'skipped')->assertJsonPath('data.0.can_send', false);
+    }
+
+    public function test_physical_checkout_does_not_schedule_digital_receipt(): void
+    {
+        $this->product->update(['digital_type' => 'physical', 'digital_url' => null]);
+        $body = $this->body();
+        $body['shipping_address'] = ['line1' => 'Review street', 'city' => 'Cairo', 'country' => 'EG'];
+        $this->postJson($this->base.'/checkout', $body)->assertCreated();
+        $this->assertSame(0, OutboxMessage::where('event_type', 'StorefrontDigitalReceipt')->count());
+        app(OutboxPublisher::class)->publishPending();
+        Mail::assertNothingSent();
     }
 
     public function test_private_receipt_requires_correct_store_unexpired_purpose_specific_token_and_preserves_bank_snapshot(): void

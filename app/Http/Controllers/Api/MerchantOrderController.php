@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateOrderStatusRequest;
 use App\Http\Resources\MerchantOrderResource;
 use App\Models\Store;
 use App\Models\StoreOrder;
+use App\Services\Commerce\DigitalOrderEmail;
 use App\Services\Commerce\ManualBankPayment;
 use App\Services\Commerce\StoreOrderService;
 use Illuminate\Contracts\Database\Eloquent\Builder;
@@ -108,6 +109,20 @@ class MerchantOrderController extends Controller
         $model = app(ManualBankPayment::class)->confirm($this->find($order), $data['reference'], (int) $request->user()->id, $data['note'] ?? null);
 
         return response()->json(['data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor', 'b2bOrder']))]);
+    }
+
+    public function digitalEmail(Request $request, Store $store, int $order): JsonResponse
+    {
+        return response()->json(['data' => app(DigitalOrderEmail::class)->status($this->find($order))]);
+    }
+
+    public function resendDigitalEmail(Request $request, Store $store, int $order): JsonResponse
+    {
+        $data = $request->validate(['kind' => ['required', 'in:receipt,delivery'], 'message_id' => ['nullable', 'uuid'], 'request_key' => ['required', 'uuid']]);
+        $model = $this->find($order);
+        app(DigitalOrderEmail::class)->request($model, $data['kind'], $data['message_id'] ?? null, $data['request_key'], (int) $request->user()->id);
+
+        return response()->json(['data' => app(DigitalOrderEmail::class)->status($model)], 202);
     }
 
     private function find(int $id): StoreOrder
