@@ -9,6 +9,7 @@ use App\Models\Store;
 use App\Models\StoreBrand;
 use App\Models\StoreCollection;
 use App\Services\Commerce\OrderLimits;
+use App\Services\Commerce\ShoppingPreferences;
 use App\Support\Localization\LocaleContext;
 use App\Support\Localization\LocalizedValue;
 use App\Support\Tenancy\CurrentStore;
@@ -235,6 +236,7 @@ class StorefrontService
 
         return [
             'id' => $p->id,
+            'auto_select_variant' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
             'order_quantity_limit' => $store && (int) $store->id === (int) $p->store_id ? app(OrderLimits::class)->productLimit($store) : null,
             'name' => $p->translated('name', $locale),
             'slug' => $p->slug,

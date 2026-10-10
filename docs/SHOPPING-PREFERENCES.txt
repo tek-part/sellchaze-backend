@@ -1,0 +1,37 @@
+Store shopping preferences
+
+GET/PUT /api/v1/my-store/shopping-preferences (also the selected-store admin route).
+Owner, store.settings.manage or stores-edit permission is required. Saves lock
+the store and require the current version; stale edits return409. PUT requires
+auto_select_variants:boolean and version:positive integer. The new nullable
+stores.shopping_preferences JSON column defaults semantically to automatic=true,
+version1. Existing stores need no settings backfill.
+
+Automatic mode starts with the first active, available variant in catalog order.
+Manual mode starts with no variant; every property must be selected before adding
+or quoting. An explicit unavailable, removed, partial or impossible choice never
+falls back to another variant. Option-group navigation leaves properties empty
+in manual mode. Dropdown placeholders show the unselected state correctly.
+
+The public bootstrap summary and StoreResource expose auto_select_variants. Detailed and card
+product payloads expose auto_select_variant from CurrentStore, including shared
+owner catalogs. Saving invalidates the homepage and Store::saved flushes page
+caches. The frontend uses current bootstrap policy over old recently-viewed
+snapshots; standalone foundation previews use the product flag. A document refresh
+loads a changed preference. Current cart lines and explicit customer choices on
+data refresh are retained. Purchase limits, customization and stock still apply.
+
+All five theme card families, the shared product page, and direct-funnel checkout
+use the shared resolver. Funnel selection is scoped to product ID, preventing a
+previous product selection from carrying over. The server always requires the
+explicit variant ID: this preference never permits server-side SKU guessing.
+Cart/quote/checkout pricing and stock remain authoritative.
+
+Local review also corrected the physical origin of the Arabic tab underline,
+Fresh brand-name overlap, and its footer minimum-width overflow on small screens.
+
+Migration200000 is reversible. It was tested with application/rollback/reapplication
+only on the named disposable SQLite review database. MySQL migration/concurrency,
+live production and competitor behavior after saving its setting remain unverified.
+No live order/payment/provider/email action is required for this preference.
+The broader competitor/theme/AI/design/source-parity goal remains incomplete.

@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\OrderLimits;
 use App\Services\Commerce\ProductPersonalization;
+use App\Services\Commerce\ShoppingPreferences;
 use App\Services\Storefront\ResponsiveImageUrl;
 use App\Support\ProductOptionDisplay;
 use App\Support\Tenancy\CurrentStore;
@@ -26,6 +27,7 @@ class StorefrontProductResource extends JsonResource
         return [
             'id' => $this->id,
             'store_id' => $this->store_id,
+            'auto_select_variant' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
             'name' => $this->translated('name'),
             'slug' => $this->slug,
             'sku' => $this->sku,

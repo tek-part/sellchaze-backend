@@ -159,6 +159,8 @@ class CheckoutBotProtectionTest extends TestCase
 
     public function test_provider_success_alone_cannot_bypass_hostname_action_cdata_or_timestamp_checks(): void
     {
+        // Keep the six-second future case outside the five-second tolerance throughout the request.
+        $this->freezeSecond();
         $this->enable();
         foreach ([['success' => 'true'], ['hostname' => 'attacker.test'], ['action' => 'login'], ['cdata' => 'wrong'],
             ['challenge_ts' => now()->subSeconds(300)->toIso8601String()], ['challenge_ts' => now()->addSeconds(6)->toIso8601String()],
