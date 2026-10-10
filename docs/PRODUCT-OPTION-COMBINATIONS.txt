@@ -1,0 +1,47 @@
+Product combinations and storefront selection — 2026-10-10
+
+POST /api/v1/my-store/catalog/products/{product}/variants/generate (and the
+equivalent administrator store route) requires products-edit and ownership.
+Body: {"axes":[{"name":"Color","values":["Blue","Red"]},
+                {"name":"Size","values":["S","M"]}]}
+Response meta.created/meta.existing describes the requested combinations.
+Up to five properties, fifty values per property and 200 combinations per
+request. The generator rejects a resulting catalog above 500 variants.
+
+Generation is additive and atomic: existing IDs, prices, translations, stock,
+reservations and inactive state remain unchanged. Exact combinations are
+compared independent of key order, casing and surrounding whitespace. Repeated
+requests skip existing combinations. Manual variant create/update uses the
+same parent-row mutex and duplicate detection. Names over 255 characters cause
+the entire generation transaction to roll back.
+
+New combinations inherit the product price and start with tracked stock zero.
+Allocate inventory through the normal stock editor before sale. First-time
+conversion from simple product to variants requires base stock zero and no
+reservations; reconcile base inventory deliberately so quantities are not
+silently hidden or duplicated across variants. Subsequent stock allocation is
+recorded by the inventory service. No stock is inferred from property values.
+
+The merchant editor provides values separated by commas/newlines, a count and
+preview, duplicate/limit checks and a repeatable create-missing action.
+Product cards carry public variants, prices and availability into a selection
+control. No implicit parent SKU is added when a product has options. Selected
+variant ID, label, price (including zero) and stock cap reach the cart. Library,
+Fresh, Techno and foundation cards use this contract; Fresh quantities refer to
+the selected variant. Currency multipliers apply to option prices exactly once.
+
+Evidence: StoreCatalogEditorTest tests additive retries, duplicate manual edits,
+tenant isolation, limits, transaction rollback and stock conversion.
+StoreInventoryTest continues to cover stock adjustment/reservations.
+Frontend card-purchase tests exercise the API mapper-to-cart boundary, explicit
+selection, distinct IDs, price conversion, free options and unavailable choices.
+Local browser generated four combinations and replayed with zero duplicates;
+the existing option retained price 150 and stock 4. A different public product's
+Red option reached the cart at EGP 275 with a stock cap of two.
+
+Remaining competitor requirements include property display types (color,
+image/button/dropdown), customer text/file personalization, option images,
+bulk option editing, rich text/video, digital delivery, product AI generation,
+advanced per-product checkout/theme/pixel settings and all other unimplemented
+sections. Multi-connection MySQL generation/conversion concurrency remains an
+acceptance item; SQLite tests do not establish it. No production release.

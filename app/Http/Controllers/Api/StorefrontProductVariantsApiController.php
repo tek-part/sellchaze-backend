@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\GenerateProductVariantsRequest;
 use App\Http\Requests\StorefrontProductVariantRequest;
 use App\Http\Resources\StoreCatalogVariantResource;
 use App\Models\Product;
@@ -37,6 +38,14 @@ class StorefrontProductVariantsApiController extends Controller
         $variant = $this->service->create($model, $request->validated())->setRelation('product', $model);
 
         return response()->json(['data' => new StoreCatalogVariantResource($variant)], 201, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function generate(GenerateProductVariantsRequest $request, Store $store, int $product): JsonResponse
+    {
+        $model = $this->product($product);
+        $counts = $this->service->generate($model, $request->validated('axes'));
+
+        return response()->json(['meta' => $counts], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
     public function update(StorefrontProductVariantRequest $request, Store $store, int $product, int $variant): JsonResponse

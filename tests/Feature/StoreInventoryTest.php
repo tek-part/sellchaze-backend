@@ -186,6 +186,7 @@ class StoreInventoryTest extends TestCase
     {
         $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($this->owner));
         $path = '/api/v1/my-store/catalog/products/'.$this->product->id.'/variants';
+        $this->putJson('/api/v1/my-store/catalog/inventory/'.$this->product->id, ['track_inventory' => true, 'stock_quantity' => 0, 'expected_stock' => 3, 'expected_reserved' => 0, 'expected_tracking' => true, 'note' => 'Allocate stock to variants instead'])->assertOk();
         $id = $this->postJson($path, ['name' => 'Green', 'price_override' => 110, 'options' => ['color' => 'green'], 'is_active' => true])->assertCreated()->json('data.id');
         $this->getJson($path)->assertOk()->assertJsonPath('data.0.id', $id);
         $this->putJson($path.'/'.$id, ['name' => 'Green large', 'price_override' => 120])->assertOk()->assertJsonPath('data.price_override', '120.00');

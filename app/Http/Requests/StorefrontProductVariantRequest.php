@@ -33,10 +33,16 @@ class StorefrontProductVariantRequest extends FormRequest
             'cost' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', 'decimal:0,2'],
             'weight' => ['nullable', 'numeric', 'min:0', 'max:999999.999', 'decimal:0,3'],
             'options' => ['nullable', 'array', 'max:10', function ($attribute, $value, $fail) {
+                $names = [];
                 foreach (array_keys(is_array($value) ? $value : []) as $key) {
                     if (! is_string($key) || trim($key) === '' || mb_strlen($key) > 80) {
                         $fail('Option names must be non-empty text of at most 80 characters.');
                     }
+                    $normalized = mb_strtolower(trim((string) $key));
+                    if (isset($names[$normalized])) {
+                        $fail('Option names must be distinct regardless of casing or surrounding spaces.');
+                    }
+                    $names[$normalized] = true;
                 }
             }],
             'options.*' => ['required', 'string', 'max:120'],

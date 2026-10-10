@@ -98,6 +98,7 @@ class StoreCatalogEditorTest extends TestCase
         $this->getJson($this->public.'/products/bag?lang=en')->assertOk()->assertJsonPath('data.variants.0.name', 'Blue')->assertJsonPath('data.variants.0.stock', 4)->assertJsonMissingPath('data.variants.0.cost');
         $this->postJson($path, ['name' => 'Bad price', 'price_override' => 1.999], $this->auth)->assertUnprocessable();
         $this->postJson($path, ['name' => 'Bad options', 'options' => ['color' => ['nested']]], $this->auth)->assertUnprocessable();
+        $this->postJson($path, ['name' => 'Ambiguous options', 'options' => ['Color' => 'Blue', 'color' => 'Red']], $this->auth)->assertUnprocessable();
     }
 
     public function test_reserved_base_product_cannot_be_converted_to_options(): void
@@ -108,5 +109,65 @@ class StoreCatalogEditorTest extends TestCase
         $this->postJson($this->base.'/'.$id.'/variants', ['name' => 'New option'], $this->auth)->assertUnprocessable();
         $this->assertDatabaseHas('products', ['id' => $id, 'reserved_quantity' => 1]);
         $this->assertDatabaseCount('store_product_variants', 0);
+    }
+
+    public function test_generation_is_additive_and_repeatable_without_overwriting_stock_or_price(): void
+    {
+        $id = $this->create();
+        $path = $this->base.'/'.$id.'/variants';
+        $variantId = $this->postJson($path, ['name' => 'Existing', 'options' => ['Color' => 'Blue', 'Size' => 'S'], 'price_override' => 0], $this->auth)->assertCreated()->json('data.id');
+        $this->putJson('/api/v1/my-store/catalog/inventory/'.$id, ['variant_id' => $variantId, 'track_inventory' => true, 'stock_quantity' => 4, 'expected_stock' => 0, 'expected_reserved' => 0, 'expected_tracking' => false], $this->auth)->assertOk();
+        $axes = [['name' => 'color', 'values' => ['blue', 'Red']], ['name' => 'Size', 'values' => ['S', 'M']]];
+        $this->postJson($path.'/generate', ['axes' => $axes], $this->auth)->assertOk()->assertJsonPath('meta.created', 3)->assertJsonPath('meta.existing', 1);
+        $this->postJson($path.'/generate', ['axes' => array_reverse($axes)], $this->auth)->assertOk()->assertJsonPath('meta.created', 0)->assertJsonPath('meta.existing', 4);
+        $rows = $this->getJson($path, $this->auth)->assertOk()->assertJsonCount(4, 'data')->json('data');
+        $this->assertDatabaseHas('store_product_variants', ['id' => $variantId, 'name' => 'Existing', 'price_override' => 0, 'stock_quantity' => 4]);
+        foreach ($rows as $row) {
+            if ($row['id'] !== $variantId) {
+                $this->assertTrue($row['track_inventory']);
+                $this->assertSame(0, $row['stock_quantity']);
+                $this->assertSame('125.00', $row['effective_price']);
+            }
+        }
+        $this->postJson($path, ['name' => 'Duplicate', 'options' => ['Size' => 'S', 'Color' => 'BLUE']], $this->auth)->assertUnprocessable();
+        $this->putJson($path.'/'.$rows[1]['id'], ['name' => 'Duplicate edit', 'options' => ['Size' => 'S', 'Color' => 'Blue']], $this->auth)->assertUnprocessable();
+    }
+
+    public function test_generator_rejects_duplicate_axes_values_and_unbounded_combinations(): void
+    {
+        $id = $this->create();
+        $path = $this->base.'/'.$id.'/variants/generate';
+        foreach ([[], [['name' => 'Color', 'values' => ['Blue', 'blue']]],
+            [['name' => 'Color', 'values' => ['Blue']], ['name' => 'color', 'values' => ['Red']]],
+            [['name' => '123', 'values' => ['Value']]],
+            [['name' => 'Color', 'values' => array_map('strval', range(1, 50))], ['name' => 'Size', 'values' => ['a', 'b', 'c', 'd', 'e']]],
+        ] as $axes) {
+            $this->postJson($path, ['axes' => $axes], $this->auth)->assertUnprocessable();
+        }
+        $this->assertDatabaseCount('store_product_variants', 0);
+    }
+
+    public function test_generation_rolls_back_all_rows_when_a_combination_name_is_too_long(): void
+    {
+        $id = $this->create();
+        $axes = [['name' => 'One', 'values' => ['short', str_repeat('x', 120)]], ['name' => 'Two', 'values' => [str_repeat('y', 120)]], ['name' => 'Three', 'values' => [str_repeat('z', 40)]]];
+        $this->postJson($this->base.'/'.$id.'/variants/generate', ['axes' => $axes], $this->auth)->assertUnprocessable();
+        $this->assertDatabaseCount('store_product_variants', 0);
+    }
+
+    public function test_base_stock_must_be_reconciled_before_first_option_and_generation_is_tenant_scoped(): void
+    {
+        $id = $this->create();
+        $this->putJson('/api/v1/my-store/catalog/inventory/'.$id, ['track_inventory' => true, 'stock_quantity' => 2, 'expected_stock' => 0, 'expected_reserved' => 0, 'expected_tracking' => false], $this->auth)->assertOk();
+        $axes = [['name' => 'Color', 'values' => ['Blue']]];
+        $this->postJson($this->base.'/'.$id.'/variants/generate', ['axes' => $axes], $this->auth)->assertUnprocessable();
+        $this->postJson($this->base.'/'.$id.'/variants', ['name' => 'Blue'], $this->auth)->assertUnprocessable();
+        $this->putJson('/api/v1/my-store/catalog/inventory/'.$id, ['track_inventory' => true, 'stock_quantity' => 0, 'expected_stock' => 2, 'expected_reserved' => 0, 'expected_tracking' => true], $this->auth)->assertOk();
+        $this->postJson($this->base.'/'.$id.'/variants/generate', ['axes' => $axes], $this->auth)->assertOk()->assertJsonPath('meta.created', 1);
+        app(CurrentStore::class)->forget();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other', 'slug' => 'other-options', 'status' => 'active']);
+        $foreign = Product::create(['store_id' => $other->id, 'name' => 'Foreign', 'slug' => 'foreign-options', 'price' => 1]);
+        $this->postJson($this->base.'/'.$foreign->id.'/variants/generate', ['axes' => $axes], $this->auth)->assertNotFound();
+        $this->assertDatabaseCount('store_product_variants', 1);
     }
 }

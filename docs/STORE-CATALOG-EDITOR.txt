@@ -18,11 +18,16 @@ foreign category/media/product rejection, private cost visibility, inherited
 and zero variant prices, inventory and reserved base-product conversion.
 
 This is an integration checkpoint, not full EasyOrders parity. Outstanding:
-rich text/video, generated option combinations, digital delivery, import/export,
+rich text/video, digital delivery, import/export,
 per-product integrations/currency/theme/advanced settings, product AI creation,
-variant-aware card quick-add, complete mobile/dark-mode acceptance, media
-cleanup on whole-product deletion, base-stock conversion policy, and complete
+complete mobile/dark-mode acceptance, media
+cleanup on whole-product deletion, and complete
 category selection for stores with more than 100 categories.
+
+Generated option combinations, explicit variant selection on product cards and
+the first-option base-stock conversion guard are implemented in the subsequent
+PRODUCT-OPTION-COMBINATIONS.txt pass. Remaining property display types and
+personalization are documented there; this is still not full product parity.
 
 The rebuild is being integrated into main at the user's merge request.
 Both deploy workflows now require explicit workflow_dispatch. Quality checks
