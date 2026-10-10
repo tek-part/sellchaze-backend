@@ -64,6 +64,7 @@ use App\Http\Controllers\Api\SocialSafetyController;
 use App\Http\Controllers\Api\StockTransfersApiController;
 use App\Http\Controllers\Api\StoreAnalyticsController;
 use App\Http\Controllers\Api\StoreArticlesApiController;
+use App\Http\Controllers\Api\StoreCarrierController;
 use App\Http\Controllers\Api\StoreCategoriesApiController;
 use App\Http\Controllers\Api\StoreCheckoutFieldsController;
 use App\Http\Controllers\Api\StoreContentPagesApiController;
@@ -94,6 +95,7 @@ use App\Http\Controllers\Api\StorePaymentsApiController;
 use App\Http\Controllers\Api\StorePublishingApiController;
 use App\Http\Controllers\Api\StoreReusableSectionsApiController;
 use App\Http\Controllers\Api\StoresApiController;
+use App\Http\Controllers\Api\StoreShipmentController;
 use App\Http\Controllers\Api\StoreShippingController;
 use App\Http\Controllers\Api\StoreThemesApiController;
 use App\Http\Controllers\Api\SubscriptionController;
@@ -728,6 +730,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('{order}', [MerchantOrderController::class, 'show'])->whereNumber('order');
                 Route::match(['patch', 'post'], '{order}/status', [MerchantOrderController::class, 'updateStatus'])->whereNumber('order');
                 Route::post('{order}/note', [MerchantOrderController::class, 'addNote'])->whereNumber('order');
+                Route::get('{order}/shipment', [StoreShipmentController::class, 'show'])->whereNumber('order');
+                Route::post('{order}/shipment', [StoreShipmentController::class, 'create'])->whereNumber('order')->middleware('throttle:20,1');
+                Route::post('{order}/shipment/sync', [StoreShipmentController::class, 'sync'])->whereNumber('order')->middleware('throttle:30,1');
             });
 
             // ---- Reviews (Phase 6H) ----
@@ -758,6 +763,11 @@ Route::prefix('v1')->group(function () {
 
             Route::get('shipping', [StoreShippingController::class, 'index']);
             Route::put('shipping', [StoreShippingController::class, 'update']);
+            Route::get('carriers/bosta', [StoreCarrierController::class, 'show']);
+            Route::put('carriers/bosta', [StoreCarrierController::class, 'update']);
+            Route::post('carriers/bosta/verify', [StoreCarrierController::class, 'verify'])->middleware('throttle:10,1');
+            Route::get('carriers/bosta/cities', [StoreCarrierController::class, 'cities'])->middleware('throttle:60,1');
+            Route::get('carriers/bosta/districts', [StoreCarrierController::class, 'districts'])->middleware('throttle:60,1');
             Route::get('checkout-fields', [StoreCheckoutFieldsController::class, 'index']);
             Route::put('checkout-fields', [StoreCheckoutFieldsController::class, 'update']);
 

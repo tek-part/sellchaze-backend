@@ -80,11 +80,13 @@ class CriticalBusinessJourneyEndToEndTest extends TestCase
             ->postJson($host.'/api/v1/storefront/checkout', [
                 'customer_name' => 'Public Buyer',
                 'customer_email' => 'public-buyer@example.com',
+                'customer_phone' => '01000000000',
                 'shipping_address' => ['name' => 'Public Buyer', 'line1' => '10 Market Street', 'city' => 'Cairo'],
                 'items' => [['product_id' => $product->id, 'quantity' => 2]],
             ])->assertCreated()->assertJsonPath('data.status', 'pending')
             ->assertJsonPath('data.grand_total', '500.00');
         $this->assertNotEmpty($order->json('data.order_number'));
+        $this->assertDatabaseHas('store_orders', ['id' => $order->json('data.id'), 'customer_phone' => '01000000000']);
 
         $connection = $this->withToken($merchant['token'])->withHeader('Idempotency-Key', 'critical-journey-connection')
             ->postJson("/api/v2/organizations/{$merchant['organization_id']}/connections", [
