@@ -10,6 +10,7 @@ use App\Http\Requests\Storefront\CheckoutRequest;
 use App\Http\Resources\Storefront\CartResource;
 use App\Http\Resources\Storefront\StoreOrderResource;
 use App\Models\Cart;
+use App\Models\Store;
 use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
@@ -111,6 +112,7 @@ class CheckoutController extends Controller
         // Do not merge, replace or convert their ordinary shopping cart.
         $order = DB::transaction(function () use ($request, $store, $customer, $payment, $shippingSelection) {
             $attempt = app(CheckoutAttempts::class)->lock($request);
+            $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $cart = $request->input('cart_mode') === 'direct'
                 ? $this->carts->create($store, null)
                 : $this->carts->resolve($request, $store, $customer);

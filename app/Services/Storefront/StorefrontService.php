@@ -8,8 +8,10 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreBrand;
 use App\Models\StoreCollection;
+use App\Services\Commerce\OrderLimits;
 use App\Support\Localization\LocaleContext;
 use App\Support\Localization\LocalizedValue;
+use App\Support\Tenancy\CurrentStore;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -229,8 +231,11 @@ class StorefrontService
     /** Card-sized product payload with names resolved for `$locale` (request locale by default). */
     public function productArray(Product $p, ?string $locale = null): array
     {
+        $store = app(CurrentStore::class)->get();
+
         return [
             'id' => $p->id,
+            'order_quantity_limit' => $store && (int) $store->id === (int) $p->store_id ? app(OrderLimits::class)->productLimit($store) : null,
             'name' => $p->translated('name', $locale),
             'slug' => $p->slug,
             'price' => $p->price,

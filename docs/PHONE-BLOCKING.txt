@@ -1,0 +1,45 @@
+Store checkout phone blocking (2026-10-10)
+
+Merchants and employees with store.orders.manage can list/search blocked numbers,
+add a valid local/international phone, edit an internal note, unblock/reactivate
+and inspect paginated actor history. Every operation is scoped to the current
+store, also available through the explicitly authorized stores/{store} routes.
+Responses are private/no-store. Public storefront routes never expose the list.
+
+Canonical E.164 identity uses the order-limits country setting and libphonenumber.
+Equivalent national/international/Arabic digit formats share one record. Repeating
+an active add cannot overwrite its note; an inactive number requires explicit
+reactivation. Updates carry a version; conflicting decisions return409. Identical
+retries do not create extra history. Unblock retains history rather than deleting.
+
+Any active block makes a valid phone required at checkout, including email-only
+digital carts. Authoritative checkout checks the canonical number before creating
+an order, even when the daily order quota is disabled. Block mutations and checkout
+lock the Store row in the same order. Rejected checkout rolls back cart/inventory/
+coupon/code/order changes. Previously created orders, idempotent checkout replay,
+private receipts and payment retry continue to work after a later phone block.
+SQLite tests do not establish real concurrent MySQL behavior or throughput.
+
+Migration: 2026_10_10_170000_create_store_phone_blocks.php creates blocks and events.
+Install the order-limits dependency/migration first. Both repositories must be
+released together after separate deployment acceptance. No production migration
+or deployment occurred during this work.
+
+StorePhoneBlockingTest:9 tests/133 assertions. Full backend:710/5053. Covers tenant
+and employee isolation, formats/duplicates/search, stale versions and retries,
+audits/pagination, guest/direct/authenticated checkout, digital phone forcing,
+Arabic rejection, rollback, replay/receipt/payment retry, country changes.
+Frontend existing suite:421 tests/52 files. Pint/PHPStan/ESLint/types/build passed.
+
+Test isolation incident: an inherited named LOCAL SQLite environment initially
+overrode phpunit defaults and reset disposable review fixtures. Its verified
+pre-migration backup was restored (20 synthetic orders), then migration rollback/
+reapply checked. No production database was used. phpunit.xml now forces both
+ENV and SERVER defaults; CreatesApplication refuses any non-testing, non-memory
+SQLite or non-array-mail configuration before RefreshDatabase can run. Running
+the focused suite with the inherited review environment now passes in isolation.
+
+Competitor evidence: read-only checkout blocking list/create exposes required
+phone and add/delete; a distinct OTP blocking list also exists. This feature
+implements checkout blocking only. OTP flow and OTP blocking remain outstanding,
+along with all broader competitor/theme/AI/design/source-parity acceptance.

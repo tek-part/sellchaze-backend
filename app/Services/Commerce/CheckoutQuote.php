@@ -36,6 +36,7 @@ class CheckoutQuote
             app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $counts[$key]);
             $digitalId = $selection['product']->id;
             $digitalCounts[$digitalId] = ($digitalCounts[$digitalId] ?? 0) + $quantity;
+            app(OrderLimits::class)->assertQuantity($store, $digitalCounts[$digitalId]);
             app(DigitalProducts::class)->assertAvailable($selection['product'], $digitalCounts[$digitalId]);
             $lineTotal = bcmul($selection['price'], (string) $quantity, 2);
             $subtotal = bcadd($subtotal, $lineTotal, 2);

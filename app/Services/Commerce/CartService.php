@@ -85,7 +85,9 @@ class CartService
             if ($locked->status !== 'active') {
                 throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
             }
-            $selection = $this->selections->resolve(Store::findOrFail($cart->store_id), $productId, $variantId);
+            $store = Store::findOrFail($cart->store_id);
+            $selection = $this->selections->resolve($store, $productId, $variantId);
+            app(OrderLimits::class)->assertQuantity($store, (int) $cart->items()->where('store_product_id', $productId)->sum('quantity') + $quantity);
             $custom = app(ProductPersonalization::class)->resolve($selection['product'], $personalization);
             $sameSku = $cart->items()->where('store_product_id', $productId)->where('variant_id', $variantId);
             $totalCount = (int) (clone $sameSku)->sum('quantity') + $quantity;
@@ -121,7 +123,9 @@ class CartService
                 return null;
             }
 
-            $selection = $this->selections->resolve(Store::findOrFail($cart->store_id), $item->store_product_id, $item->variant_id);
+            $store = Store::findOrFail($cart->store_id);
+            $selection = $this->selections->resolve($store, $item->store_product_id, $item->variant_id);
+            app(OrderLimits::class)->assertQuantity($store, (int) $cart->items()->where('store_product_id', $item->store_product_id)->whereKeyNot($item->id)->sum('quantity') + $quantity);
             app(ProductPersonalization::class)->resolve($selection['product'], $item->personalization ?? []);
             $total = (int) $cart->items()->where('store_product_id', $item->store_product_id)->where('variant_id', $item->variant_id)->whereKeyNot($item->id)->sum('quantity') + $quantity;
             app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $total);

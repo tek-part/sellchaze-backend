@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Storage;
  * @property array<string,mixed>|null $shipping_configuration
  * @property array<string,mixed>|null $digital_delivery_configuration
  * @property array<string,mixed>|null $digital_delivery_credentials
+ * @property array<string,mixed>|null $order_limits
  */
 class Store extends Model
 {
@@ -30,9 +31,11 @@ class Store extends Model
         'shipping_flat_rate', 'shipping_free_over',
         'theme_id', 'theme_settings', 'checkout_fields', 'shipping_configuration',
         'digital_delivery_configuration', 'digital_delivery_credentials',
+        'order_limits',
     ];
 
     protected $casts = [
+        'order_limits' => 'array',
         'digital_delivery_configuration' => 'array',
         'digital_delivery_credentials' => 'encrypted:array',
         'theme_settings' => 'array',
