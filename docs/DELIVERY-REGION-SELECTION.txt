@@ -1,0 +1,45 @@
+Delivery region selection
+
+Shopping preferences GET returns auto_select_shipping_region, auto_select_variants
+and version. PUT accepts the optional boolean auto_select_shipping_region alongside
+the required variant boolean and current version. Omitting the new flag retains
+existing shipping configuration, including stores already configured for manual
+selection. Its sole storage is shipping_configuration.auto_select_region, default
+true only when unset; the shopping JSON does not duplicate the delivery flag.
+Updating it preserves regions, options, icons, ordering, rates, thresholds, taxes
+and future configuration keys. No additional migration is needed.
+
+The shipping editor and shopping editor share the shopping version. Shipping GET
+includes version. Successful saves on either endpoint lock the store row and
+increment that version while preserving the current variant preference. Stale
+versioned saves return409 without writing. The shipping UI shows a localized
+conflict and requires reload. Legacy shipping clients may omit version and remain
+accepted; they do not gain stale-write protection, but their saves invalidate any
+previously loaded versioned editor. Permission and tenant scope are unchanged.
+
+An untouched physical or mixed checkout starts with the first enabled region in
+ascending display order when automatic selection is enabled. Manual mode starts
+blank. The shipping method independently uses its enabled merchant default.
+Explicit blank choices stay blank. Existing valid customer region/method IDs stay
+selected through field refresh, changed ordering, defaults or preference changes.
+Removed or disabled explicit IDs never fall back to another region or method.
+The shared cart/funnel form shows a bilingual alert, withholds the quote and blocks
+new orders until the shopper chooses valid values or explicitly resets delivery.
+Resetting allows current defaults in automatic mode; manual mode remains blank.
+Removing regions/options entirely also requires acknowledgment of stale explicit
+IDs while shipping is enabled. Pure digital/shipping-disabled baskets discard
+shipping IDs and never acquire a delivery requirement from this preference.
+
+The server still requires exact current enabled IDs for physical/mixed baskets in
+both modes. Option rates replace regional rates; discounts/free thresholds/taxes
+and saved order delivery snapshots keep their existing behavior. A frontend
+selection is not a quote or reservation. Current settings are loaded on document
+refresh or existing delivery/payment retry; changes after a quote are validated
+again by the server. No live order/payment/email/provider action is required.
+
+Local tests cover both settings endpoints, stale versions, old-client preservation,
+region/method refresh and explicit choices. Browser review includes five themes,
+AR/EN mobile, deleted destinations/methods, mixed/digital baskets, and a Sahra footer
+grid minimum-width correction. Competitor setting state was read without saving;
+its behavior after changing the setting and broader feature/source parity remain
+unverified. Production release and concurrency/load validation remain separate.

@@ -85,6 +85,43 @@ class StoreShippingTest extends TestCase
         return ['shipping_region_id' => $this->settings['regions'][0]['id'], 'shipping_option_id' => $this->settings['options'][0]['id']];
     }
 
+    public function test_shipping_and_shopping_editors_share_a_version_and_reject_stale_changes_in_both_directions(): void
+    {
+        $this->save();
+        $shipping = '/api/v1/my-store/shipping';
+        $shopping = '/api/v1/my-store/shopping-preferences';
+        $loaded = $this->getJson($shipping)->assertOk()->assertJsonPath('data.version', 2)->json('data');
+        $this->putJson($shopping, ['auto_select_variants' => false, 'auto_select_shipping_region' => true, 'version' => 2])->assertOk()->assertJsonPath('data.version', 3);
+        $stale = $this->settings + ['version' => $loaded['version']];
+        $stale['regions'][0]['rate'] = '999.00';
+        $this->putJson($shipping, $stale)->assertConflict();
+        $this->getJson($shipping)->assertOk()->assertJsonPath('data.auto_select_region', true)->assertJsonPath('data.regions.0.rate', '40.00')->assertJsonPath('data.version', 3);
+        $fresh = $this->settings + ['version' => 3];
+        $this->putJson($shipping, $fresh)->assertOk()->assertJsonPath('data.version', 4);
+        $this->getJson($shopping)->assertOk()->assertJsonPath('data.auto_select_shipping_region', false)->assertJsonPath('data.auto_select_variants', false);
+        $this->putJson($shopping, ['auto_select_variants' => true, 'auto_select_shipping_region' => true, 'version' => 3])->assertConflict();
+        $this->getJson($shopping)->assertOk()->assertJsonPath('data.version', 4)->assertJsonPath('data.auto_select_shipping_region', false)->assertJsonPath('data.auto_select_variants', false);
+        $this->putJson($shipping, $this->settings + ['version' => 0])->assertUnprocessable();
+        // Existing integrations without a version are accepted, but still invalidate versioned editors.
+        $this->save();
+        $this->getJson($shopping)->assertOk()->assertJsonPath('data.version', 5);
+        $this->assertDatabaseCount('store_orders', 0);
+    }
+
+    public function test_automatic_region_preference_never_makes_server_guess_an_unsubmitted_destination(): void
+    {
+        foreach ([true, false] as $automatic) {
+            $this->settings['auto_select_region'] = $automatic;
+            $this->save();
+            $this->getJson($this->base.'/checkout/fields')->assertOk()->assertJsonPath('shipping.auto_select_region', $automatic);
+            $this->postJson($this->base.'/checkout/quote', ['items' => $this->items(), 'shipping_option_id' => $this->settings['options'][0]['id']])->assertUnprocessable()->assertJsonValidationErrors('shipping_region_id');
+            $this->postJson($this->base.'/checkout', $this->order(['shipping_region_id' => null]))->assertUnprocessable()->assertJsonValidationErrors('shipping_region_id');
+            $this->postJson($this->base.'/checkout/quote', ['items' => $this->items()] + $this->selection())->assertOk()->assertJsonPath('data.totals.shipping_total', '85.00')->assertJsonPath('data.totals.grand_total', '195.00');
+        }
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('carts', 0);
+    }
+
     private function order(array $extra = []): array
     {
         return array_merge(['customer_name' => 'Local buyer', 'customer_phone' => '01000000000', 'shipping_address' => ['line1' => 'Local test address', 'city' => 'Forged city', 'country' => 'XX'], 'items' => $this->items()], $this->selection(), $extra);
