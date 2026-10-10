@@ -24,7 +24,7 @@ class CheckoutRequest extends FormRequest
 
         $basket = app(CheckoutBasket::class)->forRequest($store, $this);
 
-        return app(CheckoutFields::class)->rules($store, is_string($this->input('payment_method')) ? $this->input('payment_method') : null, $basket['requires_shipping'], $basket['has_digital']) + StoreShipping::SELECTION_RULES + ProductPersonalization::inputRules('items.*.personalization') + [
+        return app(CheckoutFields::class)->rules($store, is_string($this->input('payment_method')) ? $this->input('payment_method') : null, $basket['requires_shipping'], $basket['has_digital'], $basket['requires_whatsapp']) + StoreShipping::SELECTION_RULES + ProductPersonalization::inputRules('items.*.personalization') + [
             'payment_method' => ['nullable', 'string', 'max:80'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'cart_mode' => ['sometimes', 'in:cart,direct'],

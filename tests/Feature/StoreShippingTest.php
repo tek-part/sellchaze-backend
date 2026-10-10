@@ -64,6 +64,22 @@ class StoreShippingTest extends TestCase
         return [['product_id' => $this->product->id, 'quantity' => 1]];
     }
 
+    public function test_bootstrap_shipping_offer_tracks_current_settings_and_zero_threshold(): void
+    {
+        $this->settings['shipping_free_over'] = '500.00';
+        $this->save();
+        $this->getJson($this->base)->assertOk()->assertJsonPath('store.shipping', ['enabled' => true, 'free_over' => '500.00', 'currency' => 'EGP']);
+        $this->settings['shipping_free_over'] = '0.00';
+        $this->save();
+        $this->getJson($this->base)->assertOk()->assertJsonPath('store.shipping.free_over', '0.00');
+        $this->settings['shipping_enabled'] = false;
+        $this->save();
+        $this->getJson($this->base)->assertOk()->assertJsonPath('store.shipping.enabled', false);
+        $this->settings['shipping_free_over'] = null;
+        $this->save();
+        $this->getJson($this->base)->assertOk()->assertJsonPath('store.shipping.free_over', null);
+    }
+
     private function selection(): array
     {
         return ['shipping_region_id' => $this->settings['regions'][0]['id'], 'shipping_option_id' => $this->settings['options'][0]['id']];

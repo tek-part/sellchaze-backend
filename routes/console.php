@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('community:maintain')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('personalization:prune')->daily()->withoutOverlapping();
+Schedule::command('digital-delivery:dispatch-whatsapp')->everyMinute()->withoutOverlapping();

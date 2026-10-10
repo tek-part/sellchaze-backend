@@ -2,6 +2,8 @@ Store shipping — 2026-10-10
 
 GET/PUT /api/v1/my-store/shipping (and the equivalent scoped store route) manage
 flat shipping, free-shipping threshold, tax, regions and named delivery options.
+
+Bootstrap shipping offers and theme drawer progress: see CART-AVAILABILITY.txt.
 Store settings permission or ownership is required. Changes are saved together.
 Region and option IDs are stable UUIDs supplied by the editor. Names/descriptions
 are bilingual. Icons reference non-deleted media owned by the current store.

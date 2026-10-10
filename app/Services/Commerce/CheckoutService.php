@@ -52,12 +52,15 @@ class CheckoutService
             $counts = [];
             $requiresShipping = false;
             $hasDigital = false;
+            $requiresWhatsapp = false;
 
             foreach ($items as $item) {
                 $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id, true);
                 $product = $selection['product'];
                 $requiresShipping = $requiresShipping || $product->digital_type === 'physical';
                 $hasDigital = $hasDigital || $product->digital_type !== 'physical';
+                $deliverySettings = app(DigitalDeliverySettings::class)->effective($store, (int) $product->id);
+                $requiresWhatsapp = $requiresWhatsapp || ($product->digital_type !== 'physical' && $deliverySettings['enabled'] && $deliverySettings['whatsapp_enabled']);
                 $variant = $selection['variant'];
                 $custom = app(ProductPersonalization::class)->resolve($product, $item->personalization ?? [], true);
                 $stocks[] = $variant ?? $product;
@@ -101,6 +104,9 @@ class CheckoutService
 
             if ($hasDigital && (! is_string($contact['email']) || ! filter_var($contact['email'], FILTER_VALIDATE_EMAIL))) {
                 throw ValidationException::withMessages(['customer_email' => 'A valid email address is required for digital delivery.']);
+            }
+            if ($requiresWhatsapp && StoreDigitalWhatsappClient::phone((string) ($contact['phone'] ?? '')) === null) {
+                throw ValidationException::withMessages(['customer_phone' => 'Enter a valid international WhatsApp number with its country code.']);
             }
             if (! $requiresShipping && $paymentMethod === 'cod') {
                 throw ValidationException::withMessages(['payment_method' => 'Cash on delivery is not available for an entirely digital order.']);

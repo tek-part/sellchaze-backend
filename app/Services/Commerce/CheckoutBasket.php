@@ -11,10 +11,10 @@ use Illuminate\Validation\ValidationException;
 /** Read checkout requirements without creating, merging or changing a cart. */
 class CheckoutBasket
 {
-    /** @return array{requires_shipping:bool,has_digital:bool} */
+    /** @return array{requires_shipping:bool,has_digital:bool,requires_whatsapp:bool} */
     public function fromIds(Store $store, array $ids, bool $strict = false): array
     {
-        $fallback = ['requires_shipping' => true, 'has_digital' => false];
+        $fallback = ['requires_shipping' => true, 'has_digital' => false, 'requires_whatsapp' => false];
         if ($ids === [] || count($ids) > 100 || collect($ids)->contains(fn ($id) => ! is_scalar($id) || ! ctype_digit((string) $id) || (int) $id < 1)) {
             return $fallback;
         }
@@ -29,10 +29,15 @@ class CheckoutBasket
         }
 
         return ['requires_shipping' => $products->contains(fn (Product $product) => $product->digital_type === 'physical'),
-            'has_digital' => $products->contains(fn (Product $product) => $product->digital_type !== 'physical')];
+            'has_digital' => $products->contains(fn (Product $product) => $product->digital_type !== 'physical'),
+            'requires_whatsapp' => $products->contains(function (Product $product) use ($store): bool {
+                $settings = app(DigitalDeliverySettings::class)->effective($store, (int) $product->id);
+
+                return $product->digital_type !== 'physical' && $settings['enabled'] && $settings['whatsapp_enabled'];
+            })];
     }
 
-    /** @return array{requires_shipping:bool,has_digital:bool} */
+    /** @return array{requires_shipping:bool,has_digital:bool,requires_whatsapp:bool} */
     public function forRequest(Store $store, Request $request): array
     {
         if ($request->has('items')) {

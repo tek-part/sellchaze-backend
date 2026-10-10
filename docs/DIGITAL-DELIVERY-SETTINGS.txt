@@ -1,0 +1,59 @@
+Digital delivery settings — 2026-10-10
+
+Merchant route: /store/settings/digital-delivery (explicit store context also supported).
+Owner or store.settings.manage/stores-edit can configure the current store. The
+tenant middleware hides inaccessible stores. Order delivery status/resend requires
+store.orders.manage. Product overrides are restricted to this store's digital
+link/code products; channel settings, sender, subject and bodies are complete
+overrides. Removing an override restores store defaults. Master enabled applies
+to every product. Receipts and paid private receipt access remain independent.
+
+Four single-pass plain-text substitutions: {customer_name}, {code_or_link},
+{store_name}, {product_name}. Bodies must include {code_or_link}. Unsupported
+variables and header control characters are rejected. Dynamic subject values are
+also sanitized. Email HTML escapes the rendered body and includes the existing
+private receipt capability. The configured platform sender address is retained;
+merchant sender name changes its display name. Private subject values are masked
+in email logs; outbox payloads contain IDs and recipients, never delivery values.
+
+Migration 2026_10_10_150000 adds nullable JSON digital_delivery_configuration and
+encrypted TEXT digital_delivery_credentials to stores. Credentials are hidden
+from serialization; the settings API returns token-presence only. NULL settings
+preserve legacy combined paid-email behavior. Configured stores fan out independent
+email/WhatsApp children per order item, so retrying one email does not resend other
+successful products. Existing outbox publisher must run normally. A pending paid
+parent blocks manual item email before fanout. Merchant email review uses immutable
+order recipient, UUID replay, expected message, order lock and 60-second cooldown.
+SMTP acceptance before a missing durable acknowledgement can still duplicate mail;
+sent means transport handoff, never proven inbox delivery.
+
+Wawp v2 uses this store's own encrypted instance/token, never the admin singleton.
+Fixed https://api.wawp.net origin; redirects disabled; credentials in JSON body.
+POST /v2/session/info verifies WORKING without sending a message. Credential
+rotation clears verification and disables global/override WhatsApp. Checkout
+requires an international number only for selected products with WhatsApp enabled.
+POST /v2/send/text uses digits@c.us and validates expanded message <=4096 chars.
+Acceptance is displayed separately from delivery acknowledgement; sanitized
+provider reference is retained. No delivery webhook acknowledgement or manual
+WhatsApp resend is implemented in this pass. Live provider acceptance is pending.
+
+Run a Laravel queue worker with its normal production queue configuration.
+The digital-delivery:dispatch-whatsapp command is scheduled every minute through
+the Laravel scheduler (the host must run schedule:run). It recovers published,
+unclaimed events if the process dies between database publication and dispatch.
+Jobs claim under a committed lock before external I/O, have tries=1, and ignore
+all claimed states on replay. Ambiguous HTTP results remain unknown; abandoned
+sending claims older than two minutes are displayed unknown, not automatically
+resent. Recovery must never reclaim uncertain sends without provider evidence.
+Queue/provider calls happen after the outbox transaction commits.
+
+Read-only competitor evidence: EasyOrders digital-delivery-settings global page
+and add-product modal, four variables, email sender/subject/body and WhatsApp body
+overrides; no competitor records saved or messages sent. Wawp official references:
+https://api.wawp.net/en/docs/v2/send/text
+https://api.wawp.net/en/docs/v2/session/info
+
+Verification and current merge state: ../audit/digital-delivery-settings-verification.json
+and ../audit/digital-delivery-settings-merge-status.json (workspace root).
+No production deployment, migration, live bank/email/provider action in this pass.
+Full competitor rebuild and editable production source parity remain unfinished.

@@ -70,6 +70,7 @@ use App\Http\Controllers\Api\StoreCategoriesApiController;
 use App\Http\Controllers\Api\StoreCheckoutFieldsController;
 use App\Http\Controllers\Api\StoreContentPagesApiController;
 use App\Http\Controllers\Api\StoreCustomersApiController;
+use App\Http\Controllers\Api\StoreDigitalDeliveryController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
 use App\Http\Controllers\Api\Storefront\CartController;
 use App\Http\Controllers\Api\Storefront\CheckoutController;
@@ -303,6 +304,7 @@ Route::prefix('v1')->group(function () {
         Route::get('home', [StorefrontController::class, 'home']);
         Route::get('context', [StorefrontController::class, 'context']);
         Route::get('products', [StorefrontProductController::class, 'index']);
+        Route::post('cart/catalog', [StorefrontProductController::class, 'cartCatalog']);
         Route::get('products/{slug}', [StorefrontProductController::class, 'show'])->where('slug', '[a-z0-9\-]+');
         Route::get('categories', [StorefrontCategoryController::class, 'index']);
         Route::get('categories/{slug}', [StorefrontCategoryController::class, 'show'])->where('slug', '[a-z0-9\-]+');
@@ -756,6 +758,8 @@ Route::prefix('v1')->group(function () {
                 Route::post('{order}/payment/confirm-bank', [MerchantOrderController::class, 'confirmBankPayment'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:20,1']);
                 Route::post('{order}/payment/confirm-cash', [MerchantOrderController::class, 'confirmCashPayment'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:20,1']);
                 Route::get('{order}/digital-email', [MerchantOrderController::class, 'digitalEmail'])->whereNumber('order')->middleware('permission:store.orders.manage');
+                Route::get('{order}/digital-delivery', [MerchantOrderController::class, 'digitalDeliveryStatus'])->whereNumber('order')->middleware('permission:store.orders.manage');
+                Route::post('{order}/digital-delivery/email', [MerchantOrderController::class, 'resendDigitalItemEmail'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:10,1']);
                 Route::post('{order}/digital-email', [MerchantOrderController::class, 'resendDigitalEmail'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:10,1']);
                 Route::get('{order}/shipment', [StoreShipmentController::class, 'show'])->whereNumber('order');
                 Route::post('{order}/shipment', [StoreShipmentController::class, 'create'])->whereNumber('order')->middleware('throttle:20,1');
@@ -798,6 +802,10 @@ Route::prefix('v1')->group(function () {
             Route::get('carriers/bosta/districts', [StoreCarrierController::class, 'districts'])->middleware('throttle:60,1');
             Route::get('checkout-fields', [StoreCheckoutFieldsController::class, 'index']);
             Route::put('checkout-fields', [StoreCheckoutFieldsController::class, 'update']);
+            Route::get('digital-delivery', [StoreDigitalDeliveryController::class, 'index']);
+            Route::put('digital-delivery', [StoreDigitalDeliveryController::class, 'update']);
+            Route::put('digital-delivery/connection', [StoreDigitalDeliveryController::class, 'connection']);
+            Route::post('digital-delivery/verify', [StoreDigitalDeliveryController::class, 'verify'])->middleware('throttle:10,1');
 
             Route::get('payments', [StorePaymentsApiController::class, 'index']);
             Route::match(['put', 'post'], 'payments', [StorePaymentsApiController::class, 'update']);

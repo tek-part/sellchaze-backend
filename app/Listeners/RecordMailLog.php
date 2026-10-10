@@ -27,6 +27,11 @@ class RecordMailLog
             $templateKey = $h ? $h->getBodyAsString() : null;
         }
 
+        // Merchant subjects may contain the private {code_or_link} variable.
+        if ($templateKey === 'storefront-digital-item') {
+            $subject = 'Digital product delivery';
+        }
+
         EmailLog::query()->create([
             'to' => mb_substr($to, 0, 2000),
             'subject' => mb_substr($subject, 0, 1000),

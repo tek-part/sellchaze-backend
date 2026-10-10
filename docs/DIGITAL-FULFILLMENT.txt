@@ -104,3 +104,8 @@ and retained failed history, immutable recipient, and physical checkout exclusio
 in addition to the original signed webhook/manual bank/receipt contracts.
 No new migration or production deployment. External SMTP acknowledgement gaps
 remain subject to the duplicate-retry limitation documented above.
+
+Configured per-product delivery templates and WhatsApp follow-up:
+read DIGITAL-DELIVERY-SETTINGS.txt. That pass introduces a store settings migration,
+independent item email tracking and reviewed per-item resend. The combined-email
+behavior described above is retained for stores whose new configuration is NULL.

@@ -54,15 +54,18 @@ class CheckoutFields
     }
 
     /** @return list<array<string,mixed>> */
-    public function effective(Store $store, ?string $paymentMethod, bool $requiresShipping = true, bool $hasDigital = false): array
+    public function effective(Store $store, ?string $paymentMethod, bool $requiresShipping = true, bool $hasDigital = false, bool $requiresWhatsapp = false): array
     {
         $online = ! in_array($this->paymentMethod($store, $paymentMethod), ['cod', 'bank_transfer'], true);
 
         $regions = $requiresShipping && app(StoreShipping::class)->regionsEnabled($store);
 
-        return collect($this->configured($store))->map(function (array $field) use ($online, $regions, $requiresShipping, $hasDigital) {
+        return collect($this->configured($store))->map(function (array $field) use ($online, $regions, $requiresShipping, $hasDigital, $requiresWhatsapp) {
             $field['payment_required'] = $online && in_array($field['key'], ['name', 'email'], true);
-            $field['digital_required'] = $hasDigital && $field['key'] === 'email';
+            $field['digital_required'] = ($hasDigital && $field['key'] === 'email') || ($requiresWhatsapp && $field['key'] === 'phone');
+            if ($requiresWhatsapp && $field['key'] === 'phone') {
+                $field['hint'] = ['ar' => 'أدخل رقم واتساب مع كود الدولة، مثل +201001234567.', 'en' => 'Enter your WhatsApp number with its country code, e.g. +201001234567.'];
+            }
             if ($field['payment_required'] || $field['digital_required']) {
                 $field['enabled'] = $field['required'] = true;
             }
@@ -79,8 +82,8 @@ class CheckoutFields
         })->sortBy('position')->values()->all();
     }
 
-    /** @return array<string,list<string>> */
-    public function rules(Store $store, ?string $paymentMethod, bool $requiresShipping = true, bool $hasDigital = false): array
+    /** @return array<string,list<string|\Closure>> */
+    public function rules(Store $store, ?string $paymentMethod, bool $requiresShipping = true, bool $hasDigital = false, bool $requiresWhatsapp = false): array
     {
         $rules = [
             'shipping_address' => $requiresShipping ? ['nullable', 'array:name,line1,line2,city,state,country,postal_code,phone_alt,national_address'] : ['exclude'],
@@ -88,7 +91,7 @@ class CheckoutFields
             'shipping_address.line2' => ['nullable', 'string', 'max:255'],
             'shipping_address.state' => ['nullable', 'string', 'max:120'],
         ];
-        foreach ($this->effective($store, $paymentMethod, $requiresShipping, $hasDigital) as $field) {
+        foreach ($this->effective($store, $paymentMethod, $requiresShipping, $hasDigital, $requiresWhatsapp) as $field) {
             $key = $field['key'];
             $max = match ($key) {
                 'notes' => 2000, 'phone', 'phone_alt' => 50, 'city' => 120,
@@ -103,6 +106,14 @@ class CheckoutFields
             if ($key === 'country' && $field['enabled']) {
                 $rules[self::PATHS[$key]][] = 'regex:/^[A-Za-z]{2}$/';
             }
+        }
+
+        if ($requiresWhatsapp) {
+            $rules['customer_phone'][] = function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! is_string($value) || StoreDigitalWhatsappClient::phone($value) === null) {
+                    $fail('Enter a valid international WhatsApp number with its country code.');
+                }
+            };
         }
 
         return $rules;

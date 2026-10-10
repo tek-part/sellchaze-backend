@@ -59,7 +59,7 @@ class CheckoutController extends Controller
         $shipping = $basket['requires_shipping'] ? app(StoreShipping::class)->publicConfiguration($store)
             : ['enabled' => false, 'regions_enabled' => false, 'auto_select_region' => false, 'currency' => $store->currency ?: 'USD', 'flat_rate' => '0.00', 'free_over' => null, 'regions' => [], 'options' => []];
 
-        return response()->json(['data' => $fields->effective($store, $data['payment_method'] ?? null, $basket['requires_shipping'], $basket['has_digital']),
+        return response()->json(['data' => $fields->effective($store, $data['payment_method'] ?? null, $basket['requires_shipping'], $basket['has_digital'], $basket['requires_whatsapp']),
             'shipping' => $shipping, 'requires_shipping' => $basket['requires_shipping'], 'has_digital' => $basket['has_digital']]);
     }
 

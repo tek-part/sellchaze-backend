@@ -3,6 +3,7 @@
 namespace App\Services\Commerce;
 
 use App\Models\OutboxMessage;
+use App\Models\Store;
 use App\Models\StoreOrder;
 use App\Services\Outbox\OutboxRecorder;
 use Carbon\CarbonImmutable;
@@ -23,6 +24,11 @@ class DigitalOrderEmail
 
     private function eligible(StoreOrder $order, string $kind): bool
     {
+        if ($kind === 'delivery' && Store::find($order->store_id)?->digital_delivery_configuration !== null) {
+            // Configured deliveries have independent item records and resend controls.
+            return false;
+        }
+
         return $order->status !== 'cancelled' && filled($order->customer_email)
             && ($kind === 'delivery' ? $order->payment_status === 'paid' : $order->payment_status !== 'paid')
             && $order->items()->withoutGlobalScopes()->where('store_id', $order->store_id)->whereNotNull('digital_delivery')->exists();
@@ -35,6 +41,9 @@ class DigitalOrderEmail
         foreach (self::TYPES as $kind => $type) {
             $message = $rows->get($type);
             $state = $message === null ? 'not_scheduled' : ($message->published_at ? ($message->metadata['mail_outcome'] ?? 'processed') : ($message->failed_at ? 'failed' : ($message->attempts > 0 ? 'retrying' : 'queued')));
+            if ($kind === 'delivery' && $state === 'scheduled') {
+                $state = 'processed';
+            }
             $cooldown = $message?->published_at ? CarbonImmutable::parse($message->published_at)->addSeconds(60) : null;
             $data[] = ['kind' => $kind, 'id' => $message?->id, 'state' => $state, 'attempts' => (int) ($message?->attempts ?? 0),
                 'sent_at' => $message?->metadata['mail_sent_at'] ?? null, 'next_attempt_at' => in_array($state, ['queued', 'retrying'], true) ? $message?->available_at : null,
