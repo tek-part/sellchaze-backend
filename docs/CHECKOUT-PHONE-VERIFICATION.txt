@@ -1,0 +1,87 @@
+Checkout WhatsApp OTP (2026-10-10)
+
+Observed EasyOrders2.4.25: an active WhatsApp OTP plugin describes one-time codes
+for identity/false-order reduction. Separate blocked-phones list/create requires
+phone_number. The phone-verification settings tab binds the merchant account,
+not the shopper. No competitor code/message/order/settings mutation was performed.
+The public product banner link did not expose a usable OTP checkout for inspection.
+Shopper OTP interaction parity therefore remains unverified. Sellchaze implements
+phone-possession verification before new order creation; it is not customer login,
+MFA or personal-identity verification. Broader competitor parity is still active.
+
+Owner/store.settings.manage configures encrypted per-store Wawp credentials and
+required OTP. New credentials must pass the fixed-origin session/info check before
+enablement. Replacement/clearing is explicit, saved credentials never returned,
+optimistic settings versions reject stale writes. Each settings update rotates
+a generation, invalidating previous challenges/proofs. Existing digital WhatsApp
+credentials remain separate. No live Wawp acceptance was performed in this pass.
+
+Both ordinary and direct/funnel checkout force a valid phone when enabled, even
+email-only digital baskets. The same CheckoutService consumes a verified proof
+under the existing Store lock for guest/direct/signed-in flows. Proof is bound to
+store, canonical E.164 phone, current generation and a256-bit browser secret.
+Consumption and order/cart/stock/coupon/digital-code allocation share a transaction;
+failure restores proof availability. Used proof records link to the resulting
+order. A second new order cannot reuse it. Idempotent replay, receipts and payment
+retry for existing orders remain available after expiry/block/settings changes.
+
+Random six-digit codes expire after300 seconds, allow5 failed/correct verification
+attempts, and are replaced rather than refreshed on resend. Correct verification
+deletes the code digest and grants a proof lasting300 seconds. Code and bearer
+digests use HMAC-SHA256 with the application key; neither cleartext codes nor bearer
+tokens are stored in the database/model JSON/log messages. A256-bit client nonce
+gives retry-safe sends without returning any code. Lost send responses retry the
+same nonce. A durable dispatch claim precedes provider I/O, so crashes/ambiguous
+transport outcomes never cause automatic resend. Failed/uncertain outcomes cannot
+verify. Provider acceptance/queue admission is not a delivery acknowledgement.
+Expired/superseded/used/config-stale proofs fail closed. Repeated successful verify
+is idempotent until proof expiry and does not extend its deadline.
+
+Limits count all dispatch attempts:60-second cooldown per canonical number,
+3/hour and10/24h per number,10/hour per hashed IP per store,300/hour per store.
+DB checks/claims serialize with Store locks, independent of numeric route throttle
+10 sends/min and30 verify requests/min. MySQL concurrency/throughput remain pending;
+SQLite tests cannot prove row-lock behavior. Phone blocks stop new sends and any
+later verify/consume; an external send already underway cannot be recalled.
+
+OTP blocks use scope=otp and checkout blocks scope=checkout in the shared canonical
+block table; uniqueness is(store,scope,canonical phone). Lists, mutations/history
+validate their scope, preserving existing checkout records. OTP list does not ban
+purchase when OTP is disabled. Both lists support notes, versions, reversible
+unblock, canonical search and private actor history. Order-only employees can
+manage blocks but cannot read/change provider settings.
+
+Migration180000 adds Store OTP columns, scope and challenges. Default disabled
+preserves old flows. Rollback deletes OTP-only block/events to avoid converting
+them into checkout bans, retains checkout blocks, and removes OTP challenge data.
+Install both repository versions and migrate before enabling. Daily scheduled
+checkout-otp:prune clears expired code digests and removes unused records older
+than30 days; consumed order-linked proof records remain for audit.
+
+Security design reference: OWASP OTP handling/storage guidance
+https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html#one-time-password-otp-handling-and-storage
+This checkout possession check is not presented as MFA.
+
+Functional tests cover settings/credential privacy/versions/permissions/tenants,
+retry-safe sends, cooldown/limits, supersession/expiry/wrong attempts, ambiguous
+and rejected provider results, independent block scopes, authoritative service,
+rollback, changed phone/config/store, guest/direct/signed-in flows, replay/receipt/
+payment retry, hidden digital phone/code pool and retention. A separate guarded
+local HTTP router fakes Wawp only for one named synthetic recipient/credentials;
+the adapter lives under audit and is never shipped in either repository.
+
+Local verification2026-10-10: full backend723 tests/5248 assertions, combined
+phone-focused22/327, frontend425 tests/53 files. Pint, PHPStan, TypeScript,
+ESLint and Vite build passed. Named disposable SQLite migration, rollback and
+reapplication passed; this migration has not yet run against MySQL.
+Actual Arabic390px browser review: OTP-specific blocked send rejected, unblock
+allowed sending, wrong code rejected, correct code enabled ordering, and changing
+the phone immediately removed verification. Reconfirmation created exactly one
+synthetic pending-bank order21/ORD-20261010-HVMFXD for75EGP. Receipt refresh did
+not duplicate it. No real message, email or payment was performed. The local fake
+credentials were removed, original null OTP configuration restored and the normal
+PHP development router resumed; the inactive block/proof/order audit is retained.
+The5756-file production capture remains unchanged. Editable production source
+parity, live provider delivery, MySQL concurrency and complete competitor parity
+remain unverified. These commits are local work on codex/checkout-otp, not a
+production release. Previous phone-blocking/order-limits integration remains in main.

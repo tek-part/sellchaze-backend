@@ -19,6 +19,7 @@ use App\Services\Commerce\CartService;
 use App\Services\Commerce\CheckoutAttempts;
 use App\Services\Commerce\CheckoutBasket;
 use App\Services\Commerce\CheckoutFields;
+use App\Services\Commerce\CheckoutPhoneVerification;
 use App\Services\Commerce\CheckoutQuote;
 use App\Services\Commerce\CheckoutService;
 use App\Services\Commerce\CouponService;
@@ -61,7 +62,8 @@ class CheckoutController extends Controller
             : ['enabled' => false, 'regions_enabled' => false, 'auto_select_region' => false, 'currency' => $store->currency ?: 'USD', 'flat_rate' => '0.00', 'free_over' => null, 'regions' => [], 'options' => []];
 
         return response()->json(['data' => $fields->effective($store, $data['payment_method'] ?? null, $basket['requires_shipping'], $basket['has_digital'], $basket['requires_whatsapp']),
-            'shipping' => $shipping, 'requires_shipping' => $basket['requires_shipping'], 'has_digital' => $basket['has_digital']]);
+            'shipping' => $shipping, 'requires_shipping' => $basket['requires_shipping'], 'has_digital' => $basket['has_digital'],
+            'phone_verification' => app(CheckoutPhoneVerification::class)->publicConfiguration($store)]);
     }
 
     public function quote(CheckoutQuoteRequest $request, CheckoutQuote $quotes): JsonResponse
@@ -153,6 +155,7 @@ class CheckoutController extends Controller
                     'name' => ($validated['customer_name'] ?? ''),
                     'email' => ($validated['customer_email'] ?? null),
                     'phone' => ($validated['customer_phone'] ?? null),
+                    'phone_verification' => ($validated['phone_verification'] ?? null),
                     'notes' => ($validated['notes'] ?? null),
                 ],
                 ($validated['shipping_address'] ?? null),

@@ -40,6 +40,7 @@ class CheckoutService
         return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress, $paymentMethod, $shippingSelection) {
             $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $phone = app(OrderLimits::class)->assertPhone($store, $contact['phone'] ?? null);
+            $phoneProof = app(CheckoutPhoneVerification::class)->consume($store, $phone, $contact['phone_verification'] ?? null);
             $cart = Cart::query()->where('store_id', $store->id)->whereKey($cart->id)->lockForUpdate()->firstOrFail();
             if ($cart->status !== 'active') {
                 throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
@@ -160,6 +161,8 @@ class CheckoutService
                 $digitalProduct = $stocks[$index] instanceof Product ? $stocks[$index] : Product::query()->where('store_id', $store->id)->findOrFail($item->store_product_id);
                 app(DigitalProducts::class)->reserve($digitalProduct, $item);
             }
+
+            $phoneProof?->update(['store_order_id' => $order->id]);
 
             if ($coupon !== null) {
                 $this->coupons->recordUsage($coupon, $customer, $order, $totals['discount_total']);
