@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\User;
+use App\Services\Commerce\CheckoutFields;
 use App\Services\Rbac\UserScope;
 use App\Services\Themes\StoreThemeService;
 use Illuminate\Http\UploadedFile;
@@ -83,6 +84,7 @@ class StoreService
         $store->owner_user_id = $ownerId;
         $store->owner_type = $ownerType;
         $store->is_primary = true;
+        $store->checkout_fields = app(CheckoutFields::class)->defaults();
         $store->name = $data['name'];
         $store->slug = $this->uniqueSlug($data['slug'] ?? $data['name']);
         $store->description = $data['description'] ?? null;

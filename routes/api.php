@@ -65,6 +65,7 @@ use App\Http\Controllers\Api\StockTransfersApiController;
 use App\Http\Controllers\Api\StoreAnalyticsController;
 use App\Http\Controllers\Api\StoreArticlesApiController;
 use App\Http\Controllers\Api\StoreCategoriesApiController;
+use App\Http\Controllers\Api\StoreCheckoutFieldsController;
 use App\Http\Controllers\Api\StoreContentPagesApiController;
 use App\Http\Controllers\Api\StoreCustomersApiController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
@@ -325,6 +326,7 @@ Route::prefix('v1')->group(function () {
         Route::delete('cart', [CartController::class, 'clear']);
         Route::get('payment-methods', [CheckoutController::class, 'paymentMethods']);
         Route::post('checkout', [CheckoutController::class, 'store']);
+        Route::get('checkout/fields', [CheckoutController::class, 'fields']);
         Route::post('checkout/quote', [CheckoutController::class, 'quote']);
         Route::post('checkout/payment/retry', [CheckoutController::class, 'retryPayment']);
 
@@ -752,6 +754,9 @@ Route::prefix('v1')->group(function () {
                 Route::post('{theme}/revisions/{revision}/restore', [StoreThemesApiController::class, 'restoreRevision'])->whereNumber('theme')->whereNumber('revision');
                 Route::get('{theme}', [StoreThemesApiController::class, 'show'])->whereNumber('theme');
             });
+
+            Route::get('checkout-fields', [StoreCheckoutFieldsController::class, 'index']);
+            Route::put('checkout-fields', [StoreCheckoutFieldsController::class, 'update']);
 
             Route::get('payments', [StorePaymentsApiController::class, 'index']);
             Route::match(['put', 'post'], 'payments', [StorePaymentsApiController::class, 'update']);

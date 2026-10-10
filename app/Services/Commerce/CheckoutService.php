@@ -29,7 +29,7 @@ class CheckoutService
     ) {}
 
     /**
-     * @param  array{name:string,email:string,phone?:string|null,notes?:string|null}  $contact
+     * @param  array{name:string,email:string|null,phone?:string|null,notes?:string|null}  $contact
      * @param  array<string,mixed>|null  $shippingAddress
      */
     public function place(Store $store, Cart $cart, ?StoreCustomer $customer, array $contact, ?array $shippingAddress, string $paymentMethod): StoreOrder

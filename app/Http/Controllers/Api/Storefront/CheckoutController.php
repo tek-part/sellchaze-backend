@@ -14,6 +14,7 @@ use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\CartService;
+use App\Services\Commerce\CheckoutFields;
 use App\Services\Commerce\CheckoutQuote;
 use App\Services\Commerce\CheckoutService;
 use App\Services\Commerce\CouponService;
@@ -43,6 +44,13 @@ class CheckoutController extends Controller
         private readonly StorePaymentService $payments,
         private readonly PaymentRetryToken $retryTokens,
     ) {}
+
+    public function fields(Request $request, CheckoutFields $fields): JsonResponse
+    {
+        $data = $request->validate(['payment_method' => ['nullable', 'string', 'max:80']]);
+
+        return response()->json(['data' => $fields->effective($this->currentStore($request), $data['payment_method'] ?? null)]);
+    }
 
     public function quote(CheckoutQuoteRequest $request, CheckoutQuote $quotes): JsonResponse
     {
@@ -114,17 +122,18 @@ class CheckoutController extends Controller
             $cart->load('items');
         }
 
+        $validated = $request->validated();
         $order = $this->checkout->place(
             $store,
             $cart,
             $customer,
             [
-                'name' => $request->input('customer_name'),
-                'email' => $request->input('customer_email'),
-                'phone' => $request->input('customer_phone'),
-                'notes' => $request->input('notes'),
+                'name' => ($validated['customer_name'] ?? ''),
+                'email' => ($validated['customer_email'] ?? null),
+                'phone' => ($validated['customer_phone'] ?? null),
+                'notes' => ($validated['notes'] ?? null),
             ],
-            $request->input('shipping_address'),
+            ($validated['shipping_address'] ?? null),
             $payment->gateway,
         );
 
