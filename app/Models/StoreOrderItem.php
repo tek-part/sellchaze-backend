@@ -15,7 +15,7 @@ class StoreOrderItem extends Model
 
     protected $fillable = [
         'store_id', 'store_order_id', 'store_product_id', 'name',
-        'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku',
+        'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku', 'inventory_status',
     ];
 
     protected $casts = [

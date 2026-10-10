@@ -96,51 +96,54 @@ class CheckoutController extends Controller
         $customer = $this->auth->resolve($request);
         // A funnel order has its own transient cart, even for a signed-in customer.
         // Do not merge, replace or convert their ordinary shopping cart.
-        $cart = $request->input('cart_mode') === 'direct'
-            ? $this->carts->create($store, null)
-            : $this->carts->resolve($request, $store, $customer);
+        $order = DB::transaction(function () use ($request, $store, $customer, $payment, $shippingSelection) {
+            $cart = $request->input('cart_mode') === 'direct'
+                ? $this->carts->create($store, null)
+                : $this->carts->resolve($request, $store, $customer);
 
-        // The storefront cart lives on the client; sync the submitted line items into the server
-        // cart so checkout places exactly what the shopper sees, without a stateful cart round-trip.
-        $items = $request->input('items', []);
-        if (! empty($items) || $request->has('coupon_code')) {
-            DB::transaction(function () use ($cart, $items, $request, $customer) {
-                Cart::query()->whereKey($cart->id)->lockForUpdate()->firstOrFail();
-                if (! empty($items)) {
-                    $this->carts->clear($cart);
-                    foreach ($items as $line) {
-                        $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1), isset($line['variant_id']) ? (int) $line['variant_id'] : null);
+            // The storefront cart lives on the client; sync the submitted line items into the server
+            // cart so checkout places exactly what the shopper sees, without a stateful cart round-trip.
+            $items = $request->input('items', []);
+            if (! empty($items) || $request->has('coupon_code')) {
+                DB::transaction(function () use ($cart, $items, $request, $customer) {
+                    Cart::query()->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+                    if (! empty($items)) {
+                        $this->carts->clear($cart);
+                        foreach ($items as $line) {
+                            $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1), isset($line['variant_id']) ? (int) $line['variant_id'] : null);
+                        }
                     }
-                }
-                if ($request->has('coupon_code')) {
-                    $coupon = $request->filled('coupon_code') ? $this->coupons->resolveActive($request->string('coupon_code')->toString()) : null;
-                    if ($request->filled('coupon_code') && $coupon === null) {
-                        throw ValidationException::withMessages(['coupon_code' => 'This coupon is not available.']);
+                    if ($request->has('coupon_code')) {
+                        $coupon = $request->filled('coupon_code') ? $this->coupons->resolveActive($request->string('coupon_code')->toString()) : null;
+                        if ($request->filled('coupon_code') && $coupon === null) {
+                            throw ValidationException::withMessages(['coupon_code' => 'This coupon is not available.']);
+                        }
+                        if ($coupon !== null) {
+                            $this->coupons->validate($coupon, $customer, $cart->load('items')->subtotal());
+                        }
+                        $cart->update(['coupon_id' => $coupon?->id]);
                     }
-                    if ($coupon !== null) {
-                        $this->coupons->validate($coupon, $customer, $cart->load('items')->subtotal());
-                    }
-                    $cart->update(['coupon_id' => $coupon?->id]);
-                }
-            });
-            $cart->load('items');
-        }
+                });
+                $cart->load('items');
+            }
 
-        $validated = $request->validated();
-        $order = $this->checkout->place(
-            $store,
-            $cart,
-            $customer,
-            [
-                'name' => ($validated['customer_name'] ?? ''),
-                'email' => ($validated['customer_email'] ?? null),
-                'phone' => ($validated['customer_phone'] ?? null),
-                'notes' => ($validated['notes'] ?? null),
-            ],
-            ($validated['shipping_address'] ?? null),
-            $payment->gateway,
-            $shippingSelection,
-        );
+            $validated = $request->validated();
+
+            return $this->checkout->place(
+                $store,
+                $cart,
+                $customer,
+                [
+                    'name' => ($validated['customer_name'] ?? ''),
+                    'email' => ($validated['customer_email'] ?? null),
+                    'phone' => ($validated['customer_phone'] ?? null),
+                    'notes' => ($validated['notes'] ?? null),
+                ],
+                ($validated['shipping_address'] ?? null),
+                $payment->gateway,
+                $shippingSelection,
+            );
+        });
 
         try {
             $paymentResult = $this->payments->start($store, $order, $payment);

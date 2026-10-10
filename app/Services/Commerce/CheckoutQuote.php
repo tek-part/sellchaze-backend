@@ -29,6 +29,7 @@ class CheckoutQuote
             if ($quantity < 1 || $counts[$key] > 999) {
                 throw ValidationException::withMessages(['quantity' => 'Choose between 1 and 999 items.']);
             }
+            app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $counts[$key]);
             $lineTotal = bcmul($selection['price'], (string) $quantity, 2);
             $subtotal = bcadd($subtotal, $lineTotal, 2);
             $lines[] = ['product_id' => $selection['product']->id, 'variant_id' => $variantId,

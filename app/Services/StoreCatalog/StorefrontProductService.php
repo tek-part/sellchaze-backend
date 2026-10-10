@@ -7,7 +7,9 @@ use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
 use App\Support\Slug;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Owner management of store products. Runs under the ScopeToStore tenant, so
@@ -53,8 +55,14 @@ class StorefrontProductService
     public function delete(Product $product): void
     {
         $storeId = (int) $product->store_id;
+        DB::transaction(function () use ($product, $storeId) {
+            $current = Product::query()->where('store_id', $storeId)->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            if ($current->reserved_quantity > 0 || $current->variants()->where('reserved_quantity', '>', 0)->exists()) {
+                throw ValidationException::withMessages(['inventory' => 'Ship or cancel reserved orders before deleting this product.']);
+            }
+            $current->delete();
+        });
         $this->deleteImage($product->image);
-        $product->delete();
         StorefrontService::forgetHomepage($storeId);
         app(StorefrontPageCache::class)->flushStore($storeId);
     }

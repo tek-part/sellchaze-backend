@@ -99,7 +99,7 @@ class Product extends Model
         // per-product storefront PDP content
         'shipping_returns', 'care_instructions', 'highlights',
         // inventory
-        'stock_quantity', 'reserved_quantity', 'reorder_level',
+        'stock_quantity', 'reserved_quantity', 'reorder_level', 'track_inventory',
         // visibility / flags
         'is_active', 'is_featured', 'is_bestseller', 'is_new_arrival', 'is_trending',
         // rollups
@@ -125,6 +125,7 @@ class Product extends Model
             'sales_count' => 'integer',
             'views_count' => 'integer',
             'stock_quantity' => 'integer',
+            'track_inventory' => 'boolean',
             'reserved_quantity' => 'integer',
             'reorder_level' => 'integer',
             'position' => 'integer',

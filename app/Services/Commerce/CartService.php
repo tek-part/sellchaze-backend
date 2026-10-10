@@ -91,6 +91,7 @@ class CartService
             if ($quantity < 1 || $count > 999) {
                 throw ValidationException::withMessages(['quantity' => 'Choose between 1 and 999 items.']);
             }
+            app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $count);
             $values = ['store_product_id' => $productId, 'variant_id' => $variantId,
                 'name' => $selection['name'], 'unit_price' => $selection['price'], 'quantity' => $count];
             if ($item) {
@@ -105,29 +106,48 @@ class CartService
 
     public function updateItem(Cart $cart, CartItem $item, int $quantity): ?CartItem
     {
-        $this->assertItemInCart($cart, $item);
+        return DB::transaction(function () use ($cart, $item, $quantity) {
+            $this->lockActive($cart);
+            $this->assertItemInCart($cart, $item);
 
-        if ($quantity <= 0) {
-            $item->delete();
+            if ($quantity <= 0) {
+                $item->delete();
 
-            return null;
-        }
+                return null;
+            }
 
-        $item->quantity = $quantity;
-        $item->save();
+            $selection = $this->selections->resolve(Store::findOrFail($cart->store_id), $item->store_product_id, $item->variant_id);
+            app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $quantity);
+            $item->quantity = $quantity;
+            $item->save();
 
-        return $item;
+            return $item;
+        });
     }
 
     public function removeItem(Cart $cart, CartItem $item): void
     {
-        $this->assertItemInCart($cart, $item);
-        $item->delete();
+        DB::transaction(function () use ($cart, $item) {
+            $this->lockActive($cart);
+            $this->assertItemInCart($cart, $item);
+            $item->delete();
+        });
     }
 
     public function clear(Cart $cart): void
     {
-        $cart->items()->delete();
+        DB::transaction(function () use ($cart) {
+            $this->lockActive($cart);
+            $cart->items()->delete();
+        });
+    }
+
+    private function lockActive(Cart $cart): void
+    {
+        $current = Cart::query()->where('store_id', $cart->store_id)->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+        if ($current->status !== 'active') {
+            throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
+        }
     }
 
     /** Move guest-cart lines into the target cart, then abandon the guest cart. */

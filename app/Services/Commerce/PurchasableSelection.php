@@ -11,16 +11,16 @@ use Illuminate\Validation\ValidationException;
 class PurchasableSelection
 {
     /** @return array{product:Product,variant:?ProductVariant,price:string,name:string} */
-    public function resolve(Store $store, int $productId, ?int $variantId = null): array
+    public function resolve(Store $store, int $productId, ?int $variantId = null, bool $lock = false): array
     {
-        $product = Product::query()->where('store_id', $store->id)->where('is_active', true)->find($productId);
+        $product = Product::query()->where('store_id', $store->id)->where('is_active', true)->when($lock, fn ($query) => $query->lockForUpdate())->find($productId);
         if ($product === null) {
             throw ValidationException::withMessages(['items' => 'This product is not available.']);
         }
         $variant = null;
         if ($variantId !== null) {
             $variant = ProductVariant::query()->where('store_id', $store->id)
-                ->where('store_product_id', $product->id)->where('is_active', true)->find($variantId);
+                ->where('store_product_id', $product->id)->where('is_active', true)->when($lock, fn ($query) => $query->lockForUpdate())->find($variantId);
             if ($variant === null) {
                 throw ValidationException::withMessages(['items' => 'This product option is not available.']);
             }

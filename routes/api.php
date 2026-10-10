@@ -88,7 +88,9 @@ use App\Http\Controllers\Api\Storefront\StoreOrderController;
 use App\Http\Controllers\Api\Storefront\WishlistController;
 use App\Http\Controllers\Api\StorefrontContextController;
 use App\Http\Controllers\Api\StorefrontProductsApiController;
+use App\Http\Controllers\Api\StorefrontProductVariantsApiController;
 use App\Http\Controllers\Api\StoreFunnelsApiController;
+use App\Http\Controllers\Api\StoreInventoryController;
 use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
 use App\Http\Controllers\Api\StorePagesApiController;
@@ -695,7 +697,15 @@ Route::prefix('v1')->group(function () {
                 Route::middleware('permission:products-create')->post('/', [StorefrontProductsApiController::class, 'store']);
                 Route::middleware('permission:products-list')->get('{product}', [StorefrontProductsApiController::class, 'show'])->whereNumber('product');
                 Route::middleware('permission:products-edit')->match(['put', 'post'], '{product}', [StorefrontProductsApiController::class, 'update'])->whereNumber('product');
+                Route::middleware('permission:products-delete')->delete('{product}', [StorefrontProductsApiController::class, 'destroy'])->whereNumber('product');
+                Route::middleware('permission:products-list')->get('{product}/variants', [StorefrontProductVariantsApiController::class, 'index'])->whereNumber('product');
+                Route::middleware('permission:products-edit')->post('{product}/variants', [StorefrontProductVariantsApiController::class, 'store'])->whereNumber('product');
+                Route::middleware('permission:products-edit')->put('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'update'])->whereNumber(['product', 'variant']);
+                Route::middleware('permission:products-delete')->delete('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'destroy'])->whereNumber(['product', 'variant']);
             });
+            Route::middleware('permission:products-list')->get('catalog/inventory', [StoreInventoryController::class, 'index']);
+            Route::middleware('permission:products-list')->get('catalog/inventory/{product}/history', [StoreInventoryController::class, 'history'])->whereNumber('product');
+            Route::middleware('permission:products-edit')->put('catalog/inventory/{product}', [StoreInventoryController::class, 'update'])->whereNumber('product');
 
             Route::prefix('catalog/categories')->group(function () {
                 Route::middleware('permission:categories-list')->get('/', [StoreCategoriesApiController::class, 'index']);

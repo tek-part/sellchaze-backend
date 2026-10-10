@@ -26,6 +26,7 @@ class CheckoutService
         private readonly PricingCalculator $pricing,
         private readonly OutboxRecorder $outbox,
         private readonly PurchasableSelection $selections,
+        private readonly StoreInventory $inventory,
     ) {}
 
     /**
@@ -34,20 +35,25 @@ class CheckoutService
      */
     public function place(Store $store, Cart $cart, ?StoreCustomer $customer, array $contact, ?array $shippingAddress, string $paymentMethod, array $shippingSelection = []): StoreOrder
     {
-        $cart->load('items');
-
-        if ($cart->items->isEmpty()) {
-            throw ValidationException::withMessages(['cart' => 'Your cart is empty.']);
-        }
-
         return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress, $paymentMethod, $shippingSelection) {
+            $cart = Cart::query()->where('store_id', $store->id)->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+            if ($cart->status !== 'active') {
+                throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
+            }
+            $items = $cart->items()->orderBy('store_product_id')->orderBy('variant_id')->orderBy('id')->get();
+            if ($items->isEmpty()) {
+                throw ValidationException::withMessages(['cart' => 'Your cart is empty.']);
+            }
             $subtotal = '0.00';
             $lines = [];
+            $stocks = [];
 
-            foreach ($cart->items as $item) {
-                $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id);
+            foreach ($items as $item) {
+                $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id, true);
                 $product = $selection['product'];
                 $variant = $selection['variant'];
+                $stocks[] = $variant ?? $product;
+                $this->inventory->assertAvailable($variant ?? $product, $item->quantity);
                 // Price validation: the snapshot must still match the live price.
                 if (bccomp($selection['price'], (string) $item->unit_price, 2) !== 0) {
                     throw ValidationException::withMessages([
@@ -108,8 +114,9 @@ class CheckoutService
                 'placed_at' => now(),
             ]);
 
-            foreach ($lines as $line) {
-                $order->items()->create($line);
+            foreach ($lines as $index => $line) {
+                $item = $order->items()->create($line);
+                $this->inventory->reserve($stocks[$index], $item);
             }
 
             if ($coupon !== null) {

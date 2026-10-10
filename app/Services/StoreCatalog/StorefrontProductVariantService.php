@@ -6,6 +6,8 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Owner management of product variants. Runs under the ScopeToStore tenant, so
@@ -39,7 +41,14 @@ class StorefrontProductVariantService
     public function delete(ProductVariant $variant): void
     {
         $product = $variant->product;
-        $variant->delete();
+        DB::transaction(function () use ($variant) {
+            Product::query()->where('store_id', $variant->store_id)->whereKey($variant->store_product_id)->lockForUpdate()->firstOrFail();
+            $current = ProductVariant::query()->where('store_id', $variant->store_id)->whereKey($variant->id)->lockForUpdate()->firstOrFail();
+            if ($current->reserved_quantity > 0) {
+                throw ValidationException::withMessages(['inventory' => 'Ship or cancel reserved orders before deleting this option.']);
+            }
+            $current->delete();
+        });
 
         $this->flush($product);
     }
