@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AdminThemesController;
 use App\Http\Controllers\Api\ArticlesApiController;
 use App\Http\Controllers\Api\AttributesApiController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BostaWebhookController;
 use App\Http\Controllers\Api\BundlesApiController;
 use App\Http\Controllers\Api\CategoriesApiController;
 use App\Http\Controllers\Api\ChatApiController;
@@ -241,6 +242,7 @@ Route::prefix('v1')->group(function () {
 
 Route::prefix('v1')->group(function () {
     Route::post('/wavex/webhook', WavexWebhookController::class);
+    Route::post('/carriers/bosta/webhook/{reference}', BostaWebhookController::class)->where('reference', 'sc-[a-fA-F0-9-]{36}')->middleware('throttle:240,1');
 
     Route::get('/wavex/media-pickup/{token}', [WavexMediaPickupController::class, 'show'])
         ->middleware('signed')
@@ -733,6 +735,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('{order}/shipment', [StoreShipmentController::class, 'show'])->whereNumber('order');
                 Route::post('{order}/shipment', [StoreShipmentController::class, 'create'])->whereNumber('order')->middleware('throttle:20,1');
                 Route::post('{order}/shipment/sync', [StoreShipmentController::class, 'sync'])->whereNumber('order')->middleware('throttle:30,1');
+                Route::post('{order}/shipment/label', [StoreShipmentController::class, 'label'])->whereNumber('order')->middleware('throttle:20,1');
             });
 
             // ---- Reviews (Phase 6H) ----

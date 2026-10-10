@@ -5,13 +5,14 @@ namespace App\Services\Shipping;
 use App\Models\StoreCarrierConnection;
 use App\Models\StoreOrder;
 use App\Models\StoreShipment;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class StoreShipmentService
 {
-    public function __construct(private readonly BostaClient $client) {}
+    public function __construct(private readonly BostaClient $client, private readonly StoreShipmentEvents $events) {}
 
     public function create(StoreOrder $order, array $input): StoreShipment
     {
@@ -61,6 +62,12 @@ class StoreShipmentService
                 ]], 'notes' => $input['notes'] ?? '',
             ];
             $shipment = $existing ?? new StoreShipment;
+            $webhookUrl = $this->events->webhookUrl($reference);
+            if ($webhookUrl !== null) {
+                $shipment->webhook_secret = $shipment->webhook_secret ?: Str::random(64);
+                $payload['webhookUrl'] = $webhookUrl;
+                $payload['webhookCustomHeaders'] = ['Authorization' => 'Bearer '.$shipment->webhook_secret];
+            }
             $shipment->fill(['store_id' => $order->store_id, 'store_order_id' => $order->id, 'store_carrier_connection_id' => $connection->id,
                 'carrier' => 'bosta', 'business_reference' => $reference, 'status' => 'submitting', 'error_code' => null,
                 'request_snapshot' => $payload, 'submitted_at' => now()])->save();
@@ -70,9 +77,15 @@ class StoreShipmentService
         // Commit the claim before the network call. A crash/timeout must never silently retry a delivery.
         try {
             $data = $this->client->request('POST', '/deliveries?apiVersion=1', $shipment->request_snapshot, $connection);
-            $this->accept($shipment, $data);
+            $this->accept($shipment, $data, 'creation');
         } catch (CarrierException $e) {
-            $shipment->update(['status' => $e->ambiguous ? 'unknown' : 'rejected', 'error_code' => $e->reason]);
+            // A webhook can confirm delivery while the original POST is still awaiting its response.
+            StoreShipment::where('store_id', $shipment->store_id)->whereKey($shipment->id)->where('status', 'submitting')
+                ->where('carrier_revision', (int) $shipment->carrier_revision)->update(['status' => $e->ambiguous ? 'unknown' : 'rejected', 'error_code' => $e->reason]);
+            $current = $shipment->fresh();
+            if ($current->status === 'created') {
+                return $current;
+            }
             throw $e;
         }
 
@@ -93,12 +106,12 @@ class StoreShipmentService
         if (! is_array($data) || (string) ($data['trackingNumber'] ?? '') !== $tracking) {
             throw new CarrierException(true, 'tracking_mismatch');
         }
-        $this->accept($shipment, $data);
+        $this->accept($shipment, $data, 'refresh');
 
         return $shipment->fresh();
     }
 
-    private function accept(StoreShipment $shipment, mixed $data): void
+    private function accept(StoreShipment $shipment, mixed $data, string $source): void
     {
         if (! is_array($data) || ! is_string($data['_id'] ?? null) || empty($data['_id']) || ! is_scalar($data['trackingNumber'] ?? null)
             || ! preg_match('/^[0-9]{1,30}$/', (string) $data['trackingNumber'])
@@ -107,8 +120,17 @@ class StoreShipmentService
             || ($shipment->external_id && $shipment->external_id !== $data['_id'])) {
             throw new CarrierException(true, 'shipment_mismatch');
         }
-        $shipment->update(['status' => 'created', 'external_id' => $data['_id'], 'tracking_number' => (string) $data['trackingNumber'],
-            'carrier_state' => (int) $data['state']['code'], 'carrier_state_label' => Str::limit((string) ($data['state']['value'] ?? ''), 200),
-            'error_code' => null, 'synced_at' => now()]);
+        $timeMs = null;
+        if (is_string($data['updatedAt'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}T/', $data['updatedAt'])) {
+            try {
+                $timeMs = Carbon::parse($data['updatedAt'])->getTimestampMs();
+            } catch (\Exception) {
+                throw new CarrierException(true, 'invalid_carrier_time');
+            }
+            if ($timeMs > now()->getTimestampMs() + 300000 || $timeMs < 946684800000) {
+                throw new CarrierException(true, 'invalid_carrier_time');
+            }
+        }
+        $this->events->apply($shipment, $data['_id'], (string) $data['trackingNumber'], (int) $data['state']['code'], $timeMs, $source, (int) $shipment->carrier_revision);
     }
 }

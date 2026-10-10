@@ -8,7 +8,7 @@ class StoreShipment extends Model
 {
     protected $guarded = ['id'];
 
-    protected $hidden = ['request_snapshot'];
+    protected $hidden = ['request_snapshot', 'webhook_secret'];
 
-    protected $casts = ['request_snapshot' => 'encrypted:array', 'carrier_state' => 'integer', 'submitted_at' => 'datetime', 'synced_at' => 'datetime'];
+    protected $casts = ['request_snapshot' => 'encrypted:array', 'webhook_secret' => 'encrypted', 'last_event_at_ms' => 'integer', 'carrier_revision' => 'integer', 'carrier_state' => 'integer', 'submitted_at' => 'datetime', 'synced_at' => 'datetime'];
 }

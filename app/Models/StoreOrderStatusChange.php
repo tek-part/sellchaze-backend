@@ -14,7 +14,7 @@ class StoreOrderStatusChange extends Model
     use BelongsToStore;
 
     protected $fillable = [
-        'store_id', 'store_order_id', 'from_status', 'to_status', 'actor_id', 'notes',
+        'store_id', 'store_order_id', 'from_status', 'to_status', 'actor_id', 'notes', 'source',
     ];
 
     /** @return BelongsTo<StoreOrder, $this> */

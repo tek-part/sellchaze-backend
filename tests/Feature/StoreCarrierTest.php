@@ -7,6 +7,7 @@ use App\Models\Store;
 use App\Models\StoreCarrierConnection;
 use App\Models\StoreOrder;
 use App\Models\StoreShipment;
+use App\Models\StoreShipmentEvent;
 use App\Models\User;
 use App\Services\JwtTokenService;
 use App\Support\Tenancy\CurrentStore;
@@ -17,6 +18,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class StoreCarrierTest extends TestCase
@@ -166,7 +168,8 @@ class StoreCarrierTest extends TestCase
         $this->fake(fn () => Http::response(['success' => true, 'data' => ['_id' => 'delivery-1', 'trackingNumber' => '123456', 'businessReference' => StoreShipment::firstOrFail()->business_reference, 'state' => ['code' => 45, 'value' => 'Delivered'], 'cod' => 999, 'shipmentFees' => 500]]));
         $this->postJson($this->endpoint().'/sync')->assertOk()->assertJsonPath('data.carrier_state', 45);
         $this->assertSame('210.00', $this->order->fresh()->grand_total);
-        $this->assertSame('confirmed', $this->order->fresh()->status);
+        $this->assertSame('delivered', $this->order->fresh()->status);
+        $this->assertSame('paid', $this->order->fresh()->payment_status);
     }
 
     public function test_another_store_cannot_read_keys_dispatch_or_reconcile_orders(): void
@@ -182,6 +185,7 @@ class StoreCarrierTest extends TestCase
         $this->getJson($this->endpoint())->assertNotFound();
         $this->postJson($this->endpoint(), $this->input)->assertNotFound();
         $this->postJson($this->endpoint().'/sync', ['tracking_number' => '123456'])->assertNotFound();
+        $this->postJson($this->endpoint().'/label', ['size' => 'A4', 'language' => 'ar'])->assertNotFound();
         $this->getJson('/api/v1/stores/'.$this->store->id.'/carriers/bosta')->assertForbidden();
     }
 
@@ -224,5 +228,140 @@ class StoreCarrierTest extends TestCase
         $this->postJson($this->endpoint(), $this->input)->assertStatus(502)->assertJsonPath('ambiguous', true);
         $this->assertDatabaseHas('store_shipments', ['status' => 'unknown']);
         $this->postJson($this->endpoint(), $this->input)->assertConflict();
+    }
+
+    private function webhook(StoreShipment $shipment, array $extra = [], ?string $secret = null): TestResponse
+    {
+        return $this->postJson('/api/v1/carriers/bosta/webhook/'.$shipment->business_reference, array_replace([
+            '_id' => 'delivery-1', 'trackingNumber' => 123456, 'state' => 45, 'type' => 'SEND',
+            'timeStamp' => now()->getTimestampMs(), 'businessReference' => $shipment->business_reference,
+        ], $extra), ['Authorization' => 'Bearer '.($secret ?? $shipment->webhook_secret)]);
+    }
+
+    private function dispatchWithWebhook(): StoreShipment
+    {
+        config(['services.bosta.webhook_base_url' => 'https://carrier-receiver.example.test']);
+        $this->connection();
+        $this->fake();
+        $this->postJson($this->endpoint(), $this->input)->assertCreated()->assertJsonPath('data.webhook_configured', true)->assertJsonMissingPath('data.webhook_secret');
+
+        return StoreShipment::firstOrFail();
+    }
+
+    public function test_authenticated_webhooks_advance_fulfillment_without_marking_cod_paid(): void
+    {
+        $shipment = $this->dispatchWithWebhook();
+        $secret = $shipment->webhook_secret;
+        $this->assertNotSame($secret, DB::table('store_shipments')->value('webhook_secret'));
+        Http::assertSent(fn ($request) => $request->method() === 'POST'
+            && $request['webhookUrl'] === 'https://carrier-receiver.example.test/api/v1/carriers/bosta/webhook/'.$shipment->business_reference
+            && $request['webhookCustomHeaders']['Authorization'] === 'Bearer '.$secret);
+        $this->webhook($shipment, ['state' => 21, 'timeStamp' => now()->getTimestampMs() - 2000])->assertOk();
+        $this->assertSame('shipped', $this->order->fresh()->status);
+        $this->webhook($shipment, ['cod' => 999])->assertOk();
+        $this->assertSame('delivered', $this->order->fresh()->status);
+        $this->assertSame('pending', $this->order->fresh()->payment_status);
+        $this->assertSame('210.00', $this->order->fresh()->grand_total);
+        $this->assertDatabaseCount('store_order_status_changes', 3);
+        $this->assertDatabaseHas('store_order_status_changes', ['store_id' => $this->store->id, 'to_status' => 'delivered', 'source' => 'carrier', 'actor_id' => null]);
+        $this->getJson($this->endpoint())->assertOk()->assertJsonPath('data.carrier_state', 45)->assertJsonCount(3, 'data.events')->assertDontSee($secret);
+    }
+
+    public function test_duplicate_old_and_same_time_conflicting_events_cannot_rewind_the_order(): void
+    {
+        $shipment = $this->dispatchWithWebhook();
+        $time = now()->getTimestampMs() - 1000;
+        $this->webhook($shipment, ['timeStamp' => $time])->assertOk();
+        $this->webhook($shipment, ['timeStamp' => $time])->assertOk();
+        $this->assertDatabaseCount('store_shipment_events', 2);
+        $this->webhook($shipment, ['state' => 41, 'timeStamp' => $time - 1000])->assertOk();
+        $this->webhook($shipment, ['state' => 10, 'timeStamp' => $time])->assertOk();
+        $this->assertSame(45, $shipment->fresh()->carrier_state);
+        $this->assertSame('delivered', $this->order->fresh()->status);
+        $this->assertDatabaseCount('store_order_status_changes', 3);
+        $this->assertSame(2, StoreShipmentEvent::where('applied', false)->where('ignored_reason', 'terminal_state')->count());
+    }
+
+    public function test_invalid_auth_identity_type_and_future_events_do_not_mutate_shipments(): void
+    {
+        $shipment = $this->dispatchWithWebhook();
+        $this->webhook($shipment, [], 'wrong-secret')->assertUnauthorized();
+        $this->webhook($shipment, ['_id' => 'foreign-delivery'])->assertConflict();
+        $this->webhook($shipment, ['businessReference' => 'another-order'])->assertConflict();
+        $this->webhook($shipment, ['trackingNumber' => '987654'])->assertConflict();
+        $this->webhook($shipment, ['type' => 'CUSTOMER_RETURN_PICKUP'])->assertUnprocessable();
+        $this->webhook($shipment, ['timeStamp' => now()->getTimestampMs() + 600000])->assertUnprocessable();
+        $this->assertSame(10, $shipment->fresh()->carrier_state);
+        $this->assertDatabaseCount('store_shipment_events', 1);
+        $this->assertDatabaseCount('store_order_status_changes', 0);
+    }
+
+    public function test_webhook_can_confirm_an_unknown_creation_and_wins_over_a_late_timeout(): void
+    {
+        config(['services.bosta.webhook_base_url' => 'https://carrier-receiver.example.test']);
+        $this->connection();
+        $attempts = 0;
+        $this->fake(function () use (&$attempts) {
+            $attempts++;
+            $this->webhook(StoreShipment::firstOrFail(), ['businessReference' => null, 'state' => 21])->assertOk();
+            throw new ConnectionException('The create response was lost');
+        });
+        $this->postJson($this->endpoint(), $this->input)->assertCreated()->assertJsonPath('data.status', 'created')->assertJsonPath('data.carrier_state', 21);
+        $this->assertSame('shipped', $this->order->fresh()->status);
+        $this->postJson($this->endpoint(), $this->input)->assertConflict();
+        $this->assertSame(1, $attempts);
+    }
+
+    public function test_untimed_or_stale_reads_cannot_replace_a_newer_webhook_state(): void
+    {
+        $shipment = $this->dispatchWithWebhook();
+        $this->webhook($shipment)->assertOk();
+        $this->postJson($this->endpoint().'/sync')->assertOk()->assertJsonPath('data.carrier_state', 45);
+        Http::swap(new Factory);
+        $this->fake(fn () => Http::response(['success' => true, 'data' => ['_id' => 'delivery-1', 'trackingNumber' => '123456', 'businessReference' => $shipment->business_reference, 'state' => ['code' => 41], 'updatedAt' => now()->subMinute()->toIso8601String()]]));
+        $this->postJson($this->endpoint().'/sync')->assertOk()->assertJsonPath('data.carrier_state', 45);
+        $this->assertSame('delivered', $this->order->fresh()->status);
+    }
+
+    public function test_webhooks_preserve_cancelled_orders_and_restore_the_previous_tenant(): void
+    {
+        $shipment = $this->dispatchWithWebhook();
+        $this->order->update(['status' => 'cancelled']);
+        app(CurrentStore::class)->forget();
+        $this->webhook($shipment)->assertOk();
+        $this->assertNull(app(CurrentStore::class)->id());
+        $this->assertSame('cancelled', StoreOrder::withoutGlobalScopes()->findOrFail($this->order->id)->status);
+        $this->assertDatabaseCount('store_order_status_changes', 0);
+    }
+
+    public function test_awb_is_tenant_scoped_validated_pdf_and_never_an_email_or_external_url(): void
+    {
+        $this->dispatchWithWebhook();
+        $pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF";
+        Http::swap(new Factory);
+        $this->fake(fn ($request) => Http::response(['success' => true, 'data' => base64_encode($pdf)]));
+        $this->postJson($this->endpoint().'/label', ['size' => 'A6', 'language' => 'ar'])->assertOk()->assertHeader('Content-Type', 'application/pdf')->assertHeader('Content-Disposition', 'attachment; filename="bosta-123456.pdf"')->assertContent($pdf);
+        Http::assertSent(fn ($request) => $request->url() === 'https://app.bosta.co/api/v2/deliveries/mass-awb' && $request['trackingNumbers'] === '123456' && $request['requestedAwbType'] === 'A6' && $request['lang'] === 'ar');
+        $this->postJson($this->endpoint().'/label', ['size' => 'A0', 'language' => 'ar'])->assertUnprocessable();
+        Http::swap(new Factory);
+        $this->fake(fn () => Http::response(['success' => true, 'message' => 'exported to email']));
+        $this->postJson($this->endpoint().'/label', ['size' => 'A4', 'language' => 'en'])->assertStatus(502);
+        $this->webhook(StoreShipment::firstOrFail())->assertOk();
+        $this->postJson($this->endpoint().'/label', ['size' => 'A4', 'language' => 'en'])->assertUnprocessable();
+    }
+
+    public function test_out_of_order_in_progress_events_are_recorded_without_regression_and_tenant_is_restored(): void
+    {
+        $shipment = $this->dispatchWithWebhook();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other tenant', 'slug' => 'other-tenant', 'currency' => 'EGP', 'status' => 'active']);
+        app(CurrentStore::class)->set($other);
+        $time = now()->getTimestampMs() - 1000;
+        $this->webhook($shipment, ['state' => 41, 'timeStamp' => $time])->assertOk();
+        $this->assertSame($other->id, app(CurrentStore::class)->id());
+        $this->webhook($shipment, ['state' => 21, 'timeStamp' => $time - 1000])->assertOk();
+        $this->assertSame(41, $shipment->fresh()->carrier_state);
+        $this->assertDatabaseHas('store_shipment_events', ['store_id' => $this->store->id, 'carrier_state' => 21, 'applied' => false, 'ignored_reason' => 'older_event']);
+        $this->assertDatabaseHas('store_order_status_changes', ['store_id' => $this->store->id, 'to_status' => 'shipped', 'source' => 'carrier']);
+        $this->assertDatabaseMissing('store_order_status_changes', ['store_id' => $other->id]);
     }
 }

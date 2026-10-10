@@ -46,7 +46,7 @@ class StoreOrderService
      * the acting user and an optional internal note; customer self-service
      * cancels pass neither (actor stays null = customer-initiated).
      */
-    public function transition(StoreOrder $order, string $to, ?int $actorId = null, ?string $note = null): StoreOrder
+    public function transition(StoreOrder $order, string $to, ?int $actorId = null, ?string $note = null, ?string $source = null): StoreOrder
     {
         if (! $this->canTransition($order, $to)) {
             throw new RuntimeException("Cannot transition order from {$order->status} to {$to}.");
@@ -64,6 +64,7 @@ class StoreOrderService
             'to_status' => $to,
             'actor_id' => $actorId,
             'notes' => $note,
+            'source' => $source,
         ]);
 
         StoreAnalyticsService::forget($order->store_id); // delivered revenue/status counts changed

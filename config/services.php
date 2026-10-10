@@ -116,6 +116,10 @@ return [
         'public_storage_url' => ($w = trim((string) env('WAVEX_PUBLIC_STORAGE_URL', ''))) !== '' ? rtrim($w, '/') : null,
     ],
 
+    'bosta' => [
+        'webhook_base_url' => env('BOSTA_WEBHOOK_BASE_URL', env('APP_URL')),
+    ],
+
     /* Platform-owned checkout for paid marketplace themes. Never use a merchant store's Stripe keys here. */
     'theme_marketplace' => [
         'stripe_secret' => env('THEME_MARKETPLACE_STRIPE_SECRET'),
