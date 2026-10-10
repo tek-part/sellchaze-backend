@@ -89,6 +89,7 @@ class StoreSeoService
         $name = $product->translated('name') ?: $product->name;
         $title = $name.' — '.$store->name;
         $description = $product->translated('description') ?: $name;
+        $description = trim(html_entity_decode(strip_tags(str_replace(['</p>', '</li>', '</h1>', '</h2>', '</h3>', '<br>'], ' ', $description)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $url = $this->canonical($store, 'products/'.$product->slug);
         $image = $product->imageUrl();
 

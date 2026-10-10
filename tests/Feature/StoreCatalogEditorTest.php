@@ -170,4 +170,52 @@ class StoreCatalogEditorTest extends TestCase
         $this->postJson($this->base.'/'.$foreign->id.'/variants/generate', ['axes' => $axes], $this->auth)->assertNotFound();
         $this->assertDatabaseCount('store_product_variants', 1);
     }
+
+    public function test_rich_description_edits_replace_legacy_copy_and_sanitize_every_locale(): void
+    {
+        $id = $this->create();
+        Product::withoutGlobalScopes()->whereKey($id)->update(['long_description' => '<h2>Legacy detail</h2>']);
+        $this->getJson($this->base.'/'.$id, $this->auth)->assertOk()->assertJsonPath('data.description', '<h2>Legacy detail</h2>');
+        $this->putJson($this->base.'/'.$id, ['price' => 99], $this->auth)->assertOk();
+        $this->assertDatabaseHas('products', ['id' => $id, 'long_description' => '<h2>Legacy detail</h2>']);
+        $this->putJson($this->base.'/'.$id, ['description' => '<h2>وصف جديد</h2><script>alert(1)</script>',
+            'translations' => ['description' => ['ar' => '<h2>وصف جديد</h2>', 'en' => '<h2>New description</h2><img src="/storage/safe.png" onerror="alert(1)">']]], $this->auth)->assertOk()->assertJsonPath('data.long_description', null);
+        $public = $this->getJson($this->public.'/products/bag?lang=en')->assertOk()->json('data');
+        $this->assertStringContainsString('<h2>New description</h2>', $public['description']);
+        $this->assertStringNotContainsString('onerror', $public['description']);
+        $this->assertDatabaseHas('products', ['id' => $id, 'description' => '<h2>وصف جديد</h2>', 'long_description' => null]);
+    }
+
+    public function test_video_upload_order_and_removal_keep_legacy_images_contract(): void
+    {
+        $response = $this->post($this->base, ['name' => 'Media', 'slug' => 'media', 'price' => 1, 'is_active' => true,
+            'gallery' => [UploadedFile::fake()->image('one.png')->size(10240), UploadedFile::fake()->create('clip.mp4', 51200, 'video/mp4')]], $this->auth + ['Accept' => 'application/json'])->assertCreated()->assertJsonCount(2, 'data.media');
+        $id = $response->json('data.id');
+        $media = $response->json('data.media');
+        $this->assertSame('video', $media[1]['type']);
+        $videoPath = ProductMedia::withoutGlobalScopes()->findOrFail($media[1]['id'])->path;
+        Storage::disk('public')->assertExists($videoPath);
+        $this->putJson($this->base.'/'.$id, ['media_order' => [$media[1]['id'], $media[0]['id']]], $this->auth)->assertOk()->assertJsonPath('data.media.0.type', 'video');
+        $this->getJson($this->public.'/products/media')->assertOk()->assertJsonCount(1, 'data.images')->assertJsonPath('data.media.0.type', 'video');
+        $this->putJson($this->base.'/'.$id, ['name' => 'Must roll back', 'media_order' => [999999]], $this->auth)->assertUnprocessable();
+        $this->assertDatabaseHas('products', ['id' => $id, 'name' => 'Media']);
+        $this->putJson($this->base.'/'.$id, ['remove_media_ids' => [$media[1]['id']], 'media_order' => [$media[0]['id']]], $this->auth)->assertOk()->assertJsonCount(1, 'data.media');
+        Storage::disk('public')->assertMissing($videoPath);
+        $imagePath = ProductMedia::withoutGlobalScopes()->findOrFail($media[0]['id'])->path;
+        $this->deleteJson($this->base.'/'.$id, [], $this->auth)->assertOk();
+        Storage::disk('public')->assertMissing($imagePath);
+    }
+
+    public function test_media_upload_limits_and_disguised_files_are_rejected_atomically(): void
+    {
+        foreach ([UploadedFile::fake()->image('large.png')->size(10241), UploadedFile::fake()->create('large.mp4', 51201, 'video/mp4'),
+            UploadedFile::fake()->createWithContent('fake.mp4', '<html><script>alert(1)</script></html>'),
+            UploadedFile::fake()->create('disguised.html', 10, 'video/mp4'), UploadedFile::fake()->create('clip.webm', 10, 'video/webm'),
+        ] as $file) {
+            $this->post($this->base, ['name' => 'Invalid', 'price' => 1, 'gallery' => [$file]], $this->auth + ['Accept' => 'application/json'])->assertUnprocessable();
+        }
+        $this->assertDatabaseCount('products', 0);
+        $this->assertDatabaseCount('store_product_media', 0);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
 }

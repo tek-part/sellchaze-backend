@@ -19,7 +19,7 @@ class ProductMedia extends Model
 
     protected $table = 'store_product_media';
 
-    public const TYPES = ['cover', 'gallery', 'thumbnail', 'zoom', 'hover'];
+    public const TYPES = ['cover', 'gallery', 'video', 'thumbnail', 'zoom', 'hover'];
 
     protected $fillable = [
         'store_id', 'store_product_id', 'store_product_variant_id', 'type', 'disk', 'path',

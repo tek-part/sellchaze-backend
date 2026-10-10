@@ -79,4 +79,13 @@ class StorefrontSeoTest extends TestCase
         $this->assertStringContainsString('Sitemap: https://nike.sellchase.com/sitemap.xml', $robots);
         $this->assertStringContainsString('Allow: /', $robots);
     }
+
+    public function test_rich_product_copy_is_plain_text_in_search_metadata(): void
+    {
+        $product = Product::create(['name' => 'Bag', 'slug' => 'bag', 'price' => 10, 'description' => '<h2>Quality</h2><p>Soft &amp; <strong>durable</strong></p>']);
+        $seo = $this->seo->forProduct($this->store, $product);
+        $this->assertSame('Quality Soft & durable', $seo['description']);
+        $this->assertSame($seo['description'], $seo['json_ld']['description']);
+        $this->assertSame($seo['description'], $seo['og']['og:description']);
+    }
 }

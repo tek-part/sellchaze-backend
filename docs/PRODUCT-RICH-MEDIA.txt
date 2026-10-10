@@ -1,0 +1,68 @@
+Product descriptions and media — 2026-10-10
+
+The merchant product editor supports localized rich descriptions: H1–H6,
+bold, italic, underline, strike, lists, blockquotes, links, emoji, undo/redo,
+clear formatting, expanded editing and HTML source. Saved product images or
+MP4 videos can be inserted into the description. Arabic and English values
+round-trip through the existing translations contract.
+
+Description input (20,000 characters per locale) is sanitized with Symfony
+HtmlSanitizer and its HTML5 parser. Explicit element/attribute and URL-scheme
+allowlists preserve formatting and media while dropping scripts, arbitrary
+styles, embeds, SVG, event handlers and data URLs. Videos have controls,
+playsinline and metadata preload, without autoplay. The browser applies its
+allowlist again before rendering. See app/Support/ProductDescription.php.
+References: https://symfony.com/doc/current/html_sanitizer.html
+https://tiptap.dev/docs/editor/extensions/custom-extensions/create-new/node
+
+Legacy long_description takes precedence when hydrating the merchant editor.
+An explicit description edit writes sanitized canonical description and clears
+the legacy shadow field. Updates that omit description preserve it. This avoids
+discarding the existing long copy merely by opening the editor and prevents the
+old copy from hiding subsequent localized edits. Search metadata uses plain text.
+
+Multipart gallery[] accepts JPG/JPEG, PNG, WebP up to 10 MiB each and MP4
+up to 50 MiB each. MIME, extension, upload validity and size are checked; images
+also undergo the framework image check. Cover image remains image-only (10 MiB).
+At most 12 new gallery files per request and 100 attached media per product.
+No database migration: the existing media type column is a string.
+
+media_order[] contains every remaining existing media ID, once, in desired order.
+The service validates ownership and completeness under the product lock, then
+removes/reorders existing items and appends new uploads atomically. Stale or
+foreign IDs reject the entire edit. File deletion occurs after commit and only
+for public store-catalog files created by this workflow; product deletion also
+cleans its managed gallery, thumbnail and WebP files. Failed writes clean new
+unreferenced files. Legacy/external storage paths are not deleted.
+
+Public resources add typed media[] without changing the image-only images[].
+The storefront renders the cover first and then the ordered mixed gallery.
+Video thumbnail selection and keyboard navigation work in the shared PDP
+gallery; saved rich copy also supports inline images/video. Demo PDP content
+now waits until the real API request settles before serving a preview fallback.
+
+Runtime requirements before a production release:
+- PHP upload_max_filesize at least 50M, post_max_size at least 640M, and
+  max_file_uploads at least 13 for a cover plus 12 gallery files.
+- Match reverse-proxy request body limits/timeouts to the supported request.
+- Run artisan storage:link and serve public storage with correct content types
+  and HTTP byte-range support. Ensure uploaded videos use a browser-supported
+  codec, preferably H.264/AAC MP4; a file extension does not guarantee codecs.
+- Review storage quotas and cleanup policy before large-scale media rollout.
+No production server configuration, deployment or migration was performed.
+Local isolated review server was restarted with the two upload-size flags;
+the existing synthetic SQLite database and localhost binding were retained.
+
+Verification: 603 backend tests / 3,871 assertions before the SEO follow-up;
+final focused description/catalog/SEO suite 18 / 173; Pint and PHPStan passed.
+Frontend 368 tests / 39 files; source ESLint, TypeScript and Vite build passed.
+Browser saved Arabic/English formatted copy, reordered media, inserted an
+inline video and uploaded an actual 52,428,800-byte MP4. Database size and MIME
+confirmed. Backend tests cover oversized/disguised uploads, ordering ownership,
+atomic failure, legacy copy, sanitization, translations and managed file cleanup.
+
+Remaining full-goal work includes property display types and personalization,
+digital fulfillment, product AI, advanced per-product settings, external video
+embeds, richer style controls, and all remaining competitor sections/themes.
+Media transcoding/caption authoring and distributed-storage failure acceptance
+are not implemented. Production source parity and release remain pending.
