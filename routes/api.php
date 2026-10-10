@@ -85,6 +85,7 @@ use App\Http\Controllers\Api\Storefront\StoreOrderController;
 use App\Http\Controllers\Api\Storefront\WishlistController;
 use App\Http\Controllers\Api\StorefrontContextController;
 use App\Http\Controllers\Api\StorefrontProductsApiController;
+use App\Http\Controllers\Api\StoreFunnelsApiController;
 use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
 use App\Http\Controllers\Api\StorePagesApiController;
@@ -639,6 +640,10 @@ Route::prefix('v1')->group(function () {
         // Both bind the resolved Store as the `store` route parameter, so every
         // controller below is shared verbatim between the two prefixes.
         $storeScopedRoutes = function (): void {
+            Route::get('funnels/templates', [StoreFunnelsApiController::class, 'templates']);
+            Route::get('funnels', [StoreFunnelsApiController::class, 'index']);
+            Route::post('funnels', [StoreFunnelsApiController::class, 'store']);
+            Route::post('funnels/{funnel}/duplicate', [StoreFunnelsApiController::class, 'duplicate'])->whereNumber('funnel');
             // ---- Custom domains: connect / verify / promote / disconnect ----
             // Identical surface for Supplier and Merchant storefronts.
             // Verification triggers outbound DNS and can lead to certificate
