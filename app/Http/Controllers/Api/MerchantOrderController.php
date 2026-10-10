@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateOrderStatusRequest;
 use App\Http\Resources\MerchantOrderResource;
 use App\Models\Store;
 use App\Models\StoreOrder;
+use App\Services\Commerce\DigitalDeliveryTracking;
 use App\Services\Commerce\DigitalOrderEmail;
 use App\Services\Commerce\ManualBankPayment;
 use App\Services\Commerce\ManualCashPayment;
@@ -141,5 +142,20 @@ class MerchantOrderController extends Controller
         abort_if($order === null, 404, 'Order not found.');
 
         return $order;
+    }
+
+    public function digitalDeliveryStatus(Request $request, Store $store, int $order): JsonResponse
+    {
+        return response()->json(['data' => app(DigitalDeliveryTracking::class)->status($this->find($order))]);
+    }
+
+    public function resendDigitalItemEmail(Request $request, Store $store, int $order): JsonResponse
+    {
+        $data = $request->validate(['item_id' => ['required', 'integer', 'min:1'], 'message_id' => ['nullable', 'uuid'], 'request_key' => ['required', 'uuid']]);
+        $model = $this->find($order);
+        $tracking = app(DigitalDeliveryTracking::class);
+        $tracking->resendEmail($model, $data['item_id'], $data['message_id'] ?? null, $data['request_key'], (int) $request->user()->id);
+
+        return response()->json(['data' => $tracking->status($model)], 202);
     }
 }

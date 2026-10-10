@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Storage;
 /**
  * @property list<array<string,mixed>>|null $checkout_fields
  * @property array<string,mixed>|null $shipping_configuration
+ * @property array<string,mixed>|null $digital_delivery_configuration
+ * @property array<string,mixed>|null $digital_delivery_credentials
  */
 class Store extends Model
 {
@@ -27,9 +29,12 @@ class Store extends Model
         'tax_enabled', 'tax_rate', 'tax_prices_include', 'shipping_enabled',
         'shipping_flat_rate', 'shipping_free_over',
         'theme_id', 'theme_settings', 'checkout_fields', 'shipping_configuration',
+        'digital_delivery_configuration', 'digital_delivery_credentials',
     ];
 
     protected $casts = [
+        'digital_delivery_configuration' => 'array',
+        'digital_delivery_credentials' => 'encrypted:array',
         'theme_settings' => 'array',
         'checkout_fields' => 'array',
         'shipping_configuration' => 'array',
@@ -43,6 +48,8 @@ class Store extends Model
         'shipping_flat_rate' => 'decimal:2',
         'shipping_free_over' => 'decimal:2',
     ];
+
+    protected $hidden = ['digital_delivery_credentials'];
 
     /** Task 6: any store change (status, name, settings...) invalidates its page cache. */
     protected static function booted(): void

@@ -5,6 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @property array<string,mixed> $payload
+ * @property array<string,mixed>|null $metadata
+ */
 class OutboxMessage extends Model
 {
     use HasUuids;
