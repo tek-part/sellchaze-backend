@@ -12,6 +12,7 @@ use App\Http\Resources\Storefront\StorefrontProductResource;
 use App\Models\Store;
 use App\Models\StoreContentPage;
 use App\Models\StoreMenu;
+use App\Services\Commerce\ShoppingPreferences;
 use App\Services\CurrencyRateService;
 use App\Services\PageBuilder\StoreMenuService;
 use App\Services\Storefront\StorefrontContextBuilder;
@@ -165,6 +166,7 @@ class StorefrontController extends Controller
             'name' => $store->name,
             'slug' => $store->slug,
             'currency' => $baseCurrency,
+            'auto_select_variants' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
             'supported_currencies' => array_keys($multipliers),
             'currency_multipliers' => $multipliers,
             'shipping' => ['enabled' => (bool) $store->shipping_enabled, 'free_over' => $store->shipping_free_over, 'currency' => $baseCurrency],

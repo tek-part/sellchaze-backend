@@ -108,6 +108,7 @@ use App\Http\Controllers\Api\StoreReusableSectionsApiController;
 use App\Http\Controllers\Api\StoresApiController;
 use App\Http\Controllers\Api\StoreShipmentController;
 use App\Http\Controllers\Api\StoreShippingController;
+use App\Http\Controllers\Api\StoreShoppingPreferencesController;
 use App\Http\Controllers\Api\StoreThemesApiController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SuppliersApiController;
@@ -820,6 +821,8 @@ Route::prefix('v1')->group(function () {
             Route::get('blocked-phones/{block}/history', [StorePhoneBlockController::class, 'history'])->whereNumber('block');
             Route::get('phone-verification', [StorePhoneVerificationController::class, 'index']);
             Route::get('bot-protection', [StoreBotProtectionController::class, 'index']);
+            Route::get('shopping-preferences', [StoreShoppingPreferencesController::class, 'index']);
+            Route::put('shopping-preferences', [StoreShoppingPreferencesController::class, 'update']);
             Route::put('bot-protection', [StoreBotProtectionController::class, 'update'])->middleware('throttle:10,1');
             Route::put('phone-verification', [StorePhoneVerificationController::class, 'update'])->middleware('throttle:10,1');
             Route::post('blocked-phone-numbers', [StorePhoneBlockController::class, 'storePhone'])->middleware('throttle:30,1');

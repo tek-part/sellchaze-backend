@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Store;
+use App\Services\Commerce\ShoppingPreferences;
 use App\Services\Storefront\StorefrontUrlGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -33,6 +34,7 @@ class StoreResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'currency' => $this->currency,
+            'auto_select_variants' => app(ShoppingPreferences::class)->configured($this->resource)['auto_select_variants'],
             'default_locale' => $this->default_locale,
             'supported_locales' => $this->supported_locales ?? [$this->default_locale ?: 'en'],
             'supported_currencies' => $this->supported_currencies ?? [$this->currency ?: 'USD'],
