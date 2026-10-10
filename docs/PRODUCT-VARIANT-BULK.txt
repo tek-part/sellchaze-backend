@@ -1,0 +1,43 @@
+Variant images and bulk editorial changes
+2026-10-10
+
+Run the normal migrations to add nullable image_media_id to store_product_variants.
+The reference targets store_product_media and clears when that media is deleted.
+Only images belonging to the current product can be assigned; video and foreign
+media are rejected. Legacy image paths remain readable until explicitly replaced
+or cleared. Variant image relations are eager loaded. Public variant payloads
+contain image_url; merchant payloads additionally contain image_media_id and
+edit_version. Cost and concurrency metadata remain private.
+
+PUT /api/v1/my-store/catalog/products/{product}/variants/bulk
+Uses the existing tenant scope, product policy and products-edit permission.
+Body: variants [{id, version}], changes {requested fields only}.
+At most 500 distinct targets are accepted. Supported fields: price_override,
+compare_price, cost, weight, is_active, image_media_id. Null price_override means
+inherit the product price; zero means free. Other nullable fields can be cleared.
+Inventory, reservations, names and SKU are not accepted in this endpoint.
+
+All targets are locked and changed in one transaction under the parent product
+lock. A foreign/missing target, invalid image, or stale editorial version rolls
+back the complete batch. Storefront caches are invalidated after success.
+edit_version hashes canonical editorial data (recursively sorted object keys),
+excluding independently managed inventory. New variants are refreshed after
+insert so database defaults are part of their returned version. Ordinary edit
+requests may also supply edit_version; omission supports existing API clients.
+
+The merchant editor searches and selects variants, enables individual fields,
+then freezes a review of targets and values before applying. A refresh action
+clears stale selections after errors. Image choices use the saved gallery.
+Gallery changes refresh variant rows, including deletion-cleared references.
+
+The shared storefront product page selects the SKU image, then a configured
+property image, then the normal gallery cover. Switching a variant remounts the
+gallery at its selected image while preserving manual image/video navigation.
+Both product-page and card add-to-cart use the chosen variant image. Existing
+cart metadata is not proactively refreshed when a merchant changes the catalog;
+the checkout server remains authoritative for current totals and availability.
+
+Verification uses disposable SQLite tests and a separate local review database.
+MySQL migration/concurrency acceptance remains pending. Bulk inventory changes,
+bulk deletion, customer personalization and the wider competitor rebuild remain
+separate outstanding work. No production migration or deployment was performed.

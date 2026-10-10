@@ -17,6 +17,7 @@ class StoreCatalogProductResource extends StorefrontProductResource
             'stock_quantity' => $this->stock_quantity, 'reserved_quantity' => $this->reserved_quantity,
             'media' => $this->whenLoaded('media', fn () => $this->media->map(fn ($media) => ['id' => $media->id, 'url' => $media->url(), 'type' => $media->type === 'video' ? 'video' : 'image', 'mime' => $media->mime, 'alt' => $media->alt, 'position' => $media->position])),
             'variants' => StoreCatalogVariantResource::collection($this->whenLoaded('variants')),
+            'option_display' => $this->option_display ?? [],
         ]);
     }
 }

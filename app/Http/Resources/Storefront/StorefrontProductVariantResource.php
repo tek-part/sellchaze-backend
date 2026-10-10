@@ -27,6 +27,7 @@ class StorefrontProductVariantResource extends JsonResource
             'stock' => $this->track_inventory ? max(0, $this->stock_quantity - $this->reserved_quantity) : null,
             'track_inventory' => (bool) $this->track_inventory,
             'image' => $this->image,
+            'image_url' => $this->imageUrl(),
             'weight' => $this->weight,
             'options' => $this->options,
             'is_active' => $this->is_active,

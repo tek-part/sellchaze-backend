@@ -1,0 +1,43 @@
+Bulk variant inventory and deletion
+2026-10-10
+
+PUT /api/v1/my-store/catalog/products/{product}/variants/bulk/inventory
+Requires products-edit. Body: variants [{id, version, expected_stock,
+expected_reserved, expected_tracking}], mode (set/increase/decrease), quantity
+(whole number 0..100000000), tracking (keep/on/off), optional note (500 chars).
+Each resulting stock quantity must also be in range. The existing inventory
+service enforces reserved stock and prevents disabling tracking with reservations.
+Each variant gets an adjusted movement with actor, reason, delta and final stock.
+
+DELETE /api/v1/my-store/catalog/products/{product}/variants/bulk
+Requires products-delete. Same target snapshots, optional note, confirm=true.
+The merchant first reviews selected names and discarded stock, then explicitly
+confirms permanent deletion. Reserved variants cannot be removed. Each removal
+records variant_deleted with the historical ID, name, actor and negative stock
+delta; existing order snapshots and stock history survive catalog removal.
+
+Both endpoints accept at most 500 distinct targets. They lock the parent first,
+then selected variants in ID order. They validate product membership, editorial
+version and stock/reservation/tracking snapshots. Stale stock returns 409; invalid
+targets, stale editorial versions or reservation violations return 422. Failure
+rolls back the complete batch, including movement history. Storefront caches are
+flushed once after a successful batch. A retry after an applied nonzero inventory
+change fails the old stock snapshot instead of applying an increment twice.
+
+Removing the final variant converts the parent product to a draft, preventing
+unexpected sales through previously unused base-product stock settings. The
+merchant editor reflects the new publication state without overwriting unrelated
+unsaved form fields. The same history and final-variant rule applies to individual
+deletions. To sell without options, configure base inventory and publish again.
+
+UI: searchable multi-selection, quantities and reservation labels, set/increase/
+decrease, keep/enable/disable tracking, frozen per-variant before/after review,
+delete review and a refresh action after conflicts. Controls follow independent
+edit/delete permissions. Arabic and English labels; responsive layout.
+
+Automated integration tests cover arithmetic, snapshots, reserved-stock rollback,
+foreign product targets, stale editorial data, payload limits, independent role
+permissions, retained shipped order snapshots, repeated deletion and last-variant
+draft behavior. Browser review used isolated local SQLite data. No migration is
+needed for this pass; no production deployment was made. Real MySQL concurrency
+acceptance and the full remaining competitor feature audit are still outstanding.

@@ -28,6 +28,8 @@ class StorefrontProductVariantRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'sku' => ['nullable', 'string', 'max:120', Rule::unique('store_product_variants', 'sku')->where('store_id', $storeId)->ignore($this->route('variant'))],
             'barcode' => ['nullable', 'string', 'max:120'],
+            'image_media_id' => ['sometimes', 'nullable', 'integer'],
+            'edit_version' => ['sometimes', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'price_override' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', 'decimal:0,2'],
             'compare_price' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', 'decimal:0,2'],
             'cost' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', 'decimal:0,2'],

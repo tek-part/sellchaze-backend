@@ -7,6 +7,7 @@ use App\Models\ProductMedia;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
 use App\Support\ProductDescription;
+use App\Support\ProductOptionDisplay;
 use App\Support\Slug;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -48,6 +49,10 @@ class StorefrontProductService
                     throw ValidationException::withMessages(['media_order' => 'Refresh the product and order all its remaining media files.']);
                 }
                 $this->fill($current, $data);
+                if (array_key_exists('option_display', $data)) {
+                    ProductOptionDisplay::validate($current, $data['option_display'], $data['remove_media_ids'] ?? []);
+                    $current->option_display = $data['option_display'];
+                }
                 if (! $current->exists || ! empty($data['slug'])) {
                     $current->slug = $this->uniqueSlug($data['slug'] ?? $data['name'], $current->id);
                 }

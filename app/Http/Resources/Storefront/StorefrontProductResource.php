@@ -4,6 +4,7 @@ namespace App\Http\Resources\Storefront;
 
 use App\Models\Product;
 use App\Services\Storefront\ResponsiveImageUrl;
+use App\Support\ProductOptionDisplay;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -73,6 +74,7 @@ class StorefrontProductResource extends JsonResource
                 'slug' => $this->category->slug,
             ] : null),
             'variants' => StorefrontProductVariantResource::collection($this->whenLoaded('variants')),
+            'option_display' => ProductOptionDisplay::publicPayload($this->resource),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

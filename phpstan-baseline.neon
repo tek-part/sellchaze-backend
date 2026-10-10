@@ -373,12 +373,6 @@ parameters:
 			path: app/Http/Resources/Storefront/ProductReviewResource.php
 
 		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\Storefront\\StorefrontProductVariantResource\:\:\$image\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/Storefront/StorefrontProductVariantResource.php
-
-		-
 			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
 			identifier: larastan.noEnvCallsOutsideOfConfig
 			count: 1

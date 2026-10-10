@@ -75,7 +75,7 @@ class StoreInventory
         }
     }
 
-    public function adjust(Product|ProductVariant $stock, array $input, int $actorId): void
+    public function adjust(Product|ProductVariant $stock, array $input, int $actorId, bool $flush = true): void
     {
         // Caller locks product then variant. Reject stale stock forms instead of losing changes.
         abort_if($stock->stock_quantity !== $input['expected_stock'] || $stock->reserved_quantity !== $input['expected_reserved'] || $stock->track_inventory !== $input['expected_tracking'], 409, 'Stock changed. Reload the inventory before saving.');
@@ -85,7 +85,20 @@ class StoreInventory
         $delta = $input['stock_quantity'] - $stock->stock_quantity;
         $stock->update(['track_inventory' => $input['track_inventory'], 'stock_quantity' => $input['stock_quantity']]);
         $this->record($stock, 'adjusted', $delta, 0, null, $actorId, $input['note'] ?? null);
-        $this->flushAfterCommit($stock->store_id);
+        if ($flush) {
+            $this->flushAfterCommit($stock->store_id);
+        }
+    }
+
+    /** Caller holds the parent and variant locks. History keeps the removed identity. */
+    public function recordVariantRemoval(ProductVariant $stock, int $actorId, ?string $note = null): void
+    {
+        if ($stock->reserved_quantity > 0) {
+            throw ValidationException::withMessages(['inventory' => 'Ship or cancel reserved orders before deleting this option.']);
+        }
+        $quantity = $stock->stock_quantity;
+        $stock->stock_quantity = 0;
+        $this->record($stock, 'variant_deleted', -$quantity, 0, null, $actorId, $stock->name.($note ? ' — '.$note : ''));
     }
 
     private function record(Product|ProductVariant $stock, string $reason, int $delta, int $reservedDelta, ?int $itemId = null, ?int $actorId = null, ?string $note = null): void

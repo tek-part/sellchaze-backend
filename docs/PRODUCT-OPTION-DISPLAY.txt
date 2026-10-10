@@ -1,0 +1,51 @@
+Product property presentation and stock limits — 2026-10-10
+
+Merchant product options now have a Property display editor. It derives property
+names and values from the existing variants, supports buttons, color swatches,
+image choices and dropdowns, and saves Arabic/English labels and ordering.
+Images are chosen from the product's saved image gallery. A text hex input is
+available alongside the native color picker. Changing presentation never changes
+SKU identity, price, stock, or existing order snapshots.
+
+Schema: nullable products.option_display JSON. Apply migration
+2026_10_10_040000_add_option_display_to_products before releasing this source.
+The merchant product PUT accepts option_display as a JSON array or multipart JSON
+string. Maximum 10 properties and 200 values per property. Each entry contains
+name, type (buttons|color|image|dropdown), labels (ar/en), values. Each value has
+value, optional labels, #RRGGBB color, and a product-owned image media_id.
+Validation runs under the same product lock used for variant writes. Unknown or
+case/whitespace-duplicate properties and values are rejected. Foreign, removed
+or video media IDs are rejected. Unrelated product edits preserve presentation.
+Removing an image later leaves the option usable with its text label; the public
+resource only resolves image URLs from currently attached product image records.
+
+The public resource returns localized labels, safe metadata and resolved image
+URLs, without exposing the complete translation map. The storefront uses actual
+variant properties to derive choices, so stale display metadata cannot create
+phantom SKUs. Variants with different property sets (including legacy variants
+without properties) remain addressable through an option-group selector.
+Property values are matched case-insensitively with whitespace normalization.
+Unavailable and impossible combinations disable purchase without substituting
+another variant or the parent product. Variant prices and compare-at values are
+used, with parent fallbacks; zero prices are preserved.
+
+PDP quantity limits subtract the matching cart line quantity from available stock.
+Cart reducers enforce integer limits on first add, repeat add and direct quantity
+changes, refresh catalog price/stock metadata on repeat add, and normalize stored
+quantities on load. Custom cart drawers disable increment at the cap. The server's
+transactional inventory reservation remains authoritative when stock changes in
+another session; a browser cart does not reserve inventory.
+
+Verification: 606 backend tests / 3909 assertions, PHPStan and Pint passed.
+Frontend 376 tests across 41 files passed. Browser verified Arabic color/button
+selection, legacy variant switching, sold-out choice blocking, a requested 99
+clamped to available 2, repeat-add prevention and cart increment cap. English
+Techno dark mobile rendered a loaded option image and size dropdown at 390x844;
+document width/scrollWidth both 375 after fixing Techno footer column overflow.
+Only the isolated local SQLite review database was migrated. No production
+deployment or migration; MySQL acceptance of the new migration awaits CI.
+
+Remaining product work includes shopper personalization (text/uploads), variant
+image switching, bulk variant edits, digital fulfillment, product AI, advanced
+product settings and other sections of the full competitor parity goal. This
+pass does not claim the full product or platform scope is complete.

@@ -242,6 +242,7 @@ class StorefrontService
             'variants' => $p->relationLoaded('variants') ? $p->variants->map(fn ($variant) => [
                 'id' => $variant->id, 'name' => $variant->translated('name', $locale), 'is_active' => $variant->is_active,
                 'price' => $variant->price_override ?? $p->price,
+                'compare_price' => $variant->compare_price, 'image_url' => $variant->imageUrl(), 'options' => $variant->options,
                 'stock' => $variant->track_inventory ? max(0, $variant->stock_quantity - $variant->reserved_quantity) : null,
             ])->all() : null,
             'category' => $p->relationLoaded('category') && $p->category ? [
