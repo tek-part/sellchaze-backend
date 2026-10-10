@@ -60,6 +60,7 @@ class MerchantOrderResource extends JsonResource
                 'from_status' => $change->from_status,
                 'to_status' => $change->to_status,
                 'notes' => $change->notes,
+                'source' => $change->source,
                 'actor' => $change->relationLoaded('actor') ? $change->actor?->name : null,
                 'created_at' => $change->created_at,
             ])->values()),

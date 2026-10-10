@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToStore;
 use App\Models\Scopes\StoreScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class StorePage extends Model
 {
@@ -44,5 +45,23 @@ class StorePage extends Model
         }
 
         return $this->status === 'scheduled' && $this->publish_at !== null && $this->publish_at->isPast();
+    }
+
+    /** @return HasOne<StoreFunnel, $this> */
+    public function funnel(): HasOne
+    {
+        return $this->hasOne(StoreFunnel::class)->withoutGlobalScope(StoreScope::class);
+    }
+
+    /** Canonical storefront path; draft previews deliberately use the editable slug. */
+    public function publicPath(bool $published = true): string
+    {
+        if ($this->template === 'home') {
+            return '/';
+        }
+        $funnel = $this->funnel !== null && (int) $this->funnel->store_id === (int) $this->store_id;
+        $slug = $published ? ($this->published_slug ?: $this->slug) : $this->slug;
+
+        return ($funnel ? '/funnels/' : '/pages/').rawurlencode((string) $slug);
     }
 }

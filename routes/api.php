@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AdminThemesController;
 use App\Http\Controllers\Api\ArticlesApiController;
 use App\Http\Controllers\Api\AttributesApiController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BostaWebhookController;
 use App\Http\Controllers\Api\BundlesApiController;
 use App\Http\Controllers\Api\CategoriesApiController;
 use App\Http\Controllers\Api\ChatApiController;
@@ -64,7 +65,9 @@ use App\Http\Controllers\Api\SocialSafetyController;
 use App\Http\Controllers\Api\StockTransfersApiController;
 use App\Http\Controllers\Api\StoreAnalyticsController;
 use App\Http\Controllers\Api\StoreArticlesApiController;
+use App\Http\Controllers\Api\StoreCarrierController;
 use App\Http\Controllers\Api\StoreCategoriesApiController;
+use App\Http\Controllers\Api\StoreCheckoutFieldsController;
 use App\Http\Controllers\Api\StoreContentPagesApiController;
 use App\Http\Controllers\Api\StoreCustomersApiController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
@@ -85,6 +88,9 @@ use App\Http\Controllers\Api\Storefront\StoreOrderController;
 use App\Http\Controllers\Api\Storefront\WishlistController;
 use App\Http\Controllers\Api\StorefrontContextController;
 use App\Http\Controllers\Api\StorefrontProductsApiController;
+use App\Http\Controllers\Api\StorefrontProductVariantsApiController;
+use App\Http\Controllers\Api\StoreFunnelsApiController;
+use App\Http\Controllers\Api\StoreInventoryController;
 use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
 use App\Http\Controllers\Api\StorePagesApiController;
@@ -92,6 +98,8 @@ use App\Http\Controllers\Api\StorePaymentsApiController;
 use App\Http\Controllers\Api\StorePublishingApiController;
 use App\Http\Controllers\Api\StoreReusableSectionsApiController;
 use App\Http\Controllers\Api\StoresApiController;
+use App\Http\Controllers\Api\StoreShipmentController;
+use App\Http\Controllers\Api\StoreShippingController;
 use App\Http\Controllers\Api\StoreThemesApiController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SuppliersApiController;
@@ -126,6 +134,7 @@ use App\Http\Controllers\Api\Wavex\WavexSettingsApiController;
 use App\Http\Controllers\Api\Wavex\WavexTemplatesApiController;
 use App\Http\Controllers\Api\Wavex\WavexWebhookController;
 use App\Http\Controllers\Api\WigpleasureSyncApiController;
+use App\Http\Middleware\IdempotentCheckout;
 use App\Http\Middleware\ResolveOwnStore;
 use App\Services\PageBuilder\StorePageService;
 use Illuminate\Http\Request;
@@ -236,6 +245,7 @@ Route::prefix('v1')->group(function () {
 
 Route::prefix('v1')->group(function () {
     Route::post('/wavex/webhook', WavexWebhookController::class);
+    Route::post('/carriers/bosta/webhook/{reference}', BostaWebhookController::class)->where('reference', 'sc-[a-fA-F0-9-]{36}')->middleware('throttle:240,1');
 
     Route::get('/wavex/media-pickup/{token}', [WavexMediaPickupController::class, 'show'])
         ->middleware('signed')
@@ -310,6 +320,7 @@ Route::prefix('v1')->group(function () {
         // ---- Theme customizer: published section layouts for the SPA (home template + custom pages) ----
         Route::get('layout', [StorefrontLayoutController::class, 'layout']);
         Route::get('pages/{slug}', [StorefrontLayoutController::class, 'page'])->where('slug', '[a-z0-9\-]+');
+        Route::get('funnels/{slug}', [StorefrontLayoutController::class, 'funnel'])->where('slug', '[a-z0-9\-]+');
 
         // ---- Phase 6: public product reviews (approved only + average summary) ----
         Route::get('products/{slug}/reviews', [ProductReviewController::class, 'index'])->where('slug', '[a-z0-9\-]+');
@@ -322,7 +333,10 @@ Route::prefix('v1')->group(function () {
         Route::delete('cart/items/{item}', [CartController::class, 'removeItem'])->whereNumber('item');
         Route::delete('cart', [CartController::class, 'clear']);
         Route::get('payment-methods', [CheckoutController::class, 'paymentMethods']);
-        Route::post('checkout', [CheckoutController::class, 'store']);
+        Route::post('checkout', [CheckoutController::class, 'store'])->middleware(IdempotentCheckout::class);
+        Route::post('checkout/recover', [CheckoutController::class, 'recover']);
+        Route::get('checkout/fields', [CheckoutController::class, 'fields']);
+        Route::post('checkout/quote', [CheckoutController::class, 'quote']);
         Route::post('checkout/payment/retry', [CheckoutController::class, 'retryPayment']);
 
         // ---- Phase 6D: coupon apply/remove on the current cart (guest-friendly) ----
@@ -639,6 +653,11 @@ Route::prefix('v1')->group(function () {
         // Both bind the resolved Store as the `store` route parameter, so every
         // controller below is shared verbatim between the two prefixes.
         $storeScopedRoutes = function (): void {
+            Route::get('funnels/templates', [StoreFunnelsApiController::class, 'templates']);
+            Route::get('funnels', [StoreFunnelsApiController::class, 'index']);
+            Route::post('funnels/generate', [StoreFunnelsApiController::class, 'generate'])->middleware('throttle:3,1');
+            Route::post('funnels', [StoreFunnelsApiController::class, 'store']);
+            Route::post('funnels/{funnel}/duplicate', [StoreFunnelsApiController::class, 'duplicate'])->whereNumber('funnel');
             // ---- Custom domains: connect / verify / promote / disconnect ----
             // Identical surface for Supplier and Merchant storefronts.
             // Verification triggers outbound DNS and can lead to certificate
@@ -680,7 +699,15 @@ Route::prefix('v1')->group(function () {
                 Route::middleware('permission:products-create')->post('/', [StorefrontProductsApiController::class, 'store']);
                 Route::middleware('permission:products-list')->get('{product}', [StorefrontProductsApiController::class, 'show'])->whereNumber('product');
                 Route::middleware('permission:products-edit')->match(['put', 'post'], '{product}', [StorefrontProductsApiController::class, 'update'])->whereNumber('product');
+                Route::middleware('permission:products-delete')->delete('{product}', [StorefrontProductsApiController::class, 'destroy'])->whereNumber('product');
+                Route::middleware('permission:products-list')->get('{product}/variants', [StorefrontProductVariantsApiController::class, 'index'])->whereNumber('product');
+                Route::middleware('permission:products-edit')->post('{product}/variants', [StorefrontProductVariantsApiController::class, 'store'])->whereNumber('product');
+                Route::middleware('permission:products-edit')->put('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'update'])->whereNumber(['product', 'variant']);
+                Route::middleware('permission:products-delete')->delete('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'destroy'])->whereNumber(['product', 'variant']);
             });
+            Route::middleware('permission:products-list')->get('catalog/inventory', [StoreInventoryController::class, 'index']);
+            Route::middleware('permission:products-list')->get('catalog/inventory/{product}/history', [StoreInventoryController::class, 'history'])->whereNumber('product');
+            Route::middleware('permission:products-edit')->put('catalog/inventory/{product}', [StoreInventoryController::class, 'update'])->whereNumber('product');
 
             Route::prefix('catalog/categories')->group(function () {
                 Route::middleware('permission:categories-list')->get('/', [StoreCategoriesApiController::class, 'index']);
@@ -717,6 +744,10 @@ Route::prefix('v1')->group(function () {
                 Route::get('{order}', [MerchantOrderController::class, 'show'])->whereNumber('order');
                 Route::match(['patch', 'post'], '{order}/status', [MerchantOrderController::class, 'updateStatus'])->whereNumber('order');
                 Route::post('{order}/note', [MerchantOrderController::class, 'addNote'])->whereNumber('order');
+                Route::get('{order}/shipment', [StoreShipmentController::class, 'show'])->whereNumber('order');
+                Route::post('{order}/shipment', [StoreShipmentController::class, 'create'])->whereNumber('order')->middleware('throttle:20,1');
+                Route::post('{order}/shipment/sync', [StoreShipmentController::class, 'sync'])->whereNumber('order')->middleware('throttle:30,1');
+                Route::post('{order}/shipment/label', [StoreShipmentController::class, 'label'])->whereNumber('order')->middleware('throttle:20,1');
             });
 
             // ---- Reviews (Phase 6H) ----
@@ -744,6 +775,16 @@ Route::prefix('v1')->group(function () {
                 Route::post('{theme}/revisions/{revision}/restore', [StoreThemesApiController::class, 'restoreRevision'])->whereNumber('theme')->whereNumber('revision');
                 Route::get('{theme}', [StoreThemesApiController::class, 'show'])->whereNumber('theme');
             });
+
+            Route::get('shipping', [StoreShippingController::class, 'index']);
+            Route::put('shipping', [StoreShippingController::class, 'update']);
+            Route::get('carriers/bosta', [StoreCarrierController::class, 'show']);
+            Route::put('carriers/bosta', [StoreCarrierController::class, 'update']);
+            Route::post('carriers/bosta/verify', [StoreCarrierController::class, 'verify'])->middleware('throttle:10,1');
+            Route::get('carriers/bosta/cities', [StoreCarrierController::class, 'cities'])->middleware('throttle:60,1');
+            Route::get('carriers/bosta/districts', [StoreCarrierController::class, 'districts'])->middleware('throttle:60,1');
+            Route::get('checkout-fields', [StoreCheckoutFieldsController::class, 'index']);
+            Route::put('checkout-fields', [StoreCheckoutFieldsController::class, 'update']);
 
             Route::get('payments', [StorePaymentsApiController::class, 'index']);
             Route::match(['put', 'post'], 'payments', [StorePaymentsApiController::class, 'update']);

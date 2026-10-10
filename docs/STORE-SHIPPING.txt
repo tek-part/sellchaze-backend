@@ -1,0 +1,36 @@
+Store shipping — 2026-10-10
+
+GET/PUT /api/v1/my-store/shipping (and the equivalent scoped store route) manage
+flat shipping, free-shipping threshold, tax, regions and named delivery options.
+Store settings permission or ownership is required. Changes are saved together.
+Region and option IDs are stable UUIDs supplied by the editor. Names/descriptions
+are bilingual. Icons reference non-deleted media owned by the current store.
+
+Run migration 2026_10_10_040000_add_store_shipping_configuration before enabling
+this feature. Existing stores retain their flat-rate behavior when the new JSON
+column is null. The migration does not rewrite existing stores or orders.
+
+GET /api/v1/storefront/checkout/fields returns effective contact fields and
+shipping metadata. Active regions appear by ascending position; active options
+appear by descending priority. Region selection replaces the free-text city and
+country inputs when enabled. Clients may auto-select a region or default option
+only according to this metadata; the API always requires the actual selected IDs.
+
+Send shipping_region_id and shipping_option_id in quote and order requests (and
+legacy cart coupon apply/remove requests when those delivery modes are enabled).
+The server validates IDs against the resolved store and rejects missing, disabled,
+removed or foreign choices before creating or changing a cart. Option price
+REPLACES the region price. Free shipping uses subtotal minus discounts. Region
+and option validation still runs when the threshold makes shipping free.
+
+Orders preserve city, country, delivery_option and shipping_details in their
+shipping_address snapshot. Details include IDs, bilingual names, base rate and
+whether free shipping applied. Later settings edits cannot reprice old orders.
+The merchant order view and B2B bridge retain the delivery choice.
+
+Verification: StoreShippingTest covers scoped configuration and icons, invalid
+choices before mutation, regional and option pricing, discount/free-shipping
+interaction, retained order/bridge snapshots and flat-rate compatibility.
+
+Carrier accounts, carrier API quotes, label creation, pickup booking and tracking
+are separate integrations; this feature handles merchant-defined delivery rates.

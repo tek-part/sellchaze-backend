@@ -6,6 +6,8 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Owner management of product variants. Runs under the ScopeToStore tenant, so
@@ -16,10 +18,18 @@ class StorefrontProductVariantService
 {
     public function create(Product $product, array $data): ProductVariant
     {
-        $variant = new ProductVariant;
-        $this->fill($variant, $data);
-        $variant->store_product_id = $product->id;
-        $variant->save(); // store_id auto-filled by BelongsToStore
+        $variant = DB::transaction(function () use ($product, $data) {
+            $current = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            if ($current->reserved_quantity > 0) {
+                throw ValidationException::withMessages(['inventory' => 'Ship or cancel base-product reservations before adding options.']);
+            }
+            $variant = new ProductVariant;
+            $this->fill($variant, $data);
+            $variant->store_product_id = $current->id;
+            $variant->save();
+
+            return $variant;
+        });
 
         $this->flush($product);
 
@@ -39,17 +49,27 @@ class StorefrontProductVariantService
     public function delete(ProductVariant $variant): void
     {
         $product = $variant->product;
-        $variant->delete();
+        DB::transaction(function () use ($variant) {
+            Product::query()->where('store_id', $variant->store_id)->whereKey($variant->store_product_id)->lockForUpdate()->firstOrFail();
+            $current = ProductVariant::query()->where('store_id', $variant->store_id)->whereKey($variant->id)->lockForUpdate()->firstOrFail();
+            if ($current->reserved_quantity > 0) {
+                throw ValidationException::withMessages(['inventory' => 'Ship or cancel reserved orders before deleting this option.']);
+            }
+            $current->delete();
+        });
 
         $this->flush($product);
     }
 
     private function fill(ProductVariant $variant, array $data): void
     {
-        foreach (['name', 'sku', 'barcode', 'price_override', 'weight', 'options', 'is_active', 'position'] as $key) {
+        foreach (['name', 'sku', 'barcode', 'price_override', 'compare_price', 'cost', 'weight', 'options', 'is_active', 'position'] as $key) {
             if (array_key_exists($key, $data)) {
                 $variant->{$key} = $data[$key];
             }
+        }
+        if (array_key_exists('translations', $data)) {
+            $variant->fillTranslations($data['translations'] ?? []);
         }
     }
 

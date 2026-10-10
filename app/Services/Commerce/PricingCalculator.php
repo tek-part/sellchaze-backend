@@ -9,23 +9,16 @@ use App\Models\Store;
  * inline arithmetic previously in CheckoutService so cart preview and checkout
  * compute the grand total identically. All money is bcmath strings (2 dp).
  *
- * There is no tax or non-zero shipping engine in the platform yet, so both
- * default to '0.00'; the signature leaves room to plug them in later without
- * touching callers.
+ * Delivery prices are resolved by StoreShipping using store-owned selections.
  */
 class PricingCalculator
 {
     /** @return array{subtotal:string, discount_total:string, shipping_total:string, tax_total:string, grand_total:string} */
-    public function forStore(Store $store, string $subtotal, string $discount = '0.00'): array
+    public function forStore(Store $store, string $subtotal, string $discount = '0.00', array $selection = []): array
     {
         $discount = bccomp($discount, $subtotal, 2) > 0 ? $subtotal : $discount;
         $taxable = bcsub($subtotal, $discount, 2);
-        $shipping = '0.00';
-        if ($store->shipping_enabled) {
-            $freeOver = $store->shipping_free_over;
-            $isFree = $freeOver !== null && bccomp($taxable, (string) $freeOver, 2) >= 0;
-            $shipping = $isFree ? '0.00' : (string) ($store->shipping_flat_rate ?: '0.00');
-        }
+        $shipping = app(StoreShipping::class)->quote($store, $taxable, $selection)['amount'];
 
         $tax = '0.00';
         $rate = (string) ($store->tax_rate ?: '0');

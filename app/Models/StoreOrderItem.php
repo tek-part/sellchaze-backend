@@ -15,13 +15,14 @@ class StoreOrderItem extends Model
 
     protected $fillable = [
         'store_id', 'store_order_id', 'store_product_id', 'name',
-        'unit_price', 'quantity', 'line_total',
+        'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku', 'inventory_status',
     ];
 
     protected $casts = [
         'unit_price' => 'decimal:2',
         'line_total' => 'decimal:2',
         'quantity' => 'integer',
+        'variant_options' => 'array',
     ];
 
     /** @return BelongsTo<StoreOrder, $this> */

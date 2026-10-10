@@ -1,0 +1,106 @@
+<?php
+
+namespace App\Services\Commerce;
+
+use App\Models\Store;
+use App\Models\StorePaymentGateway;
+
+/** One field contract for the merchant editor, public form and checkout validation. */
+class CheckoutFields
+{
+    public const PATHS = [
+        'name' => 'customer_name', 'phone' => 'customer_phone', 'email' => 'customer_email',
+        'country' => 'shipping_address.country', 'city' => 'shipping_address.city',
+        'address' => 'shipping_address.line1', 'phone_alt' => 'shipping_address.phone_alt',
+        'notes' => 'notes', 'national_address' => 'shipping_address.national_address',
+        'postal_code' => 'shipping_address.postal_code',
+    ];
+
+    /** @return list<array<string,mixed>> */
+    public function defaults(bool $legacy = false): array
+    {
+        $labels = [
+            'name' => ['الاسم بالكامل', 'Full name'], 'phone' => ['رقم الهاتف', 'Phone number'],
+            'country' => ['الدولة', 'Country'], 'city' => ['المدينة / المحافظة', 'City / region'],
+            'email' => ['البريد الإلكتروني', 'Email address'], 'address' => ['العنوان بالتفصيل', 'Delivery address'],
+            'phone_alt' => ['رقم هاتف بديل', 'Alternative phone'], 'notes' => ['ملاحظات الطلب', 'Order notes'],
+            'national_address' => ['العنوان الوطني', 'National address'], 'postal_code' => ['الرمز البريدي', 'Postal code'],
+        ];
+        $fields = [];
+        foreach ($labels as $key => [$ar, $en]) {
+            $required = in_array($key, $legacy ? ['name', 'email', 'address', 'city'] : ['name', 'phone', 'address'], true);
+            $fields[] = ['key' => $key, 'label' => ['ar' => $ar, 'en' => $en], 'hint' => ['ar' => '', 'en' => ''],
+                'enabled' => $required || ($legacy && in_array($key, ['phone', 'notes', 'country', 'postal_code'], true)),
+                'required' => $required, 'position' => count($fields)];
+        }
+
+        return $fields;
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function configured(Store $store): array
+    {
+        return $store->checkout_fields ?? $this->defaults(true);
+    }
+
+    public function paymentMethod(Store $store, ?string $requested): string
+    {
+        if (filled($requested)) {
+            return $requested;
+        }
+
+        return StorePaymentGateway::query()->where('store_id', $store->id)->where('enabled', true)
+            ->orderBy('sort_order')->value('gateway') ?? 'cod';
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function effective(Store $store, ?string $paymentMethod): array
+    {
+        $online = ! in_array($this->paymentMethod($store, $paymentMethod), ['cod', 'bank_transfer'], true);
+
+        $regions = app(StoreShipping::class)->regionsEnabled($store);
+
+        return collect($this->configured($store))->map(function (array $field) use ($online, $regions) {
+            $field['payment_required'] = $online && in_array($field['key'], ['name', 'email'], true);
+            if ($field['payment_required']) {
+                $field['enabled'] = $field['required'] = true;
+            }
+
+            $field['shipping_region'] = $regions && $field['key'] === 'city';
+            if ($regions && in_array($field['key'], ['country', 'city'], true)) {
+                $field['enabled'] = $field['required'] = $field['key'] === 'city';
+            }
+
+            return $field;
+        })->sortBy('position')->values()->all();
+    }
+
+    /** @return array<string,list<string>> */
+    public function rules(Store $store, ?string $paymentMethod): array
+    {
+        $rules = [
+            'shipping_address' => ['nullable', 'array:name,line1,line2,city,state,country,postal_code,phone_alt,national_address'],
+            'shipping_address.name' => ['nullable', 'string', 'max:255'],
+            'shipping_address.line2' => ['nullable', 'string', 'max:255'],
+            'shipping_address.state' => ['nullable', 'string', 'max:120'],
+        ];
+        foreach ($this->effective($store, $paymentMethod) as $field) {
+            $key = $field['key'];
+            $max = match ($key) {
+                'notes' => 2000, 'phone', 'phone_alt' => 50, 'city' => 120,
+                'postal_code' => 32, 'country' => 2, default => 255,
+            };
+            $presence = $field['required'] ? 'required' : 'nullable';
+            // Existing integrations may omit shipping entirely until merchants save a configuration.
+            if ($store->checkout_fields === null && in_array($key, ['address', 'city'], true)) {
+                $presence = 'required_with:shipping_address';
+            }
+            $rules[self::PATHS[$key]] = (! $field['enabled'] || ($field['shipping_region'] ?? false)) ? ['exclude'] : [$presence, $key === 'email' ? 'email' : 'string', 'max:'.$max];
+            if ($key === 'country' && $field['enabled']) {
+                $rules[self::PATHS[$key]][] = 'regex:/^[A-Za-z]{2}$/';
+            }
+        }
+
+        return $rules;
+    }
+}

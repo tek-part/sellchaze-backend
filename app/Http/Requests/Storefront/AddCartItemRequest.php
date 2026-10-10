@@ -16,6 +16,7 @@ class AddCartItemRequest extends FormRequest
     {
         return [
             'store_product_id' => ['required', 'integer', 'min:1'],
+            'variant_id' => ['nullable', 'integer', 'min:1'],
             'quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
         ];
     }

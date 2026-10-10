@@ -12,6 +12,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `price_override` null means the variant inherits the product's price.
  *
  * @property array|null $translations
+ * @property int $stock_quantity
+ * @property int $reserved_quantity
+ * @property string|null $compare_price
+ * @property string|null $cost
  */
 class ProductVariant extends Model
 {
@@ -26,7 +30,7 @@ class ProductVariant extends Model
     protected $fillable = [
         'store_id', 'store_product_id', 'name', 'sku', 'barcode',
         'price_override', 'compare_price', 'cost', 'weight', 'options', 'image',
-        'stock_quantity', 'reserved_quantity', 'translations', 'is_active', 'position',
+        'stock_quantity', 'reserved_quantity', 'track_inventory', 'translations', 'is_active', 'position',
     ];
 
     protected $casts = [
@@ -37,6 +41,7 @@ class ProductVariant extends Model
         'options' => 'array',
         'translations' => 'array',
         'stock_quantity' => 'integer',
+        'track_inventory' => 'boolean',
         'reserved_quantity' => 'integer',
         'is_active' => 'boolean',
         'position' => 'integer',

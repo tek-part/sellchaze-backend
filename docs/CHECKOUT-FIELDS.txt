@@ -1,0 +1,59 @@
+Checkout field configuration — 2026-10-10
+
+Competitor evidence
+Inspected https://app.easy-orders.net/#/checkout-fields without changing its settings.
+Observed editable labels, helper text, numeric order, visibility and required flags for
+name, phone, country, governorate, email, address, alternative phone, notes and national
+address. The competitor locks the phone visible/required and recommends name/phone/address
+for COD. Sellchaze supports these fields plus postal code and Arabic/English field text.
+Sellchaze permits email instead of phone but requires at least one mandatory contact channel.
+
+Merchant API
+GET/PUT /api/v1/my-store/checkout-fields
+GET/PUT /api/v1/stores/{store}/checkout-fields
+Owner/store scope is resolved by existing middleware. Both reads and writes additionally
+require ownership, store.settings.manage or stores-edit. PUT accepts the complete fields
+array with key, label.{ar,en}, hint.{ar,en}, enabled, required and position. Unknown keys,
+duplicates, missing fields, invalid lengths/types, required hidden fields and configurations
+without a required contact channel are rejected before mutation. GET also returns a COD preset.
+
+Public API and order data
+GET /api/v1/storefront/checkout/fields?payment_method=cod returns the effective configuration
+for the host-resolved store. Online methods require name/email even if merchant settings hide
+them. Omitting the method resolves the first enabled gateway, consistently with checkout.
+CheckoutRequest enforces the same fields before cart/order creation. CheckoutController uses
+validated contact/shipping data so disabled values are discarded. Email is nullable; no synthetic
+email is created. Alternative phone and national address are immutable shipping_address members,
+preserved in the B2B bridge JSON/text and shown in storefront-order and B2B-order management.
+
+New stores receive the name/phone/address preset. Existing stores with null checkout_fields
+keep legacy name/email requirements until their owner saves a configuration. Legacy clients can
+still omit shipping entirely; when present, legacy address/city remain required. A saved complete
+configuration uses its explicit required flags. Existing orders are not rewritten.
+Migration down refuses to restore non-null email while phone-first orders exist.
+
+Frontend
+/store/checkout-fields (also admin store scope) provides bilingual editing, numeric and arrow
+ordering, visibility/required switches, unsaved reset/save and live preview. Both /checkout and
+the embedded funnel checkout load the public configuration, preserve typed values when a payment
+method changes, and submit only enabled fields. Loading/failure blocks new orders, with retry.
+Country selection uses Unicode CLDR territory identifiers and Intl.DisplayNames labels.
+The cart checkout now uses server quotes for item/variant prices, shipping, coupon, tax and total.
+Published checkout template content appears above the functional form instead of replacing it.
+
+Verified
+47 backend feature tests / 349 assertions: field settings, permissions, tenant isolation, hidden
+field exclusion, required validation before mutation, online requirements, phone-first orders and
+B2B preservation; existing commerce/variant/coupon/payment regressions included.
+344 frontend unit tests passed, including enabled-field payload filtering and delivery extras.
+Scoped PHPStan, TypeScript and ESLint passed. Vite build produced audit/commerce-build.
+Real local PHP/SQLite/browser review saved reordered Arabic fields and helper text, enabled
+alternative phone, reloaded settings, and created COD order ORD-20261010-PPVJPL without email.
+Database verification confirmed email NULL, alternative phone snapshot and total EGP 275.
+
+Limits and next work
+These checks do not establish complete competitor parity. Geographic shipping, inventory
+reservation/release, durable network idempotency, editor form placement and full template/AI
+workflows remain. Live payment providers, MySQL migration/rollback and mobile visual verification
+are not established by this change. The production frontend capture remains the release source;
+no production migration/deployment was performed.

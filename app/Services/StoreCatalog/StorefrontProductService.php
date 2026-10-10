@@ -3,11 +3,14 @@
 namespace App\Services\StoreCatalog;
 
 use App\Models\Product;
+use App\Models\ProductMedia;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
 use App\Support\Slug;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Owner management of store products. Runs under the ScopeToStore tenant, so
@@ -16,55 +19,96 @@ use Illuminate\Support\Facades\Storage;
  */
 class StorefrontProductService
 {
-    public function create(array $data, ?UploadedFile $image = null): Product
+    public function create(array $data, ?UploadedFile $image = null, array $gallery = []): Product
     {
-        $product = new Product;
-        $this->fill($product, $data);
-        $product->slug = $this->uniqueSlug($data['slug'] ?? $data['name']);
-        if ($image) {
-            $product->image = $this->storeImage($image);
-        }
-        $product->save(); // store_id auto-filled by BelongsToStore
-
-        StorefrontService::forgetHomepage((int) $product->store_id);
-        app(StorefrontPageCache::class)->flushStore((int) $product->store_id);
-
-        return $product;
+        return $this->persist(null, $data, $image, $gallery);
     }
 
-    public function update(Product $product, array $data, ?UploadedFile $image = null): Product
+    public function update(Product $product, array $data, ?UploadedFile $image = null, array $gallery = []): Product
     {
-        $this->fill($product, $data);
-        if (! empty($data['slug'])) {
-            $product->slug = $this->uniqueSlug($data['slug'], $product->id);
-        }
-        if ($image) {
-            $this->deleteImage($product->image);
-            $product->image = $this->storeImage($image);
-        }
-        $product->save();
+        return $this->persist($product, $data, $image, $gallery);
+    }
 
-        StorefrontService::forgetHomepage((int) $product->store_id);
-        app(StorefrontPageCache::class)->flushStore((int) $product->store_id);
+    private function persist(?Product $product, array $data, ?UploadedFile $image, array $gallery): Product
+    {
+        $createdFiles = [];
+        try {
+            return DB::transaction(function () use ($product, $data, $image, $gallery, &$createdFiles) {
+                $current = $product ? Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail() : new Product;
+                $removed = $current->exists ? $current->media()->whereIn('id', $data['remove_media_ids'] ?? [])->get() : collect();
+                if ($removed->count() !== count($data['remove_media_ids'] ?? [])) {
+                    throw ValidationException::withMessages(['remove_media_ids' => 'Every removed image must belong to this product.']);
+                }
+                $this->fill($current, $data);
+                if (! $current->exists || ! empty($data['slug'])) {
+                    $current->slug = $this->uniqueSlug($data['slug'] ?? $data['name'], $current->id);
+                }
+                $oldImage = null;
+                if ($image || ! empty($data['remove_image'])) {
+                    $oldImage = $current->image;
+                    $current->image = $image ? $this->storeImage($image) : null;
+                    if ($current->image) {
+                        $createdFiles[] = $current->image;
+                    }
+                }
+                $current->save();
+                foreach ($removed as $media) {
+                    $media->delete();
+                }
+                $position = (int) ($current->media()->max('position') ?? 0);
+                foreach ($gallery as $file) {
+                    $path = $this->storeImage($file);
+                    $createdFiles[] = $path;
+                    ProductMedia::create(['store_id' => $current->store_id, 'store_product_id' => $current->id,
+                        'type' => 'gallery', 'disk' => 'public', 'path' => $path, 'alt' => $current->name,
+                        'size' => $file->getSize(), 'mime' => $file->getMimeType(), 'position' => ++$position]);
+                }
+                DB::afterCommit(function () use ($current, $oldImage, $removed) {
+                    $this->deleteImage($oldImage);
+                    foreach ($removed as $media) {
+                        $this->deleteImage($media->path);
+                    }
+                    StorefrontService::forgetHomepage((int) $current->store_id);
+                    app(StorefrontPageCache::class)->flushStore((int) $current->store_id);
+                });
 
-        return $product;
+                return $current;
+            });
+        } catch (\Throwable $exception) {
+            foreach ($createdFiles as $path) {
+                // A post-commit cache failure must never delete files referenced by committed rows.
+                if (! Product::query()->where('image', $path)->exists() && ! ProductMedia::query()->where('path', $path)->exists()) {
+                    $this->deleteImage($path);
+                }
+            }
+            throw $exception;
+        }
     }
 
     public function delete(Product $product): void
     {
         $storeId = (int) $product->store_id;
+        DB::transaction(function () use ($product, $storeId) {
+            $current = Product::query()->where('store_id', $storeId)->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            if ($current->reserved_quantity > 0 || $current->variants()->where('reserved_quantity', '>', 0)->exists()) {
+                throw ValidationException::withMessages(['inventory' => 'Ship or cancel reserved orders before deleting this product.']);
+            }
+            $current->delete();
+        });
         $this->deleteImage($product->image);
-        $product->delete();
         StorefrontService::forgetHomepage($storeId);
         app(StorefrontPageCache::class)->flushStore($storeId);
     }
 
     private function fill(Product $product, array $data): void
     {
-        foreach (['name', 'sku', 'barcode', 'description', 'short_description', 'price', 'compare_price', 'category_id', 'is_active', 'is_featured', 'position'] as $key) {
+        foreach (['name', 'sku', 'barcode', 'description', 'short_description', 'price', 'compare_price', 'cost', 'weight', 'seo_title', 'seo_description', 'category_id', 'is_active', 'is_featured', 'position'] as $key) {
             if (array_key_exists($key, $data)) {
                 $product->{$key} = $data[$key];
             }
+        }
+        if (array_key_exists('translations', $data)) {
+            $product->fillTranslations($data['translations'] ?? []);
         }
     }
 
@@ -85,7 +129,7 @@ class StorefrontProductService
 
     private function deleteImage(?string $path): void
     {
-        if ($path) {
+        if ($path && str_starts_with($path, 'store-catalog/')) {
             Storage::disk('public')->delete($path);
         }
     }

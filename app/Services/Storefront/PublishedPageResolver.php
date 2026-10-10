@@ -30,11 +30,16 @@ class PublishedPageResolver
      * the caller's visibility check yields a 404 rather than a silent locale fallback.
      * The `home` template page is never resolvable by slug.
      */
-    public function forSlug(Store $store, string $slug): ?StorePage
+    public function forSlug(Store $store, string $slug, bool $funnelOnly = false): ?StorePage
     {
         $siblings = StorePage::query()->withoutGlobalScope(StoreScope::class)
             ->where('store_id', $store->id)
             ->where('template', '!=', self::HOME)
+            ->when($funnelOnly, fn ($query) => $query->whereExists(function ($funnels) use ($store) {
+                $funnels->selectRaw('1')->from('store_funnels')
+                    ->whereColumn('store_funnels.store_page_id', 'store_pages.id')
+                    ->where('store_funnels.store_id', $store->id);
+            }))
             ->where(function ($query) use ($slug) {
                 $query->where('published_slug', $slug)->orWhere(fn ($legacy) => $legacy->whereNull('published_slug')->where('slug', $slug));
             })

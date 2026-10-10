@@ -24,7 +24,8 @@ class StorefrontProductVariantResource extends JsonResource
             // Additive keys the frozen frontend variant mapper reads (price, stock).
             'price' => $this->effectivePrice(),
             'compare_price' => $this->compare_price,
-            'stock' => (int) ($this->stock_quantity ?? 0),
+            'stock' => $this->track_inventory ? max(0, $this->stock_quantity - $this->reserved_quantity) : null,
+            'track_inventory' => (bool) $this->track_inventory,
             'image' => $this->image,
             'weight' => $this->weight,
             'options' => $this->options,

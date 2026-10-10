@@ -4,8 +4,9 @@ namespace App\Services\Commerce;
 
 use App\Models\StoreOrder;
 use App\Models\StoreOrderStatusChange;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use RuntimeException;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Phase 5 order lifecycle + numbering. Runs inside the CurrentStore tenant so
@@ -46,36 +47,47 @@ class StoreOrderService
      * the acting user and an optional internal note; customer self-service
      * cancels pass neither (actor stays null = customer-initiated).
      */
-    public function transition(StoreOrder $order, string $to, ?int $actorId = null, ?string $note = null): StoreOrder
+    public function transition(StoreOrder $order, string $to, ?int $actorId = null, ?string $note = null, ?string $source = null): StoreOrder
     {
-        if (! $this->canTransition($order, $to)) {
-            throw new RuntimeException("Cannot transition order from {$order->status} to {$to}.");
-        }
+        return DB::transaction(function () use ($order, $to, $actorId, $note, $source) {
+            $current = StoreOrder::query()->where('store_id', $order->store_id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $order->setRawAttributes($current->getAttributes(), true);
+            if ($source === 'customer' && ! in_array($order->status, self::CUSTOMER_CANCELLABLE, true)) {
+                throw ValidationException::withMessages(['status' => 'This order can no longer be cancelled.']);
+            }
+            if (! $this->canTransition($order, $to)) {
+                throw ValidationException::withMessages(['status' => "Cannot transition order from {$order->status} to {$to}."]);
+            }
 
-        $from = $order->status;
-        $order->status = $to;
-        if ($to === 'cancelled') {
-            $order->cancelled_at = now();
-        }
-        $order->save();
+            $from = $order->status;
+            if (in_array($to, ['cancelled', 'shipped'], true)) {
+                app(StoreInventory::class)->settle($order, $to === 'shipped');
+            }
+            $order->status = $to;
+            if ($to === 'cancelled') {
+                $order->cancelled_at = now();
+            }
+            $order->save();
 
-        $order->statusChanges()->create([
-            'from_status' => $from,
-            'to_status' => $to,
-            'actor_id' => $actorId,
-            'notes' => $note,
-        ]);
+            $order->statusChanges()->create([
+                'from_status' => $from,
+                'to_status' => $to,
+                'actor_id' => $actorId,
+                'notes' => $note,
+                'source' => $source,
+            ]);
 
-        StoreAnalyticsService::forget($order->store_id); // delivered revenue/status counts changed
+            DB::afterCommit(fn () => StoreAnalyticsService::forget($order->store_id));
 
-        // One-way mirror onto the bridged B2B order (cancelled only). Never let it break the transition.
-        try {
-            app(StorefrontOrderBridge::class)->syncStatus($order);
-        } catch (\Throwable $e) {
-            report($e);
-        }
+            // One-way mirror onto the bridged B2B order (cancelled only). Never let it break the transition.
+            try {
+                app(StorefrontOrderBridge::class)->syncStatus($order);
+            } catch (\Throwable $e) {
+                report($e);
+            }
 
-        return $order;
+            return $order;
+        });
     }
 
     /**
@@ -95,10 +107,6 @@ class StoreOrderService
 
     public function cancelByCustomer(StoreOrder $order): StoreOrder
     {
-        if (! in_array($order->status, self::CUSTOMER_CANCELLABLE, true)) {
-            throw new RuntimeException('This order can no longer be cancelled.');
-        }
-
-        return $this->transition($order, 'cancelled');
+        return $this->transition($order, 'cancelled', null, null, 'customer');
     }
 }

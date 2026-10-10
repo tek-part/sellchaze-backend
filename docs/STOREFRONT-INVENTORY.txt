@@ -1,0 +1,74 @@
+Storefront inventory and order reservations — 2026-10-10
+
+Merchant workflow
+  /store/inventory (or /stores/{id}/inventory) lists store products/options,
+  physical stock, reserved stock and available stock. Search and pagination use
+  the current store. Each option has independent tracking and quantities.
+  Edits require products-edit and product ownership; reads require products-list
+  plus store middleware access. Administrators retain the same tenant boundary.
+  API: GET catalog/inventory, PUT catalog/inventory/{product},
+  GET catalog/inventory/{product}/history under my-store or stores/{id}.
+  The editor sends expected stock, reserved quantity and tracking state. A stale
+  edit returns 409; reload and review before saving. Physical stock cannot be
+  reduced below reservations, and tracking cannot be disabled while stock is held.
+  History shows the latest 40 adjustments/reservations/shipments/releases.
+
+Stock semantics
+  products and store_product_variants carry track_inventory (default false),
+  stock_quantity (physical units) and reserved_quantity. Available is physical
+  minus reserved. A product with options uses its selected option's ledger;
+  base-product stock is not additionally deducted. Untracked stock has no limit.
+  Existing products/orders are not retroactively opted into tracking or reserved.
+  Merchants must reconcile actual stock before enabling tracking.
+  This ledger is for the hosted storefront. WarehouseInventory/B2B procurement
+  quantities are separate; no automatic warehouse allocation is implied.
+
+Checkout and fulfillment
+  Quotes and cart updates check available quantities but do not hold stock.
+  Checkout locks and reloads the current active cart, then resolves live product
+  and option rows in product/option order. Prices, stock and coupon limits are
+  checked again. Stock reservation, order lines, coupon use and cart conversion
+  commit together. Submitted-cart synchronization is in the same outer transaction,
+  so failure restores the prior cart. Conditional SQL arithmetic additionally
+  prevents a stale stock model from exceeding available inventory.
+  An order line snapshots inventory_status=reserved only if tracking was enabled.
+  Pending/confirmed/processing orders retain their holds. Cancellation releases
+  held units once. Shipped consumes physical and reserved units once. Delivered
+  does not deduct again. Normal carrier-driven fulfillment uses this same path.
+  Legacy/untracked orders have no reservation and never modify this ledger.
+  State transitions lock and reload the order before validating the transition.
+  Stale customer cancellation cannot cancel an order that reached processing.
+  Catalog deletion rejects products/options with reservations. If an external
+  import deleted a stock row, settling its old order never creates stock on a new
+  product with the same SKU. Inconsistent surviving balances fail closed and
+  require reconciliation instead of clamping quantities or inventing stock.
+
+Catalog presentation
+  Public stock is available quantity, or null for untracked products/options.
+  Catalog/homepage/collection queries eagerly load options for availability.
+  Product cards and details show sold-out availability; funnel options at zero
+  stock are disabled and excess quantity is explained. Checkout remains the
+  authority even when a previously loaded catalog is stale.
+  Homepage/full-page cache invalidation is scheduled after inventory commits.
+
+Catalog API correction
+  The existing product delete and variant CRUD controllers had no mounted routes.
+  Mounted them under catalog/products/{product}/variants with product permission
+  checks, numeric IDs and existing tenant/ownership enforcement, and mounted
+  product deletion with products-delete. Reserved deletion is rejected.
+  The broader merchant product/variant editor still requires completion.
+
+Validation and limits
+  StoreInventoryTest exercises final-unit rejection, rollback of submitted cart
+  changes, independent variants, untracked stock, stale forms and order objects,
+  cancellation, shipping/delivery, deletion guards and cross-store isolation.
+  Local real HTTP checkout and merchant browser review use only the isolated
+  audit/funnel-integration-20261010.sqlite fixture, never production customers.
+  SQLite tests and sequential local HTTP tests do not prove production MySQL
+  concurrency behavior. Multi-connection MySQL acceptance is still required.
+  No automatic reservation expiry is enabled: unpaid/unknown payment outcomes
+  need a defined reconciliation policy before timed release can be safe.
+  Repeated checkout HTTP requests still need durable request idempotency. The
+  active-cart lock prevents reuse of that cart but is not a request replay key.
+  Returns/restocking, warehouse allocation and full competitor parity remain
+  unfinished. No production migration, release or deployment was performed.

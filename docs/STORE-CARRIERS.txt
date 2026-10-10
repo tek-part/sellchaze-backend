@@ -1,0 +1,108 @@
+Store carrier integration — Bosta, 2026-10-10
+
+Entry points
+  Merchant shipping settings: /store/settings/shipping
+  Merchant order detail: /store/orders/{id}
+  API paths below are relative to /api/v1/my-store or /api/v1/stores/{store}.
+
+  GET/PUT carriers/bosta
+  POST carriers/bosta/verify
+  GET carriers/bosta/cities
+  GET carriers/bosta/districts?city_id=...
+  GET/POST orders/{order}/shipment
+  POST orders/{order}/shipment/sync
+  POST orders/{order}/shipment/label (size A4/A6, language ar/en)
+  Public callback: POST /api/v1/carriers/bosta/webhook/{businessReference}
+
+Configuration
+  Save a Read/Write API key, verify it to load pickup locations, choose a pickup,
+  and save the enabled connection. Verification checks read access; Bosta checks
+  write scope when a delivery is created. New keys disable the connection and
+  clear verification. Blank keys retain the existing credential.
+  Keys are encrypted using Laravel's application key and never returned to UI.
+  Only the owner or authorized store settings staff can access configuration.
+  Shipment and area endpoints require ownership or store.orders.manage.
+  All endpoints also require the existing tenant middleware authorization.
+
+Dispatch
+  Supports standard parcels (type 10), SMALL/MEDIUM/LARGE, Egypt/EGP, confirmed
+  or processing orders. Online orders must be paid; COD orders must be awaiting
+  payment or already paid. The server uses grand_total for unpaid COD and zero
+  for paid orders, regardless of posted amounts. COD is limited to EGP 30,000.
+  Customer phone/name and item count come from the stored order. The merchant
+  chooses a supported city/district and confirms the delivery address, package
+  description and instructions. This does not overwrite the checkout snapshot.
+
+Duplicate prevention and recovery
+  Creation locks the order and writes one unique shipment claim before calling
+  Bosta. The order has at most one shipment row. A UUID businessReference and
+  uniqueBusinessReference are sent to Bosta. There are no automatic POST retries.
+  Request snapshots containing customer data are encrypted and hidden from API.
+  Success must include matching reference, delivery ID, tracking number and state.
+  Definite HTTP rejection (400/401/403/404/422/429) allows an explicit corrected
+  retry using the same reference. Timeouts, 5xx, redirects and malformed success
+  responses leave the result unknown and block duplicate dispatch. A crash may
+  leave submitting, which is also blocked. Reconcile these using the tracking
+  number found in the merchant's Bosta dashboard. The read response must match
+  both reference and tracking number, plus any previously stored delivery ID.
+  If Bosta has no delivery after an uncertain request, manual operational
+  investigation remains necessary; the interface cannot safely assume failure.
+
+Status and authenticated callbacks
+  Configure BOSTA_WEBHOOK_BASE_URL with the public HTTPS backend origin (defaults
+  to APP_URL). New dispatches include their callback URL and a unique encrypted
+  bearer secret in webhookCustomHeaders. Invalid/non-HTTPS configuration omits
+  registration; existing manual shipments are not retroactively registered.
+  Carrier account configuration must be checked during live acceptance because
+  dashboard-level webhooks can affect per-delivery webhook behavior.
+  Callbacks require the shipment secret, matching external/tracking IDs, SEND
+  type, a known state and a plausible millisecond timestamp. No raw callback
+  customer payload is retained. Repeated events are idempotent; old/conflicting
+  timestamps and stale read responses cannot overwrite newer state. Terminal
+  states are sticky: provider corrections/reopening require a future workflow.
+  Order and shipment locks use a consistent order. A successful callback received
+  during dispatch survives a later timeout of the original create request.
+  Authenticated refreshes and callbacks advance confirmed/processing orders to
+  shipped for states 21/24/30/41, and delivered for 45, through the normal order
+  service. Cancelled/delivered orders do not regress. Creating a shipment alone
+  does not mean the courier collected it. Prices and payment status do not change;
+  delivery is not evidence of settlement. Carrier entries are identified in the
+  order timeline. The UI shows the latest 30 events, including ignored events,
+  and polls the local API every 30 seconds while visible for active callbacks.
+
+Airway bills
+  Authorized staff can download one A4/A6 Arabic/English PDF per created active
+  shipment using Bosta's /deliveries/mass-awb endpoint. The adapter accepts base64
+  PDF as a raw response, JSON string or successful data string, and validates PDF
+  markers and size before serving a private, non-cacheable attachment. No public
+  PDF URL or untrusted HTML is served. Terminal shipments cannot print labels.
+  Official docs specify base64 PDF but do not document the exact response wrapper;
+  the supported wrappers are contract-tested and still need live account validation.
+
+Network contract and evidence
+  Fixed HTTPS origin: https://app.bosta.co/api/v2
+  Raw Authorization header, no redirects, 5s connection / 20s request timeout.
+  No credentials are sent to the public cities/districts endpoints.
+  Official references:
+    https://docs.bosta.co/api/
+    https://docs.bosta.co/docs/how-to/get-your-api-key/
+    https://docs.bosta.co/docs/how-to/create-your-first-delivery/
+    https://docs.bosta.co/docs/how-to/format-bosta-address/
+    https://docs.bosta.co/docs/how-to/get-delivery-status-via-webhook/
+    https://docs.bosta.co/docs/how-to/print-awbs/
+  The downloaded official OpenAPI export is in workspace audit/bosta-official-api.yaml.
+  Real public area calls were verified locally (28 cities returned, 27 enabled
+  dropoff cities; Cairo district selection verified in the browser).
+  StoreCarrierTest uses HTTP fakes for account and delivery operations. No live
+  Bosta key or delivery was used. Live merchant account acceptance is pending.
+  Isolated local HTTP callback review advanced a synthetic COD order from confirmed
+  to shipped to delivered, retained pending payment/EGP 250, and ignored a late
+  event. This is not evidence of an actual Bosta callback or live PDF download.
+
+Still required for complete shipping parity
+  Live webhook delivery and AWB response acceptance; pickup requests; returns/exchanges;
+  cancellation/replacement shipments; bulk dispatch; remaining carrier providers;
+  large-account pickup pagination; carrier tariff/import workflows; live account
+  acceptance. These are not represented as completed by this initial integration.
+  The wider competitor rebuild, editable production frontend parity and release
+  remain incomplete. No production migration or deployment was performed.

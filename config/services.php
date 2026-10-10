@@ -14,6 +14,12 @@ return [
     |
     */
 
+    'funnel_ai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_FUNNEL_MODEL'),
+        'per_day' => (int) env('FUNNEL_AI_PER_STORE_PER_DAY', 20),
+    ],
+
     'mailgun' => [
         'domain' => env('MAILGUN_DOMAIN'),
         'secret' => env('MAILGUN_SECRET'),
@@ -108,6 +114,10 @@ return [
      */
     'wavex' => [
         'public_storage_url' => ($w = trim((string) env('WAVEX_PUBLIC_STORAGE_URL', ''))) !== '' ? rtrim($w, '/') : null,
+    ],
+
+    'bosta' => [
+        'webhook_base_url' => env('BOSTA_WEBHOOK_BASE_URL', env('APP_URL')),
     ],
 
     /* Platform-owned checkout for paid marketplace themes. Never use a merchant store's Stripe keys here. */

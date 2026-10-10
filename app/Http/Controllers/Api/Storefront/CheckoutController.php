@@ -5,21 +5,28 @@ namespace App\Http\Controllers\Api\Storefront;
 use App\Http\Controllers\Concerns\ResolvesStorefront;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Storefront\ApplyCouponRequest;
+use App\Http\Requests\Storefront\CheckoutQuoteRequest;
 use App\Http\Requests\Storefront\CheckoutRequest;
 use App\Http\Resources\Storefront\CartResource;
 use App\Http\Resources\Storefront\StoreOrderResource;
-use App\Models\StorePaymentGateway;
+use App\Models\Cart;
 use App\Models\StoreOrder;
+use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\CartService;
+use App\Services\Commerce\CheckoutAttempts;
+use App\Services\Commerce\CheckoutFields;
+use App\Services\Commerce\CheckoutQuote;
 use App\Services\Commerce\CheckoutService;
 use App\Services\Commerce\CouponService;
 use App\Services\Commerce\CustomerAuthService;
-use App\Services\Commerce\PricingCalculator;
 use App\Services\Commerce\PaymentRetryToken;
+use App\Services\Commerce\PricingCalculator;
 use App\Services\Commerce\StorePaymentService;
+use App\Services\Commerce\StoreShipping;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -40,10 +47,29 @@ class CheckoutController extends Controller
         private readonly PaymentRetryToken $retryTokens,
     ) {}
 
+    public function fields(Request $request, CheckoutFields $fields): JsonResponse
+    {
+        $data = $request->validate(['payment_method' => ['nullable', 'string', 'max:80']]);
+
+        return response()->json(['data' => $fields->effective($this->currentStore($request), $data['payment_method'] ?? null),
+            'shipping' => app(StoreShipping::class)->publicConfiguration($this->currentStore($request))]);
+    }
+
+    public function quote(CheckoutQuoteRequest $request, CheckoutQuote $quotes): JsonResponse
+    {
+        $data = $request->validated();
+
+        return response()->json(['data' => $quotes->calculate(
+            $this->currentStore($request), $data['items'], $data['coupon_code'] ?? null, $this->auth->resolve($request), $data,
+        )], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
     /** POST /storefront/checkout */
     public function store(CheckoutRequest $request): JsonResponse
     {
         $store = $this->currentStore($request);
+        $shippingSelection = $request->safe()->only(array_keys(StoreShipping::SELECTION_RULES));
+        app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
         $payment = StorePaymentGateway::query()
             ->where('store_id', $store->id)
             ->where('enabled', true)
@@ -69,32 +95,60 @@ class CheckoutController extends Controller
         }
 
         $customer = $this->auth->resolve($request);
-        $cart = $this->carts->resolve($request, $store, $customer);
+        // A funnel order has its own transient cart, even for a signed-in customer.
+        // Do not merge, replace or convert their ordinary shopping cart.
+        $order = DB::transaction(function () use ($request, $store, $customer, $payment, $shippingSelection) {
+            $attempt = app(CheckoutAttempts::class)->lock($request);
+            $cart = $request->input('cart_mode') === 'direct'
+                ? $this->carts->create($store, null)
+                : $this->carts->resolve($request, $store, $customer);
 
-        // The storefront cart lives on the client; sync the submitted line items into the server
-        // cart so checkout places exactly what the shopper sees, without a stateful cart round-trip.
-        $items = $request->input('items', []);
-        if (! empty($items)) {
-            $this->carts->clear($cart);
-            foreach ($items as $line) {
-                $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1));
+            // The storefront cart lives on the client; sync the submitted line items into the server
+            // cart so checkout places exactly what the shopper sees, without a stateful cart round-trip.
+            $items = $request->input('items', []);
+            if (! empty($items) || $request->has('coupon_code')) {
+                DB::transaction(function () use ($cart, $items, $request, $customer) {
+                    Cart::query()->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+                    if (! empty($items)) {
+                        $this->carts->clear($cart);
+                        foreach ($items as $line) {
+                            $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1), isset($line['variant_id']) ? (int) $line['variant_id'] : null);
+                        }
+                    }
+                    if ($request->has('coupon_code')) {
+                        $coupon = $request->filled('coupon_code') ? $this->coupons->resolveActive($request->string('coupon_code')->toString()) : null;
+                        if ($request->filled('coupon_code') && $coupon === null) {
+                            throw ValidationException::withMessages(['coupon_code' => 'This coupon is not available.']);
+                        }
+                        if ($coupon !== null) {
+                            $this->coupons->validate($coupon, $customer, $cart->load('items')->subtotal());
+                        }
+                        $cart->update(['coupon_id' => $coupon?->id]);
+                    }
+                });
+                $cart->load('items');
             }
-            $cart->load('items');
-        }
 
-        $order = $this->checkout->place(
-            $store,
-            $cart,
-            $customer,
-            [
-                'name' => $request->input('customer_name'),
-                'email' => $request->input('customer_email'),
-                'phone' => $request->input('customer_phone'),
-                'notes' => $request->input('notes'),
-            ],
-            $request->input('shipping_address'),
-            $payment->gateway,
-        );
+            $validated = $request->validated();
+
+            $order = $this->checkout->place(
+                $store,
+                $cart,
+                $customer,
+                [
+                    'name' => ($validated['customer_name'] ?? ''),
+                    'email' => ($validated['customer_email'] ?? null),
+                    'phone' => ($validated['customer_phone'] ?? null),
+                    'notes' => ($validated['notes'] ?? null),
+                ],
+                ($validated['shipping_address'] ?? null),
+                $payment->gateway,
+                $shippingSelection,
+            );
+            $attempt?->update(['store_order_id' => $order->id]);
+
+            return $order;
+        });
 
         try {
             $paymentResult = $this->payments->start($store, $order, $payment);
@@ -114,6 +168,12 @@ class CheckoutController extends Controller
             'data' => new StoreOrderResource($order),
             'payment' => $paymentResult,
         ], 201, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** POST /storefront/checkout/recover */
+    public function recover(Request $request, CheckoutAttempts $attempts): JsonResponse
+    {
+        return $attempts->recover($request);
     }
 
     /** POST /storefront/checkout/payment/retry */
@@ -141,6 +201,11 @@ class CheckoutController extends Controller
             ->where('enabled', true)
             ->first();
         if ($setting === null) {
+            if ($order->payment_method === 'cod') {
+                $setting = (new StorePaymentGateway)->forceFill(['store_id' => $store->id, 'gateway' => 'cod', 'enabled' => true, 'credentials' => []]);
+            }
+        }
+        if ($setting === null) {
             throw ValidationException::withMessages(['payment' => 'This payment method is no longer available.']);
         }
 
@@ -149,9 +214,11 @@ class CheckoutController extends Controller
             ->where('store_order_id', $order->id)
             ->where('gateway', $setting->gateway)
             ->latest('id')
-            ->firstOrFail();
+            ->first();
 
-        $paymentResult = $this->payments->retry($store, $order, $setting, $transaction);
+        $paymentResult = $transaction && $transaction->status !== 'created'
+            ? $this->payments->retry($store, $order, $setting, $transaction)
+            : $this->payments->start($store, $order, $setting);
 
         return response()->json([
             'data' => new StoreOrderResource($order),
@@ -188,6 +255,8 @@ class CheckoutController extends Controller
     public function applyCoupon(ApplyCouponRequest $request): JsonResponse
     {
         $store = $this->currentStore($request);
+        $shippingSelection = $request->validate(StoreShipping::SELECTION_RULES);
+        app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
         $customer = $this->auth->resolve($request);
         $cart = $this->carts->resolve($request, $store, $customer);
 
@@ -205,7 +274,7 @@ class CheckoutController extends Controller
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
             'coupon' => ['code' => $coupon->code, 'type' => $coupon->type, 'value' => $coupon->value],
-            'totals' => $this->pricing->forStore($store, $subtotal, $discount),
+            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -213,6 +282,8 @@ class CheckoutController extends Controller
     public function removeCoupon(Request $request): JsonResponse
     {
         $store = $this->currentStore($request);
+        $shippingSelection = $request->validate(StoreShipping::SELECTION_RULES);
+        app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
         $customer = $this->auth->resolve($request);
         $cart = $this->carts->resolve($request, $store, $customer);
 
@@ -220,7 +291,7 @@ class CheckoutController extends Controller
 
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
-            'totals' => $this->pricing->forStore($store, $cart->subtotal()),
+            'totals' => $this->pricing->forStore($store, $cart->subtotal(), '0.00', $shippingSelection),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 }

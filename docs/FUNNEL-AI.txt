@@ -1,0 +1,42 @@
+AI funnel generation (implementation 2026-10-10)
+
+Server configuration:
+  OPENAI_API_KEY: platform server-side key; never put it in a VITE variable.
+  OPENAI_FUNNEL_MODEL: an enabled Responses API model supporting strict JSON schema.
+  FUNNEL_AI_PER_STORE_PER_DAY: maximum provider attempts in a rolling 24-hour window (default 20).
+
+Both key and model are required. Without them the template API reports ai.available=false
+and the merchant can continue with manual creation. Clear/rebuild Laravel configuration
+cache through the normal deployment process after configuration changes.
+
+Endpoint: POST /api/v1/my-store/funnels/generate
+Admin equivalent: POST /api/v1/stores/{store}/funnels/generate
+Requires the same tenant access and page-management permissions as manual funnels.
+Provide title, slug, product_id, template_key, locale, and generation with language,
+dialect, product_name, description. The description must be 20 to 6000 characters.
+Only those four generation fields leave the server for OpenAI; customer/order data,
+store credentials and product images are not submitted. Responses use store=false.
+
+Output creates an unpublished StorePage and StoreFunnel atomically. Hero copy, product
+paragraphs and supported FAQ answers are editable through the existing page builder.
+Images and product CTA destinations are controlled by Sellchaze, never model output.
+No customer reviews, discounts, shipping promises or guarantees should be invented.
+Merchant review is required before the existing explicit publish action.
+
+The application permits one in-flight generation per store and 3 route requests/minute
+per authenticated user. Provider attempts count toward the shared store budget even
+when they fail. Use a persistent shared Laravel cache with atomic locks in multi-node
+production; the array driver is only appropriate for tests. A cache reset resets quota.
+Provider calls have a 10-second connection / 60-second total timeout, with no automatic
+retry. The frontend allows 90 seconds. Align proxy/PHP worker timeouts before enabling.
+HTTP errors and invalid/incomplete/refused responses never persist a partial funnel.
+
+Validation: isolated SQLite feature tests and Http::fake provider responses, including
+successful copy, escaping, tenancy, permissions, missing configuration, quota, concurrency,
+provider errors, refusal, invalid JSON shape and timeout. Live provider generation still
+requires configured credentials and an integration/evaluation pass before release.
+Template visual parity, checkout embedding, durable usage metering and full funnel
+workflow parity remain part of the wider rebuild. This is not a release-completion claim.
+
+Official API contract consulted:
+https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses

@@ -373,12 +373,6 @@ parameters:
 			path: app/Http/Resources/Storefront/ProductReviewResource.php
 
 		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\Storefront\\StorefrontProductVariantResource\:\:\$compare_price\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/Storefront/StorefrontProductVariantResource.php
-
-		-
 			message: '#^Access to an undefined property App\\Http\\Resources\\Storefront\\StorefrontProductVariantResource\:\:\$image\.$#'
 			identifier: property.notFound
 			count: 1

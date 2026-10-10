@@ -2,12 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\StoreCatalogFields;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StorefrontProductUpdateRequest extends FormRequest
 {
+    use StoreCatalogFields;
+
     public function authorize(): bool
     {
         return true;
@@ -31,6 +34,6 @@ class StorefrontProductUpdateRequest extends FormRequest
             'is_featured' => ['sometimes', 'boolean'],
             'position' => ['sometimes', 'integer', 'min:0'],
             'image' => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-        ];
+        ] + $this->catalogFields();
     }
 }

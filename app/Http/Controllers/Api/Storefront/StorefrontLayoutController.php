@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Storefront;
 
 use App\Http\Controllers\Concerns\ResolvesStorefront;
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\StorePage;
 use App\Services\Storefront\PublishedPageResolver;
@@ -84,8 +85,18 @@ class StorefrontLayoutController extends Controller
      */
     public function page(Request $request, string $slug): JsonResponse
     {
+        return $this->pageResponse($request, $slug);
+    }
+
+    public function funnel(Request $request, string $slug): JsonResponse
+    {
+        return $this->pageResponse($request, $slug, true);
+    }
+
+    private function pageResponse(Request $request, string $slug, bool $funnelOnly = false): JsonResponse
+    {
         $store = $this->currentStore($request);
-        $page = $this->pages->forSlug($store, $slug);
+        $page = $this->pages->forSlug($store, $slug, $funnelOnly);
         if ($page === null || ! $page->isPubliclyVisible()) {
             return response()->json(['message' => 'Page not found.'], 404);
         }
@@ -103,12 +114,21 @@ class StorefrontLayoutController extends Controller
                 'id' => $page->id,
                 'title' => $title,
                 'slug' => $page->published_slug ?? $page->slug,
+                'public_path' => $page->publicPath(),
                 'template' => $publication['page']['template'] ?? $page->template,
                 'locale' => $page->locale,
                 'seo' => $this->seo->forPage($store, $publication ? $snapshot : $page),
                 'sections' => $this->sections->resolveSections($theme['sections_schema'] ?? [], $this->pages->publicSections($page, $publication)),
             ];
         });
+
+        // Product availability and its current slug are live commerce data, not part
+        // of the cached publication. Never expose another store's imported relation.
+        $funnel = $page->funnel;
+        if ($funnel !== null && (int) $funnel->store_id === (int) $store->id) {
+            $payload['funnel_product_slug'] = Product::query()->where('store_id', $store->id)
+                ->where('is_active', true)->whereKey($funnel->product_id)->value('slug');
+        }
 
         return response()->json(['data' => $payload], 200, [], JSON_UNESCAPED_UNICODE);
     }

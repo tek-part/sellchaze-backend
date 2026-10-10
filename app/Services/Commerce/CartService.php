@@ -4,10 +4,10 @@ namespace App\Services\Commerce;
 
 use App\Models\Cart;
 use App\Models\CartItem;
-use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreCustomer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -20,6 +20,8 @@ use Illuminate\Validation\ValidationException;
 class CartService
 {
     public const TOKEN_HEADER = 'X-Cart-Token';
+
+    public function __construct(private readonly PurchasableSelection $selections) {}
 
     /**
      * Find or create the active cart for this request. When a customer is
@@ -74,89 +76,109 @@ class CartService
      * their quantity increased. Fails closed if the product is not a live,
      * purchasable product of this store.
      */
-    public function addItem(Cart $cart, int $productId, int $quantity): CartItem
+    public function addItem(Cart $cart, int $productId, int $quantity, ?int $variantId = null): CartItem
     {
-        $quantity = max(1, $quantity);
-        $product = $this->purchasableProduct($productId);
+        return DB::transaction(function () use ($cart, $productId, $quantity, $variantId) {
+            // Serializes additions even for the base-product line (SQL unique indexes
+            // permit repeated NULL variant IDs on both MySQL and SQLite).
+            $locked = Cart::query()->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+            if ($locked->status !== 'active') {
+                throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
+            }
+            $selection = $this->selections->resolve(Store::findOrFail($cart->store_id), $productId, $variantId);
+            $item = $cart->items()->where('store_product_id', $productId)->where('variant_id', $variantId)->first();
+            $count = ($item?->quantity ?? 0) + $quantity;
+            if ($quantity < 1 || $count > 999) {
+                throw ValidationException::withMessages(['quantity' => 'Choose between 1 and 999 items.']);
+            }
+            app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $count);
+            $values = ['store_product_id' => $productId, 'variant_id' => $variantId,
+                'name' => $selection['name'], 'unit_price' => $selection['price'], 'quantity' => $count];
+            if ($item) {
+                $item->update($values);
 
-        $item = $cart->items()->where('store_product_id', $product->id)->first();
+                return $item;
+            }
 
-        if ($item) {
-            $item->quantity += $quantity;
-            $item->unit_price = $product->price; // refresh snapshot to current price
-            $item->name = $product->name;
-            $item->save();
-
-            return $item;
-        }
-
-        return $cart->items()->create([
-            'store_product_id' => $product->id,
-            'name' => $product->name,
-            'unit_price' => $product->price,
-            'quantity' => $quantity,
-        ]);
+            return $cart->items()->create($values);
+        });
     }
 
     public function updateItem(Cart $cart, CartItem $item, int $quantity): ?CartItem
     {
-        $this->assertItemInCart($cart, $item);
+        return DB::transaction(function () use ($cart, $item, $quantity) {
+            $this->lockActive($cart);
+            $this->assertItemInCart($cart, $item);
 
-        if ($quantity <= 0) {
-            $item->delete();
+            if ($quantity <= 0) {
+                $item->delete();
 
-            return null;
-        }
+                return null;
+            }
 
-        $item->quantity = $quantity;
-        $item->save();
+            $selection = $this->selections->resolve(Store::findOrFail($cart->store_id), $item->store_product_id, $item->variant_id);
+            app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $quantity);
+            $item->quantity = $quantity;
+            $item->save();
 
-        return $item;
+            return $item;
+        });
     }
 
     public function removeItem(Cart $cart, CartItem $item): void
     {
-        $this->assertItemInCart($cart, $item);
-        $item->delete();
+        DB::transaction(function () use ($cart, $item) {
+            $this->lockActive($cart);
+            $this->assertItemInCart($cart, $item);
+            $item->delete();
+        });
     }
 
     public function clear(Cart $cart): void
     {
-        $cart->items()->delete();
+        DB::transaction(function () use ($cart) {
+            $this->lockActive($cart);
+            $cart->items()->delete();
+        });
+    }
+
+    private function lockActive(Cart $cart): void
+    {
+        $current = Cart::query()->where('store_id', $cart->store_id)->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+        if ($current->status !== 'active') {
+            throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
+        }
     }
 
     /** Move guest-cart lines into the target cart, then abandon the guest cart. */
     private function merge(Cart $from, Cart $to): void
     {
-        foreach ($from->items()->get() as $line) {
-            $existing = $to->items()->where('store_product_id', $line->store_product_id)->first();
-            if ($existing) {
-                $existing->quantity += $line->quantity;
-                $existing->save();
-            } else {
-                $to->items()->create([
-                    'store_product_id' => $line->store_product_id,
-                    'name' => $line->name,
-                    'unit_price' => $line->unit_price,
-                    'quantity' => $line->quantity,
-                ]);
+        DB::transaction(function () use ($from, $to) {
+            $locked = Cart::query()->whereIn('id', [$from->id, $to->id])->orderBy('id')->lockForUpdate()->get();
+            if ($locked->count() !== 2 || $locked->contains(fn (Cart $cart) => $cart->status !== 'active')) {
+                throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
             }
-        }
-        $from->items()->delete();
-        $from->update(['status' => 'abandoned']);
-    }
-
-    private function purchasableProduct(int $productId): Product
-    {
-        $product = Product::query()->where('is_active', true)->find($productId);
-
-        if ($product === null) {
-            throw ValidationException::withMessages([
-                'store_product_id' => 'This product is not available.',
-            ]);
-        }
-
-        return $product;
+            foreach ($from->items()->get() as $line) {
+                $existing = $to->items()->where('store_product_id', $line->store_product_id)->where('variant_id', $line->variant_id)->first();
+                if ($existing) {
+                    if ($existing->quantity + $line->quantity > 999) {
+                        throw ValidationException::withMessages(['quantity' => 'Choose between 1 and 999 items.']);
+                    }
+                    $existing->quantity += $line->quantity;
+                    $existing->save();
+                } else {
+                    $to->items()->create([
+                        'store_product_id' => $line->store_product_id,
+                        'variant_id' => $line->variant_id,
+                        'name' => $line->name,
+                        'unit_price' => $line->unit_price,
+                        'quantity' => $line->quantity,
+                    ]);
+                }
+            }
+            $from->items()->delete();
+            $from->update(['status' => 'abandoned']);
+        });
     }
 
     private function assertItemInCart(Cart $cart, CartItem $item): void

@@ -2,12 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\StoreCatalogFields;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StorefrontProductStoreRequest extends FormRequest
 {
+    use StoreCatalogFields;
+
     public function authorize(): bool
     {
         return true; // gated by ScopeToStore middleware (store ownership)
@@ -32,6 +35,6 @@ class StorefrontProductStoreRequest extends FormRequest
             'is_featured' => ['nullable', 'boolean'],
             'position' => ['nullable', 'integer', 'min:0'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-        ];
+        ] + $this->catalogFields();
     }
 }

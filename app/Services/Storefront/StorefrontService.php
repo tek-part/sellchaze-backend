@@ -60,7 +60,7 @@ class StorefrontService
             $featured = Product::query()
                 ->where('is_active', true)
                 ->where('is_featured', true)
-                ->with('category:id,name,name_en,name_ar,slug,translations')
+                ->with(['category:id,name,name_en,name_ar,slug,translations', 'variants'])
                 ->orderBy('position')->orderByDesc('id')
                 ->limit(8)->get();
 
@@ -68,7 +68,7 @@ class StorefrontService
             if ($featured->isEmpty()) {
                 $featured = Product::query()
                     ->where('is_active', true)
-                    ->with('category:id,name,name_en,name_ar,slug,translations')
+                    ->with(['category:id,name,name_en,name_ar,slug,translations', 'variants'])
                     ->orderByDesc('id')->limit(8)->get();
             }
 
@@ -136,7 +136,7 @@ class StorefrontService
                     ->orWhere('short_description', 'like', $like)
                     ->orWhere('sku', 'like', $like));
             })
-            ->with('category:id,name,name_en,name_ar,slug,translations');
+            ->with(['category:id,name,name_en,name_ar,slug,translations', 'variants']);
 
         // Merchandising rows sort by their signal; everything else by curated position.
         match ($filter) {
@@ -172,7 +172,7 @@ class StorefrontService
     {
         return $collection->products()
             ->where('is_active', true)
-            ->with('category:id,name,name_en,name_ar,slug,translations')
+            ->with(['category:id,name,name_en,name_ar,slug,translations', 'variants'])
             ->paginate($perPage);
     }
 
@@ -238,6 +238,12 @@ class StorefrontService
             'short_description' => $p->translated('short_description', $locale),
             'image_url' => $p->imageUrl(),
             'is_featured' => $p->is_featured,
+            'stock' => $p->track_inventory ? max(0, $p->stock_quantity - $p->reserved_quantity) : null,
+            'variants' => $p->relationLoaded('variants') ? $p->variants->map(fn ($variant) => [
+                'id' => $variant->id, 'name' => $variant->translated('name', $locale), 'is_active' => $variant->is_active,
+                'price' => $variant->price_override ?? $p->price,
+                'stock' => $variant->track_inventory ? max(0, $variant->stock_quantity - $variant->reserved_quantity) : null,
+            ])->all() : null,
             'category' => $p->relationLoaded('category') && $p->category ? [
                 'id' => $p->category->id,
                 'name' => $p->category->translated('name', $locale),

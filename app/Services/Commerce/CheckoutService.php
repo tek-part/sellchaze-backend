@@ -5,7 +5,6 @@ namespace App\Services\Commerce;
 use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Cart;
 use App\Models\Coupon;
-use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreCustomer;
 use App\Models\StoreOrder;
@@ -26,48 +25,52 @@ class CheckoutService
         private readonly CouponService $coupons,
         private readonly PricingCalculator $pricing,
         private readonly OutboxRecorder $outbox,
+        private readonly PurchasableSelection $selections,
+        private readonly StoreInventory $inventory,
     ) {}
 
     /**
-     * @param  array{name:string,email:string,phone?:string|null,notes?:string|null}  $contact
+     * @param  array{name:string,email:string|null,phone?:string|null,notes?:string|null}  $contact
      * @param  array<string,mixed>|null  $shippingAddress
      */
-    public function place(Store $store, Cart $cart, ?StoreCustomer $customer, array $contact, ?array $shippingAddress, string $paymentMethod): StoreOrder
+    public function place(Store $store, Cart $cart, ?StoreCustomer $customer, array $contact, ?array $shippingAddress, string $paymentMethod, array $shippingSelection = []): StoreOrder
     {
-        $cart->load('items');
-
-        if ($cart->items->isEmpty()) {
-            throw ValidationException::withMessages(['cart' => 'Your cart is empty.']);
-        }
-
-        return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress, $paymentMethod) {
+        return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress, $paymentMethod, $shippingSelection) {
+            $cart = Cart::query()->where('store_id', $store->id)->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+            if ($cart->status !== 'active') {
+                throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
+            }
+            $items = $cart->items()->orderBy('store_product_id')->orderBy('variant_id')->orderBy('id')->get();
+            if ($items->isEmpty()) {
+                throw ValidationException::withMessages(['cart' => 'Your cart is empty.']);
+            }
             $subtotal = '0.00';
             $lines = [];
+            $stocks = [];
 
-            foreach ($cart->items as $item) {
-                $product = $item->store_product_id
-                    ? Product::query()->find($item->store_product_id)
-                    : null;
-
-                // Inventory + availability validation (fail-closed).
-                if ($product === null || ! $product->is_active) {
-                    throw ValidationException::withMessages([
-                        'items' => "\"{$item->name}\" is no longer available.",
-                    ]);
-                }
+            foreach ($items as $item) {
+                $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id, true);
+                $product = $selection['product'];
+                $variant = $selection['variant'];
+                $stocks[] = $variant ?? $product;
+                $this->inventory->assertAvailable($variant ?? $product, $item->quantity);
                 // Price validation: the snapshot must still match the live price.
-                if (bccomp((string) $product->price, (string) $item->unit_price, 2) !== 0) {
+                if (bccomp($selection['price'], (string) $item->unit_price, 2) !== 0) {
                     throw ValidationException::withMessages([
                         'items' => "The price of \"{$product->name}\" changed. Please review your cart.",
                     ]);
                 }
 
-                $lineTotal = bcmul((string) $product->price, (string) $item->quantity, 2);
+                $lineTotal = bcmul($selection['price'], (string) $item->quantity, 2);
                 $subtotal = bcadd($subtotal, $lineTotal, 2);
                 $lines[] = [
                     'store_product_id' => $product->id,
-                    'name' => $product->name,
-                    'unit_price' => $product->price,
+                    'variant_id' => $variant?->id,
+                    'variant_name' => $variant?->name,
+                    'variant_options' => $variant?->options,
+                    'sku' => $variant?->sku ?? $product->sku,
+                    'name' => $selection['name'],
+                    'unit_price' => $selection['price'],
                     'quantity' => $item->quantity,
                     'line_total' => $lineTotal,
                 ];
@@ -85,7 +88,11 @@ class CheckoutService
                 $discount = $this->coupons->computeDiscount($coupon, $subtotal);
             }
 
-            $totals = $this->pricing->forStore($store, $subtotal, $discount);
+            $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection);
+            $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection);
+            if ($shippingAddress !== null || $delivery['address'] !== []) {
+                $shippingAddress = array_merge($shippingAddress ?? [], $delivery['address'], ['shipping_details' => $delivery['details']]);
+            }
 
             $order = StoreOrder::create([
                 'store_customer_id' => $customer?->id,
@@ -107,8 +114,9 @@ class CheckoutService
                 'placed_at' => now(),
             ]);
 
-            foreach ($lines as $line) {
-                $order->items()->create($line);
+            foreach ($lines as $index => $line) {
+                $item = $order->items()->create($line);
+                $this->inventory->reserve($stocks[$index], $item);
             }
 
             if ($coupon !== null) {

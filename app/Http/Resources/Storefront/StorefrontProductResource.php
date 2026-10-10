@@ -33,6 +33,8 @@ class StorefrontProductResource extends JsonResource
             'image_responsive' => app(ResponsiveImageUrl::class)->for($imageUrl),
             'is_active' => $this->is_active,
             'is_featured' => $this->is_featured,
+            'stock' => $this->track_inventory ? max(0, $this->stock_quantity - $this->reserved_quantity) : null,
+            'track_inventory' => (bool) $this->track_inventory,
             'position' => $this->position,
             // Additive enrichment (backward-compatible: existing keys unchanged, new keys the frozen
             // frontend mapper already understands — rating, reviews_count, images gallery).

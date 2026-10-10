@@ -84,6 +84,10 @@ class StorefrontOrderBridge
                 return [
                     'store_order_item_id' => $item->id,
                     'product_id' => $item->store_product_id ? (int) $item->store_product_id : null,
+                    'variant_id' => $item->variant_id,
+                    'variant_name' => $item->variant_name,
+                    'variant_options' => $item->variant_options,
+                    'sku' => $item->sku,
                     'name' => $item->name,
                     'slug' => $product?->slug,
                     'image' => $product?->image,
@@ -213,7 +217,7 @@ class StorefrontOrderBridge
     private function formatShippingAddress(array $address): string
     {
         $parts = [];
-        foreach (['name', 'line1', 'line2', 'city', 'state', 'postal_code', 'country'] as $key) {
+        foreach (['name', 'line1', 'line2', 'city', 'state', 'postal_code', 'country', 'national_address', 'phone_alt', 'delivery_option'] as $key) {
             $v = trim((string) ($address[$key] ?? ''));
             if ($v !== '') {
                 $parts[] = $v;

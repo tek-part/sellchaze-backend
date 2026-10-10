@@ -144,7 +144,7 @@ class StoreSeoService
         $seo = $page->seo ?? [];
         $title = ($seo['title'] ?? $page->title).' — '.$store->name;
         $description = $seo['description'] ?? $page->title;
-        $url = $this->canonical($store, 'pages/'.$page->slug);
+        $url = $this->canonical($store, $page->publicPath());
         $image = $seo['og_image'] ?? $store->logoUrl();
 
         return array_merge([

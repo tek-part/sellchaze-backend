@@ -2,6 +2,9 @@
 
 namespace App\Http\Requests\Storefront;
 
+use App\Services\Commerce\CheckoutFields;
+use App\Services\Commerce\StoreShipping;
+use App\Support\Tenancy\CurrentStore;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CheckoutRequest extends FormRequest
@@ -14,25 +17,18 @@ class CheckoutRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
-        return [
-            'customer_name' => ['required', 'string', 'max:255'],
-            'customer_email' => ['required', 'email', 'max:255'],
-            'customer_phone' => ['nullable', 'string', 'max:50'],
-            'notes' => ['nullable', 'string', 'max:2000'],
+        $store = app(CurrentStore::class)->get();
+        abort_unless($store, 404);
+
+        return app(CheckoutFields::class)->rules($store, is_string($this->input('payment_method')) ? $this->input('payment_method') : null) + StoreShipping::SELECTION_RULES + [
             'payment_method' => ['nullable', 'string', 'max:80'],
-            'shipping_address' => ['nullable', 'array'],
-            'shipping_address.name' => ['required_with:shipping_address', 'string', 'max:255'],
-            'shipping_address.line1' => ['required_with:shipping_address', 'string', 'max:255'],
-            'shipping_address.line2' => ['nullable', 'string', 'max:255'],
-            'shipping_address.city' => ['required_with:shipping_address', 'string', 'max:120'],
-            'shipping_address.state' => ['nullable', 'string', 'max:120'],
-            'shipping_address.country' => ['nullable', 'string', 'max:2'],
-            'shipping_address.postal_code' => ['nullable', 'string', 'max:32'],
+            'coupon_code' => ['nullable', 'string', 'max:100'],
+            'cart_mode' => ['sometimes', 'in:cart,direct'],
             // The storefront cart is client-side; the order's line items are submitted here and
             // synced into the cart before placement (see CheckoutController@store).
-            'items' => ['sometimes', 'array', 'min:1'],
+            'items' => ['required_if:cart_mode,direct', 'array', 'min:1', 'max:100'],
             'items.*.product_id' => ['required_with:items', 'integer'],
-            'items.*.variant_id' => ['nullable', 'integer'],
+            'items.*.variant_id' => ['nullable', 'integer', 'min:1'],
             'items.*.quantity' => ['required_with:items', 'integer', 'min:1', 'max:999'],
         ];
     }

@@ -41,6 +41,10 @@ class StoreOrderResource extends JsonResource
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'store_product_id' => $item->store_product_id,
+                'variant_id' => $item->variant_id,
+                'variant_name' => $item->variant_name,
+                'variant_options' => $item->variant_options,
+                'sku' => $item->sku,
                 'name' => $item->name,
                 'unit_price' => $item->unit_price,
                 'price' => $item->unit_price,
