@@ -4,8 +4,10 @@ namespace App\Services\StoreCatalog;
 
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\Commerce\StoreInventory;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -142,6 +144,72 @@ class StorefrontProductVariantService
         }
     }
 
+    public function bulkInventory(Product $product, array $input, int $actorId): int
+    {
+        $count = DB::transaction(function () use ($product, $input, $actorId) {
+            $current = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $variants = $this->lockSelection($current, $input['variants']);
+            foreach ($variants as $variant) {
+                $quantity = match ($input['mode']) {
+                    'increase' => $variant->stock_quantity + (int) $input['quantity'],
+                    'decrease' => $variant->stock_quantity - (int) $input['quantity'],
+                    default => (int) $input['quantity'],
+                };
+                if ($quantity < 0 || $quantity > 100000000) {
+                    throw ValidationException::withMessages(['quantity' => 'Every resulting quantity must be between 0 and 100000000.']);
+                }
+                app(StoreInventory::class)->adjust($variant, [
+                    'stock_quantity' => $quantity,
+                    'track_inventory' => $input['tracking'] === 'keep' ? $variant->track_inventory : $input['tracking'] === 'on',
+                    'expected_stock' => $variant->stock_quantity, 'expected_reserved' => $variant->reserved_quantity,
+                    'expected_tracking' => $variant->track_inventory, 'note' => $input['note'] ?? null,
+                ], $actorId, false);
+            }
+
+            return $variants->count();
+        });
+        $this->flush($product);
+
+        return $count;
+    }
+
+    public function bulkDelete(Product $product, array $input, int $actorId): int
+    {
+        $count = DB::transaction(function () use ($product, $input, $actorId) {
+            $current = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $variants = $this->lockSelection($current, $input['variants']);
+            foreach ($variants as $variant) {
+                app(StoreInventory::class)->recordVariantRemoval($variant, $actorId, $input['note'] ?? null);
+                $variant->delete();
+            }
+            // Removing the final SKU must not silently make an unlimited base product buyable.
+            if (! $current->variants()->exists()) {
+                $current->update(['is_active' => false]);
+            }
+
+            return $variants->count();
+        });
+        $this->flush($product);
+
+        return $count;
+    }
+
+    /** @return Collection<int, ProductVariant> */
+    private function lockSelection(Product $product, array $targets): Collection
+    {
+        $variants = $product->variants()->whereIn('id', array_column($targets, 'id'))->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+        if ($variants->count() !== count($targets)) {
+            throw ValidationException::withMessages(['variants' => 'All selected options must still belong to this product. Refresh the list.']);
+        }
+        foreach ($targets as $target) {
+            $variant = $variants->get($target['id']);
+            $this->assertVersion($variant, $target['version']);
+            abort_if($variant->stock_quantity !== (int) $target['expected_stock'] || $variant->reserved_quantity !== (int) $target['expected_reserved'] || $variant->track_inventory !== (bool) $target['expected_tracking'], 409, 'Stock changed. Refresh the variants before saving.');
+        }
+
+        return $variants;
+    }
+
     private function setImage(Product $product, ProductVariant $variant, array $data): void
     {
         if (! array_key_exists('image_media_id', $data)) {
@@ -180,16 +248,17 @@ class StorefrontProductVariantService
         }
     }
 
-    public function delete(ProductVariant $variant): void
+    public function delete(ProductVariant $variant, int $actorId): void
     {
         $product = $variant->product;
-        DB::transaction(function () use ($variant) {
-            Product::query()->where('store_id', $variant->store_id)->whereKey($variant->store_product_id)->lockForUpdate()->firstOrFail();
+        DB::transaction(function () use ($variant, $actorId) {
+            $parent = Product::query()->where('store_id', $variant->store_id)->whereKey($variant->store_product_id)->lockForUpdate()->firstOrFail();
             $current = ProductVariant::query()->where('store_id', $variant->store_id)->whereKey($variant->id)->lockForUpdate()->firstOrFail();
-            if ($current->reserved_quantity > 0) {
-                throw ValidationException::withMessages(['inventory' => 'Ship or cancel reserved orders before deleting this option.']);
-            }
+            app(StoreInventory::class)->recordVariantRemoval($current, $actorId);
             $current->delete();
+            if (! $parent->variants()->exists()) {
+                $parent->update(['is_active' => false]);
+            }
         });
 
         $this->flush($product);

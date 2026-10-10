@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BulkProductVariantsRequest;
+use App\Http\Requests\BulkVariantDeleteRequest;
+use App\Http\Requests\BulkVariantInventoryRequest;
 use App\Http\Requests\GenerateProductVariantsRequest;
 use App\Http\Requests\StorefrontProductVariantRequest;
 use App\Http\Resources\StoreCatalogVariantResource;
@@ -64,12 +66,27 @@ class StorefrontProductVariantsApiController extends Controller
         return response()->json(['meta' => ['updated' => $count]], 200);
     }
 
+    public function bulkInventory(BulkVariantInventoryRequest $request, Store $store, int $product): JsonResponse
+    {
+        $count = $this->service->bulkInventory($this->product($product), $request->validated(), (int) $request->user()->id);
+
+        return response()->json(['meta' => ['updated' => $count]]);
+    }
+
+    public function bulkDelete(BulkVariantDeleteRequest $request, Store $store, int $product): JsonResponse
+    {
+        $model = $this->product($product);
+        $count = $this->service->bulkDelete($model, $request->validated(), (int) $request->user()->id);
+
+        return response()->json(['meta' => ['deleted' => $count, 'product_active' => $model->fresh()->is_active]]);
+    }
+
     public function destroy(Request $request, Store $store, int $product, int $variant): JsonResponse
     {
         $model = $this->product($product);
-        $this->service->delete($this->variant($model, $variant));
+        $this->service->delete($this->variant($model, $variant), (int) $request->user()->id);
 
-        return response()->json(['message' => 'Deleted.'], 200);
+        return response()->json(['message' => 'Deleted.', 'meta' => ['product_active' => $model->fresh()->is_active]], 200);
     }
 
     /** Scoped product fetch (StoreScope => 404 cross-store) + ownership policy. */
