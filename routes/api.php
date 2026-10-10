@@ -311,6 +311,7 @@ Route::prefix('v1')->group(function () {
         // ---- Theme customizer: published section layouts for the SPA (home template + custom pages) ----
         Route::get('layout', [StorefrontLayoutController::class, 'layout']);
         Route::get('pages/{slug}', [StorefrontLayoutController::class, 'page'])->where('slug', '[a-z0-9\-]+');
+        Route::get('funnels/{slug}', [StorefrontLayoutController::class, 'funnel'])->where('slug', '[a-z0-9\-]+');
 
         // ---- Phase 6: public product reviews (approved only + average summary) ----
         Route::get('products/{slug}/reviews', [ProductReviewController::class, 'index'])->where('slug', '[a-z0-9\-]+');

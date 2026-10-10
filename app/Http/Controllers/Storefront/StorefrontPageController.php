@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Storefront;
 
 use App\Http\Controllers\Controller;
 use App\Models\Store;
+use App\Models\StoreFunnel;
 use App\Models\StorePage;
 use App\Models\Theme;
 use App\Services\Storefront\PublishedPageResolver;
@@ -174,6 +175,16 @@ class StorefrontPageController extends Controller
     /** GET /pages/{slug} — dynamic Page Builder page (Task 11). */
     public function page(Request $request, string $slug): Response
     {
+        return $this->renderPage($request, $slug);
+    }
+
+    public function funnel(Request $request, string $slug): Response
+    {
+        return $this->renderPage($request, $slug, true);
+    }
+
+    private function renderPage(Request $request, string $slug, bool $funnelOnly = false): Response
+    {
         $store = $this->store($request);
 
         // Owner draft preview via a signed token (isolation: token binds store + page).
@@ -184,8 +195,11 @@ class StorefrontPageController extends Controller
 
         $page = $previewPageId !== null
             ? StorePage::query()->where('store_id', $store->id)->find($previewPageId)
-            : $this->pageForLocale($store, $slug);
+            : app(PublishedPageResolver::class)->forSlug($store, $slug, $funnelOnly);
         abort_if($page === null, 404, 'Page not found.');
+        if ($funnelOnly) {
+            abort_unless(StoreFunnel::forStore($store)->where('store_page_id', $page->id)->exists(), 404, 'Funnel not found.');
+        }
 
         $isPreview = $previewPageId !== null && (int) $previewPageId === (int) $page->id;
         abort_unless($isPreview || $page->isPubliclyVisible(), 404, 'Page not found.'); // drafts/future hidden
@@ -198,12 +212,6 @@ class StorefrontPageController extends Controller
         }
 
         return $this->publicResponse($this->renderer->render($request, $context), $context);
-    }
-
-    /** Sibling selection (one slug per locale) lives in PublishedPageResolver, shared with the JSON layout API. */
-    private function pageForLocale(Store $store, string $slug): ?StorePage
-    {
-        return app(PublishedPageResolver::class)->forSlug($store, $slug);
     }
 
     public function sitemap(Request $request): Response

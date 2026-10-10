@@ -25,6 +25,7 @@ Route::middleware(['resolve.store', 'storefront.locale'])->group(function () {
     Route::get('/products/{slug}', [StorefrontPageController::class, 'product'])->where('slug', '[a-z0-9\-]+');
     Route::get('/categories/{slug}', [StorefrontPageController::class, 'category'])->where('slug', '[a-z0-9\-]+');
     Route::get('/pages/{slug}', [StorefrontPageController::class, 'page'])->where('slug', '[a-z0-9\-]+');
+    Route::get('/funnels/{slug}', [StorefrontPageController::class, 'funnel'])->where('slug', '[a-z0-9\-]+');
     // Transactional / account pages (cart, checkout, account, …) are rendered by the
     // React storefront SPA; the legacy Blade "modern" previews were removed with the
     // legacy theme shells.

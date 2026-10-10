@@ -84,8 +84,18 @@ class StorefrontLayoutController extends Controller
      */
     public function page(Request $request, string $slug): JsonResponse
     {
+        return $this->pageResponse($request, $slug);
+    }
+
+    public function funnel(Request $request, string $slug): JsonResponse
+    {
+        return $this->pageResponse($request, $slug, true);
+    }
+
+    private function pageResponse(Request $request, string $slug, bool $funnelOnly = false): JsonResponse
+    {
         $store = $this->currentStore($request);
-        $page = $this->pages->forSlug($store, $slug);
+        $page = $this->pages->forSlug($store, $slug, $funnelOnly);
         if ($page === null || ! $page->isPubliclyVisible()) {
             return response()->json(['message' => 'Page not found.'], 404);
         }
@@ -103,6 +113,7 @@ class StorefrontLayoutController extends Controller
                 'id' => $page->id,
                 'title' => $title,
                 'slug' => $page->published_slug ?? $page->slug,
+                'public_path' => $page->publicPath(),
                 'template' => $publication['page']['template'] ?? $page->template,
                 'locale' => $page->locale,
                 'seo' => $this->seo->forPage($store, $publication ? $snapshot : $page),

@@ -41,7 +41,7 @@ class StorePagesApiController extends Controller
     {
         $templates = array_values(array_filter(array_map('trim', explode(',', (string) $request->query('template', '')))));
 
-        $pages = StorePage::query()
+        $pages = StorePage::query()->with('funnel')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($templates !== [], fn ($q) => $q->whereIn('template', $templates), fn ($q) => $q->whereNotIn('template', StorePageService::TEMPLATE_PAGES))
             ->orderByDesc('id')->paginate((int) $request->get('per_page', 20));
@@ -177,7 +177,7 @@ class StorePagesApiController extends Controller
         $token = $this->previewToken->makePage($store->id, $model->id, 1800);
 
         return response()->json([
-            'preview_url' => $this->urls->previewUrl($store, $token, $model->template === 'home' ? '/' : '/pages/'.$model->slug),
+            'preview_url' => $this->urls->previewUrl($store, $token, $model->publicPath(false)),
             'expires_in' => 1800,
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
@@ -231,6 +231,8 @@ class StorePagesApiController extends Controller
             'id' => $page->id,
             'title' => $page->title,
             'slug' => $page->slug,
+            'public_path' => $page->publicPath(),
+            'preview_path' => $page->publicPath(false),
             'status' => $page->status,
             'template' => $page->template,
             'locale' => $page->locale,

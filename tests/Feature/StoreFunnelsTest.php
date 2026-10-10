@@ -285,4 +285,83 @@ class StoreFunnelsTest extends TestCase
         $this->assertSame(1, $attempts);
         $this->assertDatabaseCount('store_pages', 0);
     }
+
+    public function test_public_funnel_routes_hide_drafts_and_allow_only_signed_tenant_preview(): void
+    {
+        $funnel = $this->createFunnel()->assertCreated()->assertJsonPath('data.public_path', '/funnels/bag-campaign')->json('data');
+        $this->getJson('http://funnel.sellchase.com/api/v1/storefront/funnels/bag-campaign')->assertNotFound();
+        $this->get('http://funnel.sellchase.com/funnels/bag-campaign')->assertNotFound();
+        $preview = $this->postJson('/api/v1/my-store/pages/'.$funnel['page_id'].'/preview')->assertOk()->json('preview_url');
+        $this->assertStringContainsString('/funnels/bag-campaign?', $preview);
+        $this->get($preview)->assertOk()->assertHeader('X-Robots-Tag', 'noindex, nofollow');
+        $this->get('http://funnel.sellchase.com/funnels/bag-campaign?__preview=invalid')->assertNotFound();
+        $this->makeStore('other');
+        $this->get(str_replace('funnel.sellchase.com', 'other.sellchase.com', $preview))->assertNotFound();
+    }
+
+    public function test_published_funnel_and_legacy_page_alias_share_canonical_url(): void
+    {
+        $funnel = $this->createFunnel()->assertCreated()->json('data');
+        $this->postJson('/api/v1/my-store/pages/'.$funnel['page_id'].'/publish')->assertOk();
+        $shell = tempnam(sys_get_temp_dir(), 'funnel-shell-');
+        file_put_contents($shell, '<html><head><title>Store</title></head><body><div id="storefront-root"></div><script type="module" src="/assets/storefront.js"></script></body></html>');
+        config(['sellchase.storefront.spa_shell' => $shell, 'sellchase.storefront.spa_origin' => 'https://sellchaze.com', 'sellchase.storefront.ssr_url' => null]);
+        try {
+            foreach (['funnels', 'pages'] as $kind) {
+                $this->getJson('http://funnel.sellchase.com/api/v1/storefront/'.$kind.'/bag-campaign')->assertOk()
+                    ->assertJsonPath('data.public_path', '/funnels/bag-campaign')
+                    ->assertJsonPath('data.sections.0.settings.heading', 'Canvas bag');
+                $this->get('http://funnel.sellchase.com/'.$kind.'/bag-campaign')->assertOk()
+                    ->assertHeader('X-Storefront-Renderer', 'spa')
+                    ->assertSee('rel="canonical" href="https://funnel.sellchase.com/funnels/bag-campaign"', false);
+            }
+        } finally {
+            unlink($shell);
+        }
+        $this->postJson('/api/v1/my-store/pages/'.$funnel['page_id'].'/unpublish')->assertOk();
+        $this->getJson('http://funnel.sellchase.com/api/v1/storefront/funnels/bag-campaign')->assertNotFound();
+        $this->get('http://funnel.sellchase.com/funnels/bag-campaign')->assertNotFound();
+    }
+
+    public function test_funnel_slug_and_copy_remain_at_last_publication_until_republished(): void
+    {
+        $funnel = $this->createFunnel()->assertCreated()->json('data');
+        $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+        $this->postJson($path.'/publish')->assertOk();
+        $this->putJson($path, ['title' => 'Unpublished title', 'slug' => 'renamed-campaign'])->assertOk()
+            ->assertJsonPath('data.public_path', '/funnels/bag-campaign')
+            ->assertJsonPath('data.preview_path', '/funnels/renamed-campaign');
+        $public = 'http://funnel.sellchase.com/api/v1/storefront/funnels/';
+        $this->getJson($public.'bag-campaign')->assertOk()->assertJsonPath('data.title', 'Bag campaign')
+            ->assertJsonPath('data.public_path', '/funnels/bag-campaign');
+        $this->getJson($public.'renamed-campaign')->assertNotFound();
+        $this->postJson($path.'/publish')->assertOk();
+        $this->getJson($public.'renamed-campaign')->assertOk()->assertJsonPath('data.title', 'Unpublished title')
+            ->assertJsonPath('data.public_path', '/funnels/renamed-campaign');
+        $this->getJson($public.'bag-campaign')->assertNotFound();
+    }
+
+    public function test_funnel_locale_selection_excludes_ordinary_page_siblings_and_other_stores(): void
+    {
+        $funnel = $this->createFunnel()->assertCreated()->json('data');
+        $this->postJson('/api/v1/my-store/pages/'.$funnel['page_id'].'/publish')->assertOk();
+        $ordinary = $this->postJson('/api/v1/my-store/pages', ['title' => 'Ordinary Arabic page', 'slug' => 'bag-campaign', 'locale' => 'ar', 'template' => 'page'])->assertCreated()->json('data.id');
+        $this->postJson('/api/v1/my-store/pages/'.$ordinary.'/publish')->assertOk();
+        $this->getJson('http://funnel.sellchase.com/api/v1/storefront/pages/bag-campaign?lang=ar')->assertOk()->assertJsonPath('data.title', 'Ordinary Arabic page');
+        $this->getJson('http://funnel.sellchase.com/api/v1/storefront/funnels/bag-campaign?lang=ar')->assertOk()->assertJsonPath('data.title', 'Bag campaign');
+        $this->makeStore('other');
+        $this->getJson('http://other.sellchase.com/api/v1/storefront/funnels/bag-campaign')->assertNotFound();
+        $this->get('http://other.sellchase.com/funnels/bag-campaign')->assertNotFound();
+    }
+
+    public function test_ordinary_published_page_and_signed_preview_cannot_be_opened_as_funnel(): void
+    {
+        $page = $this->postJson('/api/v1/my-store/pages', ['title' => 'About', 'slug' => 'about', 'locale' => 'en', 'template' => 'page'])->assertCreated()->json('data.id');
+        $this->postJson('/api/v1/my-store/pages/'.$page.'/publish')->assertOk();
+        $this->getJson('http://funnel.sellchase.com/api/v1/storefront/pages/about')->assertOk()->assertJsonPath('data.public_path', '/pages/about');
+        $this->getJson('http://funnel.sellchase.com/api/v1/storefront/funnels/about')->assertNotFound();
+        $this->get('http://funnel.sellchase.com/funnels/about')->assertNotFound();
+        $preview = $this->postJson('/api/v1/my-store/pages/'.$page.'/preview')->assertOk()->json('preview_url');
+        $this->get(str_replace('/pages/about', '/funnels/about', $preview))->assertNotFound();
+    }
 }

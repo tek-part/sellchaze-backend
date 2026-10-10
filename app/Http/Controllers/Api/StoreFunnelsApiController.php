@@ -115,7 +115,7 @@ class StoreFunnelsApiController extends Controller
             'id' => $funnel->id, 'page_id' => $funnel->store_page_id, 'template_key' => $funnel->template_key,
             'title' => $funnel->page->title, 'slug' => $funnel->page->slug, 'status' => $funnel->page->status,
             'locale' => $funnel->page->locale, 'product' => $funnel->product?->only(['id', 'name', 'slug']),
-            'public_path' => '/pages/'.($funnel->page->published_slug ?: $funnel->page->slug),
+            'public_path' => '/funnels/'.($funnel->page->published_slug ?: $funnel->page->slug),
             'created_at' => $funnel->created_at,
         ];
     }
