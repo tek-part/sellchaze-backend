@@ -21,9 +21,11 @@ class CheckoutQuote
         $lines = [];
         $counts = [];
         $digitalCounts = [];
+        $requiresShipping = false;
         foreach ($items as $item) {
             $variantId = isset($item['variant_id']) ? (int) $item['variant_id'] : null;
             $selection = $this->selections->resolve($store, (int) $item['product_id'], $variantId);
+            $requiresShipping = $requiresShipping || $selection['product']->digital_type === 'physical';
             $custom = app(ProductPersonalization::class)->resolve($selection['product'], $item['personalization'] ?? []);
             $quantity = (int) $item['quantity'];
             $key = $item['product_id'].':'.($variantId ?? 'base');
@@ -51,7 +53,7 @@ class CheckoutQuote
             $discount = $this->coupons->computeDiscount($coupon, $subtotal);
         }
 
-        return ['items' => $lines, 'currency' => $store->currency ?: 'USD',
-            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection)];
+        return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'requires_shipping' => $requiresShipping,
+            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping)];
     }
 }

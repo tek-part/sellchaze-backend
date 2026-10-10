@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\StoreOrder;
+use App\Models\StorePaymentGateway;
 use App\Models\User;
 use App\Services\Commerce\CartService;
 use App\Services\Commerce\StoreOrderService;
@@ -42,6 +43,7 @@ class DigitalProductsTest extends TestCase
         $this->auth = ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($owner)];
         $this->store = Store::create(['owner_user_id' => $owner->id, 'owner_type' => 'merchant', 'name' => 'Digital', 'slug' => 'digital', 'currency' => 'EGP', 'default_locale' => 'en', 'status' => 'active']);
         StoreDomain::create(['store_id' => $this->store->id, 'host' => 'digital.sellchase.com', 'type' => 'subdomain', 'is_primary' => true]);
+        StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'bank_transfer', 'enabled' => true, 'credentials' => []]);
     }
 
     private function product(string $type = 'codes', array $codes = ['FIRST-CODE', 'SECOND-CODE']): int

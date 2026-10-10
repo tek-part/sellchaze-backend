@@ -41,7 +41,7 @@ Fixed an existing new-product rich editor crash: skip HTML synchronization until
 the editor schema exists and avoid accessing a destroyed editor.
 
 NOT YET COMPLETE:
-  - Digital-only checkout must omit shipping address, delivery method and fees.
+  - Checkout shipping/contact/payment eligibility is now covered in DIGITAL-CHECKOUT.txt.
   - Email delivery, guest delivery receipt and manual bank-payment confirmation.
   - Digital sales counters/delivery browser acceptance after provider-confirmed pay.
   - Explicit warehouse/B2B bridge and carrier behavior for digital/mixed orders.
@@ -51,4 +51,5 @@ Do not call the whole digital feature or full competitor goal complete yet.
 
 Migration 2026_10_10_070000_add_digital_products was applied only to the isolated
 review SQLite. Reversal refuses to discard digital products, codes or order data.
-Local implementation remains in codex/digital-products, unpushed and undeployed.
+Foundations were merged via PR #6. DIGITAL-CHECKOUT.txt covers the local follow-up
+on codex/digital-checkout; production remains undeployed.

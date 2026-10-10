@@ -1,0 +1,52 @@
+Digital and mixed checkout — 2026-10-10
+
+Scope: shipping/contact/payment eligibility for physical and digital baskets.
+Digital fulfillment as a whole and the full competitor rebuild remain in progress.
+
+Authoritative requirements:
+  - Any physical line requires the store's configured shipping fields/selections.
+  - A basket of link/code products alone has no address, delivery method or fee.
+  - Any digital line forces a visible required email, including bank transfer.
+  - Client requires_shipping/price fields do not control these decisions.
+
+CheckoutBasket inspects tenant-owned active products. Form and payment endpoints
+accept product_ids[] (at most100); unknown/foreign IDs fail without leaking values.
+Requests with submitted items use those IDs; server-cart integrations inspect the
+customer and guest carts together, matching the later merge, without creating or
+merging carts during validation. Missing/invalid baskets retain physical defaults
+until item validation rejects them. Actual order placement locks the cart and
+resolves its live products again, rechecking digital email and physical address
+rules before saving the order. Product digital type is immutable.
+
+GET /storefront/checkout/fields includes requires_shipping, has_digital and each
+field's digital_required flag. A pure digital basket gets disabled empty shipping
+configuration. GET /storefront/payment-methods uses the same IDs to exclude COD
+from pure digital baskets; mixed baskets retain COD. POST checkout independently
+rejects pure-digital COD and does not synthesize a COD fallback for that basket.
+When no eligible gateway is enabled, no order/cart is created. Bank transfer remains
+unpaid until a separate confirmation flow is implemented; selection is not payment.
+
+Quote, order and server-cart coupon totals skip shipping only for digital-only
+baskets. Discounted-subtotal tax (inclusive and exclusive) remains unchanged.
+Pure digital orders persist shipping_address=null, even if stale address data is
+submitted. Mixed orders retain the owned region/option snapshot and normal charges.
+Digital snapshots remain hidden while unpaid; this pass adds no email or code release.
+
+Frontend: cart and direct funnel forms query by stable product-ID basket keys,
+reload payment eligibility when that basket changes, and hide the shipping total
+row only after the authoritative quote identifies a digital-only order.
+New cart additions preserve digital type; all five drawers omit free-shipping
+progress for entirely digital lines. Legacy cached lines without type retain
+physical presentation until refreshed; checkout is always server-derived.
+Fixed a separate cart-row bug: the horizontal name link no longer inherits the
+whole-card pseudo-element overlay which intercepted remove/quantity controls.
+The direct funnel also uses the current theme surface/text/border tokens instead
+of obsolete variables and white fallbacks which made dark-mode text unreadable.
+
+No new migration is needed for this pass. Production archive/dist is preserved;
+all source builds go to audit/commerce-build and changes are local, undeployed.
+
+Remaining digital requirements: guest receipt, manual bank confirmation, email
+delivery, authenticated provider acceptance, digital/mixed B2B/carrier handling,
+shared code-pool client cart caps, remaining all-theme/mobile/dark verification and MySQL
+concurrency. No full digital feature or full competitor parity completion claimed.
