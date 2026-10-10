@@ -11,14 +11,38 @@ use libphonenumber\PhoneNumberUtil;
 
 class OrderLimits
 {
-    /** @return array{max_product_quantity:int,max_orders_per_phone_24h:int,phone_country:string} */
+    /** @return array{max_product_quantity:int,max_orders_per_phone_24h:int,phone_country:string,minimum_order_amount:string,version:int} */
     public function configured(Store $store): array
     {
         $config = $store->order_limits ?? [];
 
         return ['max_product_quantity' => (int) ($config['max_product_quantity'] ?? 0),
             'max_orders_per_phone_24h' => (int) ($config['max_orders_per_phone_24h'] ?? 0),
-            'phone_country' => (string) ($config['phone_country'] ?? 'EG')];
+            'phone_country' => (string) ($config['phone_country'] ?? 'EG'),
+            'minimum_order_amount' => bcadd((string) ($config['minimum_order_amount'] ?? '0'), '0', 2),
+            'version' => max(1, (int) ($config['version'] ?? 1))];
+    }
+
+    /** Products after discount; delivery and tax cannot satisfy the minimum. */
+    public function minimum(Store $store, string $subtotal, string $discount = '0.00'): array
+    {
+        $amount = $this->configured($store)['minimum_order_amount'];
+        $net = bcsub($subtotal, bccomp($discount, $subtotal, 2) > 0 ? $subtotal : $discount, 2);
+        $eligible = bccomp($net, $amount, 2) >= 0;
+
+        return ['amount' => $amount, 'merchandise_total' => $net, 'remaining' => $eligible ? '0.00' : bcsub($amount, $net, 2), 'eligible' => $eligible];
+    }
+
+    public function assertMinimum(Store $store, string $subtotal, string $discount): void
+    {
+        $policy = $this->minimum($store, $subtotal, $discount);
+        if (! $policy['eligible']) {
+            $currency = $store->currency ?: 'USD';
+            $message = app()->getLocale() === 'ar'
+                ? "الحد الأدنى لقيمة المنتجات بعد الخصم {$policy['amount']} {$currency}. أضف منتجات بقيمة {$policy['remaining']} {$currency} لإكمال الطلب. الشحن والضريبة لا يُحتسبان ضمن الحد."
+                : "The minimum product total after discounts is {$policy['amount']} {$currency}. Add {$policy['remaining']} {$currency} of products to place your order. Shipping and tax do not count.";
+            throw ValidationException::withMessages(['order_minimum' => $message]);
+        }
     }
 
     public function productLimit(Store $store): ?int

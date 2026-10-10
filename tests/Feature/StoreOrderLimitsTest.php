@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Store;
@@ -75,8 +76,9 @@ class StoreOrderLimitsTest extends TestCase
     {
         $this->getJson($this->settings, $this->auth)->assertOk()->assertJsonPath('data.max_product_quantity', 0)->assertJsonPath('data.phone_country', 'EG');
         $config = $this->config(['max_product_quantity' => 3, 'max_orders_per_phone_24h' => 2, 'phone_country' => 'SA']);
-        $this->putJson($this->settings, $config, $this->auth)->assertOk()->assertJsonPath('data', $config);
-        $this->getJson($this->settings, $this->auth)->assertOk()->assertJsonPath('data', $config);
+        $expected = $config + ['minimum_order_amount' => '0.00', 'version' => 2];
+        $this->putJson($this->settings, $config, $this->auth)->assertOk()->assertJsonPath('data', $expected);
+        $this->getJson($this->settings, $this->auth)->assertOk()->assertJsonPath('data', $expected);
         foreach ([['max_product_quantity' => -1], ['max_orders_per_phone_24h' => 1.5], ['phone_country' => 'XX'], ['max_product_quantity' => 100001]] as $change) {
             $this->putJson($this->settings, array_replace($config, $change), $this->auth)->assertUnprocessable();
         }
@@ -90,6 +92,95 @@ class StoreOrderLimitsTest extends TestCase
         $employee->givePermissionTo('store.settings.manage');
         $this->travel(31)->seconds();
         $this->putJson($this->settings, $config, $headers)->assertOk();
+    }
+
+    public function test_minimum_settings_validate_precision_preserve_legacy_updates_and_reject_stale_versions(): void
+    {
+        $this->getJson($this->settings, $this->auth)->assertOk()->assertJsonPath('data.minimum_order_amount', '0.00')->assertJsonPath('data.version', 1);
+        $body = $this->config(['minimum_order_amount' => '150.01', 'version' => 1]);
+        $this->putJson($this->settings, $body, $this->auth)->assertOk()->assertJsonPath('data.minimum_order_amount', '150.01')->assertJsonPath('data.version', 2);
+        foreach (['-0.01', '1.001', '10000000000', 'invalid'] as $value) {
+            $this->putJson($this->settings, array_replace($body, ['version' => 2, 'minimum_order_amount' => $value]), $this->auth)
+                ->assertUnprocessable()->assertJsonValidationErrors('minimum_order_amount');
+        }
+        $this->putJson($this->settings, $this->config(['max_product_quantity' => 4]), $this->auth)->assertOk()
+            ->assertJsonPath('data.minimum_order_amount', '150.01')->assertJsonPath('data.version', 3);
+        $this->putJson($this->settings, array_replace($body, ['version' => 2, 'minimum_order_amount' => 999]), $this->auth)->assertConflict();
+        $this->getJson($this->settings, $this->auth)->assertJsonPath('data.minimum_order_amount', '150.01')->assertJsonPath('data.max_product_quantity', 4);
+        $this->putJson($this->settings, $this->config(['version' => 3, 'minimum_order_amount' => null, 'max_product_quantity' => 4]), $this->auth)
+            ->assertOk()->assertJsonPath('data.minimum_order_amount', '0.00')->assertJsonPath('data.version', 4);
+    }
+
+    public function test_minimum_quote_uses_discounted_products_excluding_shipping_and_tax_without_mutation(): void
+    {
+        $this->store->update(['shipping_enabled' => true, 'shipping_flat_rate' => '999.00', 'tax_enabled' => true, 'tax_rate' => '100.000']);
+        $this->configure(['minimum_order_amount' => '200.00']);
+        Coupon::create(['store_id' => $this->store->id, 'code' => 'GAP25', 'type' => 'fixed', 'value' => 25, 'is_active' => true]);
+        $quote = ['items' => [['product_id' => $this->product->id, 'quantity' => 2]], 'coupon_code' => 'GAP25'];
+        $this->postJson($this->base.'/checkout/quote', $quote)->assertOk()
+            ->assertJsonPath('data.order_minimum', ['amount' => '200.00', 'merchandise_total' => '175.00', 'remaining' => '25.00', 'eligible' => false])
+            ->assertJsonPath('data.totals.grand_total', '1349.00');
+        $quote['coupon_code'] = '';
+        $this->postJson($this->base.'/checkout/quote', $quote)->assertOk()->assertJsonPath('data.order_minimum.eligible', true);
+        $this->assertDatabaseCount('carts', 0);
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('coupon_usages', 0);
+        $this->assertSame(0, $this->product->fresh()->reserved_quantity);
+    }
+
+    public function test_minimum_rejects_cart_and_direct_checkout_atomically_and_preserves_created_order_replay(): void
+    {
+        $this->configure(['minimum_order_amount' => '100.01']);
+        $payload = $this->payload(changes: ['shipping_address' => ['line1' => 'Review road 1', 'city' => 'Cairo', 'country' => 'EG']]);
+        foreach (['cart', 'direct'] as $mode) {
+            $this->postJson($this->base.'/checkout', $payload + ['cart_mode' => $mode], ['Idempotency-Key' => (string) Str::uuid()])
+                ->assertUnprocessable()->assertJsonValidationErrors('order_minimum')->assertJsonPath('checkout_rejected', true);
+        }
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('store_payment_transactions', 0);
+        $this->assertDatabaseCount('store_inventory_movements', 0);
+        $this->assertDatabaseCount('carts', 0);
+        $this->assertSame(0, $this->product->fresh()->reserved_quantity);
+        $this->configure(['minimum_order_amount' => '100.00']);
+        $key = ['Idempotency-Key' => (string) Str::uuid()];
+        $created = $this->postJson($this->base.'/checkout', $payload, $key)->assertCreated();
+        $this->configure(['minimum_order_amount' => '1000.00']);
+        $this->postJson($this->base.'/checkout', $payload, $key)->assertCreated()->assertHeader('Idempotency-Replayed', 'true')
+            ->assertJsonPath('data.id', $created->json('data.id'));
+        $this->assertDatabaseCount('store_orders', 1);
+        $this->assertDatabaseCount('store_payment_transactions', 1);
+        $this->assertSame(1, $this->product->fresh()->reserved_quantity);
+        Http::assertNothingSent();
+        Mail::assertNothingSent();
+    }
+
+    public function test_minimum_service_reloads_the_locked_store_and_digital_orders_are_covered(): void
+    {
+        $cart = app(CartService::class)->create($this->store, null);
+        app(CartService::class)->addItem($cart, $this->product->id, 1);
+        $staleStore = $this->store->fresh();
+        $this->configure(['minimum_order_amount' => '150.00']);
+        try {
+            app(CheckoutService::class)->place($staleStore, $cart, null, ['name' => 'Review', 'email' => 'minimum@example.test', 'phone' => '01001234567'],
+                ['line1' => 'Review road 1', 'city' => 'Cairo', 'country' => 'EG'], 'cod');
+            $this->fail('A stale service caller bypassed the live minimum.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('order_minimum', $exception->errors());
+        }
+        $this->assertSame('active', $cart->fresh()->status);
+        $this->product->update(['digital_type' => 'link', 'digital_url' => 'https://example.test/guide']);
+        $this->postJson($this->base.'/checkout/quote', ['items' => [['product_id' => $this->product->id, 'quantity' => 1]]])
+            ->assertOk()->assertJsonPath('data.requires_shipping', false)->assertJsonPath('data.totals.shipping_total', '0.00')
+            ->assertJsonPath('data.order_minimum.eligible', false)->assertJsonPath('data.order_minimum.remaining', '50.00');
+        try {
+            app(CheckoutService::class)->place($this->store, $cart, null, ['name' => 'Review', 'email' => 'minimum@example.test'], null, 'bank_transfer');
+            $this->fail('A digital order bypassed the minimum.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('order_minimum', $exception->errors());
+        }
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('store_payment_transactions', 0);
+        $this->assertSame(0, $this->product->fresh()->reserved_quantity);
     }
 
     public function test_cart_quote_and_checkout_aggregate_variants_with_atomic_rejection(): void
