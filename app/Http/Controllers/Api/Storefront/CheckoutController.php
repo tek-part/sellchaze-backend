@@ -5,21 +5,25 @@ namespace App\Http\Controllers\Api\Storefront;
 use App\Http\Controllers\Concerns\ResolvesStorefront;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Storefront\ApplyCouponRequest;
+use App\Http\Requests\Storefront\CheckoutQuoteRequest;
 use App\Http\Requests\Storefront\CheckoutRequest;
 use App\Http\Resources\Storefront\CartResource;
 use App\Http\Resources\Storefront\StoreOrderResource;
-use App\Models\StorePaymentGateway;
+use App\Models\Cart;
 use App\Models\StoreOrder;
+use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\CartService;
+use App\Services\Commerce\CheckoutQuote;
 use App\Services\Commerce\CheckoutService;
 use App\Services\Commerce\CouponService;
 use App\Services\Commerce\CustomerAuthService;
-use App\Services\Commerce\PricingCalculator;
 use App\Services\Commerce\PaymentRetryToken;
+use App\Services\Commerce\PricingCalculator;
 use App\Services\Commerce\StorePaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -39,6 +43,15 @@ class CheckoutController extends Controller
         private readonly StorePaymentService $payments,
         private readonly PaymentRetryToken $retryTokens,
     ) {}
+
+    public function quote(CheckoutQuoteRequest $request, CheckoutQuote $quotes): JsonResponse
+    {
+        $data = $request->validated();
+
+        return response()->json(['data' => $quotes->calculate(
+            $this->currentStore($request), $data['items'], $data['coupon_code'] ?? null, $this->auth->resolve($request),
+        )], 200, [], JSON_UNESCAPED_UNICODE);
+    }
 
     /** POST /storefront/checkout */
     public function store(CheckoutRequest $request): JsonResponse
@@ -69,16 +82,35 @@ class CheckoutController extends Controller
         }
 
         $customer = $this->auth->resolve($request);
-        $cart = $this->carts->resolve($request, $store, $customer);
+        // A funnel order has its own transient cart, even for a signed-in customer.
+        // Do not merge, replace or convert their ordinary shopping cart.
+        $cart = $request->input('cart_mode') === 'direct'
+            ? $this->carts->create($store, null)
+            : $this->carts->resolve($request, $store, $customer);
 
         // The storefront cart lives on the client; sync the submitted line items into the server
         // cart so checkout places exactly what the shopper sees, without a stateful cart round-trip.
         $items = $request->input('items', []);
-        if (! empty($items)) {
-            $this->carts->clear($cart);
-            foreach ($items as $line) {
-                $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1));
-            }
+        if (! empty($items) || $request->has('coupon_code')) {
+            DB::transaction(function () use ($cart, $items, $request, $customer) {
+                Cart::query()->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+                if (! empty($items)) {
+                    $this->carts->clear($cart);
+                    foreach ($items as $line) {
+                        $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1), isset($line['variant_id']) ? (int) $line['variant_id'] : null);
+                    }
+                }
+                if ($request->has('coupon_code')) {
+                    $coupon = $request->filled('coupon_code') ? $this->coupons->resolveActive($request->string('coupon_code')->toString()) : null;
+                    if ($request->filled('coupon_code') && $coupon === null) {
+                        throw ValidationException::withMessages(['coupon_code' => 'This coupon is not available.']);
+                    }
+                    if ($coupon !== null) {
+                        $this->coupons->validate($coupon, $customer, $cart->load('items')->subtotal());
+                    }
+                    $cart->update(['coupon_id' => $coupon?->id]);
+                }
+            });
             $cart->load('items');
         }
 

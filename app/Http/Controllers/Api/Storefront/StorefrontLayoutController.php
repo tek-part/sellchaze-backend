@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Storefront;
 
 use App\Http\Controllers\Concerns\ResolvesStorefront;
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\StorePage;
 use App\Services\Storefront\PublishedPageResolver;
@@ -120,6 +121,14 @@ class StorefrontLayoutController extends Controller
                 'sections' => $this->sections->resolveSections($theme['sections_schema'] ?? [], $this->pages->publicSections($page, $publication)),
             ];
         });
+
+        // Product availability and its current slug are live commerce data, not part
+        // of the cached publication. Never expose another store's imported relation.
+        $funnel = $page->funnel;
+        if ($funnel !== null && (int) $funnel->store_id === (int) $store->id) {
+            $payload['funnel_product_slug'] = Product::query()->where('store_id', $store->id)
+                ->where('is_active', true)->whereKey($funnel->product_id)->value('slug');
+        }
 
         return response()->json(['data' => $payload], 200, [], JSON_UNESCAPED_UNICODE);
     }

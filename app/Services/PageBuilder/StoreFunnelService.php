@@ -47,7 +47,7 @@ class StoreFunnelService
                 'text' => strip_tags((string) ($product->translated('short_description', $data['locale']) ?: $product->translated('description', $data['locale']))),
                 'image' => $product->imageUrl() ?? '',
                 'cta_label' => $arabic ? 'اطلب الآن' : 'Shop now',
-                'cta_url' => '/products/'.rawurlencode($product->slug),
+                'cta_url' => '#funnel-checkout',
                 'cta2_label' => '', 'cta2_url' => '', 'eyebrow' => $store->name,
             ]];
             $details = ['type' => 'rich-text', 'settings' => [

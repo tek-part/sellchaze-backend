@@ -5,7 +5,6 @@ namespace App\Services\Commerce;
 use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Cart;
 use App\Models\Coupon;
-use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreCustomer;
 use App\Models\StoreOrder;
@@ -26,6 +25,7 @@ class CheckoutService
         private readonly CouponService $coupons,
         private readonly PricingCalculator $pricing,
         private readonly OutboxRecorder $outbox,
+        private readonly PurchasableSelection $selections,
     ) {}
 
     /**
@@ -45,29 +45,26 @@ class CheckoutService
             $lines = [];
 
             foreach ($cart->items as $item) {
-                $product = $item->store_product_id
-                    ? Product::query()->find($item->store_product_id)
-                    : null;
-
-                // Inventory + availability validation (fail-closed).
-                if ($product === null || ! $product->is_active) {
-                    throw ValidationException::withMessages([
-                        'items' => "\"{$item->name}\" is no longer available.",
-                    ]);
-                }
+                $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id);
+                $product = $selection['product'];
+                $variant = $selection['variant'];
                 // Price validation: the snapshot must still match the live price.
-                if (bccomp((string) $product->price, (string) $item->unit_price, 2) !== 0) {
+                if (bccomp($selection['price'], (string) $item->unit_price, 2) !== 0) {
                     throw ValidationException::withMessages([
                         'items' => "The price of \"{$product->name}\" changed. Please review your cart.",
                     ]);
                 }
 
-                $lineTotal = bcmul((string) $product->price, (string) $item->quantity, 2);
+                $lineTotal = bcmul($selection['price'], (string) $item->quantity, 2);
                 $subtotal = bcadd($subtotal, $lineTotal, 2);
                 $lines[] = [
                     'store_product_id' => $product->id,
-                    'name' => $product->name,
-                    'unit_price' => $product->price,
+                    'variant_id' => $variant?->id,
+                    'variant_name' => $variant?->name,
+                    'variant_options' => $variant?->options,
+                    'sku' => $variant?->sku ?? $product->sku,
+                    'name' => $selection['name'],
+                    'unit_price' => $selection['price'],
                     'quantity' => $item->quantity,
                     'line_total' => $lineTotal,
                 ];

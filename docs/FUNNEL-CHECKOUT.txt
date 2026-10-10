@@ -1,0 +1,62 @@
+Funnel storefront and checkout — development branch, 2026-10-10
+
+Public pages
+GET /funnels/{slug} and GET /api/v1/storefront/funnels/{slug} serve a published
+funnel for the host-resolved store. Drafts, future publications, unrelated pages,
+and other stores' pages are inaccessible. The existing /pages/{slug} alias keeps
+working and advertises the /funnels/{slug} canonical. Slug edits take effect for
+visitors only on publication. Signed editor previews use the editable slug.
+
+The layout API adds funnel_product_slug, resolved live outside the publication
+cache. An inactive/deleted product produces null. The storefront renders a
+product-specific form below the page sections. New manual/AI funnel CTAs link to
+#funnel-checkout; existing merchant-authored CTA links are preserved.
+
+Prices and orders
+POST /api/v1/storefront/checkout/quote accepts items (product_id, optional
+variant_id, quantity) and optional coupon_code. It returns currency, priced items,
+and totals (subtotal, discount_total, shipping_total, tax_total, grand_total).
+It does not create carts, orders or coupon usage. Products and variants must belong
+to the resolved store and be active. Products with variants require a selection.
+All prices come from the live catalog, including a variant's price override.
+Shipping and taxes use the store's current flat-rate/free-threshold/tax settings.
+
+POST /checkout accepts the same variant selections and coupon_code. An explicitly
+empty coupon code removes an earlier cart coupon. Invalid submitted selections
+roll back cart replacement. cart_mode=direct requires submitted items and uses a
+separate transient cart, preserving both the browser cart and a signed-in
+customer's server cart. Payment initiation/retry uses the existing payment flow.
+
+Cart lines distinguish product + variant; matching selections combine. A deleted
+variant identifier is retained so checkout fails rather than substituting the
+base product. Order lines snapshot the variant name, options, SKU and price.
+The B2B fulfilment bridge receives the same snapshot after later catalog edits.
+
+Migration
+2026_10_10_020000_preserve_storefront_variant_selections adds nullable selection
+fields to cart/order items and replaces the cart uniqueness index. Rollback
+refuses carts containing multiple options of the same product instead of losing
+their selections. The replacement index is created before dropping the old one
+to retain MySQL's foreign-key index coverage. Validate MySQL migration/rollback
+in staging before deployment; this development pass exercised SQLite.
+
+Verified in this pass
+Host/locale/publication/signed-preview isolation, variant identity and prices,
+deleted/inactive/wrong-store options, atomic invalid-cart replacement, login cart
+merge, immutable order/fulfilment snapshots, quote totals and actual coupon usage,
+and preservation of a signed-in customer's ordinary cart.
+Browser on an isolated SQLite store: select red option, quantity 2, apply LOCAL25,
+reject INVALID without losing contact input, COD order creates expected snapshot.
+The order totals were confirmed directly in the local database.
+
+Still required for the full competitor-parity objective
+Configurable checkout fields and phone-first checkout; geographical shipping
+rates; complete variant inventory reservation/release and concurrency coverage;
+durable checkout idempotency across network retries; embedded form positioning
+and configuration in the editor; fuller funnel template library; live online
+gateway integration; mobile visual verification. None is implied by these tests.
+The current viewport tool did not change the browser's measured width, so this
+pass does not claim verified phone rendering.
+
+No production migration or deployment was run. The existing production capture
+guard stays active while editable frontend source parity is unresolved.

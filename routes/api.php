@@ -325,6 +325,7 @@ Route::prefix('v1')->group(function () {
         Route::delete('cart', [CartController::class, 'clear']);
         Route::get('payment-methods', [CheckoutController::class, 'paymentMethods']);
         Route::post('checkout', [CheckoutController::class, 'store']);
+        Route::post('checkout/quote', [CheckoutController::class, 'quote']);
         Route::post('checkout/payment/retry', [CheckoutController::class, 'retryPayment']);
 
         // ---- Phase 6D: coupon apply/remove on the current cart (guest-friendly) ----

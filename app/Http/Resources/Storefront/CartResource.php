@@ -25,6 +25,7 @@ class CartResource extends JsonResource
             'items' => $items->map(fn ($item) => [
                 'id' => $item->id,
                 'store_product_id' => $item->store_product_id,
+                'variant_id' => $item->variant_id,
                 'name' => $item->name,
                 'unit_price' => $item->unit_price,
                 'quantity' => $item->quantity,

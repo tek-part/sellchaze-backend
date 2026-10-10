@@ -60,13 +60,26 @@ class StoreFunnelsTest extends TestCase
         return $this->postJson('/api/v1/my-store/funnels', array_merge(['title' => 'Bag campaign', 'slug' => 'bag-campaign', 'locale' => 'en', 'product_id' => $this->product->id, 'template_key' => 'spotlight'], $extra));
     }
 
+    public function test_published_funnel_resolves_live_product_slug_and_hides_inactive_product(): void
+    {
+        $pageId = $this->createFunnel()->assertCreated()->json('data.page_id');
+        $this->postJson('/api/v1/my-store/pages/'.$pageId.'/publish')->assertOk();
+        $url = 'http://funnel.sellchase.com/api/v1/storefront/funnels/bag-campaign';
+        $this->getJson($url)->assertOk()->assertJsonPath('data.funnel_product_slug', 'canvas-bag');
+        $this->product->update(['slug' => 'updated-bag']);
+        $this->getJson($url)->assertOk()->assertJsonPath('data.funnel_product_slug', 'updated-bag');
+        $this->product->update(['is_active' => false]);
+        $this->getJson($url)->assertOk()->assertJsonPath('data.funnel_product_slug', null);
+        $this->getJson('http://other.sellchase.com/api/v1/storefront/funnels/bag-campaign')->assertNotFound();
+    }
+
     public function test_create_persists_editable_draft_and_product_cta(): void
     {
         $funnel = $this->createFunnel()->assertCreated()->assertJsonPath('data.status', 'draft')->json('data');
         $page = StorePage::forStore($this->store)->with('sections')->findOrFail($funnel['page_id']);
         $this->assertSame('landing', $page->template);
         $this->assertCount(2, $page->sections);
-        $this->assertSame('/products/canvas-bag', $page->sections[0]->settings['cta_url']);
+        $this->assertSame('#funnel-checkout', $page->sections[0]->settings['cta_url']);
         $this->getJson('/api/v1/my-store/funnels?search=Bag')->assertOk()->assertJsonPath('meta.total', 1);
         $this->getJson('/api/v1/my-store/funnels?search=Other')->assertOk()->assertJsonPath('meta.total', 0);
         $this->getJson('/api/v1/my-store/funnels?status=published')->assertOk()->assertJsonPath('meta.total', 0);
@@ -117,7 +130,7 @@ class StoreFunnelsTest extends TestCase
         $url = 'http://funnel.sellchase.com/api/v1/storefront/pages/'.$funnel['slug'];
         $this->getJson($url)->assertNotFound();
         $this->postJson('/api/v1/my-store/pages/'.$funnel['page_id'].'/publish')->assertOk();
-        $this->getJson($url)->assertOk()->assertJsonPath('data.sections.0.settings.cta_url', '/products/canvas-bag');
+        $this->getJson($url)->assertOk()->assertJsonPath('data.sections.0.settings.cta_url', '#funnel-checkout');
         $this->putJson('/api/v1/my-store/pages/'.$funnel['page_id'].'/sections', ['sections' => [['type' => 'hero-banner', 'settings' => ['heading' => 'Draft only']]]])->assertOk();
         $this->getJson($url)->assertOk()->assertJsonPath('data.sections.0.settings.heading', 'Canvas bag');
         $this->postJson('/api/v1/my-store/pages/'.$funnel['page_id'].'/unpublish')->assertOk();
@@ -171,7 +184,7 @@ class StoreFunnelsTest extends TestCase
         });
         $page = $this->getJson('/api/v1/my-store/pages/'.$funnel['page_id'])->assertOk()
             ->assertJsonPath('data.sections.0.settings.heading', 'Your everyday bag')
-            ->assertJsonPath('data.sections.0.settings.cta_url', '/products/canvas-bag')->json('data');
+            ->assertJsonPath('data.sections.0.settings.cta_url', '#funnel-checkout')->json('data');
         $this->assertCount(3, $page['sections']);
         $this->assertStringNotContainsString('<script>', $page['sections'][1]['settings']['body']);
         $this->assertDatabaseCount('store_page_publications', 0);
