@@ -20,9 +20,9 @@ line IDs and retain earlier selections first. These observed client limits are
 not stock reservations. Legacy saved carts without the new pool metadata gain
 it through a fresh catalog selection/add. The server independently validates
 the live aggregate pool at quote/checkout and atomically allocates codes.
-Automatic catalog reconciliation for legacy/stale carts and client storage
-isolation by store remain separate follow-up work; current storage is keyed
-by display currency, which must not be treated as tenant isolation.
+Store-scoped v2 storage and automatic current catalog reconciliation now
+follow this pass; see CART-RECONCILIATION.txt. Unscoped v1 currency-only arrays
+cannot prove store ownership and are retained without automatic import.
 
 The public store bootstrap exposes shipping.enabled, shipping.free_over and
 shipping.currency. All five cart drawers use this configured threshold,

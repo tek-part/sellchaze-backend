@@ -1,0 +1,62 @@
+Store-scoped saved carts and live catalog reconciliation
+
+POST /api/v1/storefront/cart/catalog accepts product_ids (1..100 distinct positive
+integer IDs) and returns store_id plus public StorefrontProductResource rows.
+Only active products owned by the host-resolved store are included; missing,
+foreign and unpublished IDs are omitted. Variants include current availability.
+Cache-Control is private,no-store. No cart/order/reservation/digital allocation
+is created and no private code/link value is returned. The existing storefront
+read limiter applies. Frontend and backend must release together.
+
+Client storage uses sf-cart-v2:<encoded store ID>:<encoded currency>, with an
+envelope containing version2, the same store ID/currency and validated lines.
+A scope change remounts basket state before exposing or persisting another
+scope. Unresolved stores cannot persist a basket. Storage failure remains
+in-memory; malformed/wrong-scope envelopes are rejected. Same-origin browser
+storage events synchronize valid saved states only for the current scope.
+This is last-valid-write sharing, not atomic collaboration or stock reservation.
+
+Old sf-cart-v1:<currency> arrays contain no trustworthy store identity. They are
+preserved untouched but are NOT automatically imported into any store. Buyers
+using that old editable-source cart format must add items again after rollout.
+Matching product IDs alone cannot prove which store originated an old basket.
+No claim is made that existing production's independently captured artifact
+uses this source format; editable production parity remains unverified.
+
+For a resolved store, reconciliation runs when basket product IDs first load or
+change, on foreground/focus/online and every60 seconds while visible. Stable
+IDs survive slug changes. Requests are sequential batches of up to100; results
+apply only if all batches succeed and the returned store matches. Cancelled
+scope/locale/currency/ID effects cannot apply late results. Offline or transient
+failures preserve selections; retry occurs on the next trigger. Checkout still
+validates the server's current stock, price and personalization independently.
+
+Current product/variant price, title, URL, image, stock and digital pool replace
+stale metadata. Aggregate SKU and shared code limits retain earlier selections
+first, shrink excess quantities and never fabricate replenished quantities.
+Missing/inactive variants/products are removed without choosing a replacement.
+Current personalization fields retain matching values and labels; removed
+optional fields are discarded and coincident identities merge their units
+before stock limits. New required/invalid fields cannot be fabricated; the
+line is removed and must be added again from its product page. Price/quantity/
+identity changes produce a bilingual review notification. Server upload-token
+ownership/expiry remains checkout-validated; no client verification is claimed.
+Concurrent additions of unrelated IDs are retained; cleared/removed lines are
+never restored by a late catalog response.
+
+Validation: backend tenant/privacy/read-only/bounds/live-price/slug tests and
+full suite680/4744; frontend persistence/legacy/corruption/aggregate restoration,
+stale prices/stock/variant removal, code pools, personalization and concurrent
+mutation tests, full suite415/51. Pint/PHPStan, full ESLint/storefront TypeScript
+and final review build passed.5756 captured production files remain unchanged.
+Actual guarded local SQLite/API/browser: two tabs shared3 synthetic units/300;
+variantB stock3->1 and100->125 reconciled to2 units/225; inactiveB removed to
+1 unit/100 in both tabs. No order submitted or code allocated. Fixture restored.
+Mobile Arabic dark Fresh preview verified separately. The store/currency scope
+invariant is covered by persistence tests and backend host/tenant isolation;
+no claim of a browser runtime tenant-switch acceptance test.
+
+Full competitor parity remains incomplete: editable email/WhatsApp delivery
+templates and per-product overrides, provider acceptance, refund/return flows,
+AI/themes/design/remaining settings, dependency findings, missing Linux visual
+references and editable source reconciliation remain active requirements.

@@ -303,6 +303,7 @@ Route::prefix('v1')->group(function () {
         Route::get('home', [StorefrontController::class, 'home']);
         Route::get('context', [StorefrontController::class, 'context']);
         Route::get('products', [StorefrontProductController::class, 'index']);
+        Route::post('cart/catalog', [StorefrontProductController::class, 'cartCatalog']);
         Route::get('products/{slug}', [StorefrontProductController::class, 'show'])->where('slug', '[a-z0-9\-]+');
         Route::get('categories', [StorefrontCategoryController::class, 'index']);
         Route::get('categories/{slug}', [StorefrontCategoryController::class, 'show'])->where('slug', '[a-z0-9\-]+');

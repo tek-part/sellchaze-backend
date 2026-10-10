@@ -105,6 +105,36 @@ class DigitalProductsTest extends TestCase
         $this->assertDatabaseCount('store_orders', 0);
     }
 
+    public function test_cart_catalog_is_read_only_scoped_uncached_and_refreshes_current_stock_price_and_slug(): void
+    {
+        $id = $this->product();
+        $product = Product::withoutGlobalScopes()->findOrFail($id);
+        $variant = ProductVariant::create(['store_id' => $this->store->id, 'store_product_id' => $id, 'name' => 'Edition', 'is_active' => true, 'track_inventory' => true, 'stock_quantity' => 1]);
+        $foreignStore = Store::create(['owner_user_id' => $this->store->owner_user_id, 'owner_type' => 'merchant', 'name' => 'Other', 'slug' => 'other', 'currency' => 'EGP', 'status' => 'active']);
+        $foreign = Product::withoutGlobalScopes()->create(['store_id' => $foreignStore->id, 'name' => 'Foreign', 'slug' => 'foreign', 'price' => 999, 'is_active' => true]);
+        $hidden = Product::withoutGlobalScopes()->create(['store_id' => $this->store->id, 'name' => 'Hidden', 'slug' => 'hidden', 'price' => 999, 'is_active' => false]);
+        $response = $this->postJson($this->base.'/cart/catalog', ['product_ids' => [$id, $foreign->id, $hidden->id, 99999]])
+            ->assertOk()->assertJsonPath('store_id', $this->store->id)->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $id)->assertJsonPath('data.0.digital_pool_stock', 2)
+            ->assertJsonPath('data.0.variants.0.id', $variant->id)->assertJsonPath('data.0.variants.0.stock', 1);
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        $this->assertStringNotContainsString('FIRST-CODE', $response->getContent());
+        $product->update(['price' => 125, 'slug' => 'renamed-guide']);
+        $this->postJson($this->base.'/cart/catalog', ['product_ids' => [$id]])
+            ->assertOk()->assertJsonPath('data.0.price', '125.00')->assertJsonPath('data.0.slug', 'renamed-guide');
+        $this->assertDatabaseCount('carts', 0);
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertSame(2, ProductDigitalCode::whereNull('store_order_item_id')->count());
+    }
+
+    public function test_cart_catalog_rejects_invalid_and_unbounded_lookup_inputs(): void
+    {
+        foreach ([[], ['product_ids' => []], ['product_ids' => [1, 1]], ['product_ids' => [0]], ['product_ids' => ['invalid']], ['product_ids' => range(1, 101)]] as $input) {
+            $this->postJson($this->base.'/cart/catalog', $input)->assertUnprocessable();
+        }
+        $this->postJson($this->base.'/cart/catalog', ['product_ids' => [99999]])->assertOk()->assertJsonCount(0, 'data');
+    }
+
     public function test_public_pool_count_is_separate_from_variant_inventory_and_updates_after_allocation(): void
     {
         $id = $this->product('codes', ['POOL-A', 'POOL-B', 'POOL-C']);
