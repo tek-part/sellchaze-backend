@@ -40,6 +40,7 @@ class StorePaymentService
                 'status' => 'created',
                 'amount' => $order->grand_total,
                 'currency' => strtoupper($order->currency),
+                'metadata' => $setting->gateway === 'bank_transfer' ? ['bank_transfer' => BankTransferInstructions::snapshot($setting)] : [],
             ]);
         });
 

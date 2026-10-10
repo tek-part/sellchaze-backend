@@ -1,0 +1,71 @@
+Digital receipt, bank confirmation and paid email delivery — 2026-10-10
+
+Current implementation on codex/digital-fulfillment. Full digital commerce and
+full competitor parity remain in progress. No production rollout is implied.
+
+Private guest receipt:
+Checkout success, payment-start failure/retry and idempotent replay expose a
+purpose-specific HMAC receipt capability lasting30days. POST checkout/receipt
+accepts the token in its JSON body and checks tenant, signature and expiry before
+returning the customer order resource. Order numbers and payment-retry tokens
+grant no receipt access. Responses are private/no-store; merchant notes and
+timeline are excluded. Delivery still requires a paid, noncancelled order.
+The browser saves the capability per origin/order in session storage (memory
+fallback), preserves it across provider redirects and puts it in the fragment
+of the private share link. The receipt panel saves/removes an incoming fragment
+from the current URL. Normal page requests and referrers omit fragments.
+Receipt UI also renders below merchant-configured success templates.
+
+Bank transfer:
+At transaction creation, whitelist account_name/bank_name/iban/swift_code and the
+public checkout note into its metadata. Existing orders retain those instructions
+after settings change. Legacy transactions without the snapshot show no banking
+details; the buyer contacts the store. Unrelated credentials never reach buyers.
+Instructions are only returned through the private receipt while awaiting payment.
+
+POST my-store/orders/{id}/payment/confirm-bank (also stores/{store}/orders/...)
+requires store.orders.manage and the normal owner/admin tenant scope. A required
+reference and optional internal note are validated. The service locks transaction
+and order, checks bank method, pending transaction, noncancelled order and exact
+amount/currency. It marks both paid, records actor/reference/note on the merchant
+timeline and records one durable paid-digital event in the same transaction.
+Same-reference repeat is idempotent; different reference or mismatched state fails.
+It does not independently advance the physical shipping lifecycle. Merchant UI
+requires a concrete review of amount/reference before confirmation.
+
+Paid delivery:
+Verified provider webhooks also record the digital event only on the order's first
+unpaid-to-paid transition. The outbox payload contains only tenant/order IDs,
+never links/codes/tokens. Existing scheduled outbox:publish delivers a localized
+HTML mail with escaped codes/link snapshots and a private canonical-store receipt.
+The listener explicitly scopes order/items without requiring CurrentStore; it
+rechecks paid/noncancelled state and skips cancelled orders. Catalog deletion
+does not remove immutable fulfillment. SMTP failures get a sanitized error and
+existing exponential retries (max5; exhausted messages remain failed_at).
+One stable Message-ID is used per event. Duplicate confirmations, provider events
+and successful publisher re-runs do not produce new mail events.
+SMTP is an external side effect: a crash after server acceptance but before DB
+acknowledgement can produce a duplicate retry. Exactly-once SMTP is not claimed.
+
+Replays now refresh the live order/payment state, receipt and private attachment
+links instead of showing ready delivery beside stale pending order/payment data.
+
+Verification:7 dedicated tests cover tenant/purpose/expiry, instruction snapshot,
+manual amount/state checks, owner/employee permission, cancellation, duplicate
+confirmation/replay, retry failure sanitization, signed Stripe callback without
+tenant context, escaped code mail and retained delivery after catalog deletion.
+Actual local browser order15 ORD-20261010-DEFVWG EGP100 shipping0 was confirmed
+through merchant UI with synthetic bank reference LOCAL-REVIEW-15. Its reserved
+synthetic code appeared only after payment; array mail verified one delivery and
+zero on repeat publication. No real bank transfer, provider call or live email.
+Private-link opening at390px: document375px in all five themes. Sahra's initial
+auto setting previously discarded a dark preview override; its layout now retains
+the engine's initial scheme, matching the existing Techno behavior. Rechecked Sahra
+dark surface28/26/23 and text242/235/221; all five receipt views show paid delivery.
+Final backend652 tests/4442 assertions; focused31/336; frontend393 tests/47 files;
+PHPStan/Pint, ESLint/TypeScript and Vite build passed. Production5756files unchanged.
+
+No new migration. Remaining: prepayment receipt email/resend/dead-letter merchant
+controls, actual SMTP/provider acceptance, digital/mixed B2B and carrier behavior,
+shared code-pool client caps, all-theme appearance and MySQL concurrent acceptance,
+production deployment/source reconciliation and other outstanding competitor work.

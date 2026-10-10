@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateOrderStatusRequest;
 use App\Http\Resources\MerchantOrderResource;
 use App\Models\Store;
 use App\Models\StoreOrder;
+use App\Services\Commerce\ManualBankPayment;
 use App\Services\Commerce\StoreOrderService;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -99,6 +100,14 @@ class MerchantOrderController extends Controller
         return response()->json([
             'data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor', 'b2bOrder'])),
         ]);
+    }
+
+    public function confirmBankPayment(Request $request, Store $store, int $order): JsonResponse
+    {
+        $data = $request->validate(['reference' => ['required', 'string', 'max:200'], 'note' => ['nullable', 'string', 'max:2000']]);
+        $model = app(ManualBankPayment::class)->confirm($this->find($order), $data['reference'], (int) $request->user()->id, $data['note'] ?? null);
+
+        return response()->json(['data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor', 'b2bOrder']))]);
     }
 
     private function find(int $id): StoreOrder

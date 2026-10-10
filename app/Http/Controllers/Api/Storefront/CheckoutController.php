@@ -13,6 +13,7 @@ use App\Models\Cart;
 use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
+use App\Services\Commerce\BankTransferInstructions;
 use App\Services\Commerce\CartService;
 use App\Services\Commerce\CheckoutAttempts;
 use App\Services\Commerce\CheckoutBasket;
@@ -21,6 +22,7 @@ use App\Services\Commerce\CheckoutQuote;
 use App\Services\Commerce\CheckoutService;
 use App\Services\Commerce\CouponService;
 use App\Services\Commerce\CustomerAuthService;
+use App\Services\Commerce\OrderReceipt;
 use App\Services\Commerce\PaymentRetryToken;
 use App\Services\Commerce\PricingCalculator;
 use App\Services\Commerce\StorePaymentService;
@@ -167,6 +169,7 @@ class CheckoutController extends Controller
                 'message' => 'Your order was created, but the payment session could not start. Retry payment without placing another order.',
                 'errors' => $exception->errors(),
                 'data' => new StoreOrderResource($order),
+                'receipt' => app(OrderReceipt::class)->make($order),
                 'payment_retry' => [
                     'token' => $this->retryTokens->make($store->id, $order->id),
                     'expires_in' => 7200,
@@ -176,8 +179,21 @@ class CheckoutController extends Controller
 
         return response()->json([
             'data' => new StoreOrderResource($order),
+            'receipt' => app(OrderReceipt::class)->make($order),
             'payment' => $paymentResult,
         ], 201, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function receipt(Request $request): JsonResponse
+    {
+        $data = $request->validate(['token' => ['required', 'string', 'max:1000']]);
+        $store = $this->currentStore($request);
+        $id = app(OrderReceipt::class)->verify($data['token'], $store->id);
+        abort_unless($id, 404, 'This private receipt is invalid or expired.');
+        $order = StoreOrder::query()->where('store_id', $store->id)->whereKey($id)->with('items')->firstOrFail();
+
+        return response()->json(['data' => new StoreOrderResource($order), 'bank_transfer' => BankTransferInstructions::forOrder($order)], 200,
+            ['Cache-Control' => 'private, no-store', 'Referrer-Policy' => 'no-referrer']);
     }
 
     /** POST /storefront/checkout/recover */
@@ -232,6 +248,7 @@ class CheckoutController extends Controller
 
         return response()->json([
             'data' => new StoreOrderResource($order),
+            'receipt' => app(OrderReceipt::class)->make($order),
             'payment' => $paymentResult,
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
