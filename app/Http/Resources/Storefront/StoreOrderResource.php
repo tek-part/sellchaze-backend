@@ -31,6 +31,7 @@ class StoreOrderResource extends JsonResource
             'shipping_address' => $this->shipping_address,
             'payment_method' => $this->payment_method,
             'payment_status' => $this->payment_status,
+            'fulfillment' => $this->whenLoaded('items', fn () => $this->resource->fulfillment()),
             'payment_reference' => $this->payment_reference,
             'subtotal' => $this->subtotal,
             'shipping_total' => $this->shipping_total,

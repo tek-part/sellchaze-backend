@@ -38,7 +38,26 @@ class StoreOrderService
 
     public function canTransition(StoreOrder $order, string $to): bool
     {
-        return in_array($to, self::TRANSITIONS[$order->status] ?? [], true);
+        return in_array($to, $this->nextStatuses($order), true);
+    }
+
+    /** @return list<string> */
+    public function nextStatuses(StoreOrder $order): array
+    {
+        if ($order->requiresShipping()) {
+            return self::TRANSITIONS[$order->status] ?? [];
+        }
+        $next = match ($order->status) {
+            'pending' => ['confirmed', 'cancelled'],
+            'confirmed', 'processing' => ['cancelled'],
+            'shipped' => [],
+            default => [],
+        };
+        if ($order->payment_status === 'paid' && in_array($order->status, ['pending', 'confirmed', 'processing', 'shipped'], true)) {
+            array_unshift($next, 'delivered');
+        }
+
+        return $next;
     }
 
     /**
@@ -60,8 +79,9 @@ class StoreOrderService
             }
 
             $from = $order->status;
-            if (in_array($to, ['cancelled', 'shipped'], true)) {
-                app(StoreInventory::class)->settle($order, $to === 'shipped');
+            $digitalCompletion = $to === 'delivered' && ! $order->requiresShipping();
+            if (in_array($to, ['cancelled', 'shipped'], true) || $digitalCompletion) {
+                app(StoreInventory::class)->settle($order, $to === 'shipped' || $digitalCompletion);
             }
             $order->status = $to;
             if ($to === 'cancelled') {

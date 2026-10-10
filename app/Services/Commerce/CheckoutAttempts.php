@@ -138,6 +138,14 @@ class CheckoutAttempts
         }
         if ($attempt->response_status !== null) {
             $body = $attempt->response_body;
+            if ($order !== null) {
+                $body['data'] = (new StoreOrderResource($order))->resolve();
+                $body['receipt'] = app(OrderReceipt::class)->make($order);
+                if ($order->payment_status === 'paid' && isset($body['payment'])) {
+                    $body['payment']['status'] = 'paid';
+                    $body['payment']['redirect_url'] = null;
+                }
+            }
             // Keep the saved result, but renew private attachment links on every replay.
             // A cached signed URL expires while the immutable order snapshot survives.
             if ($order !== null && isset($body['data']['items']) && is_array($body['data']['items'])) {
@@ -171,6 +179,6 @@ class CheckoutAttempts
     private function resumePayment(StoreCheckoutAttempt $attempt, StoreOrder $order): JsonResponse
     {
         return response()->json(['message' => 'Your order is saved. Resume its payment without placing another order.',
-            'data' => new StoreOrderResource($order), 'payment_retry' => ['token' => app(PaymentRetryToken::class)->make($attempt->store_id, $order->id), 'expires_in' => 7200]], 422, ['Idempotency-Replayed' => 'true', 'Cache-Control' => 'private, no-store']);
+            'data' => new StoreOrderResource($order), 'receipt' => app(OrderReceipt::class)->make($order), 'payment_retry' => ['token' => app(PaymentRetryToken::class)->make($attempt->store_id, $order->id), 'expires_in' => 7200]], 422, ['Idempotency-Replayed' => 'true', 'Cache-Control' => 'private, no-store']);
     }
 }

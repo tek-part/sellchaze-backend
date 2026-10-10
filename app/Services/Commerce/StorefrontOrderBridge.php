@@ -14,6 +14,7 @@ use App\Services\Orders\SupplierRoutingService;
 use App\Services\Outbox\OutboxRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Mirrors a hosted-storefront StoreOrder into the B2B `orders` pipeline so the
@@ -42,7 +43,15 @@ class StorefrontOrderBridge
      */
     public function bridge(StoreOrder $storeOrder, Store $store): ?Order
     {
-        $storeOrder->loadMissing('items');
+        if ((int) $storeOrder->store_id !== (int) $store->id) {
+            throw ValidationException::withMessages(['store' => 'The order belongs to another store.']);
+        }
+        // Digital delivery is handled by the store's private receipt/mail flow.
+        // Only immutable physical lines enter supplier procurement and shipping.
+        $physicalItems = $storeOrder->physicalItems()->get();
+        if ($physicalItems->isEmpty()) {
+            return null;
+        }
 
         $owner = $store->owner ?: User::query()->find($store->owner_user_id);
         if ($owner === null) {
@@ -51,7 +60,7 @@ class StorefrontOrderBridge
             return null;
         }
 
-        $productIds = $storeOrder->items->pluck('store_product_id')->filter()->map(fn ($id) => (int) $id)->unique()->values();
+        $productIds = $physicalItems->pluck('store_product_id')->filter()->map(fn ($id) => (int) $id)->unique()->values();
         if ($productIds->isEmpty()) {
             Log::warning('StorefrontOrderBridge: no product-backed lines; skipping', ['store_order_id' => $storeOrder->id]);
 
@@ -59,6 +68,7 @@ class StorefrontOrderBridge
         }
 
         $products = Product::query()->withoutGlobalScope(ProductScope::class)
+            ->where('store_id', $store->id)
             ->whereIn('id', $productIds->all())
             ->get()
             ->keyBy('id');
@@ -72,13 +82,16 @@ class StorefrontOrderBridge
         $supplierIds = $this->resolveSupplierIds($owner);
         $notify = [];
 
-        $order = DB::transaction(function () use ($storeOrder, $store, $owner, $products, $firstProductId, $supplierIds, &$notify) {
+        $order = DB::transaction(function () use ($storeOrder, $store, $owner, $products, $firstProductId, $supplierIds, $physicalItems, &$notify) {
+            // Match cancellation's storefront-before-B2B lock order and use the
+            // live payment/status if the bridge job runs after confirmation.
+            $storeOrder = StoreOrder::forStore($store->id)->whereKey($storeOrder->id)->lockForUpdate()->firstOrFail();
             $existing = Order::query()->where('store_order_id', $storeOrder->id)->lockForUpdate()->first();
             if ($existing !== null) {
                 return $existing;
             }
 
-            $items = $storeOrder->items->map(function ($item) use ($products) {
+            $items = $physicalItems->map(function ($item) use ($products) {
                 $product = $item->store_product_id ? $products->get((int) $item->store_product_id) : null;
 
                 return [
@@ -87,7 +100,8 @@ class StorefrontOrderBridge
                     'variant_id' => $item->variant_id,
                     'variant_name' => $item->variant_name,
                     'variant_options' => $item->variant_options,
-                    'personalization' => $item->personalization,
+                    'personalization' => $item->personalization ?? [],
+                    'fulfillment_type' => 'physical',
                     'sku' => $item->sku,
                     'name' => $item->name,
                     'slug' => $product?->slug,
@@ -107,7 +121,7 @@ class StorefrontOrderBridge
                 'store_id' => $store->id,
                 'store_order_id' => $storeOrder->id,
                 'storefront_items' => $items,
-                'quantity' => max((int) $storeOrder->items->sum('quantity'), 1),
+                'quantity' => (int) $physicalItems->sum('quantity'),
                 'image' => $firstProduct?->image,
                 'product_id' => $firstProductId,
                 'user_id' => $owner->getKey(),
@@ -187,6 +201,17 @@ class StorefrontOrderBridge
         $order->save();
 
         return $order;
+    }
+
+    /** Payment metadata belongs to the full customer order, not a supplier quote.
+     * Called inside the payment transaction after the storefront row is locked.
+     */
+    public function syncPayment(StoreOrder $storeOrder): void
+    {
+        if ($storeOrder->payment_status === 'paid') {
+            Order::query()->where('store_id', $storeOrder->store_id)->where('store_order_id', $storeOrder->id)
+                ->update(['paid_amount' => $storeOrder->grand_total, 'payment_transaction_id' => $storeOrder->payment_reference]);
+        }
     }
 
     /** @return int[] */

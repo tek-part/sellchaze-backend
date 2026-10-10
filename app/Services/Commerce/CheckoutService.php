@@ -166,8 +166,10 @@ class CheckoutService
                 'payment_method' => $paymentMethod,
             ]);
 
-            // Mirror into the B2B orders pipeline once the customer order is durable. afterCommit
-            // covers COD/bank transfer too, and a bridge failure can never roll this order back.
+            app(DigitalDelivery::class)->recordReceipt($order);
+
+            // Mirror into the B2B pipeline after commit, including bank transfers.
+            // A bridge failure can never roll the customer order back.
             BridgeStorefrontOrderJob::dispatch($order->id, $store->id)->afterCommit();
 
             return $order->load('items');

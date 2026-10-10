@@ -77,6 +77,7 @@ class OrderApiResource extends JsonResource
             'delivery_path' => $this->delivery_path,
             'wigpleasure_products' => $this->wigpleasureProductsArray($request),
             'storefront_items' => $this->storefrontItemsArray(),
+            'storefront_fulfillment' => $this->resource->storefrontFulfillment(),
             'attribute_badges' => $this->mergedAttributeBadges($request),
             'order_images' => $this->orderImageGallery(),
             'quotations' => $this->whenLoaded('quotations', fn () => $this->serializeQuotations()),
@@ -123,6 +124,8 @@ class OrderApiResource extends JsonResource
             $row['image_thumb_url'] = ProductImageUrl::thumbUrl($row['image'] ?? null);
             if (is_array($row['personalization'] ?? null) && $this->store_id !== null) {
                 $row['personalization'] = ProductPersonalization::present($row['personalization'], (int) $this->store_id);
+            } else {
+                $row['personalization'] = [];
             }
 
             return $row;

@@ -16,12 +16,19 @@ class StoreShipmentService
 
     public function create(StoreOrder $order, array $input): StoreShipment
     {
+        if (! $order->requiresShipping()) {
+            throw ValidationException::withMessages(['order' => 'This digital order does not require shipping.']);
+        }
         $city = collect($this->client->cities())->firstWhere('id', $input['city_id']);
         if (! $city || ! collect($this->client->districts($input['city_id']))->contains('id', $input['district_id'])) {
             throw ValidationException::withMessages(['district_id' => 'Choose an available carrier city and district.']);
         }
         [$shipment, $connection] = DB::transaction(function () use ($order, $input, $city) {
             $order = StoreOrder::where('store_id', $order->store_id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $physicalQuantity = (int) $order->physicalItems()->sum('quantity');
+            if ($physicalQuantity < 1) {
+                throw ValidationException::withMessages(['order' => 'Only physical order items can be shipped.']);
+            }
             $existing = StoreShipment::where('store_id', $order->store_id)->where('store_order_id', $order->id)->first();
             abort_if($existing && $existing->status !== 'rejected', 409, 'A shipment already exists or its result is unknown. Refresh or reconcile it before proceeding.');
             $connection = StoreCarrierConnection::where('store_id', $order->store_id)->where('carrier', 'bosta')->first();
@@ -58,7 +65,7 @@ class StoreShipmentService
                 'dropOffAddress' => ['city' => $city['name'], 'districtId' => $input['district_id'], 'firstLine' => $input['address_line']],
                 'receiver' => ['firstName' => $name[0], 'lastName' => $name[1] ?? '', 'phone' => $phone],
                 'specs' => ['packageType' => 'Parcel', 'size' => $input['package_size'], 'packageDetails' => [
-                    'itemsCount' => (int) $order->items()->sum('quantity'), 'description' => $input['description'],
+                    'itemsCount' => $physicalQuantity, 'description' => $input['description'],
                 ]], 'notes' => $input['notes'] ?? '',
             ];
             $shipment = $existing ?? new StoreShipment;

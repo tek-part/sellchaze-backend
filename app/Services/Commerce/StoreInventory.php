@@ -68,7 +68,8 @@ class StoreInventory
             }
             $stock->save();
             $item->update(['inventory_status' => $shipped ? 'committed' : 'released']);
-            $this->record($stock, $shipped ? 'shipped' : 'cancelled', $shipped ? -$item->quantity : 0, -$item->quantity, $item->id);
+            $reason = $shipped ? ($item->digital_delivery !== null ? 'digital_committed' : 'shipped') : 'cancelled';
+            $this->record($stock, $reason, $shipped ? -$item->quantity : 0, -$item->quantity, $item->id);
         }
         if ($items->isNotEmpty()) {
             $this->flushAfterCommit($order->store_id);
@@ -80,7 +81,7 @@ class StoreInventory
         // Caller locks product then variant. Reject stale stock forms instead of losing changes.
         abort_if($stock->stock_quantity !== $input['expected_stock'] || $stock->reserved_quantity !== $input['expected_reserved'] || $stock->track_inventory !== $input['expected_tracking'], 409, 'Stock changed. Reload the inventory before saving.');
         if ($input['stock_quantity'] < $stock->reserved_quantity || (! $input['track_inventory'] && $stock->reserved_quantity > 0)) {
-            throw ValidationException::withMessages(['stock_quantity' => 'Keep enough stock for reserved orders; cancel or ship those orders before disabling tracking.']);
+            throw ValidationException::withMessages(['stock_quantity' => 'Keep enough stock for reserved orders; fulfill or cancel those orders before disabling tracking.']);
         }
         $delta = $input['stock_quantity'] - $stock->stock_quantity;
         $stock->update(['track_inventory' => $input['track_inventory'], 'stock_quantity' => $input['stock_quantity']]);
@@ -94,7 +95,7 @@ class StoreInventory
     public function recordVariantRemoval(ProductVariant $stock, int $actorId, ?string $note = null): void
     {
         if ($stock->reserved_quantity > 0) {
-            throw ValidationException::withMessages(['inventory' => 'Ship or cancel reserved orders before deleting this option.']);
+            throw ValidationException::withMessages(['inventory' => 'Fulfill or cancel reserved orders before deleting this option.']);
         }
         $quantity = $stock->stock_quantity;
         $stock->stock_quantity = 0;
