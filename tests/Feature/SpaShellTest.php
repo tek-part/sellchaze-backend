@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\User;
+use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Themes\StoreThemeService;
 use App\Services\Themes\ThemeRegistry;
 use Database\Seeders\PermissionTableSeeder;
@@ -83,6 +84,22 @@ HTML);
         $this->get('http://nike.sellchase.com/?lang=ar')
             ->assertOk()
             ->assertSee('<html lang="ar" dir="rtl">', false);
+    }
+
+    public function test_store_identity_reaches_cached_shell_and_blade_fallback(): void
+    {
+        $this->get('http://nike.sellchase.com/')->assertOk()->assertSee('<title>Nike', false);
+        $store = Store::where('slug', 'nike')->firstOrFail();
+        $store->update(['site_title' => 'New site title', 'header_mode' => 'custom', 'header_text' => '<b>Plain text</b>',
+            'favicon' => 'stores/'.$store->id.'/icons/new.png', 'font_family' => 'Almarai', 'primary_color' => '#123456']);
+        $this->get('http://nike.sellchase.com/')->assertOk()->assertSee('<title>New site title', false)
+            ->assertSee('/icons/new.png', false)->assertDontSee('href="https://sellchaze.com/icon.png"', false);
+        config()->set('sellchase.storefront.spa_shell', '');
+        app(StorefrontPageCache::class)->flushStore($store->id);
+        $this->get('http://nike.sellchase.com/')->assertOk()->assertSee('data-rendered-by="blade"', false)
+            ->assertSee('/icons/new.png', false)->assertSee('family=Almarai:wght@400;700', false)
+            ->assertSee('a{color:#123456}', false)->assertSee('&lt;b&gt;Plain text&lt;/b&gt;', false)
+            ->assertDontSee('<b>Plain text</b>', false);
     }
 
     public function test_client_side_routes_fall_back_to_the_shell_on_a_tenant_host(): void

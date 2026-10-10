@@ -64,10 +64,17 @@ class SpaShell
         // Replace the build's <title>, then append SEO tags before </head>.
         $title = (string) ($seo['title'] ?? ($context['store']['name'] ?? ''));
         if ($title !== '') {
-            $html = preg_replace('/<title>.*?<\/title>/is', '<title>'.e($title).'</title>', $html, 1) ?? $html;
+            $html = preg_replace_callback('/<title>.*?<\/title>/is', fn () => '<title>'.e($title).'</title>', $html, 1) ?? $html;
         }
 
         $head = [];
+        $favicon = $seo['favicon_url'] ?? ($context['store']['identity']['favicon_url'] ?? null);
+        if ($favicon) {
+            $html = preg_replace_callback('/<link\b[^>]*>/i', function ($match) {
+                return preg_match('/\brel\s*=\s*["\x27](?:shortcut\s+)?icon["\x27]/i', $match[0]) ? '' : $match[0];
+            }, $html) ?? $html;
+            $head[] = '<link rel="icon" href="'.e((string) $favicon).'">';
+        }
         if (! empty($seo['description'])) {
             $head[] = '<meta name="description" content="'.e((string) $seo['description']).'">';
         }

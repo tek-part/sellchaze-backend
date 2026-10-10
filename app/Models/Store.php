@@ -31,6 +31,7 @@ class Store extends Model
     protected $fillable = [
         'organization_id', 'owner_user_id', 'owner_type', 'is_primary', 'name', 'slug', 'description',
         'logo', 'banner', 'email', 'phone', 'currency', 'status',
+        'site_title', 'header_mode', 'header_text', 'primary_color', 'font_family', 'favicon',
         'default_locale', 'supported_locales', 'supported_currencies', 'timezone',
         'tax_enabled', 'tax_rate', 'tax_prices_include', 'shipping_enabled',
         'shipping_flat_rate', 'shipping_free_over',
@@ -148,6 +149,14 @@ class Store extends Model
     public function logoUrl(): ?string
     {
         return $this->logo ? Storage::disk('public')->url($this->logo) : null;
+    }
+
+    public function identity(): array
+    {
+        return ['site_title' => $this->site_title, 'header_mode' => $this->header_mode ?? 'theme',
+            'header_text' => $this->header_text, 'primary_color' => $this->primary_color,
+            'font_family' => $this->font_family,
+            'favicon_url' => $this->favicon ? Storage::disk('public')->url($this->favicon) : null];
     }
 
     public function bannerUrl(): ?string

@@ -27,8 +27,10 @@
         nav a{margin-inline-end:16px}
         .price{font-weight:600}
     </style>
+    @include('storefront.identity-head', ['identity' => $store->identity()])
 </head>
 <body>
+    @if($store->header_mode === 'custom' && $store->header_text)<p class="wrap" data-store-announcement>{{ $store->header_text }}</p>@endif
     <header>
         <div class="wrap">
             <h1 style="margin:0">{{ $store->name }}</h1>

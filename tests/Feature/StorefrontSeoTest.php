@@ -46,6 +46,19 @@ class StorefrontSeoTest extends TestCase
         $this->assertArrayHasKey('twitter:card', $seo['twitter']);
     }
 
+    public function test_custom_site_title_and_favicon_apply_to_product_metadata_without_renaming_business(): void
+    {
+        $this->store->update(['site_title' => 'Online catalog', 'favicon' => 'stores/1/icons/site.png']);
+        $home = $this->seo->forStore($this->store);
+        $this->assertSame('Online catalog', $home['title']);
+        $this->assertSame('Nike', $home['json_ld']['name']);
+        $product = new Product(['name' => 'Air Max', 'slug' => 'air-max', 'price' => 100, 'is_active' => true]);
+        $seo = $this->seo->forProduct($this->store, $product);
+        $this->assertSame('Air Max — Online catalog', $seo['title']);
+        $this->assertSame('Online catalog', $seo['og']['og:site_name']);
+        $this->assertStringContainsString('/icons/site.png', $seo['favicon_url']);
+    }
+
     public function test_product_seo_includes_offer_structured_data(): void
     {
         $product = Product::create([

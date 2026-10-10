@@ -7,6 +7,7 @@ use App\Models\StoreDomain;
 use App\Models\User;
 use App\Services\Commerce\CheckoutFields;
 use App\Services\Rbac\UserScope;
+use App\Services\Storefront\StorefrontService;
 use App\Services\Themes\StoreThemeService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -120,7 +121,7 @@ class StoreService
         return $store;
     }
 
-    public function update(Store $store, array $data, ?UploadedFile $logo = null, ?UploadedFile $banner = null): Store
+    public function update(Store $store, array $data, ?UploadedFile $logo = null, ?UploadedFile $banner = null, ?UploadedFile $favicon = null): Store
     {
         $slugChanged = false;
 
@@ -144,7 +145,7 @@ class StoreService
         if (! empty($data['currency'])) {
             $store->currency = strtoupper($data['currency']);
         }
-        foreach (['default_locale', 'timezone', 'tax_enabled', 'tax_rate', 'tax_prices_include', 'shipping_enabled', 'shipping_flat_rate', 'shipping_free_over'] as $field) {
+        foreach (['site_title', 'header_mode', 'header_text', 'primary_color', 'font_family', 'default_locale', 'timezone', 'tax_enabled', 'tax_rate', 'tax_prices_include', 'shipping_enabled', 'shipping_flat_rate', 'shipping_free_over'] as $field) {
             if (array_key_exists($field, $data)) {
                 $store->{$field} = $data[$field];
             }
@@ -165,6 +166,12 @@ class StoreService
         if (! $banner && ! empty($data['remove_banner'])) {
             $store->banner = null;
         }
+        if (! $favicon && ! empty($data['remove_favicon'])) {
+            $store->favicon = null;
+        }
+        if ($favicon) {
+            $store->favicon = $favicon->store('stores/'.$store->id.'/icons', 'public');
+        }
         if ($logo) {
             $this->deleteImage($store->logo);
             $store->logo = $this->storeImage($logo);
@@ -179,6 +186,8 @@ class StoreService
         if ($slugChanged || $store->primaryDomain()->doesntExist()) {
             $this->syncSubdomain($store);
         }
+
+        StorefrontService::forgetHomepage($store->id);
 
         return $store;
     }

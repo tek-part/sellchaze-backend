@@ -38,12 +38,13 @@ class StoreSeoService
         return (string) $this->urls->publicUrl($store, $path);
     }
 
-    private function ogTwitter(string $title, string $description, string $url, ?string $image): array
+    private function ogTwitter(string $title, string $description, string $url, ?string $image, Store $store): array
     {
         return [
+            'favicon_url' => $store->identity()['favicon_url'],
             'og' => array_filter([
                 'og:type' => 'website',
-                'og:site_name' => $title,
+                'og:site_name' => $store->site_title ?: $store->name,
                 'og:title' => $title,
                 'og:description' => $description,
                 'og:url' => $url,
@@ -60,13 +61,14 @@ class StoreSeoService
 
     public function forStore(Store $store): array
     {
-        $title = $store->name;
+        $title = $store->site_title ?: $store->name;
         $description = $store->description ?: ('Shop at '.$store->name);
         $url = $this->canonical($store, '/');
         $image = $store->logoUrl() ?: $store->bannerUrl();
 
         return array_merge([
             'title' => $title,
+            'favicon_url' => $store->identity()['favicon_url'],
             'description' => $description,
             'canonical' => $url,
             'robots' => $store->status === 'active' ? 'index, follow' : 'noindex, nofollow',
@@ -81,13 +83,13 @@ class StoreSeoService
                 'telephone' => $store->phone,
                 'priceRange' => $store->currency,
             ],
-        ], $this->ogTwitter($title, $description, $url, $image));
+        ], $this->ogTwitter($title, $description, $url, $image, $store));
     }
 
     public function forProduct(Store $store, Product $product): array
     {
         $name = $product->translated('name') ?: $product->name;
-        $title = $name.' — '.$store->name;
+        $title = $name.' — '.($store->site_title ?: $store->name);
         $description = $product->translated('description') ?: $name;
         $description = trim(html_entity_decode(strip_tags(str_replace(['</p>', '</li>', '</h1>', '</h2>', '</h3>', '<br>'], ' ', $description)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $url = $this->canonical($store, 'products/'.$product->slug);
@@ -114,13 +116,13 @@ class StoreSeoService
                     'url' => $url,
                 ],
             ],
-        ], $this->ogTwitter($title, $description, $url, $image));
+        ], $this->ogTwitter($title, $description, $url, $image, $store));
     }
 
     public function forCategory(Store $store, Category $category): array
     {
         $name = $category->translated('name') ?: $category->name;
-        $title = $name.' — '.$store->name;
+        $title = $name.' — '.($store->site_title ?: $store->name);
         $description = $category->translated('description') ?: ($name.' at '.$store->name);
         $url = $this->canonical($store, 'categories/'.$category->slug);
         $image = $category->imageUrl() ?: $store->logoUrl();
@@ -137,13 +139,13 @@ class StoreSeoService
                 'description' => $description,
                 'url' => $url,
             ],
-        ], $this->ogTwitter($title, $description, $url, $image));
+        ], $this->ogTwitter($title, $description, $url, $image, $store));
     }
 
     public function forPage(Store $store, StorePage $page): array
     {
         $seo = $page->seo ?? [];
-        $title = ($seo['title'] ?? $page->title).' — '.$store->name;
+        $title = ($seo['title'] ?? $page->title).' — '.($store->site_title ?: $store->name);
         $description = $seo['description'] ?? $page->title;
         $url = $this->canonical($store, $page->publicPath());
         $image = $seo['og_image'] ?? $store->logoUrl();
@@ -160,7 +162,7 @@ class StoreSeoService
                 'description' => $description,
                 'url' => $url,
             ],
-        ], $this->ogTwitter($title, $description, $url, $image));
+        ], $this->ogTwitter($title, $description, $url, $image, $store));
     }
 
     /** Store-specific sitemap.xml (home + product + category URLs). */
