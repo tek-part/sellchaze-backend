@@ -5,15 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Models\StoreFunnel;
+use App\Services\PageBuilder\FunnelContentGenerator;
 use App\Services\PageBuilder\StoreFunnelService;
 use App\Support\Localization\LocaleContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 
 class StoreFunnelsApiController extends Controller
 {
-    public function __construct(private readonly StoreFunnelService $funnels) {}
+    public function __construct(private readonly StoreFunnelService $funnels, private readonly FunnelContentGenerator $generator) {}
 
     private function guard(Request $request, Store $store): void
     {
@@ -42,22 +45,59 @@ class StoreFunnelsApiController extends Controller
     {
         $this->guard($request, $store);
 
-        return response()->json(['data' => collect(StoreFunnelService::TEMPLATES)->map(fn ($template, $key) => ['key' => $key] + $template)->values()]);
+        return response()->json(['data' => collect(StoreFunnelService::TEMPLATES)->map(fn ($template, $key) => ['key' => $key] + $template)->values(), 'ai' => ['available' => $this->generator->available()]]);
     }
 
     public function store(Request $request, Store $store): JsonResponse
     {
         $this->guard($request, $store);
-        $data = $request->validate([
+        $data = $this->validateInput($request, $store);
+        $funnel = $this->funnels->create($store, $data, $request->user()->id);
+
+        return response()->json(['data' => $this->payload($funnel->load(['page', 'product']))], 201);
+    }
+
+    private function validateInput(Request $request, Store $store, bool $ai = false): array
+    {
+        return $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:180', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/'],
             'product_id' => ['required', 'integer'],
             'template_key' => ['required', Rule::in(array_keys(StoreFunnelService::TEMPLATES))],
             'locale' => ['required', Rule::in(LocaleContext::storeSupported($store))],
-        ]);
-        $funnel = $this->funnels->create($store, $data, $request->user()->id);
+        ] + ($ai ? [
+            'generation' => ['required', 'array:language,dialect,product_name,description'],
+            'generation.language' => ['required', 'string', 'max:80'],
+            'generation.dialect' => ['required', 'string', 'max:120'],
+            'generation.product_name' => ['required', 'string', 'max:255'],
+            'generation.description' => ['required', 'string', 'min:20', 'max:6000'],
+        ] : []));
+    }
 
-        return response()->json(['data' => $this->payload($funnel->load(['page', 'product']))], 201);
+    public function generate(Request $request, Store $store): JsonResponse
+    {
+        $this->guard($request, $store);
+        $data = $this->validateInput($request, $store, true);
+        $this->funnels->validateProduct($store, $data);
+        abort_unless($this->generator->available(), 503, 'AI generation is not configured. Create the funnel manually for now.');
+        // Owners, employees and admin routes share the same store budget.
+        $key = 'funnel-ai:'.$store->id;
+        $lock = Cache::lock($key.':lock', 90);
+        abort_unless($lock->get(), 429, 'A funnel is already being generated for this store.');
+        try {
+            if (RateLimiter::tooManyAttempts($key, max(1, (int) config('services.funnel_ai.per_day', 20)))) {
+                return response()->json(['message' => 'The daily AI generation limit has been reached.'], 429)
+                    ->header('Retry-After', (string) RateLimiter::availableIn($key));
+            }
+            // Count provider attempts, including failures, to bound retry spending.
+            RateLimiter::hit($key, 86400);
+            $copy = $this->generator->generate($data['generation']);
+            $funnel = $this->funnels->create($store, $data, $request->user()->id, $copy);
+
+            return response()->json(['data' => $this->payload($funnel->load(['page', 'product']))], 201);
+        } finally {
+            $lock->release();
+        }
     }
 
     public function duplicate(Request $request, Store $store, int $funnel): JsonResponse

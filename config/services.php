@@ -14,6 +14,12 @@ return [
     |
     */
 
+    'funnel_ai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_FUNNEL_MODEL'),
+        'per_day' => (int) env('FUNNEL_AI_PER_STORE_PER_DAY', 20),
+    ],
+
     'mailgun' => [
         'domain' => env('MAILGUN_DOMAIN'),
         'secret' => env('MAILGUN_SECRET'),

@@ -19,7 +19,7 @@ class StoreFunnelService
 
     public function __construct(private readonly StorePageService $pages, private readonly ThemeResolver $themes) {}
 
-    public function create(Store $store, array $data, ?int $actor): StoreFunnel
+    public function validateProduct(Store $store, array $data): Product
     {
         $product = Product::query()->where('store_id', $store->id)->find($data['product_id']);
         if (! $product || ! $product->slug) {
@@ -30,7 +30,14 @@ class StoreFunnelService
             throw ValidationException::withMessages(['template_key' => ['The active theme must support hero-banner and rich-text sections.']]);
         }
 
-        return DB::transaction(function () use ($store, $data, $product, $actor) {
+        return $product;
+    }
+
+    public function create(Store $store, array $data, ?int $actor, ?array $copy = null): StoreFunnel
+    {
+        $product = $this->validateProduct($store, $data);
+
+        return DB::transaction(function () use ($store, $data, $product, $actor, $copy) {
             $page = $this->pages->create($store, [
                 'title' => $data['title'], 'slug' => $data['slug'], 'template' => 'landing', 'locale' => $data['locale'],
             ]);
@@ -52,6 +59,23 @@ class StoreFunnelService
                 'story' => [$hero, $details, ['type' => 'hero-banner', 'settings' => array_merge($hero['settings'], ['text' => '', 'image' => ''])]],
                 default => [$hero, $details],
             };
+            if ($copy !== null) {
+                $hero['settings']['heading'] = strip_tags($copy['heading']);
+                $hero['settings']['text'] = strip_tags($copy['text']);
+                $hero['settings']['cta_label'] = strip_tags($copy['cta_label']);
+                $details['settings']['heading'] = strip_tags($copy['details_heading']);
+                $details['settings']['body'] = implode('', array_map(fn (string $paragraph) => '<p>'.e($paragraph).'</p>', $copy['paragraphs']));
+                $sections = [$hero, $details];
+                if ($copy['faqs'] !== []) {
+                    $sections[] = ['type' => 'rich-text', 'settings' => [
+                        'heading' => strip_tags($copy['faq_heading']),
+                        'body' => implode('', array_map(fn (array $faq) => '<h3>'.e($faq['question']).'</h3><p>'.e($faq['answer']).'</p>', $copy['faqs'])),
+                    ]];
+                }
+                if ($data['template_key'] === 'story') {
+                    $sections[] = ['type' => 'hero-banner', 'settings' => array_merge($hero['settings'], ['text' => '', 'image' => ''])];
+                }
+            }
             $this->pages->syncSections($page, $sections, $actor);
 
             return StoreFunnel::create(['store_id' => $store->id, 'store_page_id' => $page->id, 'product_id' => $product->id, 'template_key' => $data['template_key']]);

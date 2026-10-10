@@ -15,6 +15,10 @@ use App\Support\Tenancy\CurrentStore;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class StoreFunnelsTest extends TestCase
@@ -129,5 +133,156 @@ class StoreFunnelsTest extends TestCase
         $this->getJson('/api/v1/my-store/pages/'.$funnel['page_id'])->assertOk()
             ->assertJsonPath('data.sections.0.settings.heading', 'حقيبة قماش')
             ->assertJsonPath('data.sections.0.settings.image', 'https://example.com/bag.jpg');
+    }
+
+    private function aiInput(array $extra = []): array
+    {
+        return array_merge(['title' => 'Bag campaign', 'slug' => 'bag-ai', 'locale' => 'ar', 'product_id' => $this->product->id, 'template_key' => 'spotlight', 'generation' => ['language' => 'Arabic', 'dialect' => 'Egyptian', 'product_name' => 'Canvas bag', 'description' => 'A washable cotton bag with reinforced handles for everyday shopping.']], $extra);
+    }
+
+    private function enableAi(): void
+    {
+        config(['services.funnel_ai.api_key' => 'test-key', 'services.funnel_ai.model' => 'configured-model']);
+        Http::preventStrayRequests();
+    }
+
+    private function aiResponse(): array
+    {
+        return ['status' => 'completed', 'output' => [['type' => 'message', 'content' => [['type' => 'output_text', 'text' => json_encode([
+            'heading' => 'Your everyday bag', 'text' => 'Washable cotton with reinforced handles.', 'cta_label' => 'Order now',
+            'details_heading' => 'Made for shopping', 'paragraphs' => ['<script>alert(1)</script>', 'A washable bag.'],
+            'faq_heading' => 'Questions', 'faqs' => [['question' => 'Can I wash it?', 'answer' => 'Yes, it is washable.']],
+        ])]]]]];
+    }
+
+    public function test_ai_copy_becomes_an_editable_unpublished_draft_with_safe_links(): void
+    {
+        $this->enableAi();
+        Http::fake(['api.openai.com/v1/responses' => Http::response($this->aiResponse())]);
+        $this->getJson('/api/v1/my-store/funnels/templates')->assertOk()->assertJsonPath('ai.available', true)->assertDontSee('test-key');
+        $funnel = $this->postJson('/api/v1/my-store/funnels/generate', $this->aiInput())->assertCreated()->assertJsonPath('data.status', 'draft')->json('data');
+        Http::assertSent(function ($request) {
+            $brief = json_decode($request['input'][1]['content'], true);
+
+            return $request->url() === 'https://api.openai.com/v1/responses'
+                && $request['model'] === 'configured-model' && $request['store'] === false
+                && $request['text']['format']['strict'] === true
+                && $brief['dialect'] === 'Egyptian' && count($brief) === 4;
+        });
+        $page = $this->getJson('/api/v1/my-store/pages/'.$funnel['page_id'])->assertOk()
+            ->assertJsonPath('data.sections.0.settings.heading', 'Your everyday bag')
+            ->assertJsonPath('data.sections.0.settings.cta_url', '/products/canvas-bag')->json('data');
+        $this->assertCount(3, $page['sections']);
+        $this->assertStringNotContainsString('<script>', $page['sections'][1]['settings']['body']);
+        $this->assertDatabaseCount('store_page_publications', 0);
+        $this->putJson('/api/v1/my-store/pages/'.$funnel['page_id'].'/sections', ['sections' => [['type' => 'hero-banner', 'settings' => ['heading' => 'Reviewed copy']]]])->assertOk();
+    }
+
+    public function test_ai_missing_configuration_fails_without_creating_a_draft(): void
+    {
+        config(['services.funnel_ai.api_key' => '', 'services.funnel_ai.model' => '']);
+        Http::fake();
+        $this->getJson('/api/v1/my-store/funnels/templates')->assertOk()->assertJsonPath('ai.available', false);
+        $this->postJson('/api/v1/my-store/funnels/generate', $this->aiInput())->assertStatus(503);
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('store_pages', 0);
+        $this->createFunnel()->assertCreated();
+    }
+
+    public function test_ai_rejects_invalid_briefs_and_foreign_products_before_provider_call(): void
+    {
+        $this->enableAi();
+        Http::fake();
+        $this->postJson('/api/v1/my-store/funnels/generate', $this->aiInput(['generation' => ['language' => 'ar']]))->assertUnprocessable();
+        $other = $this->makeStore('other');
+        $this->asOwner($other);
+        $this->postJson('/api/v1/my-store/funnels/generate', $this->aiInput())->assertUnprocessable()->assertJsonValidationErrors('product_id');
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('store_pages', 0);
+    }
+
+    public function test_ai_requires_page_management_permission_for_employees(): void
+    {
+        $this->enableAi();
+        Http::fake(['api.openai.com/v1/responses' => Http::response($this->aiResponse())]);
+        $employee = User::factory()->create(['parent_user_id' => $this->store->owner_user_id, 'is_active' => true, 'pending_approval' => false]);
+        $employee->assignRole('Employee');
+        $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($employee));
+        $this->postJson('/api/v1/my-store/funnels/generate', $this->aiInput())->assertForbidden();
+        Http::assertNothingSent();
+        $employee->givePermissionTo('store.pages.manage');
+        // Existing JWT authentication caches user permission relations for 30 seconds.
+        $this->travel(31)->seconds();
+        $this->postJson('/api/v1/my-store/funnels/generate', $this->aiInput())->assertCreated();
+    }
+
+    public function test_ai_daily_budget_is_shared_by_store_and_manual_creation_still_works(): void
+    {
+        $this->enableAi();
+        config(['services.funnel_ai.per_day' => 1]);
+        Http::fake(['api.openai.com/v1/responses' => Http::response($this->aiResponse())]);
+        $this->postJson('/api/v1/my-store/funnels/generate', $this->aiInput())->assertCreated();
+        $employee = User::factory()->create(['parent_user_id' => $this->store->owner_user_id, 'is_active' => true, 'pending_approval' => false]);
+        $employee->assignRole('Employee');
+        $employee->givePermissionTo('store.pages.manage');
+        $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($employee));
+        $this->postJson('/api/v1/my-store/funnels/generate', $this->aiInput())->assertStatus(429)->assertHeader('Retry-After');
+        Http::assertSentCount(1);
+        $this->createFunnel()->assertCreated();
+        $this->assertDatabaseCount('store_funnels', 2);
+    }
+
+    public function test_ai_concurrent_request_is_rejected_without_provider_spend(): void
+    {
+        $this->enableAi();
+        Http::fake();
+        $lock = Cache::lock('funnel-ai:'.$this->store->id.':lock', 90);
+        $this->assertTrue($lock->get());
+        try {
+            $this->postJson('/api/v1/my-store/funnels/generate', $this->aiInput())->assertStatus(429);
+            Http::assertNothingSent();
+            $this->assertDatabaseCount('store_pages', 0);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    #[DataProvider('failedAiResponses')]
+    public function test_ai_provider_failures_never_leave_partial_pages(array $payload, int $providerStatus, int $expectedStatus): void
+    {
+        $this->enableAi();
+        Http::fake(['api.openai.com/v1/responses' => Http::response($payload, $providerStatus)]);
+        $this->postJson('/api/v1/my-store/funnels/generate', $this->aiInput())->assertStatus($expectedStatus)->assertDontSee('secret-provider-detail');
+        $this->assertDatabaseCount('store_pages', 0);
+        $this->assertDatabaseCount('store_funnels', 0);
+        // Failures release the lock, so a later request is not stuck as in progress.
+        $lock = Cache::lock('funnel-ai:'.$this->store->id.':lock', 90);
+        $this->assertTrue($lock->get());
+        $lock->release();
+    }
+
+    public static function failedAiResponses(): array
+    {
+        return [
+            'provider error' => [['error' => 'secret-provider-detail'], 500, 502],
+            'incomplete' => [['status' => 'incomplete', 'output' => []], 200, 502],
+            'missing text' => [['status' => 'completed', 'output' => []], 200, 502],
+            'invalid output shape' => [['status' => 'completed', 'output' => 'not-an-array'], 200, 502],
+            'invalid schema' => [['status' => 'completed', 'output' => [['type' => 'message', 'content' => [['type' => 'output_text', 'text' => '{}']]]]], 200, 502],
+            'refusal' => [['status' => 'completed', 'output' => [['type' => 'message', 'content' => [['type' => 'refusal', 'refusal' => 'secret-provider-detail']]]]], 200, 422],
+        ];
+    }
+
+    public function test_ai_connection_timeout_leaves_no_draft_and_does_not_retry(): void
+    {
+        $this->enableAi();
+        $attempts = 0;
+        Http::fake(function () use (&$attempts) {
+            $attempts++;
+            throw new ConnectionException('secret-provider-detail');
+        });
+        $this->postJson('/api/v1/my-store/funnels/generate', $this->aiInput())->assertStatus(504)->assertDontSee('secret-provider-detail');
+        $this->assertSame(1, $attempts);
+        $this->assertDatabaseCount('store_pages', 0);
     }
 }

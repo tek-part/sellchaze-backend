@@ -642,6 +642,7 @@ Route::prefix('v1')->group(function () {
         $storeScopedRoutes = function (): void {
             Route::get('funnels/templates', [StoreFunnelsApiController::class, 'templates']);
             Route::get('funnels', [StoreFunnelsApiController::class, 'index']);
+            Route::post('funnels/generate', [StoreFunnelsApiController::class, 'generate'])->middleware('throttle:3,1');
             Route::post('funnels', [StoreFunnelsApiController::class, 'store']);
             Route::post('funnels/{funnel}/duplicate', [StoreFunnelsApiController::class, 'duplicate'])->whereNumber('funnel');
             // ---- Custom domains: connect / verify / promote / disconnect ----
