@@ -13,9 +13,11 @@ return new class extends Migration
         Schema::table('cart_items', function (Blueprint $table) {
             $table->json('personalization')->nullable();
             $table->string('personalization_key', 64)->default('');
-            $table->dropUnique('cart_product_variant_unique');
             $table->unique(['cart_id', 'store_product_id', 'variant_id', 'personalization_key'], 'cart_personalized_line_unique');
         });
+        // MySQL uses this index for the cart foreign key. Install its
+        // replacement before dropping it so the constraint stays supported.
+        Schema::table('cart_items', fn (Blueprint $table) => $table->dropUnique('cart_product_variant_unique'));
         Schema::table('store_order_items', fn (Blueprint $table) => $table->json('personalization')->nullable());
         Schema::create('product_personalization_uploads', function (Blueprint $table) {
             $table->uuid('id')->primary();
@@ -41,11 +43,9 @@ return new class extends Migration
         }
         Schema::dropIfExists('product_personalization_uploads');
         Schema::table('store_order_items', fn (Blueprint $table) => $table->dropColumn('personalization'));
-        Schema::table('cart_items', function (Blueprint $table) {
-            $table->dropUnique('cart_personalized_line_unique');
-            $table->dropColumn(['personalization', 'personalization_key']);
-            $table->unique(['cart_id', 'store_product_id', 'variant_id'], 'cart_product_variant_unique');
-        });
+        Schema::table('cart_items', fn (Blueprint $table) => $table->unique(['cart_id', 'store_product_id', 'variant_id'], 'cart_product_variant_unique'));
+        Schema::table('cart_items', fn (Blueprint $table) => $table->dropUnique('cart_personalized_line_unique'));
+        Schema::table('cart_items', fn (Blueprint $table) => $table->dropColumn(['personalization', 'personalization_key']));
         Schema::table('products', fn (Blueprint $table) => $table->dropColumn('personalization_fields'));
     }
 };
