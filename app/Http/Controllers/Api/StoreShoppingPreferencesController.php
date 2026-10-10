@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Services\Commerce\ShoppingPreferences;
+use App\Services\Commerce\StoreShipping;
 use App\Services\Storefront\StorefrontService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,11 +31,15 @@ class StoreShoppingPreferencesController extends Controller
     public function update(Request $request, ShoppingPreferences $preferences): JsonResponse
     {
         $store = $this->store($request);
-        $data = $request->validate(['auto_select_variants' => ['required', 'boolean'], 'version' => ['required', 'integer', 'min:1']]);
+        $data = $request->validate(['auto_select_variants' => ['required', 'boolean'], 'auto_select_shipping_region' => ['sometimes', 'boolean'], 'version' => ['required', 'integer', 'min:1']]);
         $updated = DB::transaction(function () use ($store, $preferences, $data) {
             $locked = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             abort_unless($preferences->configured($locked)['version'] === (int) $data['version'], 409, 'Settings changed. Reload before saving.');
-            $locked->update(['shopping_preferences' => ['auto_select_variants' => (bool) $data['auto_select_variants'], 'version' => (int) $data['version'] + 1]]);
+            $changes = ['shopping_preferences' => ['auto_select_variants' => (bool) $data['auto_select_variants'], 'version' => (int) $data['version'] + 1]];
+            if (array_key_exists('auto_select_shipping_region', $data)) {
+                $changes['shipping_configuration'] = array_replace(app(StoreShipping::class)->configuration($locked), ['auto_select_region' => (bool) $data['auto_select_shipping_region']]);
+            }
+            $locked->update($changes);
 
             return $locked;
         });

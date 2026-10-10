@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Store;
+use App\Services\Commerce\ShoppingPreferences;
 use App\Services\Commerce\StoreShipping;
+use App\Services\Storefront\StorefrontService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -29,6 +32,7 @@ class StoreShippingController extends Controller
         $config['options'] = $shipping->withIcons($store, $config['options']);
 
         return response()->json(['data' => $config + [
+            'version' => app(ShoppingPreferences::class)->configured($store)['version'],
             'shipping_enabled' => (bool) $store->shipping_enabled, 'shipping_flat_rate' => $store->shipping_flat_rate ?? '0.00',
             'shipping_free_over' => $store->shipping_free_over, 'tax_enabled' => (bool) $store->tax_enabled,
             'tax_rate' => $store->tax_rate ?? '0', 'tax_prices_include' => (bool) $store->tax_prices_include,
@@ -40,6 +44,7 @@ class StoreShippingController extends Controller
         $store = $this->store($request);
         $money = ['required', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'];
         $rules = [
+            'version' => ['sometimes', 'integer', 'min:1'],
             'shipping_enabled' => ['required', 'boolean'], 'shipping_flat_rate' => $money,
             'shipping_free_over' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'],
             'tax_enabled' => ['required', 'boolean'], 'tax_rate' => ['required', 'numeric', 'min:0', 'max:100', 'decimal:0,3'],
@@ -85,12 +90,24 @@ class StoreShippingController extends Controller
             }
             unset($row);
         }
-        $store->update([
-            'shipping_enabled' => $data['shipping_enabled'], 'shipping_flat_rate' => $data['shipping_flat_rate'],
-            'shipping_free_over' => $data['shipping_free_over'] ?? null,
-            'tax_enabled' => $data['tax_enabled'], 'tax_rate' => $data['tax_rate'], 'tax_prices_include' => $data['tax_prices_include'],
-            'shipping_configuration' => array_intersect_key($data, array_flip(['regions_enabled', 'auto_select_region', 'regions', 'options'])),
-        ]);
+        $updated = DB::transaction(function () use ($store, $data) {
+            $locked = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
+            $preferences = app(ShoppingPreferences::class)->configured($locked);
+            if (array_key_exists('version', $data)) {
+                abort_unless($preferences['version'] === (int) $data['version'], 409, 'Settings changed. Reload before saving.');
+            }
+            $locked->update([
+                'shipping_enabled' => $data['shipping_enabled'], 'shipping_flat_rate' => $data['shipping_flat_rate'],
+                'shipping_free_over' => $data['shipping_free_over'] ?? null,
+                'tax_enabled' => $data['tax_enabled'], 'tax_rate' => $data['tax_rate'], 'tax_prices_include' => $data['tax_prices_include'],
+                'shipping_configuration' => array_intersect_key($data, array_flip(['regions_enabled', 'auto_select_region', 'regions', 'options'])),
+                'shopping_preferences' => ['auto_select_variants' => $preferences['auto_select_variants'], 'version' => $preferences['version'] + 1],
+            ]);
+
+            return $locked;
+        });
+        StorefrontService::forgetHomepage($store->id);
+        $request->attributes->set('store', $updated);
 
         return $this->index($request, $shipping);
     }

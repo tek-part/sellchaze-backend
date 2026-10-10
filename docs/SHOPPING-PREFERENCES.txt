@@ -30,8 +30,10 @@ Cart/quote/checkout pricing and stock remain authoritative.
 Local review also corrected the physical origin of the Arabic tab underline,
 Fresh brand-name overlap, and its footer minimum-width overflow on small screens.
 
-Migration200000 is reversible. It was tested with application/rollback/reapplication
-only on the named disposable SQLite review database. MySQL migration/concurrency,
-live production and competitor behavior after saving its setting remain unverified.
+Migration200000 is reversible. Application/rollback/reapplication passed on the
+named disposable SQLite review database and GitHub's empty MySQL database for PR13.
+MySQL concurrency, live production and competitor behavior after saving its setting
+remain unverified. Delivery region selection shares this editor; see
+DELIVERY-REGION-SELECTION.txt for its storage, version and checkout rules.
 No live order/payment/provider/email action is required for this preference.
 The broader competitor/theme/AI/design/source-parity goal remains incomplete.
