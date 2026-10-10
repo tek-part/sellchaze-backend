@@ -77,12 +77,13 @@ class StorefrontContextBuilder
         return [
             'store' => $this->storeSummary($store),
             'locale' => $this->localeBlock($store),
-            'seo' => $this->seo->forPage($store, $page),
+            'seo' => $this->seo->forPage($store, $page->template === 'simple' ? (clone $page)->forceFill(['title' => app(SimplePages::class)->publicData($store, $page, $this->currentLocale($store), $publication)['title']]) : $page),
             'theme' => [...$this->themeBlock($theme), 'responsive_css' => $responsiveCss],
             'page' => [
                 'template' => $page->template,
                 'slug' => $page->slug,
                 'sections' => $pageSections,
+                ...($page->template === 'simple' ? app(SimplePages::class)->publicData($store, $page, $this->currentLocale($store), $publication) : []),
             ],
             'data' => $this->commonData($store),
             'navigation' => $this->navigation($store),
@@ -121,11 +122,11 @@ class StorefrontContextBuilder
         $footer = $menus->get('footer');
         $locale = $this->currentLocale($store);
 
-        return [
+        return app(SimplePages::class)->navigation($store, [
             'branding' => ['name' => $store->name, 'logo_url' => $store->logoUrl()],
             'header' => $header ? $this->menus->tree($header, $locale) : [],
             'footer' => $footer ? $this->menus->tree($footer, $locale) : [],
-        ];
+        ], $locale);
     }
 
     private function themeBlock(array $theme): array

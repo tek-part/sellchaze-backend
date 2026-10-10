@@ -110,6 +110,7 @@ use App\Http\Controllers\Api\StoresApiController;
 use App\Http\Controllers\Api\StoreShipmentController;
 use App\Http\Controllers\Api\StoreShippingController;
 use App\Http\Controllers\Api\StoreShoppingPreferencesController;
+use App\Http\Controllers\Api\StoreSimplePagesController;
 use App\Http\Controllers\Api\StoreThankYouController;
 use App\Http\Controllers\Api\StoreThemesApiController;
 use App\Http\Controllers\Api\SubscriptionController;
@@ -849,6 +850,13 @@ Route::prefix('v1')->group(function () {
             Route::get('currencies', [CurrencySettingsApiController::class, 'codes']);
 
             // ---- Page Builder (Phase 4E): pages, reusable sections, menus ----
+            $simplePages = StoreSimplePagesController::class;
+            Route::get('simple-pages', [$simplePages, 'index']);
+            Route::post('simple-pages', [$simplePages, 'save']);
+            Route::post('simple-pages/archive', [$simplePages, 'archive']);
+            Route::get('simple-pages/{page}', [$simplePages, 'show'])->whereNumber('page');
+            Route::put('simple-pages/{page}', [$simplePages, 'save'])->whereNumber('page');
+            Route::post('simple-pages/{page}/restore', [$simplePages, 'restore'])->whereNumber('page');
             $pages = StorePagesApiController::class;
             Route::get('pages/schema', [$pages, 'schema']);
             Route::get('pages/template/{template}', [$pages, 'ensureTemplate'])->whereIn('template', StorePageService::TEMPLATE_PAGES);

@@ -212,7 +212,7 @@ class StorePageService
         $page->load('sections.reusable');
 
         return [
-            'page' => $page->only(['title', 'slug', 'template', 'locale', 'seo']),
+            'page' => $page->only($page->template === 'simple' ? ['title', 'slug', 'template', 'locale', 'seo', 'simple_configuration'] : ['title', 'slug', 'template', 'locale', 'seo']),
             'sections' => $page->sections->map(function (StorePageSection $section) {
                 $reusable = $section->reusable_section_id ? $section->reusable : null;
 
@@ -313,7 +313,7 @@ class StorePageService
     {
         return Slug::unique($base, function (string $slug) use ($store, $locale, $ignoreId) {
             return StorePage::query()->withoutGlobalScope(StoreScope::class)
-                ->where('store_id', $store->id)->where('locale', $locale)->where('slug', $slug)
+                ->where('store_id', $store->id)->where(fn ($query) => $query->where('locale', $locale)->orWhere('template', 'simple'))->where('slug', $slug)
                 ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
                 ->exists();
         }, 'page');

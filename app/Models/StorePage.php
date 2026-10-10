@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+/** @property array|null $simple_configuration Persisted JSON rich-page configuration. */
 class StorePage extends Model
 {
     use BelongsToStore;
@@ -16,11 +17,12 @@ class StorePage extends Model
 
     protected $fillable = [
         'store_id', 'title', 'slug', 'published_slug', 'status', 'template', 'locale',
-        'seo', 'publish_at', 'published_at',
+        'seo', 'publish_at', 'published_at', 'simple_configuration',
     ];
 
     protected $casts = [
         'seo' => 'array',
+        'simple_configuration' => 'array',
         'publish_at' => 'datetime',
         'published_at' => 'datetime',
     ];

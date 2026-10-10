@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\StorePage;
 use App\Services\Storefront\PublishedPageResolver;
+use App\Services\Storefront\SimplePages;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StoreSeoService;
 use App\Services\Themes\SectionRegistry;
@@ -104,11 +105,16 @@ class StorefrontLayoutController extends Controller
         $locale = $this->locale->current();
         $theme = $this->themes->resolve($store, $locale) ?? [];
         $key = $this->key($store, 'page', $slug, $locale, $theme, $page);
-        $payload = Cache::remember($key, $this->ttl(), function () use ($store, $theme, $page) {
+        $payload = Cache::remember($key, $this->ttl(), function () use ($store, $theme, $page, $locale) {
             $publication = $this->pages->latestPublication($page);
             $snapshot = new StorePage($publication['page'] ?? []);
             $snapshot->forceFill(['id' => $page->id, 'store_id' => $page->store_id, 'status' => $page->status, 'publish_at' => $page->publish_at]);
             $title = $publication['page']['title'] ?? $page->title;
+            $simple = $page->template === 'simple' ? app(SimplePages::class)->publicData($store, $page, $locale, $publication) : null;
+            if ($simple !== null) {
+                $title = $simple['title'];
+                $snapshot->title = $title;
+            }
 
             return [
                 'id' => $page->id,
@@ -119,6 +125,7 @@ class StorefrontLayoutController extends Controller
                 'locale' => $page->locale,
                 'seo' => $this->seo->forPage($store, $publication ? $snapshot : $page),
                 'sections' => $this->sections->resolveSections($theme['sections_schema'] ?? [], $this->pages->publicSections($page, $publication)),
+                ...($simple !== null ? ['content_html' => $simple['content_html']] : []),
             ];
         });
 
