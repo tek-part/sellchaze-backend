@@ -6,6 +6,9 @@
 <p>{{ $store->name }} — {{ $order->order_number }}</p>
 <p>{{ $ar ? 'الإجمالي' : 'Total' }}: {{ $order->currency }} {{ $order->grand_total }}</p>
 <p>{{ $ar ? 'بانتظار تأكيد الدفع. المنتجات الرقمية متاحة بعد وصول المبلغ وتأكيده.' : 'Awaiting payment confirmation. Digital products become available after payment is confirmed.' }}</p>
+@if ($order->payment_method === 'cod')
+<p>{{ $ar ? 'الدفع عند الاستلام: ستصبح المنتجات الرقمية متاحة بعد مراجعة المتجر لتحصيل كامل مبلغ الطلب. تسليم الطرد وحده لا يؤكد الدفع.' : 'Cash on delivery: digital products become available after the store verifies collection of the full order amount. Parcel delivery alone does not confirm payment.' }}</p>
+@endif
 @if ($bank)
 <h2>{{ $ar ? 'تعليمات التحويل البنكي' : 'Bank transfer instructions' }}{{ $bank['test_mode'] ? ($ar ? ' (تجريبي)' : ' (Test)') : '' }}</h2>
 @foreach ($bank['fields'] as $key => $value)

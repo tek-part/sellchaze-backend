@@ -10,6 +10,7 @@ use App\Models\Store;
 use App\Models\StoreOrder;
 use App\Services\Commerce\DigitalOrderEmail;
 use App\Services\Commerce\ManualBankPayment;
+use App\Services\Commerce\ManualCashPayment;
 use App\Services\Commerce\StoreOrderService;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -107,6 +108,15 @@ class MerchantOrderController extends Controller
     {
         $data = $request->validate(['reference' => ['required', 'string', 'max:200'], 'note' => ['nullable', 'string', 'max:2000']]);
         $model = app(ManualBankPayment::class)->confirm($this->find($order), $data['reference'], (int) $request->user()->id, $data['note'] ?? null);
+
+        return response()->json(['data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor', 'b2bOrder']))]);
+    }
+
+    public function confirmCashPayment(Request $request, Store $store, int $order): JsonResponse
+    {
+        $data = $request->validate(['reference' => ['required', 'string', 'max:200'], 'amount' => ['required', 'numeric', 'min:0', 'decimal:0,2', 'max:9999999999.99'],
+            'currency' => ['required', 'string', 'regex:/^[A-Za-z]{3}$/'], 'collected' => ['required', 'accepted'], 'note' => ['nullable', 'string', 'max:2000']]);
+        $model = app(ManualCashPayment::class)->confirm($this->find($order), $data['reference'], (string) $data['amount'], $data['currency'], (int) $request->user()->id, $data['note'] ?? null);
 
         return response()->json(['data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor', 'b2bOrder']))]);
     }
