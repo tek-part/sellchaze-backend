@@ -55,6 +55,7 @@ class CheckoutQuote
         }
 
         return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'requires_shipping' => $requiresShipping,
+            'order_minimum' => app(OrderLimits::class)->minimum($store, $subtotal, $discount),
             'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping)];
     }
 }

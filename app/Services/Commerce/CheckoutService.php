@@ -125,6 +125,7 @@ class CheckoutService
                     fn (string $key) => str_starts_with($key, 'shipping_address'), ARRAY_FILTER_USE_KEY);
                 Validator::make(['shipping_address' => $shippingAddress], $addressRules)->validate();
             }
+            app(OrderLimits::class)->assertMinimum($store, $subtotal, $discount);
             $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping);
             if ($requiresShipping) {
                 $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection);

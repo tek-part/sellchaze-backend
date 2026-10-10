@@ -1,0 +1,38 @@
+Minimum order amount
+
+The merchant Order limits editor accepts a money amount in the store currency.
+Zero, blank or null disables it. The authoritative basis is products after
+discounts, excluding shipping and tax. Physical, digital, mixed, cart and direct
+orders use the same rule. This calculation is Sellchaze's explicit policy;
+EasyOrders' minimum-order plugin page was observed, but its configuration was
+subscription-gated, so its hidden calculation and fields were not verified.
+
+GET/PUT order-limits retain the existing store owner/settings permission scope.
+stores.order_limits stores minimum_order_amount as a two-decimal string and a
+version alongside existing quantity/phone/country settings. No new migration.
+Legacy null configurations default to 0.00 and version 1. Older clients omitting
+the amount preserve the saved value; an explicit null resets it. Supplied stale
+versions return 409 under the store lock. Versions remain optional for old
+clients; the new editor always supplies one and offers explicit reload recovery.
+
+Quotes are read-only and remain available below the minimum. order_minimum
+contains amount, merchandise_total, remaining and eligible. Shared cart/funnel
+checkout shows the missing amount and disables new-order submission while it is
+ineligible. Cart checkout links back to edit the basket. Missing optional quote
+metadata stays compatible with older APIs; the server is authoritative.
+
+Checkout re-reads locked store settings and current prices/coupon discounts, then
+rejects below-minimum orders with order_minimum validation before order creation.
+The enclosing transaction preserves stock, code pools, carts, coupons, proof
+claims, payments and outbox writes on rejection. Existing order idempotency and
+payment recovery remain before this new-order check: changing the minimum cannot
+create a second order or prevent exact replay of an already-created order.
+
+Verification: StoreOrderLimitsTest covers precision, invalid values, permissions,
+legacy omission, null disabling, version conflicts, net discount calculation,
+shipping/tax exclusion, exact boundary, cart/direct rejection, live settings,
+digital shippingless rejection, atomic stock/payment behavior and order replay.
+The shared frontend helper tests cover eligibility, older quote compatibility,
+and Arabic/English messages. Real MySQL concurrent settings/checkout behavior and
+competitor calculation parity remain unverified. No production deployment or
+production migration was performed for this feature.
