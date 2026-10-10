@@ -703,6 +703,7 @@ Route::prefix('v1')->group(function () {
                 Route::middleware('permission:products-list')->get('{product}/variants', [StorefrontProductVariantsApiController::class, 'index'])->whereNumber('product');
                 Route::middleware('permission:products-edit')->post('{product}/variants', [StorefrontProductVariantsApiController::class, 'store'])->whereNumber('product');
                 Route::middleware('permission:products-edit')->post('{product}/variants/generate', [StorefrontProductVariantsApiController::class, 'generate'])->whereNumber('product');
+                Route::middleware('permission:products-edit')->put('{product}/variants/bulk', [StorefrontProductVariantsApiController::class, 'bulkUpdate'])->whereNumber('product');
                 Route::middleware('permission:products-edit')->put('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'update'])->whereNumber(['product', 'variant']);
                 Route::middleware('permission:products-delete')->delete('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'destroy'])->whereNumber(['product', 'variant']);
             });

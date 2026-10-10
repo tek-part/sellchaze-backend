@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\BulkProductVariantsRequest;
 use App\Http\Requests\GenerateProductVariantsRequest;
 use App\Http\Requests\StorefrontProductVariantRequest;
 use App\Http\Resources\StoreCatalogVariantResource;
@@ -54,6 +55,13 @@ class StorefrontProductVariantsApiController extends Controller
         $updated = $this->service->update($this->variant($model, $variant), $request->validated())->setRelation('product', $model);
 
         return response()->json(['data' => new StoreCatalogVariantResource($updated)], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function bulkUpdate(BulkProductVariantsRequest $request, Store $store, int $product): JsonResponse
+    {
+        $count = $this->service->bulkUpdate($this->product($product), $request->validated('variants'), $request->validated('changes'));
+
+        return response()->json(['meta' => ['updated' => $count]], 200);
     }
 
     public function destroy(Request $request, Store $store, int $product, int $variant): JsonResponse

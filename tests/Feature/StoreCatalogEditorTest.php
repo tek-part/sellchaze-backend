@@ -98,6 +98,69 @@ class StoreCatalogEditorTest extends TestCase
         $this->getJson($this->base.'?status=draft', $this->auth)->assertOk()->assertJsonPath('meta.total', 1);
     }
 
+    public function test_variant_image_is_owned_image_only_and_clears_when_gallery_media_is_removed(): void
+    {
+        $id = $this->create();
+        $path = $this->base.'/'.$id.'/variants';
+        $media = $this->post($this->base.'/'.$id, ['_method' => 'PUT', 'gallery' => [UploadedFile::fake()->image('variant.png'), UploadedFile::fake()->create('video.mp4', 5, 'video/mp4')]], $this->auth + ['Accept' => 'application/json'])->assertOk()->json('data.media');
+        $created = $this->postJson($path, ['name' => 'Blue', 'image_media_id' => $media[0]['id']], $this->auth)->assertCreated()->assertJsonPath('data.image_url', $media[0]['url'])->json('data');
+        $this->getJson($this->public.'/products/bag')->assertOk()->assertJsonPath('data.variants.0.image_url', $media[0]['url'])->assertJsonMissingPath('data.variants.0.edit_version');
+        $this->putJson($path.'/'.$created['id'], ['name' => 'Unchanged', 'image_media_id' => $media[1]['id']], $this->auth)->assertUnprocessable();
+        $this->putJson($this->base.'/'.$id, ['remove_media_ids' => [$media[0]['id']]], $this->auth)->assertOk();
+        $this->getJson($path, $this->auth)->assertOk()->assertJsonPath('data.0.image_media_id', null)->assertJsonPath('data.0.image_url', null)->assertJsonPath('data.0.name', 'Blue');
+        $this->putJson($path.'/'.$created['id'], ['name' => 'Stale edit', 'edit_version' => $created['edit_version']], $this->auth)->assertUnprocessable();
+    }
+
+    public function test_bulk_variant_edits_change_only_requested_fields_and_preserve_inventory(): void
+    {
+        $id = $this->create();
+        $path = $this->base.'/'.$id.'/variants';
+        $one = $this->postJson($path, ['name' => 'Blue', 'price_override' => 50, 'cost' => 10], $this->auth)->assertCreated()->json('data');
+        $two = $this->postJson($path, ['name' => 'Red', 'price_override' => 60, 'cost' => 20], $this->auth)->assertCreated()->json('data');
+        $targets = array_map(fn ($row) => ['id' => $row['id'], 'version' => $row['edit_version']], [$one, $two]);
+        $this->putJson('/api/v1/my-store/catalog/inventory/'.$id, ['variant_id' => $one['id'], 'track_inventory' => true, 'stock_quantity' => 4, 'expected_stock' => 0, 'expected_reserved' => 0, 'expected_tracking' => false], $this->auth)->assertOk();
+        $this->putJson($path.'/bulk', ['variants' => $targets, 'changes' => ['price_override' => 0, 'is_active' => false]], $this->auth)->assertOk()->assertJsonPath('meta.updated', 2);
+        $this->assertDatabaseHas('store_product_variants', ['id' => $one['id'], 'name' => 'Blue', 'cost' => 10, 'price_override' => 0, 'stock_quantity' => 4, 'is_active' => false]);
+        $this->assertDatabaseHas('store_product_variants', ['id' => $two['id'], 'cost' => 20, 'price_override' => 0, 'is_active' => false]);
+        $rows = $this->getJson($path, $this->auth)->assertOk()->json('data');
+        $targets = array_map(fn ($row) => ['id' => $row['id'], 'version' => $row['edit_version']], $rows);
+        $this->putJson($path.'/bulk', ['variants' => $targets, 'changes' => ['price_override' => null, 'is_active' => true]], $this->auth)->assertOk();
+        $this->getJson($path, $this->auth)->assertOk()->assertJsonPath('data.0.effective_price', '125.00')->assertJsonPath('data.1.effective_price', '125.00');
+    }
+
+    public function test_bulk_edit_rolls_back_when_last_variant_is_stale_or_foreign_and_rejects_inventory_fields(): void
+    {
+        $id = $this->create();
+        $path = $this->base.'/'.$id.'/variants';
+        $one = $this->postJson($path, ['name' => 'Blue', 'price_override' => 50], $this->auth)->assertCreated()->json('data');
+        $two = $this->postJson($path, ['name' => 'Red', 'price_override' => 60], $this->auth)->assertCreated()->json('data');
+        $targets = array_map(fn ($row) => ['id' => $row['id'], 'version' => $row['edit_version']], [$one, $two]);
+        $this->putJson($path.'/'.$two['id'], ['name' => 'New red', 'edit_version' => $two['edit_version']], $this->auth)->assertOk();
+        $this->putJson($path.'/bulk', ['variants' => $targets, 'changes' => ['price_override' => 99]], $this->auth)->assertUnprocessable();
+        $this->assertDatabaseHas('store_product_variants', ['id' => $one['id'], 'price_override' => 50]);
+        $this->assertDatabaseHas('store_product_variants', ['id' => $two['id'], 'name' => 'New red', 'price_override' => 60]);
+        $other = $this->create(['slug' => 'other']);
+        $foreign = $this->postJson($this->base.'/'.$other.'/variants', ['name' => 'Other'], $this->auth)->assertCreated()->json('data');
+        $targets[1] = ['id' => $foreign['id'], 'version' => $foreign['edit_version']];
+        $this->putJson($path.'/bulk', ['variants' => $targets, 'changes' => ['price_override' => 99]], $this->auth)->assertUnprocessable();
+        foreach ([['stock_quantity' => 900], ['reserved_quantity' => 0], ['name' => 'Rename all'], [], ['price_override' => -1]] as $changes) {
+            $this->putJson($path.'/bulk', ['variants' => [$targets[0]], 'changes' => $changes], $this->auth)->assertUnprocessable();
+        }
+        $this->assertDatabaseHas('store_product_variants', ['id' => $one['id'], 'price_override' => 50, 'stock_quantity' => 0]);
+    }
+
+    public function test_variant_versions_are_stable_across_json_key_order_and_foreign_images_are_rejected(): void
+    {
+        $id = $this->create();
+        $path = $this->base.'/'.$id.'/variants';
+        $row = $this->postJson($path, ['name' => 'Blue S', 'options' => ['Color' => 'Blue', 'Size' => 'S']], $this->auth)->assertCreated()->json('data');
+        $this->putJson($path.'/'.$row['id'], ['name' => 'Blue S', 'options' => ['Size' => 'S', 'Color' => 'Blue'], 'edit_version' => $row['edit_version']], $this->auth)->assertOk()->assertJsonPath('data.edit_version', $row['edit_version']);
+        $other = $this->create(['slug' => 'other-image']);
+        $media = $this->post($this->base.'/'.$other, ['_method' => 'PUT', 'gallery' => [UploadedFile::fake()->image('other.png')]], $this->auth + ['Accept' => 'application/json'])->assertOk()->json('data.media.0.id');
+        $this->putJson($path.'/bulk', ['variants' => [['id' => $row['id'], 'version' => $row['edit_version']]], 'changes' => ['price_override' => 99, 'image_media_id' => $media]], $this->auth)->assertUnprocessable()->assertJsonValidationErrors('image_media_id');
+        $this->getJson($path, $this->auth)->assertOk()->assertJsonPath('data.0.price_override', null)->assertJsonPath('data.0.image_media_id', null);
+    }
+
     public function test_uploaded_gallery_and_cover_are_returned_to_editor_and_storefront(): void
     {
         $response = $this->post($this->base, ['name' => 'صور', 'slug' => 'images', 'price' => '12.50', 'is_active' => '1',

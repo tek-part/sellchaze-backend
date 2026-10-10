@@ -24,8 +24,11 @@ class StorefrontProductVariantService
             $this->assertDistinctOptions($current, $data['options'] ?? []);
             $variant = new ProductVariant;
             $this->fill($variant, $data);
+            $this->setImage($current, $variant, $data);
             $variant->store_product_id = $current->id;
             $variant->save();
+            // Include database defaults in the editorial version returned immediately after creation.
+            $variant->refresh();
 
             return $variant;
         });
@@ -40,8 +43,10 @@ class StorefrontProductVariantService
         $variant = DB::transaction(function () use ($variant, $data) {
             $product = Product::query()->whereKey($variant->store_product_id)->lockForUpdate()->firstOrFail();
             $current = $product->variants()->whereKey($variant->id)->lockForUpdate()->firstOrFail();
+            $this->assertVersion($current, $data['edit_version'] ?? null);
             $this->assertDistinctOptions($product, $data['options'] ?? $current->options ?? [], $current->id);
             $this->fill($current, $data);
+            $this->setImage($product, $current, $data);
             $current->save();
 
             return $current->setRelation('product', $product);
@@ -105,6 +110,50 @@ class StorefrontProductVariantService
         if ($product->stock_quantity > 0 && ! $product->variants()->exists()) {
             throw ValidationException::withMessages(['inventory' => 'Reconcile base-product stock to zero before allocating stock to new options.']);
         }
+    }
+
+    public function bulkUpdate(Product $product, array $targets, array $changes): int
+    {
+        $count = DB::transaction(function () use ($product, $targets, $changes) {
+            $current = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $variants = $current->variants()->whereIn('id', array_column($targets, 'id'))->lockForUpdate()->get()->keyBy('id');
+            if ($variants->count() !== count($targets)) {
+                throw ValidationException::withMessages(['variants' => 'All selected options must still belong to this product. Refresh the list.']);
+            }
+            foreach ($targets as $target) {
+                $variant = $variants->get($target['id']);
+                $this->assertVersion($variant, $target['version']);
+                $this->fill($variant, $changes);
+                $this->setImage($current, $variant, $changes);
+                $variant->save();
+            }
+
+            return $variants->count();
+        });
+        $this->flush($product);
+
+        return $count;
+    }
+
+    private function assertVersion(ProductVariant $variant, ?string $version): void
+    {
+        if ($version !== null && ! hash_equals($variant->editVersion(), $version)) {
+            throw ValidationException::withMessages(['edit_version' => 'An option has changed. Refresh the list and review the changes before saving again.']);
+        }
+    }
+
+    private function setImage(Product $product, ProductVariant $variant, array $data): void
+    {
+        if (! array_key_exists('image_media_id', $data)) {
+            return;
+        }
+        $media = $data['image_media_id'] === null ? null : $product->media()->whereIn('type', ['cover', 'gallery'])->whereKey($data['image_media_id'])->first();
+        if ($data['image_media_id'] !== null && ! $media) {
+            throw ValidationException::withMessages(['image_media_id' => 'Choose an image from this product gallery.']);
+        }
+        $variant->image_media_id = $media?->id;
+        $variant->image = null;
+        $variant->setRelation('imageMedia', $media);
     }
 
     private function optionsKey(array $options): string
