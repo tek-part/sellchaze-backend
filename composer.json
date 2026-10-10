@@ -6,6 +6,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "giggsey/libphonenumber-for-php-lite": "^9.0",
         "guzzlehttp/guzzle": "^7.15.2 || ^8.0.1",
         "intervention/image": "^2.5",
         "laravel-notification-channels/telegram": "^7.0",

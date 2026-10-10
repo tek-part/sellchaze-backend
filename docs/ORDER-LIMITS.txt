@@ -1,0 +1,69 @@
+Store order limits (local feature branch; no production deployment)
+
+Observed competitor: authenticated EasyOrders main-settings, v2.4.25, 2026-10-10.
+Maximum units means units of ONE product per order, across all variants and
+customizations. Maximum phone orders uses a rolling 24-hour window. Zero disables
+either merchant limit; existing request size/quantity guards still apply.
+
+Merchant GET/PUT /api/v1/my-store/order-limits, and /stores/{store}/order-limits,
+use the existing store-owner/settings permission boundary. Settings are stored
+in stores.order_limits with defaults 0/0/EG. The country explicitly determines
+national number parsing. International numbers retain their own country code.
+The UI is settings/order-limits in both manager/admin store route sets, AR/EN.
+
+Cart add/update/guest merge, read-only quote and authoritative checkout enforce
+the aggregate per-product cap. Stock and shared digital-code pools stay separate.
+Product resources and cached home cards expose order_quantity_limit (null when
+disabled); saving invalidates both home and page caches. Every theme drawer uses
+the shared cart quantity rules. Current catalog reconciliation refreshes/removes
+saved caps, and funnel checkout respects stock, code pools and the merchant cap.
+Client caps are observations; checkout always enforces current settings again.
+
+Phone quota counts created orders of this store, across ALL statuses including
+cancelled orders. Window: (now - 24 hours, now], using the application's UTC clock.
+Existing order/payment recovery and exact idempotency replay do not create an
+order and therefore do not consume another slot. Rejected checkouts roll back
+cart synchronization, order allocation, stock, digital codes, coupon use and
+outbox writes. Payment retries on an already-created order remain available.
+
+giggsey/libphonenumber-for-php-lite 9.0.41 validates and canonicalizes locally
+to E.164. National/international notation, spaces, Arabic digits and extensions
+resolve to the same base phone. Extensions do not create independent quotas.
+Enabling quota forces a valid phone even when a saved digital checkout form
+had hidden/optional phone. WhatsApp's existing international requirement still
+takes precedence for WhatsApp-enabled products.
+
+New orders record private customer_phone_normalized, indexed by store, phone and
+placed_at, and hidden from model serialization/public resources. Legacy recent
+orders with a null canonical phone are parsed read-only using the configured
+country; those with no placed_at use created_at. Invalid/missing legacy phones
+cannot be attributed and are not counted. Changing country changes interpretation
+of legacy national numbers; existing canonical phones remain unchanged.
+
+Lock order: checkout attempt (if any), store, cart, product/variant, coupon.
+The controller locks the store BEFORE synchronizing the cart, and CheckoutService
+does so again for direct callers. Store remains locked until order commit.
+Quota uses locking reads to see current committed rows even inside a previously
+opened MySQL snapshot. Settings updates share this store lock. This serializes
+order creation per store and must be load-tested for high-volume merchants.
+Real concurrent MySQL checkout acceptance has not been run in this local pass;
+SQLite functional tests do not prove MySQL row-lock behavior.
+
+Migration: 2026_10_10_160000_add_store_order_limits.php. Additive nullable columns;
+no global historical backfill. Named disposable local SQLite migration, one-step
+rollback and reapply passed. Deploy both repositories together after installation
+of the Composer lock dependencies and migration. Production has not been changed.
+
+Verification: StoreOrderLimitsTest covers settings, tenant/employee permissions,
+variants/personalization aggregate, stale authoritative cart, zero disabling,
+canonical phones/countries/extensions, replay and corrected rejected attempt,
+stock/payment rollback, legacy cancelled/null-date records, 24-hour boundary,
+store isolation, digital required phone, catalog/cache refresh. Frontend tests
+cover product-cap mapping and independent stock/pool/cart/reconciliation behavior.
+Actual local AR UI save/reload: 3 product units, 1 phone order, EG. Buyer variants
+A2+B1 total300 EGP; both increment buttons disabled, 390px no horizontal overflow.
+No production data, live email/provider request or new review order created.
+
+Broader goal remains active: uninspected competitor sections/options, themes/AI,
+visual parity, live provider acceptance and editable production source parity
+remain outstanding. This feature does not establish full main-settings parity.

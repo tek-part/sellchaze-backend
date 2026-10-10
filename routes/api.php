@@ -95,6 +95,7 @@ use App\Http\Controllers\Api\StoreFunnelsApiController;
 use App\Http\Controllers\Api\StoreInventoryController;
 use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
+use App\Http\Controllers\Api\StoreOrderLimitsController;
 use App\Http\Controllers\Api\StorePagesApiController;
 use App\Http\Controllers\Api\StorePaymentsApiController;
 use App\Http\Controllers\Api\StorePublishingApiController;
@@ -803,6 +804,8 @@ Route::prefix('v1')->group(function () {
             Route::get('checkout-fields', [StoreCheckoutFieldsController::class, 'index']);
             Route::put('checkout-fields', [StoreCheckoutFieldsController::class, 'update']);
             Route::get('digital-delivery', [StoreDigitalDeliveryController::class, 'index']);
+            Route::get('order-limits', [StoreOrderLimitsController::class, 'index']);
+            Route::put('order-limits', [StoreOrderLimitsController::class, 'update']);
             Route::put('digital-delivery', [StoreDigitalDeliveryController::class, 'update']);
             Route::put('digital-delivery/connection', [StoreDigitalDeliveryController::class, 'connection']);
             Route::post('digital-delivery/verify', [StoreDigitalDeliveryController::class, 'verify'])->middleware('throttle:10,1');

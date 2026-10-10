@@ -38,6 +38,8 @@ class CheckoutService
     public function place(Store $store, Cart $cart, ?StoreCustomer $customer, array $contact, ?array $shippingAddress, string $paymentMethod, array $shippingSelection = []): StoreOrder
     {
         return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress, $paymentMethod, $shippingSelection) {
+            $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
+            $phone = app(OrderLimits::class)->assertPhone($store, $contact['phone'] ?? null);
             $cart = Cart::query()->where('store_id', $store->id)->whereKey($cart->id)->lockForUpdate()->firstOrFail();
             if ($cart->status !== 'active') {
                 throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
@@ -50,6 +52,7 @@ class CheckoutService
             $lines = [];
             $stocks = [];
             $counts = [];
+            $productCounts = [];
             $requiresShipping = false;
             $hasDigital = false;
             $requiresWhatsapp = false;
@@ -57,6 +60,8 @@ class CheckoutService
             foreach ($items as $item) {
                 $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id, true);
                 $product = $selection['product'];
+                $productCounts[$product->id] = ($productCounts[$product->id] ?? 0) + $item->quantity;
+                app(OrderLimits::class)->assertQuantity($store, $productCounts[$product->id]);
                 $requiresShipping = $requiresShipping || $product->digital_type === 'physical';
                 $hasDigital = $hasDigital || $product->digital_type !== 'physical';
                 $deliverySettings = app(DigitalDeliverySettings::class)->effective($store, (int) $product->id);
@@ -136,6 +141,7 @@ class CheckoutService
                 'customer_name' => $contact['name'],
                 'customer_email' => $contact['email'],
                 'customer_phone' => $contact['phone'] ?? null,
+                'customer_phone_normalized' => $phone,
                 'shipping_address' => $shippingAddress,
                 'payment_method' => $paymentMethod,
                 'payment_status' => 'pending',

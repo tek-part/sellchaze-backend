@@ -4,9 +4,11 @@ namespace App\Http\Resources\Storefront;
 
 use App\Models\Product;
 use App\Services\Commerce\DigitalProducts;
+use App\Services\Commerce\OrderLimits;
 use App\Services\Commerce\ProductPersonalization;
 use App\Services\Storefront\ResponsiveImageUrl;
 use App\Support\ProductOptionDisplay;
+use App\Support\Tenancy\CurrentStore;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -19,6 +21,7 @@ class StorefrontProductResource extends JsonResource
     {
         $imageUrl = $this->imageUrl();
         $digitalStock = app(DigitalProducts::class)->available($this->resource);
+        $store = app(CurrentStore::class)->get();
 
         return [
             'id' => $this->id,
@@ -38,6 +41,7 @@ class StorefrontProductResource extends JsonResource
             'is_active' => $this->is_active,
             'digital_type' => $this->digital_type,
             'digital_pool_stock' => $digitalStock,
+            'order_quantity_limit' => $store && (int) $store->id === (int) $this->store_id ? app(OrderLimits::class)->productLimit($store) : null,
             'is_featured' => $this->is_featured,
             'stock' => $digitalStock === null ? ($this->track_inventory ? max(0, $this->stock_quantity - $this->reserved_quantity) : null) : ($this->track_inventory ? min($digitalStock, max(0, $this->stock_quantity - $this->reserved_quantity)) : $digitalStock),
             'track_inventory' => (bool) $this->track_inventory,
