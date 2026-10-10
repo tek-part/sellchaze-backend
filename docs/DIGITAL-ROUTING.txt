@@ -1,0 +1,67 @@
+Digital order fulfillment / physical routing (2026-10-10)
+
+The immutable StoreOrderItem.digital_delivery snapshot determines whether a line
+needs shipping. Catalog edits/deletion, missing tenant context, a legacy saved
+address and client-provided item counts cannot turn a digital line into a parcel.
+StoreOrder.fulfillment reports type (physical/mixed/digital), requires_shipping,
+physical_quantity and digital_quantity. Empty legacy orders conservatively retain
+physical classification; the carrier still refuses a zero-physical-unit shipment.
+Queries explicitly bind both order and store IDs without ambient global scopes.
+
+Merchant/customer order detail resources expose this summary. Merchant detail
+also exposes next_statuses from the actual service, so the UI follows the server.
+Pure digital: pending -> confirmed/cancelled; once paid, pending/confirmed/legacy
+processing/shipped -> delivered is allowed. No new processing/shipped transition
+is allowed. Completion consumes tracked digital units once, with the inventory
+movement reason digital_committed, instead of recording physical shipping.
+Digital code reservation/release and paid cancellation rules remain unchanged.
+Physical and mixed orders retain their existing fulfillment transition sequence.
+
+Pure digital orders stay in the store dashboard/private receipt/mail workflow.
+No B2B procurement row, supplier pivot, routing notification or bridge event is
+created, including supplier-owned stores. Mixed orders create the existing B2B
+row using only physical immutable lines, their total physical quantity and first
+physical catalog product. Digital names, links, codes and personalization never
+enter that supplier snapshot. Existing physical line customization remains intact.
+Bridge catalog lookup additionally binds store_id, and an order/store mismatch
+fails. Bridge creation locks storefront first, then B2B, matching cancellation.
+
+B2B payment metadata describes the complete customer order, not a supplier quote
+or a computed allocation to physical lines. Manual bank and verified provider
+payment transitions synchronize that recorded amount/reference transactionally.
+The mixed B2B view explains this distinction and points the owner to the store
+order for digital fulfillment. This does not create new wallet/ledger transfers.
+Existing pure digital B2B rows are preserved, identified on detail and cannot
+create an OrderDelivery through either API or legacy model creation. New digital
+rows do not enter procurement. Existing historical deliveries are not deleted.
+Supplier quotation/status rules and reverse fulfillment synchronization are not
+redesigned by this change; B2B/store fulfillment remain distinct workflows.
+
+Bosta shipment creation rejects pure digital before any carrier network request,
+then rechecks physical quantity after locking the order. The carrier itemsCount
+uses only physical units; the UI description starts with physical lines only and
+explains mixed delivery. The payment amount still describes the customer order
+for COD, or zero for paid orders. Supplier/carrier payloads do not contain private
+digital snapshots. Actual SMTP and carrier-provider acceptance remain unverified.
+
+Verification:9 dedicated tests cover actual checkout routing for merchant and
+supplier owners, supplier snapshot privacy, mixed physical counts, full-order
+payment synchronization, early network-free digital rejection, protected legacy
+B2B delivery API/model, deleted catalog/tenant mismatch, digital lifecycle and
+one-time tracked-unit consumption and signed provider callback replay. Ordinary
+and legacy null personalization normalize to empty summaries without crashing
+the mixed order view. Full backend667/4604, frontend395/48; Pint,
+PHPStan, ESLint, TypeScript and Vite build pass. No new schema migration.
+
+Actual browser review: synthetic order17 paid/completed without B2B or shipping;
+mixed order18 paid/confirmed at385 EGP, shipping35, B2B quantity1/physical bag
+only. Two paid emails published using array mail; repeat publication0. No live
+carrier/email/payment operation. Saved evidence lives in root audit files;
+production5756 captured files reverified, editable source parity unverified.
+
+Remaining digital commerce: audited mixed COD cash settlement/release controls;
+shared code-pool client caps across variants/personalization; free-shipping cart
+progress must reflect checkout shipping configuration (review found theme free
+banner at350 while actual selected shipping35); actual provider/SMTP and MySQL
+concurrency acceptance; all-theme flows and production/source reconciliation.
+Every other outstanding competitor/AI/theme/design requirement remains active.

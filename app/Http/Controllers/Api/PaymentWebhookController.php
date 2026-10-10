@@ -9,6 +9,7 @@ use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\DigitalDelivery;
+use App\Services\Commerce\StorefrontOrderBridge;
 use App\Services\Commerce\StorePaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -497,6 +498,7 @@ class PaymentWebhookController extends Controller
             if ($status === 'paid') {
                 $wasPaid = $order->payment_status === 'paid';
                 $order->update(['payment_status' => 'paid', 'payment_reference' => $reference]);
+                app(StorefrontOrderBridge::class)->syncPayment($order);
                 if (! $wasPaid) {
                     app(DigitalDelivery::class)->record($order);
                 }

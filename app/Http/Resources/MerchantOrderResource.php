@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Models\StoreOrder;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\ProductPersonalization;
+use App\Services\Commerce\StoreOrderService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -37,6 +38,8 @@ class MerchantOrderResource extends JsonResource
             'tax_total' => $this->tax_total,
             'payment_method' => $this->payment_method,
             'payment_status' => $this->payment_status,
+            'fulfillment' => $this->whenLoaded('items', fn () => $this->resource->fulfillment()),
+            'next_statuses' => $this->whenLoaded('items', fn () => app(StoreOrderService::class)->nextStatuses($this->resource)),
             'grand_total' => $this->grand_total,
             'items_count' => $this->when(isset($this->items_count), fn () => (int) $this->items_count),
             'customer_notes' => $this->notes,

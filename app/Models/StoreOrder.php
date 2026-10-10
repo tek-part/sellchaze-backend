@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -46,6 +47,30 @@ class StoreOrder extends Model
     public function items(): HasMany
     {
         return $this->hasMany(StoreOrderItem::class);
+    }
+
+    /** Immutable order snapshots determine shipping even after catalog deletion.
+     * @return Builder<StoreOrderItem>
+     */
+    public function physicalItems(): Builder
+    {
+        return StoreOrderItem::query()->withoutGlobalScopes()->where('store_id', $this->store_id)
+            ->where('store_order_id', $this->id)->whereNull('digital_delivery');
+    }
+
+    /** @return array{type:string,requires_shipping:bool,physical_quantity:int,digital_quantity:int} */
+    public function fulfillment(): array
+    {
+        $physical = (int) $this->physicalItems()->sum('quantity');
+        $digital = (int) $this->items()->withoutGlobalScopes()->where('store_id', $this->store_id)->whereNotNull('digital_delivery')->sum('quantity');
+
+        return ['type' => $physical > 0 && $digital > 0 ? 'mixed' : ($digital > 0 ? 'digital' : 'physical'),
+            'requires_shipping' => $physical > 0 || $digital === 0, 'physical_quantity' => $physical, 'digital_quantity' => $digital];
+    }
+
+    public function requiresShipping(): bool
+    {
+        return $this->fulfillment()['requires_shipping'];
     }
 
     /** @return HasMany<StoreOrderStatusChange, $this> */

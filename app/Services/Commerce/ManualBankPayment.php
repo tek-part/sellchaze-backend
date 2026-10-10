@@ -34,6 +34,7 @@ class ManualBankPayment
             $current->statusChanges()->create(['from_status' => $current->status, 'to_status' => $current->status, 'actor_id' => $actorId,
                 'source' => 'bank_payment', 'notes' => 'Bank transfer confirmed: '.$reference.($note ? "\n".$note : '')]);
             app(DigitalDelivery::class)->record($current);
+            app(StorefrontOrderBridge::class)->syncPayment($current);
             DB::afterCommit(fn () => StoreAnalyticsService::forget($current->store_id));
 
             return $current;

@@ -80,6 +80,16 @@ class Order extends Model
         return $this->source === self::SOURCE_STOREFRONT;
     }
 
+    /** @return array{type:string,requires_shipping:bool,physical_quantity:int,digital_quantity:int}|null */
+    public function storefrontFulfillment(): ?array
+    {
+        if (! $this->isFromStorefront() || ! $this->store_id || ! $this->store_order_id) {
+            return null;
+        }
+
+        return StoreOrder::forStore($this->store_id)->whereKey($this->store_order_id)->first()?->fulfillment();
+    }
+
     /** @return HasOne<ProductOrders, $this> */
     public function product_order(): HasOne
     {
