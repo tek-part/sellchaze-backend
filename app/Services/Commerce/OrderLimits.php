@@ -54,6 +54,7 @@ class OrderLimits
     {
         $config = $this->configured($store);
         $phone = $this->normalizePhone($raw, $config['phone_country']);
+        app(PhoneBlocking::class)->assertAllowed($store, $phone);
         $limit = $config['max_orders_per_phone_24h'];
         if ($limit === 0) {
             return $phone;

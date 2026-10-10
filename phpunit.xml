@@ -19,18 +19,32 @@
         </include>
     </source>
     <php>
-        <env name="APP_ENV" value="testing"/>
+        <env name="APP_ENV" value="testing" force="true"/>
         <!-- Blade-fallback suites must not pick up a locally deployed storefront shell. -->
-        <env name="SELLCHASE_STOREFRONT_SPA_SHELL" value="/nonexistent/storefront-shell.html"/>
-        <env name="BCRYPT_ROUNDS" value="4"/>
-        <env name="CACHE_DRIVER" value="array"/>
+        <env name="SELLCHASE_STOREFRONT_SPA_SHELL" value="/nonexistent/storefront-shell.html" force="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="CACHE_DRIVER" value="array" force="true"/>
+        <env name="CACHE_STORE" value="array" force="true"/>
         <!-- Disposable in-memory database: tests can never touch local/production data. -->
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
-        <env name="SELLCHASE_STOREFRONT_BASE_DOMAIN" value="sellchase.com"/>
-        <env name="MAIL_MAILER" value="array"/>
-        <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="SESSION_DRIVER" value="array"/>
-        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="DB_CONNECTION" value="sqlite" force="true"/>
+        <env name="DB_DATABASE" value=":memory:" force="true"/>
+        <env name="SELLCHASE_STOREFRONT_BASE_DOMAIN" value="sellchase.com" force="true"/>
+        <env name="MAIL_MAILER" value="array" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
+        <env name="TELESCOPE_ENABLED" value="false" force="true"/>
+        <!-- PHP's inherited $_SERVER values take precedence in Laravel's Env repository. -->
+        <server name="APP_ENV" value="testing" force="true"/>
+        <server name="DB_CONNECTION" value="sqlite" force="true"/>
+        <server name="DB_DATABASE" value=":memory:" force="true"/>
+        <server name="MAIL_MAILER" value="array" force="true"/>
+        <server name="CACHE_STORE" value="array" force="true"/>
+        <server name="CACHE_DRIVER" value="array" force="true"/>
+        <server name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <server name="SESSION_DRIVER" value="array" force="true"/>
+        <server name="SELLCHASE_STOREFRONT_SPA_SHELL" value="/nonexistent/storefront-shell.html" force="true"/>
+        <server name="SELLCHASE_STOREFRONT_BASE_DOMAIN" value="sellchase.com" force="true"/>
+        <server name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <server name="TELESCOPE_ENABLED" value="false" force="true"/>
     </php>
 </phpunit>

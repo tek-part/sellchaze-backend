@@ -98,6 +98,7 @@ use App\Http\Controllers\Api\StoreMenusApiController;
 use App\Http\Controllers\Api\StoreOrderLimitsController;
 use App\Http\Controllers\Api\StorePagesApiController;
 use App\Http\Controllers\Api\StorePaymentsApiController;
+use App\Http\Controllers\Api\StorePhoneBlockController;
 use App\Http\Controllers\Api\StorePublishingApiController;
 use App\Http\Controllers\Api\StoreReusableSectionsApiController;
 use App\Http\Controllers\Api\StoresApiController;
@@ -805,6 +806,10 @@ Route::prefix('v1')->group(function () {
             Route::put('checkout-fields', [StoreCheckoutFieldsController::class, 'update']);
             Route::get('digital-delivery', [StoreDigitalDeliveryController::class, 'index']);
             Route::get('order-limits', [StoreOrderLimitsController::class, 'index']);
+            Route::get('blocked-phone-numbers', [StorePhoneBlockController::class, 'index']);
+            Route::post('blocked-phone-numbers', [StorePhoneBlockController::class, 'storePhone'])->middleware('throttle:30,1');
+            Route::put('blocked-phone-numbers/{block}', [StorePhoneBlockController::class, 'update'])->whereNumber('block')->middleware('throttle:30,1');
+            Route::get('blocked-phone-numbers/{block}/history', [StorePhoneBlockController::class, 'history'])->whereNumber('block');
             Route::put('order-limits', [StoreOrderLimitsController::class, 'update']);
             Route::put('digital-delivery', [StoreDigitalDeliveryController::class, 'update']);
             Route::put('digital-delivery/connection', [StoreDigitalDeliveryController::class, 'connection']);

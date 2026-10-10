@@ -61,18 +61,20 @@ class CheckoutFields
         $regions = $requiresShipping && app(StoreShipping::class)->regionsEnabled($store);
         $phoneCountry = app(OrderLimits::class)->configured($store)['phone_country'];
         $phoneRequired = app(OrderLimits::class)->configured($store)['max_orders_per_phone_24h'] > 0;
+        $blockPhoneRequired = app(PhoneBlocking::class)->hasActive($store);
 
-        return collect($this->configured($store))->map(function (array $field) use ($online, $regions, $requiresShipping, $hasDigital, $requiresWhatsapp, $phoneRequired, $phoneCountry) {
+        return collect($this->configured($store))->map(function (array $field) use ($online, $regions, $requiresShipping, $hasDigital, $requiresWhatsapp, $phoneRequired, $phoneCountry, $blockPhoneRequired) {
             $field['payment_required'] = $online && in_array($field['key'], ['name', 'email'], true);
             $field['digital_required'] = ($hasDigital && $field['key'] === 'email') || ($requiresWhatsapp && $field['key'] === 'phone');
             $field['order_limit_required'] = $phoneRequired && $field['key'] === 'phone';
-            if ($field['order_limit_required']) {
+            $field['phone_block_required'] = $blockPhoneRequired && $field['key'] === 'phone';
+            if ($field['order_limit_required'] || $field['phone_block_required']) {
                 $field['hint'] = ['ar' => "أدخل رقمًا محليًا للدولة {$phoneCountry}، أو رقمًا دوليًا يبدأ بكود الدولة.", 'en' => "Enter a local number for {$phoneCountry}, or an international number with its country code."];
             }
             if ($requiresWhatsapp && $field['key'] === 'phone') {
                 $field['hint'] = ['ar' => 'أدخل رقم واتساب مع كود الدولة، مثل +201001234567.', 'en' => 'Enter your WhatsApp number with its country code, e.g. +201001234567.'];
             }
-            if ($field['payment_required'] || $field['digital_required'] || $field['order_limit_required']) {
+            if ($field['payment_required'] || $field['digital_required'] || $field['order_limit_required'] || $field['phone_block_required']) {
                 $field['enabled'] = $field['required'] = true;
             }
 
@@ -121,7 +123,7 @@ class CheckoutFields
                 }
             };
         }
-        if (app(OrderLimits::class)->configured($store)['max_orders_per_phone_24h'] > 0) {
+        if (app(OrderLimits::class)->configured($store)['max_orders_per_phone_24h'] > 0 || app(PhoneBlocking::class)->hasActive($store)) {
             $rules['customer_phone'][] = function (string $attribute, mixed $value, \Closure $fail) use ($store): void {
                 $limits = app(OrderLimits::class);
                 if (! is_string($value) || $limits->normalizePhone($value, $limits->configured($store)['phone_country']) === null) {
