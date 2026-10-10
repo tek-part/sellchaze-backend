@@ -92,7 +92,7 @@ class PublishedPageResolver
     /** The latest publication snapshot `{page, sections}` for a page, or null if never published. */
     public function latestPublication(StorePage $page): ?array
     {
-        $json = DB::table('store_page_publications')->where('store_page_id', $page->id)->orderByDesc('version')->value('snapshot');
+        $json = DB::table('store_page_publications')->where('store_id', $page->store_id)->where('store_page_id', $page->id)->orderByDesc('version')->value('snapshot');
         $decoded = is_string($json) ? json_decode($json, true) : null;
 
         return is_array($decoded) ? $decoded : null;
@@ -101,7 +101,7 @@ class PublishedPageResolver
     /** The latest publication version number (0 = never published). Cheap: used in cache keys. */
     public function publicationVersion(StorePage $page): int
     {
-        return (int) DB::table('store_page_publications')->where('store_page_id', $page->id)->max('version');
+        return (int) DB::table('store_page_publications')->where('store_id', $page->store_id)->where('store_page_id', $page->id)->max('version');
     }
 
     /**

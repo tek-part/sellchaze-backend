@@ -41,7 +41,7 @@ class StorePagesApiController extends Controller
     {
         $templates = array_values(array_filter(array_map('trim', explode(',', (string) $request->query('template', '')))));
 
-        $pages = StorePage::query()->with('funnel')
+        $pages = StorePage::query()->where('template', '!=', 'simple')->with('funnel')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($templates !== [], fn ($q) => $q->whereIn('template', $templates), fn ($q) => $q->whereNotIn('template', StorePageService::TEMPLATE_PAGES))
             ->orderByDesc('id')->paginate((int) $request->get('per_page', 20));
@@ -87,7 +87,7 @@ class StorePagesApiController extends Controller
 
     public function show(Request $request, Store $store, int $page): JsonResponse
     {
-        $model = StorePage::query()->with('sections')->findOrFail($page);
+        $model = StorePage::query()->where('template', '!=', 'simple')->with('sections')->findOrFail($page);
 
         return response()->json(['data' => $this->pageArray($model, true)], 200, [], JSON_UNESCAPED_UNICODE);
     }
@@ -102,7 +102,7 @@ class StorePagesApiController extends Controller
 
     public function update(Request $request, Store $store, int $page): JsonResponse
     {
-        $model = StorePage::query()->findOrFail($page);
+        $model = StorePage::query()->where('template', '!=', 'simple')->findOrFail($page);
         $model = $this->service->update($model, $this->validatePage($request, $store, false), $request->user()?->id);
 
         return response()->json(['data' => $this->pageArray($model)], 200, [], JSON_UNESCAPED_UNICODE);
@@ -111,7 +111,7 @@ class StorePagesApiController extends Controller
     /** PUT /stores/{store}/pages/{page}/sections — full schema-driven layout. */
     public function syncSections(Request $request, Store $store, int $page): JsonResponse
     {
-        $model = StorePage::query()->findOrFail($page);
+        $model = StorePage::query()->where('template', '!=', 'simple')->findOrFail($page);
         $data = $request->validate([
             'expected_checksum' => ['sometimes', 'required', 'string', 'size:64'],
             'sections' => ['present', 'array', 'max:60'],
@@ -121,7 +121,7 @@ class StorePagesApiController extends Controller
             'sections.*.is_visible' => ['nullable', 'boolean'],
         ]);
         $model = DB::transaction(function () use ($store, $page, $data, $request) {
-            $locked = StorePage::query()->where('store_id', $store->id)->whereKey($page)->lockForUpdate()->firstOrFail();
+            $locked = StorePage::query()->where('template', '!=', 'simple')->where('store_id', $store->id)->whereKey($page)->lockForUpdate()->firstOrFail();
             if (isset($data['expected_checksum'])) {
                 abort_unless(hash_equals(app(CustomizerPublicationService::class)->pageChecksum($locked), $data['expected_checksum']), 409, 'This draft was changed in another editor. Reload it before saving.');
             }
@@ -136,6 +136,7 @@ class StorePagesApiController extends Controller
 
     public function publish(Request $request, Store $store, int $page): JsonResponse
     {
+        StorePage::query()->where('template', '!=', 'simple')->findOrFail($page);
         $data = $request->validate([
             'theme_id' => ['sometimes', 'required', 'integer'],
             'page_checksum' => ['required_with:theme_id', 'string', 'size:64'],
@@ -147,25 +148,25 @@ class StorePagesApiController extends Controller
             return $this->stateChange($published);
         }
 
-        return $this->stateChange($this->service->publish(StorePage::query()->findOrFail($page)));
+        return $this->stateChange($this->service->publish(StorePage::query()->where('template', '!=', 'simple')->findOrFail($page)));
     }
 
     public function unpublish(Request $request, Store $store, int $page): JsonResponse
     {
-        return $this->stateChange($this->service->unpublish(StorePage::query()->findOrFail($page)));
+        return $this->stateChange($this->service->unpublish(StorePage::query()->where('template', '!=', 'simple')->findOrFail($page)));
     }
 
     public function schedule(Request $request, Store $store, int $page): JsonResponse
     {
         $data = $request->validate(['publish_at' => ['required', 'date']]);
-        $model = $this->service->schedule(StorePage::query()->findOrFail($page), new \DateTimeImmutable($data['publish_at']));
+        $model = $this->service->schedule(StorePage::query()->where('template', '!=', 'simple')->findOrFail($page), new \DateTimeImmutable($data['publish_at']));
 
         return $this->stateChange($model);
     }
 
     public function destroy(Request $request, Store $store, int $page): JsonResponse
     {
-        $this->service->delete(StorePage::query()->findOrFail($page));
+        $this->service->delete(StorePage::query()->where('template', '!=', 'simple')->findOrFail($page));
 
         return response()->json(['message' => 'Deleted.'], 200);
     }
@@ -173,7 +174,7 @@ class StorePagesApiController extends Controller
     /** POST /stores/{store}/pages/{page}/preview — signed draft preview URL. */
     public function preview(Request $request, Store $store, int $page): JsonResponse
     {
-        $model = StorePage::query()->findOrFail($page);
+        $model = StorePage::query()->where('template', '!=', 'simple')->findOrFail($page);
         $token = $this->previewToken->makePage($store->id, $model->id, 1800);
 
         return response()->json([
@@ -184,7 +185,7 @@ class StorePagesApiController extends Controller
 
     public function revisions(Request $request, Store $store, int $page): JsonResponse
     {
-        $model = StorePage::query()->findOrFail($page);
+        $model = StorePage::query()->where('template', '!=', 'simple')->findOrFail($page);
         $rows = $model->revisions()->with('createdBy:id,name')->limit(50)->get()
             ->map(fn (StorePageRevision $r) => [
                 'id' => $r->id,
@@ -199,7 +200,7 @@ class StorePagesApiController extends Controller
 
     public function restoreRevision(Request $request, Store $store, int $page, int $revision): JsonResponse
     {
-        $model = StorePage::query()->findOrFail($page);
+        $model = StorePage::query()->where('template', '!=', 'simple')->findOrFail($page);
         $rev = $model->revisions()->findOrFail($revision);
         $model = $this->service->restoreRevision($model, $rev, $request->user()?->id);
 

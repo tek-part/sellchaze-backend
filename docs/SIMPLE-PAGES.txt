@@ -1,0 +1,53 @@
+Simple content pages
+====================
+
+Merchant Design > Pages includes content pages, separate from section-builder
+pages. Each page has AR/EN title and rich HTML, one store-wide URL, a position,
+an active switch and independent header/footer flags. Lower positions appear
+first. Missing localized text falls back to the other configured language.
+
+Owner and scoped administrator APIs:
+  GET/POST /api/v1/my-store/simple-pages
+  GET/PUT /api/v1/my-store/simple-pages/{id}
+  POST /api/v1/my-store/simple-pages/archive
+  POST /api/v1/my-store/simple-pages/{id}/restore
+The same routes exist under /api/v1/stores/{store}. Page-management permission,
+explicit tenant ownership and version checks apply to mutations. Stale versions
+return409. Bulk archive validates every selected row before changing any row.
+Listing supports bounded pagination, title/URL search and whitelisted sorting.
+
+The nullable store_pages.simple_configuration JSON column is introduced by
+2026_10_10_230000. Titles are plain text. HTML is cleaned with the shared bounded
+rich-text grammar: headings, marks, lists, alignment, colors, safe links and
+direct image/video URLs. Scripts, iframe embeds and arbitrary CSS are removed.
+Inline JSON-LD escapes HTML delimiters so titles cannot close the script tag.
+
+Activation uses immutable StorePageService publications. Public page bodies,
+titles and automatic links read published snapshots, never private draft maps.
+Automatic links append to existing navigation and retain the theme's base menu.
+All five frontend themes share page composition. Simple pages bypass external
+SSR and use the available SPA shell or the built-in Blade rendering fallback.
+The generic section-builder APIs cannot mutate simple pages.
+
+Archive is reversible and unpublishes the page and automatic links. Restore
+keeps it inactive until explicitly saved as active. Archived URLs remain
+reserved. Changing the URL invalidates the previous public route and links.
+
+Verification: tenant/permission isolation, draft privacy, localized published
+content, safe rich HTML/JSON-LD, stale writes, URL collisions, atomic archive,
+restore, navigation ordering/deduplication and pagination have feature tests.
+Frontend tests cover stale URL/locale responses and preserving theme menus.
+Local browser checks exercised creation, both languages, formatting, stale409,
+two-page ordering, search, bulk archive, restore and explicit reactivation.
+Selected mobile/light/dark states were viewed across all five themes; this is
+not a complete visual parity grid. Only synthetic local pages were changed and
+the original review store/pages and22 orders were verified after restoration.
+
+Competitor inspection was read-only on simple-pages list/create/existing edit.
+Upload workflows, iframe/video parity and all advanced rival behavior remain
+unverified. The editor offers direct media URLs and a media-library link.
+No production deployment/migration is implied by this source integration.
+Editable production-source parity remains unverified; the5756-file captured
+production baseline is preserved. Existing dependency audit and Linux visual
+baseline limitations have not been suppressed. The full competitor rebuild
+objective remains active beyond thank-you and simple content pages.

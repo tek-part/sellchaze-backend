@@ -49,7 +49,7 @@ class StorefrontRenderer
     {
         $ssrUrl = (string) config('sellchase.storefront.ssr_url', '');
 
-        if ($ssrUrl !== '') {
+        if ($ssrUrl !== '' && ($context['page']['template'] ?? '') !== 'simple') {
             try {
                 $response = Http::timeout((int) config('sellchase.storefront.ssr_timeout', 2))
                     ->acceptJson()

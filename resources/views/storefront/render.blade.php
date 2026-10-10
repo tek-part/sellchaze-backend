@@ -19,7 +19,7 @@
         <meta name="{{ $name }}" content="{{ $content }}">
     @endforeach
     @if(!empty($seo['json_ld']))
-        <script type="application/ld+json">{!! json_encode($seo['json_ld'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
+        <script type="application/ld+json">{!! json_encode($seo['json_ld'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}</script>
     @endif
     <style data-critical-css="fallback">
         body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;color:#0f172a;background:#f8fafc}
@@ -53,6 +53,13 @@
         </div>
     </header>
     <main class="wrap">
+        @if(($context['page']['template'] ?? '') === 'simple')
+            <article style="overflow-wrap:anywhere" data-simple-page>
+                <h1>{{ $context['page']['title'] ?? '' }}</h1>
+                <div>{!! $context['page']['content_html'] ?? '' !!}</div>
+            </article>
+            <style>[data-simple-page] img,[data-simple-page] video{max-width:100%;height:auto}[data-simple-page] table,[data-simple-page] pre{display:block;max-width:100%;overflow:auto}</style>
+        @endif
         @foreach($context['page']['sections'] as $section)
             <div data-studio-section-id="{{ $section['id'] ?? '' }}">@includeIf('storefront.sections.'.$section['type'], ['section' => $section, 'ctx' => $context, 'store' => $store, 'data' => $data])</div>
         @endforeach

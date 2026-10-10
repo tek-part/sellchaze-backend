@@ -1,0 +1,65 @@
+Thank-you page customization
+
+Observed EasyOrders v2.4.25 authenticated read-only route #/thanks-edit:
+enable switch, rich content toolbar (headings, marks, lists, alignment, text and background colors, image, link, video,
+emoji and HTML), home-button switch and one category selector for products.
+No competitor settings were saved. Shopper behavior of every competitor media
+format and theme remains unverified.
+
+Merchant GET/PUT /api/v1/my-store/thank-you and /stores/{store}/thank-you use
+the existing store owner/settings permission boundary. stores.thank_you_configuration
+is nullable JSON. The additive 2026_10_10_220000 migration introduces this field;
+null defaults to disabled, blank AR/EN content, home button on, no category,
+version1. Disabled configurations preserve drafts without publishing content.
+PUT requires the current version and both locale keys. Saving under the store
+row lock increments version; stale saves return409 with explicit editor reload.
+Invalid fields/category selections do not partially update the store.
+
+Content uses the shared ProductDescription server HTML allowlist (20000 characters
+per language) plus the client sanitizer. Formatting, direct image/video URLs,
+safe links, emoji and source editing are supported. Scripts, event handlers,
+arbitrary styles, iframes and unsafe schemes are removed. Thank-you formatting
+allows only text-align (left/right/center/justify/start/end), color and background-color
+on text blocks/spans. Colors canonicalize bounded RGB/hex to six-digit hex.
+Network, overlay, expression, variable and other CSS declarations are removed.
+Other existing product rich-text callers keep the original no-style policy.
+YouTube/other iframe
+embeds are not supported by this allowlist. The editor offers content-only draft
+preview, media URL insertion and a link to the store media library. Theme styling
+applies on the real saved page. No order is created by a preview.
+
+GET /api/v1/storefront/thank-you returns current public presentation only:
+enabled, content_html, show_home_button, category and up to8 published products.
+It resolves requested language with store-default/nonempty fallback. Categories
+must be active, have a slug and belong to the store. It re-resolves them on each
+read; deleted/hidden/foreign categories return no shelf, never all products.
+Products use the existing tenant-scoped catalog and safe public resource. This
+endpoint never exposes draft locale maps, customer/order/payment/receipt data.
+The response is no-store; ordinary stored pages/home are invalidated by Store save.
+
+Both cart and direct checkout already navigate to /order/success. Enabled custom
+content replaces the theme's default confirmation composition in all five themes.
+The private receipt remains separately rendered before product recommendations;
+it retains its existing signed capability, payment status and paid-only delivery.
+Turning off customization returns to the default theme. Old APIs/errors fall back
+to existing theme presentation. A retained response from another language or
+failed refetch is never selected as current content. Product recommendations use
+shared stock/variant/personalization purchase guards. Receipt/payment recovery and
+existing orders are unaffected by changing presentation.
+
+Verification: seven focused backend tests cover defaults, unpublished drafts,
+privacy, sanitizer preservation/rejection, structural validation/atomicity,
+versions, tenant/employee permissions, locale fallback, product visibility/limit,
+and inactive/deleted category recovery, plus limited safe formatting. Six frontend tests cover pending/stale
+locale, failed refresh, disabled/old API fallback, deliberate blank content,
+browser RGB normalization, logical alignment and unsafe CSS rejection.
+Full local suites and isolated review browser evidence are recorded under audit.
+Local full suites: backend763 tests/5812 assertions, frontend450 tests/58 files.
+Merchant save/reload, source roundtrip, colors/alignment, version conflict/reload,
+home-button toggle, disable/re-enable with retained draft and all five shared
+storefront compositions were reviewed with the existing synthetic receipt.
+Selected AR/EN mobile/light/dark views were reviewed; this is not exhaustive
+theme/locale/appearance parity. Bazaar footer minimum-width overflow found during
+mobile review was corrected; merchant mobile and Naseem/Bazaar AR have no overflow.
+Real MySQL concurrent edits and production/competitor visual parity remain
+unverified. No production deployment/migration or real provider action performed.

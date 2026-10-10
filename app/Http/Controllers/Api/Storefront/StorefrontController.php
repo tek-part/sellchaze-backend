@@ -15,6 +15,7 @@ use App\Models\StoreMenu;
 use App\Services\Commerce\ShoppingPreferences;
 use App\Services\CurrencyRateService;
 use App\Services\PageBuilder\StoreMenuService;
+use App\Services\Storefront\SimplePages;
 use App\Services\Storefront\StorefrontContextBuilder;
 use App\Services\Storefront\StorefrontService;
 use App\Services\Storefront\StoreSeoService;
@@ -73,10 +74,10 @@ class StorefrontController extends Controller
             ->get()->keyBy('handle');
         $locale = $this->locale->current();
 
-        return [
+        return app(SimplePages::class)->navigation($store, [
             'header' => $menus->has('header') ? $this->menus->tree($menus->get('header'), $locale) : [],
             'footer' => $menus->has('footer') ? $this->menus->tree($menus->get('footer'), $locale) : [],
-        ];
+        ], $locale);
     }
 
     /**
