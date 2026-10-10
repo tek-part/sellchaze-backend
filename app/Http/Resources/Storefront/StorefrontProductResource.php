@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Storefront;
 
 use App\Models\Product;
+use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\ProductPersonalization;
 use App\Services\Storefront\ResponsiveImageUrl;
 use App\Support\ProductOptionDisplay;
@@ -17,6 +18,7 @@ class StorefrontProductResource extends JsonResource
     public function toArray(Request $request): array
     {
         $imageUrl = $this->imageUrl();
+        $digitalStock = app(DigitalProducts::class)->available($this->resource);
 
         return [
             'id' => $this->id,
@@ -34,8 +36,9 @@ class StorefrontProductResource extends JsonResource
             'image_url' => $imageUrl,
             'image_responsive' => app(ResponsiveImageUrl::class)->for($imageUrl),
             'is_active' => $this->is_active,
+            'digital_type' => $this->digital_type,
             'is_featured' => $this->is_featured,
-            'stock' => $this->track_inventory ? max(0, $this->stock_quantity - $this->reserved_quantity) : null,
+            'stock' => $digitalStock === null ? ($this->track_inventory ? max(0, $this->stock_quantity - $this->reserved_quantity) : null) : ($this->track_inventory ? min($digitalStock, max(0, $this->stock_quantity - $this->reserved_quantity)) : $digitalStock),
             'track_inventory' => (bool) $this->track_inventory,
             'position' => $this->position,
             // Additive enrichment (backward-compatible: existing keys unchanged, new keys the frozen
@@ -74,7 +77,7 @@ class StorefrontProductResource extends JsonResource
                 'name' => $this->category->translated('name'),
                 'slug' => $this->category->slug,
             ] : null),
-            'variants' => StorefrontProductVariantResource::collection($this->whenLoaded('variants')),
+            'variants' => $this->whenLoaded('variants', fn () => $this->variants->map(fn ($variant) => new StorefrontProductVariantResource($variant, $digitalStock))->values()->all()),
             'option_display' => ProductOptionDisplay::publicPayload($this->resource),
             'personalization_fields' => ProductPersonalization::fields($this->resource),
             'has_personalization' => ! empty($this->personalization_fields),

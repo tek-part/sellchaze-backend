@@ -95,6 +95,7 @@ class CartService
                 throw ValidationException::withMessages(['quantity' => 'Choose between 1 and 999 items.']);
             }
             app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $totalCount);
+            app(DigitalProducts::class)->assertAvailable($selection['product'], (int) $cart->items()->where('store_product_id', $productId)->sum('quantity') + $quantity);
             $values = ['store_product_id' => $productId, 'variant_id' => $variantId,
                 'personalization' => $custom['values'], 'personalization_key' => $custom['key'],
                 'name' => $selection['name'], 'unit_price' => $selection['price'], 'quantity' => $count];
@@ -124,6 +125,7 @@ class CartService
             app(ProductPersonalization::class)->resolve($selection['product'], $item->personalization ?? []);
             $total = (int) $cart->items()->where('store_product_id', $item->store_product_id)->where('variant_id', $item->variant_id)->whereKeyNot($item->id)->sum('quantity') + $quantity;
             app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $total);
+            app(DigitalProducts::class)->assertAvailable($selection['product'], (int) $cart->items()->where('store_product_id', $item->store_product_id)->whereKeyNot($item->id)->sum('quantity') + $quantity);
             $item->quantity = $quantity;
             $item->save();
 

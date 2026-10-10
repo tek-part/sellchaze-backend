@@ -11,8 +11,15 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class StorefrontProductVariantResource extends JsonResource
 {
+    public function __construct($resource, private readonly ?int $digitalStock = null)
+    {
+        parent::__construct($resource);
+    }
+
     public function toArray(Request $request): array
     {
+        $physicalStock = $this->track_inventory ? max(0, $this->stock_quantity - $this->reserved_quantity) : null;
+
         return [
             'id' => $this->id,
             'store_product_id' => $this->store_product_id,
@@ -24,7 +31,7 @@ class StorefrontProductVariantResource extends JsonResource
             // Additive keys the frozen frontend variant mapper reads (price, stock).
             'price' => $this->effectivePrice(),
             'compare_price' => $this->compare_price,
-            'stock' => $this->track_inventory ? max(0, $this->stock_quantity - $this->reserved_quantity) : null,
+            'stock' => $this->digitalStock === null ? $physicalStock : ($physicalStock === null ? $this->digitalStock : min($this->digitalStock, $physicalStock)),
             'track_inventory' => (bool) $this->track_inventory,
             'image' => $this->image,
             'image_url' => $this->imageUrl(),

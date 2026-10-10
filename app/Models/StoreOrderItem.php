@@ -10,14 +10,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Phase 5: an immutable snapshot line on a storefront order.
  *
  * @property array|null $personalization
+ * @property array|null $digital_delivery
  */
 class StoreOrderItem extends Model
 {
+    protected $hidden = ['digital_delivery'];
+
     use BelongsToStore;
 
     protected $fillable = [
         'store_id', 'store_order_id', 'store_product_id', 'name',
-        'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku', 'inventory_status', 'personalization',
+        'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku', 'inventory_status', 'personalization', 'digital_delivery',
     ];
 
     protected $casts = [
@@ -26,6 +29,7 @@ class StoreOrderItem extends Model
         'quantity' => 'integer',
         'variant_options' => 'array',
         'personalization' => 'array',
+        'digital_delivery' => 'encrypted:array',
     ];
 
     /** @return BelongsTo<StoreOrder, $this> */

@@ -5,6 +5,7 @@ namespace App\Services\Commerce;
 use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Cart;
 use App\Models\Coupon;
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreCustomer;
 use App\Models\StoreOrder;
@@ -122,6 +123,8 @@ class CheckoutService
             foreach ($lines as $index => $line) {
                 $item = $order->items()->create($line);
                 $this->inventory->reserve($stocks[$index], $item);
+                $digitalProduct = $stocks[$index] instanceof Product ? $stocks[$index] : Product::query()->where('store_id', $store->id)->findOrFail($item->store_product_id);
+                app(DigitalProducts::class)->reserve($digitalProduct, $item);
             }
 
             if ($coupon !== null) {

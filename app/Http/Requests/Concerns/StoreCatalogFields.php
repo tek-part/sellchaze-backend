@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Concerns;
 
 use App\Rules\ProductGalleryFile;
+use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\ProductPersonalization;
 use App\Support\Localization\TranslationRules;
 use App\Support\ProductOptionDisplay;
@@ -40,6 +41,6 @@ trait StoreCatalogFields
             'media_order.*' => ['integer', 'distinct'],
             'remove_media_ids' => ['sometimes', 'array', 'max:100'],
             'remove_media_ids.*' => ['integer', 'distinct'],
-        ] + ProductOptionDisplay::rules() + ProductPersonalization::rules() + TranslationRules::for(['name', 'description', 'short_description'], null, ['name' => 255, 'description' => 20000, 'short_description' => 500]);
+        ] + DigitalProducts::rules() + ProductOptionDisplay::rules() + ProductPersonalization::rules() + TranslationRules::for(['name', 'description', 'short_description'], null, ['name' => 255, 'description' => 20000, 'short_description' => 500]);
     }
 }

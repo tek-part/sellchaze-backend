@@ -142,10 +142,11 @@ class CheckoutAttempts
             // A cached signed URL expires while the immutable order snapshot survives.
             if ($order !== null && isset($body['data']['items']) && is_array($body['data']['items'])) {
                 $snapshots = $order->items->keyBy('id');
-                $body['data']['items'] = array_map(function ($line) use ($snapshots, $attempt) {
+                $body['data']['items'] = array_map(function ($line) use ($snapshots, $attempt, $order) {
                     $item = $snapshots->get($line['id'] ?? null);
                     if ($item !== null) {
                         $line['personalization'] = ProductPersonalization::present($item->personalization ?? [], $attempt->store_id);
+                        $line['digital_delivery'] = DigitalProducts::present($item, $order);
                     }
 
                     return $line;

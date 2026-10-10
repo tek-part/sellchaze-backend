@@ -1,0 +1,54 @@
+Digital products — foundations, work in progress (2026-10-10)
+
+Competitor evidence: audit/competitor-product-digital.txt. The actual EasyOrders
+new-product dialog supports a shared link or a new code for each purchase,
+code entry/replenishment and a link sales count, with immutable digital type.
+Only unsaved competitor fields were inspected; no competitor product was saved.
+
+Implemented catalog contract:
+  digital_type: physical (default), link, codes. Set at creation; immutable later.
+  digital_url: required for link, HTTP/HTTPS, <=2000 characters; editable later.
+  digital_codes: optional ordered list, <=1000 entries per save, <=2000 chars each.
+Codes are trimmed, blank/control-character values rejected, and duplicates fail
+the entire transaction. Replenishment holds the parent product lock. Code values
+and link values are encrypted using Laravel application encryption; uniqueness
+uses an APP_KEY-keyed HMAC. Key rotation must preserve decryption and reindex code
+digests before replenishment. Never replace APP_KEY without a migration plan.
+
+Merchant resource includes digital_url, digital_codes_available and digital_sales
+(paid noncancelled units). Public product resources expose only digital_type and
+available stock, including variant caps. Raw model serialization hides delivery
+links, codes and order snapshots. Code allocations/returns invalidate storefront
+page/home caches after commit. Private values do not enter the public DTO mapper.
+
+Cart/quote availability counts all lines/variants sharing the same code pool.
+Quotes allocate nothing. Checkout locks products and assigns one code per unit
+inside the order transaction; failure on a later item rolls back prior allocations.
+Link/code delivery is an encrypted immutable order-item snapshot, surviving link
+edits and product deletion. Unique code values remain allocated to distinct orders.
+
+Merchant and customer order resources return digital_delivery with type, status
+and values. Values appear only while payment_status=paid and status!=cancelled.
+Unpaid cancellation releases codes; paid cancellation never returns them to sale.
+Historical snapshots remain encrypted even after cancellation. Idempotent checkout
+replay refreshes delivery from the existing order, without allocating again.
+This pass does not add email delivery or a manual payment-confirmation endpoint.
+
+UI: choose type in product creation, edit shared link/replenish codes separately,
+show pool quantity and paid-unit sales count, lock type after creation, render
+delivery in merchant/customer order detail and identify digital products on PDP.
+Fixed an existing new-product rich editor crash: skip HTML synchronization until
+the editor schema exists and avoid accessing a destroyed editor.
+
+NOT YET COMPLETE:
+  - Digital-only checkout must omit shipping address, delivery method and fees.
+  - Email delivery, guest delivery receipt and manual bank-payment confirmation.
+  - Digital sales counters/delivery browser acceptance after provider-confirmed pay.
+  - Explicit warehouse/B2B bridge and carrier behavior for digital/mixed orders.
+  - Browser acceptance for digital funnel, all themes, mobile and dark appearance.
+  - MySQL concurrency, production rollout and retention/reconciliation operations.
+Do not call the whole digital feature or full competitor goal complete yet.
+
+Migration 2026_10_10_070000_add_digital_products was applied only to the isolated
+review SQLite. Reversal refuses to discard digital products, codes or order data.
+Local implementation remains in codex/digital-products, unpushed and undeployed.
