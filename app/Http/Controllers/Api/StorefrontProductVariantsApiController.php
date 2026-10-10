@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StorefrontProductVariantRequest;
-use App\Http\Resources\Storefront\StorefrontProductVariantResource;
+use App\Http\Resources\StoreCatalogVariantResource;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Store;
@@ -28,7 +28,7 @@ class StorefrontProductVariantsApiController extends Controller
         $model = $this->product($product);
         $variants = $model->variants()->get()->each->setRelation('product', $model);
 
-        return response()->json(['data' => StorefrontProductVariantResource::collection($variants)], 200, [], JSON_UNESCAPED_UNICODE);
+        return response()->json(['data' => StoreCatalogVariantResource::collection($variants)], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
     public function store(StorefrontProductVariantRequest $request, Store $store, int $product): JsonResponse
@@ -36,7 +36,7 @@ class StorefrontProductVariantsApiController extends Controller
         $model = $this->product($product);
         $variant = $this->service->create($model, $request->validated())->setRelation('product', $model);
 
-        return response()->json(['data' => new StorefrontProductVariantResource($variant)], 201, [], JSON_UNESCAPED_UNICODE);
+        return response()->json(['data' => new StoreCatalogVariantResource($variant)], 201, [], JSON_UNESCAPED_UNICODE);
     }
 
     public function update(StorefrontProductVariantRequest $request, Store $store, int $product, int $variant): JsonResponse
@@ -44,7 +44,7 @@ class StorefrontProductVariantsApiController extends Controller
         $model = $this->product($product);
         $updated = $this->service->update($this->variant($model, $variant), $request->validated())->setRelation('product', $model);
 
-        return response()->json(['data' => new StorefrontProductVariantResource($updated)], 200, [], JSON_UNESCAPED_UNICODE);
+        return response()->json(['data' => new StoreCatalogVariantResource($updated)], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
     public function destroy(Request $request, Store $store, int $product, int $variant): JsonResponse

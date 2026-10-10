@@ -18,10 +18,18 @@ class StorefrontProductVariantService
 {
     public function create(Product $product, array $data): ProductVariant
     {
-        $variant = new ProductVariant;
-        $this->fill($variant, $data);
-        $variant->store_product_id = $product->id;
-        $variant->save(); // store_id auto-filled by BelongsToStore
+        $variant = DB::transaction(function () use ($product, $data) {
+            $current = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            if ($current->reserved_quantity > 0) {
+                throw ValidationException::withMessages(['inventory' => 'Ship or cancel base-product reservations before adding options.']);
+            }
+            $variant = new ProductVariant;
+            $this->fill($variant, $data);
+            $variant->store_product_id = $current->id;
+            $variant->save();
+
+            return $variant;
+        });
 
         $this->flush($product);
 
@@ -55,10 +63,13 @@ class StorefrontProductVariantService
 
     private function fill(ProductVariant $variant, array $data): void
     {
-        foreach (['name', 'sku', 'barcode', 'price_override', 'weight', 'options', 'is_active', 'position'] as $key) {
+        foreach (['name', 'sku', 'barcode', 'price_override', 'compare_price', 'cost', 'weight', 'options', 'is_active', 'position'] as $key) {
             if (array_key_exists($key, $data)) {
                 $variant->{$key} = $data[$key];
             }
+        }
+        if (array_key_exists('translations', $data)) {
+            $variant->fillTranslations($data['translations'] ?? []);
         }
     }
 

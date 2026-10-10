@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array|null $translations
  * @property int $stock_quantity
  * @property int $reserved_quantity
+ * @property string|null $compare_price
+ * @property string|null $cost
  */
 class ProductVariant extends Model
 {

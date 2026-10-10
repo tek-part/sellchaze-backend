@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StorefrontProductStoreRequest;
 use App\Http\Requests\StorefrontProductUpdateRequest;
-use App\Http\Resources\Storefront\StorefrontProductResource;
+use App\Http\Resources\StoreCatalogProductResource;
 use App\Models\Product;
 use App\Models\Store;
 use App\Services\StoreCatalog\StorefrontProductService;
@@ -24,7 +24,7 @@ class StorefrontProductsApiController extends Controller
     public function index(Request $request, Store $store): JsonResponse
     {
         $request->validate(['status' => ['nullable', 'in:active,draft']]);
-        $query = Product::query()->with('category:id,name,slug'); // StoreScope -> this store only
+        $query = Product::query()->with(['category:id,name,slug', 'variants', 'media']); // StoreScope -> this store only
 
         if ($request->filled('search')) {
             $term = '%'.$request->string('search')->trim().'%';
@@ -42,7 +42,7 @@ class StorefrontProductsApiController extends Controller
         $paginator = $query->orderBy('position')->orderByDesc('id')->paginate($perPage);
 
         return response()->json([
-            'data' => StorefrontProductResource::collection($paginator->getCollection()),
+            'data' => StoreCatalogProductResource::collection($paginator->getCollection()),
             'meta' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
@@ -54,24 +54,24 @@ class StorefrontProductsApiController extends Controller
 
     public function store(StorefrontProductStoreRequest $request, Store $store): JsonResponse
     {
-        $product = $this->service->create($request->validated(), $request->file('image'));
+        $product = $this->service->create($request->validated(), $request->file('image'), $request->file('gallery', []));
 
-        return response()->json(['data' => new StorefrontProductResource($product->load('category:id,name,slug'))], 201, [], JSON_UNESCAPED_UNICODE);
+        return response()->json(['data' => new StoreCatalogProductResource($product->load(['category:id,name,slug', 'variants', 'media']))], 201, [], JSON_UNESCAPED_UNICODE);
     }
 
     public function show(Request $request, Store $store, int $product): JsonResponse
     {
         $model = $this->find($product);
 
-        return response()->json(['data' => new StorefrontProductResource($model->load(['category:id,name,slug', 'variants']))], 200, [], JSON_UNESCAPED_UNICODE);
+        return response()->json(['data' => new StoreCatalogProductResource($model->load(['category:id,name,slug', 'variants', 'media']))], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
     public function update(StorefrontProductUpdateRequest $request, Store $store, int $product): JsonResponse
     {
         $model = $this->find($product);
-        $model = $this->service->update($model, $request->validated(), $request->file('image'));
+        $model = $this->service->update($model, $request->validated(), $request->file('image'), $request->file('gallery', []));
 
-        return response()->json(['data' => new StorefrontProductResource($model->fresh()->load('category:id,name,slug'))], 200, [], JSON_UNESCAPED_UNICODE);
+        return response()->json(['data' => new StoreCatalogProductResource($model->fresh()->load(['category:id,name,slug', 'variants', 'media']))], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
     public function destroy(Request $request, Store $store, int $product): JsonResponse

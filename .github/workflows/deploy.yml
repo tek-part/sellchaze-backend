@@ -1,10 +1,8 @@
 name: Deploy Backend
 
 on:
-  workflow_run:
-    workflows: [Backend Quality]
-    types: [completed]
-    branches: [main]
+  # Rebuild integration is separate from production release. Keep deployment
+  # explicit until source parity and live-provider acceptance are complete.
   workflow_dispatch:
     inputs:
       sha:
