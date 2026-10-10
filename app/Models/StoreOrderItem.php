@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Phase 5: an immutable snapshot line on a storefront order.
+ *
+ * @property array|null $personalization
  */
 class StoreOrderItem extends Model
 {

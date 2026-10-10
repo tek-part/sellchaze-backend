@@ -36,7 +36,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (DB::table('cart_items')->where('personalization_key', '!=', '')->exists() || DB::table('product_personalization_uploads')->exists() || DB::table('store_order_items')->whereNotNull('personalization')->exists()) {
+        if (DB::table('products')->whereNotNull('personalization_fields')->exists() || DB::table('cart_items')->where('personalization_key', '!=', '')->exists() || DB::table('product_personalization_uploads')->exists() || DB::table('store_order_items')->whereNotNull('personalization')->exists()) {
             throw new RuntimeException('Preserve personalization data before rolling back this migration.');
         }
         Schema::dropIfExists('product_personalization_uploads');

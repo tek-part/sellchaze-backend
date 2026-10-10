@@ -1,0 +1,50 @@
+Product text and image personalization (2026-10-10)
+
+Merchant catalog create/update accepts personalization_fields: an ordered list of
+up to 10 fields. Each field has a stable unique key (lowercase letter followed by
+letters, digits, underscores or hyphens; at most 80 characters), type text/image,
+label, optional labels.ar/labels.en, required boolean and max_length 1..1000.
+max_length applies to text. Sending [] disables personalization; omitting the
+property preserves existing configuration. The editor saves this section separately.
+
+Storefront product detail returns localized personalization_fields; cards expose
+has_personalization so quick add routes to product detail. Shopper choices travel
+in personalization, a field-key/string map, on cart items and checkout/quote items.
+The server trims text, rejects unknown keys, enforces required fields, length and
+control characters, and validates image tokens against the store/product/field.
+Prices and stock are always resolved by the server; personalization adds no fee.
+
+POST /api/v1/storefront/products/{product}/personalization-image (through the
+existing storefront route prefix/store resolution) accepts multipart field_key and
+file. JPG/JPEG, PNG and WebP only; 10 MiB maximum, 4096x4096 maximum, active
+owned product and configured image field required. Use the token returned by the
+upload in personalization[field_key]. Uploads are throttled to 5/minute.
+Files use the private local disk; only the token hash is stored. Tokens expire
+after seven days. Raw upload tokens never enter order snapshots.
+
+Cart identity includes normalized personalization. Identical choices merge;
+different choices remain separate lines. All lines sharing a product/variant
+share the same available stock and 999-unit limit, including guest-cart merging.
+Quotes validate without claiming files. Checkout claims files and reserves stock
+transactionally; a later failed line rolls both operations back.
+
+Order items preserve text, labels, filename and upload identity independently of
+the current catalog. Merchant/customer/order-bridge resources issue fresh relative
+signed download URLs (30 minutes), also when replaying a cached checkout result.
+GET /api/v1/personalization-files/{store}/{upload} requires a relative signature;
+responses are private/no-store with nosniff and restrictive CSP. Anyone holding
+a valid signed link can view it until expiry. Product deletion does not remove
+claimed files or historical personalization. Unclaimed expired files are pruned
+daily by personalization:prune; claimed files are retained for order fulfillment.
+
+Migration 2026_10_10_060000_add_product_personalization changes cart uniqueness,
+adds product/cart/order JSON and a private upload ledger. Its down() refuses to
+discard configured fields, personalized cart/order data or uploaded files. A data
+retention/cleanup decision is required before reversing a used migration.
+
+Local validation: 12 feature tests cover schema, normalization, validation,
+cross-store/product token rejection, private signed downloads, expiry/pruning,
+replay URL renewal, aggregate stock, failed-claim rollback, guest cart merging and
+historical reads after product deletion. Browser review used an isolated SQLite
+store, synthetic customer data and a generated PNG. No production migration,
+deployment or external carrier dispatch was performed.

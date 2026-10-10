@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Commerce\ProductPersonalization;
 use App\Support\AttributeBadgeCache;
 use App\Support\ProductImageUrl;
 use Carbon\Carbon;
@@ -120,6 +121,9 @@ class OrderApiResource extends JsonResource
                 return $row;
             }
             $row['image_thumb_url'] = ProductImageUrl::thumbUrl($row['image'] ?? null);
+            if (is_array($row['personalization'] ?? null) && $this->store_id !== null) {
+                $row['personalization'] = ProductPersonalization::present($row['personalization'], (int) $this->store_id);
+            }
 
             return $row;
         }, $raw));

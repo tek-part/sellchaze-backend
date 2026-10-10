@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\StoreOrder;
+use App\Services\Commerce\ProductPersonalization;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -51,6 +52,7 @@ class MerchantOrderResource extends JsonResource
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'store_product_id' => $item->store_product_id,
+                'personalization' => ProductPersonalization::present($item->personalization ?? [], $this->store_id),
                 'name' => $item->name,
                 'unit_price' => $item->unit_price,
                 'quantity' => $item->quantity,

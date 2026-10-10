@@ -32,7 +32,7 @@ class ProductPersonalization
     public static function fields(Product $product): array
     {
         return array_map(fn ($field) => ['key' => $field['key'], 'type' => $field['type'],
-            'label' => $field['labels'][app()->getLocale()] ?? $field['label'], 'required' => (bool) $field['required'], 'max_length' => (int) $field['max_length']], $product->personalization_fields ?? []);
+            'label' => ($field['labels'][app()->getLocale()] ?? '') ?: $field['label'], 'required' => (bool) $field['required'], 'max_length' => (int) $field['max_length']], $product->personalization_fields ?? []);
     }
 
     /** Validate against live schema; order snapshots include authoritative labels and file identities. */
@@ -94,7 +94,7 @@ class ProductPersonalization
         $uploads = ProductPersonalizationUpload::query()->where('store_id', $storeId)->whereIn('id', array_column($snapshot, 'upload_id'))->get()->keyBy('id');
 
         return array_map(function ($entry) use ($uploads) {
-            $entry['label'] = $entry['labels'][app()->getLocale()] ?? $entry['label'];
+            $entry['label'] = ($entry['labels'][app()->getLocale()] ?? '') ?: $entry['label'];
             unset($entry['labels']);
             if (isset($entry['upload_id'])) {
                 $entry['url'] = $uploads->get($entry['upload_id'])?->downloadUrl();
