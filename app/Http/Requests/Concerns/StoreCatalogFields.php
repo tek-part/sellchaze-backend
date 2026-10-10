@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Concerns;
 
+use App\Rules\ProductGalleryFile;
 use App\Support\Localization\TranslationRules;
 
 trait StoreCatalogFields
@@ -20,7 +21,9 @@ trait StoreCatalogFields
             'seo_description' => ['nullable', 'string', 'max:500'],
             'remove_image' => ['sometimes', 'boolean'],
             'gallery' => ['sometimes', 'array', 'max:12'],
-            'gallery.*' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'gallery.*' => ['required', new ProductGalleryFile],
+            'media_order' => ['sometimes', 'array', 'max:100'],
+            'media_order.*' => ['integer', 'distinct'],
             'remove_media_ids' => ['sometimes', 'array', 'max:100'],
             'remove_media_ids.*' => ['integer', 'distinct'],
         ] + TranslationRules::for(['name', 'description', 'short_description'], null, ['name' => 255, 'description' => 20000, 'short_description' => 500]);

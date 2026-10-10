@@ -57,6 +57,10 @@ class StorefrontProductResource extends JsonResource
             'unit' => $this->unit,
             'tags' => $this->tags ?: null,
             'brand' => $this->whenLoaded('brand', fn () => $this->brand?->translated('name')),
+            'media' => $this->whenLoaded('media', fn () => $this->media
+                ->filter(fn ($m) => in_array($m->type, ['cover', 'gallery', 'video'], true) && $m->url())
+                ->map(fn ($m) => ['id' => $m->id, 'type' => $m->type === 'video' ? 'video' : 'image',
+                    'url' => $m->url(), 'alt' => $m->alt, 'mime' => $m->mime, 'position' => $m->position])->values()->all()),
             'images' => $this->whenLoaded('media', fn () => $this->media
                 ->filter(fn ($m) => in_array($m->type, ['cover', 'gallery'], true))
                 ->map(fn ($m) => $m->url())

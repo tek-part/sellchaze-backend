@@ -34,7 +34,7 @@ class StorefrontProductStoreRequest extends FormRequest
             'is_active' => ['nullable', 'boolean'],
             'is_featured' => ['nullable', 'boolean'],
             'position' => ['nullable', 'integer', 'min:0'],
-            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'extensions:jpg,jpeg,png,webp', 'max:10240'],
         ] + $this->catalogFields();
     }
 }
