@@ -1,0 +1,1 @@
+<style>.store-ui-block{max-width:1200px;min-width:0;margin-inline:auto;padding:1rem;overflow-wrap:anywhere}.store-ui-block img,.store-ui-block video{max-width:100%;height:auto}.store-ui-block table,.store-ui-block pre{display:block;max-width:100%;overflow:auto}</style>

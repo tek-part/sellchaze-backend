@@ -3,6 +3,7 @@
     $seo = $context['seo'];
     $data = $context['data'];
     $theme = $context['theme'];
+    $uiBlocks = $context['store']['ui_blocks'] ?? [];
 @endphp<!DOCTYPE html>
 <html lang="{{ app()->getLocale() }}">
 <head>
@@ -34,9 +35,11 @@
     @if(!empty($theme['custom_css']))<style data-store-custom-css>{!! $theme['custom_css'] !!}</style>@endif
     @if(!empty($theme['responsive_css']))<style data-responsive-section-css>{!! $theme['responsive_css'] !!}</style>@endif
     @include('storefront.identity-head', ['identity' => $store->identity ?? []])
+    @include('storefront.ui-block-styles')
 </head>
 <body id="storefront-root" data-rendered-by="blade" data-theme="{{ $theme['key'] }}" data-theme-version="{{ $theme['version'] }}">
     @if(($store->identity['header_mode'] ?? 'theme') === 'custom' && !empty($store->identity['header_text']))<p class="wrap" data-store-announcement>{{ $store->identity['header_text'] }}</p>@endif
+    @include('storefront.ui-block', ['slot' => 'before_header'])
     <header>
         <div class="wrap">
             <h1 style="margin:0">{{ $store->name }}</h1>
@@ -52,6 +55,7 @@
             </nav>
         </div>
     </header>
+    @include('storefront.ui-block', ['slot' => 'after_header'])
     <main class="wrap">
         @if(($context['page']['template'] ?? '') === 'simple')
             <article style="overflow-wrap:anywhere" data-simple-page>
@@ -64,6 +68,7 @@
             <div data-studio-section-id="{{ $section['id'] ?? '' }}">@includeIf('storefront.sections.'.$section['type'], ['section' => $section, 'ctx' => $context, 'store' => $store, 'data' => $data])</div>
         @endforeach
     </main>
+    @include('storefront.ui-block', ['slot' => 'before_footer'])
     @php($footerMenu = $context['navigation']['footer'] ?? [])
     @if(count($footerMenu))
         <nav class="wrap muted" style="border-top:1px solid #e2e8f0">
@@ -74,6 +79,7 @@
         <hr style="border:none;border-top:1px solid #e2e8f0">
         <p>{{ $store->name }} @if($store->email)· {{ $store->email }}@endif @if($store->phone)· {{ $store->phone }}@endif</p>
     </footer>
+    @include('storefront.ui-block', ['slot' => 'after_footer'])
     @include('storefront.studio-bridge')
 </body>
 </html>

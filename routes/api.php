@@ -113,6 +113,7 @@ use App\Http\Controllers\Api\StoreShoppingPreferencesController;
 use App\Http\Controllers\Api\StoreSimplePagesController;
 use App\Http\Controllers\Api\StoreThankYouController;
 use App\Http\Controllers\Api\StoreThemesApiController;
+use App\Http\Controllers\Api\StoreUiBlocksController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SuppliersApiController;
 use App\Http\Controllers\Api\SuppliersDirectoryController;
@@ -337,6 +338,7 @@ Route::prefix('v1')->group(function () {
         Route::get('pages/{slug}', [StorefrontLayoutController::class, 'page'])->where('slug', '[a-z0-9\-]+');
         Route::get('funnels/{slug}', [StorefrontLayoutController::class, 'funnel'])->where('slug', '[a-z0-9\-]+');
         Route::get('thank-you', [StorefrontThankYouController::class, 'show']);
+        Route::get('ui-blocks', [StoreUiBlocksController::class, 'publicConfiguration']);
 
         // ---- Phase 6: public product reviews (approved only + average summary) ----
         Route::get('products/{slug}/reviews', [ProductReviewController::class, 'index'])->where('slug', '[a-z0-9\-]+');
@@ -816,6 +818,8 @@ Route::prefix('v1')->group(function () {
             Route::get('carriers/bosta/districts', [StoreCarrierController::class, 'districts'])->middleware('throttle:60,1');
             Route::get('checkout-fields', [StoreCheckoutFieldsController::class, 'index']);
             Route::put('checkout-fields', [StoreCheckoutFieldsController::class, 'update']);
+            Route::get('ui-blocks', [StoreUiBlocksController::class, 'index']);
+            Route::put('ui-blocks', [StoreUiBlocksController::class, 'update']);
             Route::get('thank-you', [StoreThankYouController::class, 'index']);
             Route::put('thank-you', [StoreThankYouController::class, 'update']);
             Route::get('digital-delivery', [StoreDigitalDeliveryController::class, 'index']);

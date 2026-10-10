@@ -28,9 +28,12 @@
         .price{font-weight:600}
     </style>
     @include('storefront.identity-head', ['identity' => $store->identity()])
+    @include('storefront.ui-block-styles')
 </head>
 <body>
     @if($store->header_mode === 'custom' && $store->header_text)<p class="wrap" data-store-announcement>{{ $store->header_text }}</p>@endif
+    @php($uiBlocks = app(\App\Services\Storefront\UiBlocks::class)->publicConfiguration($store, app()->getLocale()))
+    @include('storefront.ui-block', ['slot' => 'before_header'])
     <header>
         <div class="wrap">
             <h1 style="margin:0">{{ $store->name }}</h1>
@@ -41,12 +44,15 @@
             </nav>
         </div>
     </header>
+    @include('storefront.ui-block', ['slot' => 'after_header'])
     <main class="wrap">
         @yield('content')
     </main>
+    @include('storefront.ui-block', ['slot' => 'before_footer'])
     <footer class="wrap muted">
         <hr style="border:none;border-top:1px solid #e2e8f0">
         <p>{{ $store->name }} @if($store->email)· {{ $store->email }}@endif @if($store->phone)· {{ $store->phone }}@endif</p>
     </footer>
+    @include('storefront.ui-block', ['slot' => 'after_footer'])
 </body>
 </html>

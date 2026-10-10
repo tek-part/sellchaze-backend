@@ -264,6 +264,7 @@ class StorefrontContextBuilder
         return [
             'id' => $store->id,
             'identity' => $store->identity(),
+            'ui_blocks' => app(UiBlocks::class)->publicConfiguration($store, $this->currentLocale($store)),
             'name' => $store->name,
             'slug' => $store->slug,
             'description' => $store->description,
