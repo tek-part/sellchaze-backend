@@ -89,6 +89,7 @@ use App\Http\Controllers\Api\Storefront\StorefrontCouponController;
 use App\Http\Controllers\Api\Storefront\StorefrontEngagementController;
 use App\Http\Controllers\Api\Storefront\StorefrontLayoutController;
 use App\Http\Controllers\Api\Storefront\StorefrontProductController;
+use App\Http\Controllers\Api\Storefront\StorefrontThankYouController;
 use App\Http\Controllers\Api\Storefront\StoreOrderController;
 use App\Http\Controllers\Api\Storefront\WishlistController;
 use App\Http\Controllers\Api\StorefrontContextController;
@@ -109,6 +110,7 @@ use App\Http\Controllers\Api\StoresApiController;
 use App\Http\Controllers\Api\StoreShipmentController;
 use App\Http\Controllers\Api\StoreShippingController;
 use App\Http\Controllers\Api\StoreShoppingPreferencesController;
+use App\Http\Controllers\Api\StoreThankYouController;
 use App\Http\Controllers\Api\StoreThemesApiController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SuppliersApiController;
@@ -333,6 +335,7 @@ Route::prefix('v1')->group(function () {
         Route::get('layout', [StorefrontLayoutController::class, 'layout']);
         Route::get('pages/{slug}', [StorefrontLayoutController::class, 'page'])->where('slug', '[a-z0-9\-]+');
         Route::get('funnels/{slug}', [StorefrontLayoutController::class, 'funnel'])->where('slug', '[a-z0-9\-]+');
+        Route::get('thank-you', [StorefrontThankYouController::class, 'show']);
 
         // ---- Phase 6: public product reviews (approved only + average summary) ----
         Route::get('products/{slug}/reviews', [ProductReviewController::class, 'index'])->where('slug', '[a-z0-9\-]+');
@@ -812,6 +815,8 @@ Route::prefix('v1')->group(function () {
             Route::get('carriers/bosta/districts', [StoreCarrierController::class, 'districts'])->middleware('throttle:60,1');
             Route::get('checkout-fields', [StoreCheckoutFieldsController::class, 'index']);
             Route::put('checkout-fields', [StoreCheckoutFieldsController::class, 'update']);
+            Route::get('thank-you', [StoreThankYouController::class, 'index']);
+            Route::put('thank-you', [StoreThankYouController::class, 'update']);
             Route::get('digital-delivery', [StoreDigitalDeliveryController::class, 'index']);
             Route::get('order-limits', [StoreOrderLimitsController::class, 'index']);
             Route::get('blocked-phone-numbers', [StorePhoneBlockController::class, 'index']);
