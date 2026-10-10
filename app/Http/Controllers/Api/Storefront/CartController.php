@@ -38,7 +38,7 @@ class CartController extends Controller
     public function addItem(AddCartItemRequest $request): JsonResponse
     {
         $cart = $this->cart($request);
-        $this->carts->addItem($cart, (int) $request->input('store_product_id'), (int) $request->input('quantity', 1), $request->filled('variant_id') ? (int) $request->input('variant_id') : null);
+        $this->carts->addItem($cart, (int) $request->input('store_product_id'), (int) $request->input('quantity', 1), $request->filled('variant_id') ? (int) $request->input('variant_id') : null, $request->input('personalization', []));
 
         return $this->respond($cart->fresh('items'), 201);
     }

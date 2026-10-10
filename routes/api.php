@@ -75,6 +75,7 @@ use App\Http\Controllers\Api\Storefront\CartController;
 use App\Http\Controllers\Api\Storefront\CheckoutController;
 use App\Http\Controllers\Api\Storefront\CustomerAddressController;
 use App\Http\Controllers\Api\Storefront\CustomerAuthController;
+use App\Http\Controllers\Api\Storefront\PersonalizationUploadController;
 use App\Http\Controllers\Api\Storefront\ProductReviewController;
 use App\Http\Controllers\Api\Storefront\StorefrontBrandController;
 use App\Http\Controllers\Api\Storefront\StorefrontCategoryController;
@@ -294,6 +295,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/payment-sessions/fawry/{transaction}', [PaymentWebhookController::class, 'fawrySession'])->name('payments.fawry.session');
     Route::match(['get', 'post'], '/payment-returns/fawry/{transaction}', [PaymentWebhookController::class, 'fawryReturn']);
 
+    Route::get('personalization-files/{store}/{upload}', [PersonalizationUploadController::class, 'show'])->whereNumber('store')->whereUuid('upload')->middleware(['signed:relative', 'throttle:60,1'])->name('personalization.download');
+
     // Phase 3: public storefront API (host-resolved, store-scoped, read-only).
     Route::middleware(['resolve.store', 'storefront.locale', 'throttle:storefront-read'])->prefix('storefront')->group(function () {
         Route::get('/', [StorefrontController::class, 'index']);
@@ -328,6 +331,7 @@ Route::prefix('v1')->group(function () {
         // ---- Phase 5: Storefront Commerce ----
         // Cart + checkout are guest-friendly (X-Cart-Token header); auth is optional.
         Route::get('cart', [CartController::class, 'show']);
+        Route::post('products/{product}/personalization-image', [PersonalizationUploadController::class, 'store'])->whereNumber('product')->middleware('throttle:5,1');
         Route::post('cart/items', [CartController::class, 'addItem']);
         Route::patch('cart/items/{item}', [CartController::class, 'updateItem'])->whereNumber('item');
         Route::delete('cart/items/{item}', [CartController::class, 'removeItem'])->whereNumber('item');

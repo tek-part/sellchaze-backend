@@ -87,6 +87,7 @@ class StorefrontOrderBridge
                     'variant_id' => $item->variant_id,
                     'variant_name' => $item->variant_name,
                     'variant_options' => $item->variant_options,
+                    'personalization' => $item->personalization,
                     'sku' => $item->sku,
                     'name' => $item->name,
                     'slug' => $product?->slug,

@@ -125,6 +125,9 @@ class StorefrontProductService
 
     private function fill(Product $product, array $data): void
     {
+        if (array_key_exists('personalization_fields', $data)) {
+            $product->personalization_fields = $data['personalization_fields'];
+        }
         if (array_key_exists('description', $data)) {
             $data['description'] = ProductDescription::clean($data['description']);
             // The editor hydrates the legacy long copy first; an explicit edit becomes canonical.

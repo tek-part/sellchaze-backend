@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Storefront;
 
 use App\Models\Product;
+use App\Services\Commerce\ProductPersonalization;
 use App\Services\Storefront\ResponsiveImageUrl;
 use App\Support\ProductOptionDisplay;
 use Illuminate\Http\Request;
@@ -75,6 +76,8 @@ class StorefrontProductResource extends JsonResource
             ] : null),
             'variants' => StorefrontProductVariantResource::collection($this->whenLoaded('variants')),
             'option_display' => ProductOptionDisplay::publicPayload($this->resource),
+            'personalization_fields' => ProductPersonalization::fields($this->resource),
+            'has_personalization' => ! empty($this->personalization_fields),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

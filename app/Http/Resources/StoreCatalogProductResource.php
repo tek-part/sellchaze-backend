@@ -18,6 +18,7 @@ class StoreCatalogProductResource extends StorefrontProductResource
             'media' => $this->whenLoaded('media', fn () => $this->media->map(fn ($media) => ['id' => $media->id, 'url' => $media->url(), 'type' => $media->type === 'video' ? 'video' : 'image', 'mime' => $media->mime, 'alt' => $media->alt, 'position' => $media->position])),
             'variants' => StoreCatalogVariantResource::collection($this->whenLoaded('variants')),
             'option_display' => $this->option_display ?? [],
+            'personalization_fields' => $this->personalization_fields ?? [],
         ]);
     }
 }

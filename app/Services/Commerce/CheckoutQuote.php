@@ -23,6 +23,7 @@ class CheckoutQuote
         foreach ($items as $item) {
             $variantId = isset($item['variant_id']) ? (int) $item['variant_id'] : null;
             $selection = $this->selections->resolve($store, (int) $item['product_id'], $variantId);
+            $custom = app(ProductPersonalization::class)->resolve($selection['product'], $item['personalization'] ?? []);
             $quantity = (int) $item['quantity'];
             $key = $item['product_id'].':'.($variantId ?? 'base');
             $counts[$key] = ($counts[$key] ?? 0) + $quantity;
@@ -33,6 +34,7 @@ class CheckoutQuote
             $lineTotal = bcmul($selection['price'], (string) $quantity, 2);
             $subtotal = bcadd($subtotal, $lineTotal, 2);
             $lines[] = ['product_id' => $selection['product']->id, 'variant_id' => $variantId,
+                'personalization' => ProductPersonalization::present($custom['snapshot'], $store->id), 'personalization_key' => $custom['key'],
                 'name' => $selection['name'], 'unit_price' => $selection['price'], 'quantity' => $quantity, 'line_total' => $lineTotal];
         }
         $discount = '0.00';

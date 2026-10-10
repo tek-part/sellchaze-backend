@@ -76,9 +76,9 @@ class CartService
      * their quantity increased. Fails closed if the product is not a live,
      * purchasable product of this store.
      */
-    public function addItem(Cart $cart, int $productId, int $quantity, ?int $variantId = null): CartItem
+    public function addItem(Cart $cart, int $productId, int $quantity, ?int $variantId = null, array $personalization = []): CartItem
     {
-        return DB::transaction(function () use ($cart, $productId, $quantity, $variantId) {
+        return DB::transaction(function () use ($cart, $productId, $quantity, $variantId, $personalization) {
             // Serializes additions even for the base-product line (SQL unique indexes
             // permit repeated NULL variant IDs on both MySQL and SQLite).
             $locked = Cart::query()->whereKey($cart->id)->lockForUpdate()->firstOrFail();
@@ -86,13 +86,17 @@ class CartService
                 throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
             }
             $selection = $this->selections->resolve(Store::findOrFail($cart->store_id), $productId, $variantId);
-            $item = $cart->items()->where('store_product_id', $productId)->where('variant_id', $variantId)->first();
+            $custom = app(ProductPersonalization::class)->resolve($selection['product'], $personalization);
+            $sameSku = $cart->items()->where('store_product_id', $productId)->where('variant_id', $variantId);
+            $totalCount = (int) (clone $sameSku)->sum('quantity') + $quantity;
+            $item = $sameSku->where('personalization_key', $custom['key'])->first();
             $count = ($item?->quantity ?? 0) + $quantity;
-            if ($quantity < 1 || $count > 999) {
+            if ($quantity < 1 || $totalCount > 999) {
                 throw ValidationException::withMessages(['quantity' => 'Choose between 1 and 999 items.']);
             }
-            app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $count);
+            app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $totalCount);
             $values = ['store_product_id' => $productId, 'variant_id' => $variantId,
+                'personalization' => $custom['values'], 'personalization_key' => $custom['key'],
                 'name' => $selection['name'], 'unit_price' => $selection['price'], 'quantity' => $count];
             if ($item) {
                 $item->update($values);
@@ -117,7 +121,9 @@ class CartService
             }
 
             $selection = $this->selections->resolve(Store::findOrFail($cart->store_id), $item->store_product_id, $item->variant_id);
-            app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $quantity);
+            app(ProductPersonalization::class)->resolve($selection['product'], $item->personalization ?? []);
+            $total = (int) $cart->items()->where('store_product_id', $item->store_product_id)->where('variant_id', $item->variant_id)->whereKeyNot($item->id)->sum('quantity') + $quantity;
+            app(StoreInventory::class)->assertAvailable($selection['variant'] ?? $selection['product'], $total);
             $item->quantity = $quantity;
             $item->save();
 
@@ -159,22 +165,7 @@ class CartService
                 throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
             }
             foreach ($from->items()->get() as $line) {
-                $existing = $to->items()->where('store_product_id', $line->store_product_id)->where('variant_id', $line->variant_id)->first();
-                if ($existing) {
-                    if ($existing->quantity + $line->quantity > 999) {
-                        throw ValidationException::withMessages(['quantity' => 'Choose between 1 and 999 items.']);
-                    }
-                    $existing->quantity += $line->quantity;
-                    $existing->save();
-                } else {
-                    $to->items()->create([
-                        'store_product_id' => $line->store_product_id,
-                        'variant_id' => $line->variant_id,
-                        'name' => $line->name,
-                        'unit_price' => $line->unit_price,
-                        'quantity' => $line->quantity,
-                    ]);
-                }
+                $this->addItem($to, (int) $line->store_product_id, $line->quantity, $line->variant_id, $line->personalization ?? []);
             }
             $from->items()->delete();
             $from->update(['status' => 'abandoned']);

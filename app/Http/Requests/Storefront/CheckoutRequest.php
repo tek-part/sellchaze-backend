@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Storefront;
 
 use App\Services\Commerce\CheckoutFields;
+use App\Services\Commerce\ProductPersonalization;
 use App\Services\Commerce\StoreShipping;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Foundation\Http\FormRequest;
@@ -20,7 +21,7 @@ class CheckoutRequest extends FormRequest
         $store = app(CurrentStore::class)->get();
         abort_unless($store, 404);
 
-        return app(CheckoutFields::class)->rules($store, is_string($this->input('payment_method')) ? $this->input('payment_method') : null) + StoreShipping::SELECTION_RULES + [
+        return app(CheckoutFields::class)->rules($store, is_string($this->input('payment_method')) ? $this->input('payment_method') : null) + StoreShipping::SELECTION_RULES + ProductPersonalization::inputRules('items.*.personalization') + [
             'payment_method' => ['nullable', 'string', 'max:80'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'cart_mode' => ['sometimes', 'in:cart,direct'],

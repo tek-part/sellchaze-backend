@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Concerns;
 
 use App\Rules\ProductGalleryFile;
+use App\Services\Commerce\ProductPersonalization;
 use App\Support\Localization\TranslationRules;
 use App\Support\ProductOptionDisplay;
 
@@ -11,6 +12,12 @@ trait StoreCatalogFields
     protected function prepareForValidation(): void
     {
         TranslationRules::decodeRequest($this);
+        if (is_string($this->input('personalization_fields'))) {
+            $fields = json_decode($this->input('personalization_fields'), true);
+            if (is_array($fields)) {
+                $this->merge(['personalization_fields' => $fields]);
+            }
+        }
         if (is_string($this->input('option_display'))) {
             $decoded = json_decode($this->input('option_display'), true);
             if (is_array($decoded)) {
@@ -33,6 +40,6 @@ trait StoreCatalogFields
             'media_order.*' => ['integer', 'distinct'],
             'remove_media_ids' => ['sometimes', 'array', 'max:100'],
             'remove_media_ids.*' => ['integer', 'distinct'],
-        ] + ProductOptionDisplay::rules() + TranslationRules::for(['name', 'description', 'short_description'], null, ['name' => 255, 'description' => 20000, 'short_description' => 500]);
+        ] + ProductOptionDisplay::rules() + ProductPersonalization::rules() + TranslationRules::for(['name', 'description', 'short_description'], null, ['name' => 255, 'description' => 20000, 'short_description' => 500]);
     }
 }

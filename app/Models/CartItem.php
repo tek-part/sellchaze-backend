@@ -14,12 +14,13 @@ class CartItem extends Model
     use BelongsToStore;
 
     protected $fillable = [
-        'store_id', 'cart_id', 'store_product_id', 'variant_id', 'name', 'unit_price', 'quantity',
+        'store_id', 'cart_id', 'store_product_id', 'variant_id', 'name', 'unit_price', 'quantity', 'personalization', 'personalization_key',
     ];
 
     protected $casts = [
         'unit_price' => 'decimal:2',
         'quantity' => 'integer',
+        'personalization' => 'array',
     ];
 
     /** @return BelongsTo<Cart, $this> */
