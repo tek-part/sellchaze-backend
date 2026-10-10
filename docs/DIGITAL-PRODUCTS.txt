@@ -34,6 +34,8 @@ Historical snapshots remain encrypted even after cancellation. Idempotent checko
 replay refreshes delivery from the existing order, without allocating again.
 This pass does not add email delivery or a manual payment-confirmation endpoint.
 
+Public pool/SKU limits and client basket behavior: see CART-AVAILABILITY.txt.
+
 UI: choose type in product creation, edit shared link/replenish codes separately,
 show pool quantity and paid-unit sales count, lock type after creation, render
 delivery in merchant/customer order detail and identify digital products on PDP.

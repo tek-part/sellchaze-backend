@@ -37,6 +37,7 @@ class StorefrontProductResource extends JsonResource
             'image_responsive' => app(ResponsiveImageUrl::class)->for($imageUrl),
             'is_active' => $this->is_active,
             'digital_type' => $this->digital_type,
+            'digital_pool_stock' => $digitalStock,
             'is_featured' => $this->is_featured,
             'stock' => $digitalStock === null ? ($this->track_inventory ? max(0, $this->stock_quantity - $this->reserved_quantity) : null) : ($this->track_inventory ? min($digitalStock, max(0, $this->stock_quantity - $this->reserved_quantity)) : $digitalStock),
             'track_inventory' => (bool) $this->track_inventory,

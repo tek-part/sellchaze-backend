@@ -1,0 +1,49 @@
+Storefront cart availability and shipping presentation
+
+Public catalog products expose digital_pool_stock as the count of unused code
+units for the entire product. This contains no code values. Physical products
+and shared-link products return null. Existing product/variant stock fields
+retain their inventory limits, including min(variant stock, code availability).
+A variant with stock1 and a shared pool3 therefore exposes both limits.
+
+The frontend maps this to sharedMaxQuantity only for code products. PDP,
+quick-add cards, the full cart and all five theme drawers enforce both the SKU
+limit (across personalization lines) and the product code-pool limit (across
+all variants and personalization lines). Removal or decrement frees client
+capacity. Catalog observations on add refresh the shared cap for all existing
+lines of the same product. Replenishment can raise a prior cap; exhaustion
+reduces the basket in stable selection order. Different products and physical
+or shared-link variants retain independent SKU quantities.
+
+Saved carts carrying these limits restore aggregate constraints, deduplicate
+line IDs and retain earlier selections first. These observed client limits are
+not stock reservations. Legacy saved carts without the new pool metadata gain
+it through a fresh catalog selection/add. The server independently validates
+the live aggregate pool at quote/checkout and atomically allocates codes.
+Automatic catalog reconciliation for legacy/stale carts and client storage
+isolation by store remain separate follow-up work; current storage is keyed
+by display currency, which must not be treated as tenant isolation.
+
+The public store bootstrap exposes shipping.enabled, shipping.free_over and
+shipping.currency. All five cart drawers use this configured threshold,
+converted with the same display multiplier as catalog prices. No offer is
+fabricated for disabled shipping, an unset/malformed threshold or an unknown
+exchange rate. A configured zero threshold is supported. Digital-only baskets
+do not display shipping progress. The text explicitly states that progress is
+before discounts and the final cost is confirmed at checkout. Checkout still
+uses the server's discounted subtotal and selected region/delivery option.
+
+Validation includes separate public pool/variant counts, privacy, allocation
+refresh, shared-link null stock, bootstrap settings changes and zero thresholds;
+client tests cover aggregate variants/personalization, persisted caps, pool
+replenishment/exhaustion, per-SKU limits and currency conversion. Actual guarded
+SQLite browser baskets verify quick-add/PDP/drawer limits, customization,
+five Arabic dark themes, mobile width390, disabled/unset/zero offers and a
+550 subtotal less100 coupon with35 shipping (485 total). No live provider,
+production deployment, schema migration or captured production dist change.
+
+Full competitor parity is not established. Newly inspected competitor settings
+include email sender/subject/body templates, WhatsApp templates with provider
+prerequisites, per-product overrides and customer/product/store/code variables.
+These settings, broader order limits, AI/themes/design, actual provider
+acceptance and editable source reconciliation remain outstanding.

@@ -105,6 +105,21 @@ class DigitalProductsTest extends TestCase
         $this->assertDatabaseCount('store_orders', 0);
     }
 
+    public function test_public_pool_count_is_separate_from_variant_inventory_and_updates_after_allocation(): void
+    {
+        $id = $this->product('codes', ['POOL-A', 'POOL-B', 'POOL-C']);
+        $limited = ProductVariant::create(['store_id' => $this->store->id, 'store_product_id' => $id, 'name' => 'Limited', 'is_active' => true, 'track_inventory' => true, 'stock_quantity' => 1]);
+        $other = ProductVariant::create(['store_id' => $this->store->id, 'store_product_id' => $id, 'name' => 'Other', 'is_active' => true]);
+        $slug = Product::withoutGlobalScopes()->findOrFail($id)->slug;
+        $response = $this->getJson($this->base.'/products/'.$slug)->assertOk()->assertJsonPath('data.digital_pool_stock', 3)->assertJsonPath('data.variants.0.stock', 1)->assertJsonPath('data.variants.1.stock', 3);
+        $this->assertStringNotContainsString('POOL-A', $response->getContent());
+        $this->postJson($this->base.'/checkout', ['items' => [['product_id' => $id, 'variant_id' => $other->id, 'quantity' => 2]]] + $this->order($id))->assertCreated();
+        $this->getJson($this->base.'/products/'.$slug)->assertOk()->assertJsonPath('data.digital_pool_stock', 1)->assertJsonPath('data.variants.0.stock', 1)->assertJsonPath('data.variants.1.stock', 1);
+        $this->postJson($this->base.'/checkout/quote', ['items' => [['product_id' => $id, 'variant_id' => $limited->id, 'quantity' => 2]]])->assertUnprocessable();
+        $link = $this->product('link');
+        $this->getJson($this->base.'/products/'.Product::withoutGlobalScopes()->findOrFail($link)->slug)->assertOk()->assertJsonPath('data.digital_pool_stock', null);
+    }
+
     public function test_codes_are_distinct_per_order_hidden_until_paid_and_retained_after_catalog_deletion(): void
     {
         $id = $this->product();
