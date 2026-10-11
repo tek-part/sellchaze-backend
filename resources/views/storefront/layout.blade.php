@@ -29,6 +29,7 @@
     </style>
     @include('storefront.identity-head', ['identity' => $store->identity()])
     @include('storefront.ui-block-styles')
+    @include('storefront.design-assets-head', ['designAssets' => app(\App\Services\Storefront\DesignAssets::class)->publicManifest($store)])
 </head>
 <body>
     @if($store->header_mode === 'custom' && $store->header_text)<p class="wrap" data-store-announcement>{{ $store->header_text }}</p>@endif

@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Storage;
  * @property array<string,mixed>|null $order_limits
  * @property array<string,mixed>|null $shopping_preferences
  * @property array<string,mixed>|null $thank_you_configuration
+ * @property array<string,mixed>|null $design_assets_configuration
  * @property array<string,mixed>|null $ui_blocks_configuration
  * @property array<string,mixed>|null $phone_otp_configuration
  * @property array<string,mixed>|null $phone_otp_credentials
@@ -42,7 +43,7 @@ class Store extends Model
         'order_limits',
         'shopping_preferences',
         'thank_you_configuration',
-        'ui_blocks_configuration',
+        'ui_blocks_configuration', 'design_assets_configuration',
         'phone_otp_configuration', 'phone_otp_credentials',
         'bot_protection_configuration', 'bot_protection_credentials',
     ];
@@ -56,6 +57,7 @@ class Store extends Model
         'shopping_preferences' => 'array',
         'thank_you_configuration' => 'array',
         'ui_blocks_configuration' => 'array',
+        'design_assets_configuration' => 'array',
         'digital_delivery_configuration' => 'array',
         'digital_delivery_credentials' => 'encrypted:array',
         'theme_settings' => 'array',

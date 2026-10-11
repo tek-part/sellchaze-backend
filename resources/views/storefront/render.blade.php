@@ -36,6 +36,7 @@
     @if(!empty($theme['responsive_css']))<style data-responsive-section-css>{!! $theme['responsive_css'] !!}</style>@endif
     @include('storefront.identity-head', ['identity' => $store->identity ?? []])
     @include('storefront.ui-block-styles')
+    @include('storefront.design-assets-head', ['designAssets' => $context['store']['design_assets'] ?? []])
 </head>
 <body id="storefront-root" data-rendered-by="blade" data-theme="{{ $theme['key'] }}" data-theme-version="{{ $theme['version'] }}">
     @if(($store->identity['header_mode'] ?? 'theme') === 'custom' && !empty($store->identity['header_text']))<p class="wrap" data-store-announcement>{{ $store->identity['header_text'] }}</p>@endif
