@@ -1,0 +1,47 @@
+Store UI blocks
+==============
+
+Design > UI blocks exposes eight positions: before/after the header, product
+gallery, checkout form and footer. Each position keeps Arabic and English HTML
+and an independent rich/HTML editor preference. One master switch hides every
+position while keeping its saved content. Empty positions render no wrapper.
+Content uses the shared bounded rich-text grammar: headings, marks, lists,
+alignment, colors, safe links and direct image/video URLs. Arbitrary scripts,
+iframe embeds and unsupported CSS are removed in both editor modes.
+
+GET/PUT /api/v1/my-store/ui-blocks and /api/v1/stores/{store}/ui-blocks require
+owner/page-management or scoped administrator access. Explicit store ownership
+guards prevent cross-tenant edits. The required version is checked under the
+store row lock; stale writes return409 without changing any block. The nullable
+stores.ui_blocks_configuration column is introduced by migration235000.
+
+GET /api/v1/storefront/ui-blocks returns only enabled, current localized HTML
+with Cache-Control:no-store. Disabled responses contain blank positions, never
+private draft text or editor metadata. Localization falls back to the store's
+other available language. No customer, order, receipt or payment data is used.
+Client composition fetches once per store/locale/route, shares that response
+across hooks and discards pending, failed or stale route/locale/tenant content.
+
+All five storefront layouts wrap their actual header/footer. The shared PDP
+component wraps the actual product gallery; quick-view dialogs do not duplicate
+these page blocks. Standard checkout and funnel checkout place blocks outside
+the actual form, preserving grid columns, validation and order submission.
+Page-builder product sections receive the same shared gallery hooks. The
+current funnel hero is not a product gallery; full funnel-gallery feature and
+rival placement behavior remain part of the broader outstanding scope.
+
+Blade fallback layouts render chrome/gallery positions and use server-cleaned
+current configuration. Store updates invalidate the existing page cache. When
+enabled, UI blocks bypass the external SSR renderer so an older renderer cannot
+silently omit them; the available SPA shell or Blade fallback is used. Checkout
+forms remain part of the SPA. Dedicated external SSR parity remains unverified.
+
+Feature tests cover eight-slot localization, draft privacy, stale edits,
+reactivation, editor preferences, validation, safe markup, tenant/employee/admin
+access, Blade placement and cache invalidation. Frontend tests reject previous
+store/locale/route responses and failed refreshes. Selected AR/EN mobile/light/
+dark states are inspected across five themes, rather than a complete parity grid.
+Competitor inspection of ui-blocks was authenticated and read-only; no rival
+settings were saved. Advanced uploads, iframe/CSS behavior and exact visuals
+remain unverified. The full competitor/theme/AI/design/source-parity objective
+is still active. This local stage does not publish or migrate production.

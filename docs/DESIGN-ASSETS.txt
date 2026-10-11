@@ -1,0 +1,59 @@
+Store design files
+==================
+
+Design > Design files uploads UTF-8 .css and .js files up to2MiB each, including
+multiple files in the merchant UI. Uploading alone does not execute code.
+Each file has a UUID URL, exact immutable bytes, SHA256 checksum and public
+link/embed snippet. Private local-disk storage is served only through the
+host-resolved store's typed public route, with nosniff and explicit CSS/JS MIME.
+These files are intended to be public design assets. They must not contain
+private credentials. CSS/JavaScript are merchant-authored code, not rich text;
+their valid syntax is retained rather than passed through an HTML sanitizer.
+
+Owner, store.themes.manage employees and stores-edit administrators can manage
+the scoped library. Page-only employees cannot execute custom store code.
+GET/POST /api/v1/my-store/design-assets lists/uploads; scoped /stores/{store}
+routes expose the same controller. Search, kind filter, pagination and archive
+are available. Selection details remain available beyond the current list page.
+
+PUT design-assets/configuration requires enabled, version and ordered distinct
+available asset IDs (up to40), under the store row lock. Stale versions return
+409 without overwriting. Disabled configuration retains selection/order but
+the public manifest hides the selection. Explicitly enable and save, then
+reload the storefront to apply current files. Files run across storefront
+themes, products, simple pages and funnel pages through the common head hook.
+
+DELETE design-assets/{asset} archives and removes it from selected assets,
+increments the configuration version, invalidates page cache and makes its URL
+404. POST design-assets/{asset}/restore restores the same URL without automatic
+activation. Uploading identical bytes in the same store/type deduplicates and
+restores an archived file; another store gets a separate asset. Archiving does
+not undo JavaScript effects in already-open documents: reload those documents.
+Missing stored bytes prevent restoration; storage failure aborts creation.
+
+Public GET /api/v1/storefront/design-assets is no-store and includes only enabled
+ordered UUID/type/relative URLs, with no editor/private metadata. File routes
+are /api/v1/storefront/design-assets/{uuid}.{css|js}; wrong host/type/archive and
+path traversal do not serve files. File responses use no-store so future page
+loads observe archives. JavaScript is referenced as an external script, never
+interpolated into an inline HTML script. The merchant dashboard entry does not
+import the executable storefront component. Local preview uses the existing
+development storefront origin; production uses the resolved store host.
+
+SPA applies CSS links and ordered classic JavaScript once per document, retaining
+existing Blade/SSR tags and keeping them across router navigation. New-document
+reload is the activation/deactivation boundary. This is not a dynamic unloading
+or sandboxing system for arbitrary merchant JavaScript. Browser/network script
+failures may require reload; theme-specific code compatibility is the author's
+responsibility. Blade fallbacks include current links/deferred external scripts;
+an enabled manifest bypasses an older external SSR renderer so files cannot be
+silently omitted. Dedicated external SSR parity remains unverified.
+
+Observed competitor upload-assets accepts multiple selection and advertises CSS
+and JavaScript; its linked developer documentation shows copying a CSS URL into
+header-code. No competitor files were uploaded or settings saved. Its server
+size/type limits, archive behavior and full header-code editor remain unverified.
+This implementation provides URL/snippet copying plus explicit file activation;
+arbitrary header/footer HTML and the broader theme/Liquid/event ecosystem remain
+part of the original outstanding competitor-parity scope. Production deployment,
+real MySQL/concurrency and provider acceptance are separate unfinished work.

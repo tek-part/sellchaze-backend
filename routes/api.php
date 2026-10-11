@@ -71,6 +71,7 @@ use App\Http\Controllers\Api\StoreCategoriesApiController;
 use App\Http\Controllers\Api\StoreCheckoutFieldsController;
 use App\Http\Controllers\Api\StoreContentPagesApiController;
 use App\Http\Controllers\Api\StoreCustomersApiController;
+use App\Http\Controllers\Api\StoreDesignAssetsController;
 use App\Http\Controllers\Api\StoreDigitalDeliveryController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
 use App\Http\Controllers\Api\Storefront\BotVerificationController;
@@ -113,6 +114,7 @@ use App\Http\Controllers\Api\StoreShoppingPreferencesController;
 use App\Http\Controllers\Api\StoreSimplePagesController;
 use App\Http\Controllers\Api\StoreThankYouController;
 use App\Http\Controllers\Api\StoreThemesApiController;
+use App\Http\Controllers\Api\StoreUiBlocksController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SuppliersApiController;
 use App\Http\Controllers\Api\SuppliersDirectoryController;
@@ -337,6 +339,9 @@ Route::prefix('v1')->group(function () {
         Route::get('pages/{slug}', [StorefrontLayoutController::class, 'page'])->where('slug', '[a-z0-9\-]+');
         Route::get('funnels/{slug}', [StorefrontLayoutController::class, 'funnel'])->where('slug', '[a-z0-9\-]+');
         Route::get('thank-you', [StorefrontThankYouController::class, 'show']);
+        Route::get('ui-blocks', [StoreUiBlocksController::class, 'publicConfiguration']);
+        Route::get('design-assets', [StoreDesignAssetsController::class, 'manifest']);
+        Route::get('design-assets/{file}', [StoreDesignAssetsController::class, 'content'])->where('file', '[a-f0-9-]{36}\.(css|js)');
 
         // ---- Phase 6: public product reviews (approved only + average summary) ----
         Route::get('products/{slug}/reviews', [ProductReviewController::class, 'index'])->where('slug', '[a-z0-9\-]+');
@@ -816,6 +821,13 @@ Route::prefix('v1')->group(function () {
             Route::get('carriers/bosta/districts', [StoreCarrierController::class, 'districts'])->middleware('throttle:60,1');
             Route::get('checkout-fields', [StoreCheckoutFieldsController::class, 'index']);
             Route::put('checkout-fields', [StoreCheckoutFieldsController::class, 'update']);
+            Route::get('design-assets', [StoreDesignAssetsController::class, 'index']);
+            Route::post('design-assets', [StoreDesignAssetsController::class, 'upload'])->middleware('throttle:30,1');
+            Route::put('design-assets/configuration', [StoreDesignAssetsController::class, 'settings']);
+            Route::delete('design-assets/{asset}', [StoreDesignAssetsController::class, 'archive'])->whereNumber('asset');
+            Route::post('design-assets/{asset}/restore', [StoreDesignAssetsController::class, 'restore'])->whereNumber('asset');
+            Route::get('ui-blocks', [StoreUiBlocksController::class, 'index']);
+            Route::put('ui-blocks', [StoreUiBlocksController::class, 'update']);
             Route::get('thank-you', [StoreThankYouController::class, 'index']);
             Route::put('thank-you', [StoreThankYouController::class, 'update']);
             Route::get('digital-delivery', [StoreDigitalDeliveryController::class, 'index']);
