@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\FeedEventController;
 use App\Http\Controllers\Api\FinancingRequestController;
 use App\Http\Controllers\Api\FollowController;
 use App\Http\Controllers\Api\GatewaysApiController;
+use App\Http\Controllers\Api\GoogleMerchantController;
 use App\Http\Controllers\Api\GoogleSettingsApiController;
 use App\Http\Controllers\Api\ImpersonationApiController;
 use App\Http\Controllers\Api\InventoryApiController;
@@ -83,6 +84,7 @@ use App\Http\Controllers\Api\Storefront\CustomerAddressController;
 use App\Http\Controllers\Api\Storefront\CustomerAuthController;
 use App\Http\Controllers\Api\Storefront\PersonalizationUploadController;
 use App\Http\Controllers\Api\Storefront\PhoneVerificationController;
+use App\Http\Controllers\Api\Storefront\ProductFeedController;
 use App\Http\Controllers\Api\Storefront\ProductReviewController;
 use App\Http\Controllers\Api\Storefront\StorefrontBrandController;
 use App\Http\Controllers\Api\Storefront\StorefrontCategoryController;
@@ -340,6 +342,7 @@ Route::prefix('v1')->group(function () {
         Route::post('checkout-leads', [CheckoutLeadController::class, 'store'])->middleware('throttle:30,1');
         Route::post('events', [StorefrontEventsController::class, 'store'])->middleware('throttle:90,1');
         Route::get('tracking', [TrackingEventsController::class, 'configuration']);
+        Route::get('product-feed/{channel}', [ProductFeedController::class, 'show'])->where('channel', 'google|meta|snapchat|tiktok')->middleware('throttle:10,1');
         Route::post('tracking/events', [TrackingEventsController::class, 'store'])->middleware('throttle:90,1');
         Route::post('contact', [StorefrontEngagementController::class, 'contact']);
 
@@ -871,6 +874,10 @@ Route::prefix('v1')->group(function () {
                 Route::put('conversions/{destination}', [StoreTrackingController::class, 'saveConversion'])->whereUuid('destination')->middleware('throttle:20,1');
                 Route::delete('conversions/{destination}', [StoreTrackingController::class, 'removeConversion'])->whereUuid('destination')->middleware('throttle:20,1');
             });
+            Route::get('google-merchant', [GoogleMerchantController::class, 'show'])->middleware('permission:store.settings.manage');
+            Route::put('google-merchant', [GoogleMerchantController::class, 'update'])->middleware(['permission:store.settings.manage', 'throttle:20,1']);
+            Route::get('product-feed', [GoogleMerchantController::class, 'feedInformation'])->middleware('permission:store.settings.manage');
+            Route::get('product-feed/download', [GoogleMerchantController::class, 'download'])->middleware(['permission:store.settings.manage', 'throttle:10,1']);
             Route::get('bot-protection', [StoreBotProtectionController::class, 'index']);
             Route::get('shopping-preferences', [StoreShoppingPreferencesController::class, 'index']);
             Route::put('shopping-preferences', [StoreShoppingPreferencesController::class, 'update']);

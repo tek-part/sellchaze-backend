@@ -6,6 +6,7 @@ use App\Models\Store;
 use App\Models\StoreMenu;
 use App\Models\StorePage;
 use App\Models\StorePageSection;
+use App\Services\Commerce\GoogleMerchantSettings;
 use App\Services\PageBuilder\StoreMenuService;
 use App\Services\Themes\SectionRegistry;
 use App\Services\Themes\ThemeResolver;
@@ -122,11 +123,13 @@ class StorefrontContextBuilder
         $footer = $menus->get('footer');
         $locale = $this->currentLocale($store);
 
-        return app(SimplePages::class)->navigation($store, [
+        $navigation = app(SimplePages::class)->navigation($store, [
             'branding' => ['name' => $store->name, 'logo_url' => $store->logoUrl()],
             'header' => $header ? $this->menus->tree($header, $locale) : [],
             'footer' => $footer ? $this->menus->tree($footer, $locale) : [],
         ], $locale);
+
+        return app(GoogleMerchantSettings::class)->navigation($store, $navigation);
     }
 
     private function themeBlock(array $theme): array
@@ -264,6 +267,7 @@ class StorefrontContextBuilder
         return [
             'id' => $store->id,
             'identity' => $store->identity(),
+            'merchant_information' => app(GoogleMerchantSettings::class)->publicInformation($store),
             'ui_blocks' => app(UiBlocks::class)->publicConfiguration($store, $this->currentLocale($store)),
             'design_assets' => app(DesignAssets::class)->publicManifest($store),
             'name' => $store->name,
