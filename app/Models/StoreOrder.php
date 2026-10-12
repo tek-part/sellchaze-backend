@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $tax_total
  * @property string $grand_total
  * @property array{source:string,campaign:string}|null $marketing_attribution
+ * @property array{code:string,product_id:int}|null $referral_attribution
  */
 class StoreOrder extends Model
 {
@@ -31,14 +32,15 @@ class StoreOrder extends Model
         'customer_phone_normalized',
         'payment_method', 'payment_status', 'payment_reference',
         'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'notes',
-        'placed_at', 'cancelled_at', 'analytics_session_hash', 'marketing_attribution',
+        'placed_at', 'cancelled_at', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution',
     ];
 
-    protected $hidden = ['customer_phone_normalized', 'analytics_session_hash', 'marketing_attribution'];
+    protected $hidden = ['customer_phone_normalized', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution'];
 
     protected $casts = [
         'shipping_address' => 'array',
         'marketing_attribution' => 'array',
+        'referral_attribution' => 'array',
         'subtotal' => 'decimal:2',
         'shipping_total' => 'decimal:2',
         'discount_total' => 'decimal:2',

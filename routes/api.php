@@ -115,6 +115,7 @@ use App\Http\Controllers\Api\StorePhoneBlockController;
 use App\Http\Controllers\Api\StorePhoneVerificationController;
 use App\Http\Controllers\Api\StorePublishingApiController;
 use App\Http\Controllers\Api\StoreQuantityOffersController;
+use App\Http\Controllers\Api\StoreReferralController;
 use App\Http\Controllers\Api\StoreReusableSectionsApiController;
 use App\Http\Controllers\Api\StoresApiController;
 use App\Http\Controllers\Api\StoreShipmentController;
@@ -158,6 +159,7 @@ use App\Http\Controllers\Api\Wavex\WavexSettingsApiController;
 use App\Http\Controllers\Api\Wavex\WavexTemplatesApiController;
 use App\Http\Controllers\Api\Wavex\WavexWebhookController;
 use App\Http\Controllers\Api\WigpleasureSyncApiController;
+use App\Http\Controllers\Storefront\ReferralLinkController;
 use App\Http\Middleware\IdempotentCheckout;
 use App\Http\Middleware\ResolveOwnStore;
 use App\Services\PageBuilder\StorePageService;
@@ -328,6 +330,7 @@ Route::prefix('v1')->group(function () {
         Route::get('products', [StorefrontProductController::class, 'index']);
         Route::post('cart/catalog', [StorefrontProductController::class, 'cartCatalog']);
         Route::get('products/{slug}', [StorefrontProductController::class, 'show'])->where('slug', '[a-z0-9\-]+');
+        Route::get('referral-products/{product}', [ReferralLinkController::class, 'resolve'])->whereNumber('product');
         Route::get('categories', [StorefrontCategoryController::class, 'index']);
         Route::get('categories/{slug}', [StorefrontCategoryController::class, 'show'])->where('slug', '[a-z0-9\-]+');
 
@@ -875,6 +878,7 @@ Route::prefix('v1')->group(function () {
                 Route::delete('conversions/{destination}', [StoreTrackingController::class, 'removeConversion'])->whereUuid('destination')->middleware('throttle:20,1');
             });
             Route::get('google-merchant', [GoogleMerchantController::class, 'show'])->middleware('permission:store.settings.manage');
+            Route::get('referral-products', [StoreReferralController::class, 'products'])->middleware('permission:store.settings.manage');
             Route::put('google-merchant', [GoogleMerchantController::class, 'update'])->middleware(['permission:store.settings.manage', 'throttle:20,1']);
             Route::get('product-feed', [GoogleMerchantController::class, 'feedInformation'])->middleware('permission:store.settings.manage');
             Route::get('product-feed/download', [GoogleMerchantController::class, 'download'])->middleware(['permission:store.settings.manage', 'throttle:10,1']);

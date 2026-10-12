@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\InvitationsController;
+use App\Http\Controllers\Storefront\ReferralLinkController;
 use App\Http\Controllers\Storefront\StorefrontPageController;
 use App\Http\Controllers\Storefront\ThemeBundleController;
 use App\Models\Store;
@@ -23,6 +24,7 @@ Route::middleware(['resolve.store', 'storefront.locale'])->group(function () {
     Route::get('/', [StorefrontPageController::class, 'root']);
     Route::get('/products', [StorefrontPageController::class, 'products']);
     Route::get('/products/{slug}', [StorefrontPageController::class, 'product'])->where('slug', '[a-z0-9\-]+');
+    Route::get('/products/{product}/ref/{code}', [ReferralLinkController::class, 'show'])->whereNumber('product')->middleware('throttle:storefront-read');
     Route::get('/categories/{slug}', [StorefrontPageController::class, 'category'])->where('slug', '[a-z0-9\-]+');
     Route::get('/pages/{slug}', [StorefrontPageController::class, 'page'])->where('slug', '[a-z0-9\-]+');
     Route::get('/funnels/{slug}', [StorefrontPageController::class, 'funnel'])->where('slug', '[a-z0-9\-]+');

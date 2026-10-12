@@ -1,0 +1,29 @@
+Merchants can search active products and build the observed numeric product/ref/code
+URL. The private read endpoint is permission-scoped, paginated20 and projects only
+stable product ID/name and the existing verified canonical storefront URL. Literal
+name/SKU and English/Arabic JSON translation search excludes draft/foreign products.
+The public lookup and same-origin redirect resolve only active products in the host
+store; redirects preserve variant/campaign/language query parameters and set ref.
+No URL, referrer, contact or payment-provider credential is captured as attribution.
+
+Checkout optionally accepts code/product_id with a valid analytics session UUID.
+Codes support Unicode letters/numbers/underscore/hyphen/dot up to100 characters.
+The source product must belong to the resolved store and be active. A bounded
+first-placement snapshot is immutable under replay/payment recovery and coexists
+with the campaign snapshot. Raw order serialization/public checkout/account/receipt
+omit it; existing permission-scoped merchant details explicitly expose it. No
+discount, commission entitlement, payout, provider call or fabricated visit is
+introduced. Commission configuration/settlement is not observed in the available
+reference builder and remains a separate unverified part of full parity.
+
+One additive080000 nullable JSON column preserves existing orders. Populated history
+blocks rollback. Local dedicated5tests59assertions/full862tests7148assertions,
+Pint/full PHPStan passed. Exact PR/main/MySQL checks are required before publication.
+Named browser review resolved product15, retained ref+campaign across untagged
+/checkout, placed order26 once at275+85=360EGP/cost125, displayed attribution
+privately and excluded it from public receipt including reload. All174 original
+tables were compared before/after guarded owned cleanup, with original6products,
+22orders/4pages/8notices/zero metrics/ads/leads preserved; actual auth usage and
+all original audits retained.080000 empty reversal/reapply passed; local ledger
+row224/count207. Production remains unchanged pending SSH recovery, fresh backup,
+nine exact additive staged migrations before activation and final verification.

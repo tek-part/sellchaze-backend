@@ -31,6 +31,7 @@ use App\Services\Commerce\OrderReceipt;
 use App\Services\Commerce\PaymentRetryToken;
 use App\Services\Commerce\PricingCalculator;
 use App\Services\Commerce\QuantityOffers;
+use App\Services\Commerce\ReferralAttribution;
 use App\Services\Commerce\StorefrontEvents;
 use App\Services\Commerce\StorePaymentService;
 use App\Services\Commerce\StoreShipping;
@@ -175,6 +176,9 @@ class CheckoutController extends Controller
             $attempt?->update(['store_order_id' => $order->id]);
             if ($order->wasRecentlyCreated && isset($validated['marketing_attribution'])) {
                 $order->update(['marketing_attribution' => app(CampaignAttribution::class)->snapshot($validated['marketing_attribution'])]);
+            }
+            if ($order->wasRecentlyCreated && isset($validated['referral_attribution'])) {
+                $order->update(['referral_attribution' => app(ReferralAttribution::class)->snapshot($validated['referral_attribution'])]);
             }
             if ($order->wasRecentlyCreated && isset($validated['analytics_session'])) {
                 $order->update(['analytics_session_hash' => app(StorefrontEvents::class)->orderSession($store, $validated['analytics_session'])]);
