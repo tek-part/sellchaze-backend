@@ -1,0 +1,59 @@
+Store tracking
+==============
+
+Merchants with store.settings.manage can maintain multiple Facebook, TikTok and
+Snapchat browser pixel IDs, Google tag IDs, and separate server destinations at
+the tracking/pixels, tracking/google-tag and tracking/conversions API endpoints.
+Every mutation requires the current shared version; concurrent edits return 409.
+An empty browser ID list clears that provider. Google accepts G-/GT- identifiers,
+not GTM containers. Each server destination has a UUID, provider, pixel ID, note,
+enabled state and an encrypted access token. An empty token on edit retains the
+current token. Responses expose token_configured, never the token or generation.
+Store serialization hides both tracking configuration and credentials.
+
+Run 2026_10_12_050000_add_store_tracking_configuration_and_deliveries BEFORE
+activating this source. Existing stores receive NULL configuration/credentials;
+tracking stays disabled until configured. The migration adds encrypted event
+payloads and separate leased delivery rows. Down refuses populated settings or
+history. It is not an undo mechanism for a populated production deployment.
+
+The public /tracking/events endpoint accepts four catalog actions: page_view,
+view_item, add_to_cart, begin_checkout. It validates tenant-owned selections and
+derives prices from the catalog; callers cannot supply amounts or purchase
+events. Checkout creates purchase only for an accepted new business order.
+Purchase means order placement, including COD; it does not mean payment collected
+or goods delivered. It is optional and cannot roll back an accepted order.
+The canonical store-scoped HMAC event ID is shared by browser and server.
+Recorded events are immutable across retries and subsequent catalog edits.
+GA4 purchase value excludes shipping/tax; other providers receive gross total.
+Matching contact hashes, IP and user agent are encrypted and excluded from the
+browser envelope. Preview/private receipt capabilities, DNT and GPC are honored
+by the browser; the API requires explicit advertising_allowed and checks headers.
+Only public IDs, catalog details and money are sent through browser SDK commands.
+
+The existing minute scheduler invokes store:tracking-deliver --limit=50. A working
+production Laravel scheduler is required; order requests make no provider calls.
+Delivery uses fixed official HTTPS endpoints, redirects disabled, 8s request/3s
+connect timeouts, two-minute claims and at most five attempts. Retry uses the same
+event ID/time, with bounded backoff. Deleted, disabled, rotated or suspended
+destinations and events older than seven days are cancelled. Note-only edits
+preserve a generation; changed credentials/provider/pixel invalidate pending rows.
+The daily --prune command removes terminal history older than thirty days; it
+does not remove pending delivery. The merchant screen exposes last delivery and
+safe error codes. It does not expose raw provider errors or matching data.
+
+Official provider contracts reviewed:
+https://github.com/facebook/facebook-php-business-sdk (ApiConfig v26.0)
+https://business-api.tiktok.com/gateway/docs/index?doc_id=1771100865818625
+https://business-api.tiktok.com/gateway/docs/index?doc_id=1799004097478658
+https://developers.snap.com/marketing-api/Conversions-API/UsingTheAPI
+https://developers.snap.com/marketing-api/Conversions-API/Deduplication
+https://developers.google.com/tag-platform/gtagjs/reference/events
+
+Validation: nine feature tests /137 assertions; full backend843/6907; Pint,
+PHPStan and isolated empty SQLite rollback/reapplication passed. Local UI order
+24 used one synthetic product at250 plus85 shipping, one purchase ID shared by
+all five browser destinations. Eight events produced24 server deliveries through
+Laravel Http::fake only; repeat dispatch produced zero calls. Production tokens,
+provider acceptance, consent policy customization and scheduler acceptance must
+be verified on deployment. No local provider/network dispatch was performed.

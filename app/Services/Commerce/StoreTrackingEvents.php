@@ -1,0 +1,145 @@
+<?php
+
+namespace App\Services\Commerce;
+
+use App\Models\Product;
+use App\Models\Store;
+use App\Models\StoreOrder;
+use App\Models\StoreTrackingDelivery;
+use App\Models\StoreTrackingEvent;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class StoreTrackingEvents
+{
+    public function __construct(private readonly StoreTrackingSettings $settings) {}
+
+    public function allowed(Request $request): bool
+    {
+        return $request->boolean('advertising_allowed') && $request->header('DNT') !== '1' && $request->header('Sec-GPC') !== '1';
+    }
+
+    public function key(Store $store, string $key): string
+    {
+        return hash_hmac('sha256', 'tracking:'.$store->id.':'.$key, (string) config('app.key'));
+    }
+
+    /** Catalog values come from the current store; clients supply selections, never prices or contacts. */
+    public function capture(Store $store, Request $request, array $data): ?array
+    {
+        if (! $this->allowed($request) || ! $this->settings->enabled($store)) {
+            return null;
+        }
+        $key = $this->key($store, strtolower($data['event_id']));
+        $existing = StoreTrackingEvent::where('store_id', $store->id)->where('event_key', $key)->first();
+        if ($existing) {
+            return $this->browser($store, $existing);
+        }
+        $items = [];
+        $value = '0.00';
+        foreach ($data['items'] ?? [] as $line) {
+            if ($data['event'] === 'view_item' && ! isset($line['variant_id'])) {
+                $product = Product::withoutGlobalScopes()->where('store_id', $store->id)->where('is_active', true)->findOrFail($line['product_id']);
+                $price = (string) $product->price;
+            } else {
+                $selection = app(PurchasableSelection::class)->resolve($store, (int) $line['product_id'], $line['variant_id'] ?? null, false,
+                    $line['quantity_offer_id'] ?? null, (int) $line['quantity'], $line['quantity_offer_version'] ?? null);
+                $product = $selection['product'];
+                $price = $selection['price'];
+            }
+            $items[] = ['item_id' => (string) $product->id, 'item_name' => $product->name, 'price' => $price, 'quantity' => (int) $line['quantity']];
+            $value = bcadd($value, bcmul($price, (string) $line['quantity'], 2), 2);
+        }
+        $payload = ['event' => $data['event'], 'event_id' => $key, 'currency' => $store->currency ?: 'USD', 'value' => $value, 'items' => $items,
+            'page_location' => $request->getSchemeAndHttpHost().($data['page_path'] ?? '/'), 'user_data' => $this->userData($request)];
+
+        return $this->browser($store, $this->persist($store, $payload));
+    }
+
+    /** Optional advertising cannot roll back a customer's accepted business order. No provider I/O here. */
+    public function purchase(Store $store, StoreOrder $order, Request $request): void
+    {
+        if (! $this->allowed($request) || ! $this->settings->enabled($store)) {
+            return;
+        }
+        try {
+            $items = $order->items()->get()->map(fn ($line) => ['item_id' => (string) $line->store_product_id, 'item_name' => $line->name,
+                'price' => $line->unit_price, 'quantity' => (int) $line->quantity])->all();
+            $user = $this->userData($request);
+            if ($order->customer_email) {
+                $user['em'] = hash('sha256', strtolower(trim($order->customer_email)));
+            }
+            if ($order->customer_phone_normalized) {
+                $user['ph'] = hash('sha256', preg_replace('/[^0-9]/', '', $order->customer_phone_normalized));
+            }
+            $payload = ['event' => 'purchase', 'event_id' => $this->key($store, 'order:'.$order->id), 'currency' => $order->currency,
+                // GA4 merchandise value excludes shipping and tax; other providers receive the accepted gross total.
+                'value' => bcsub((string) $order->subtotal, (string) $order->discount_total, 2), 'gross_value' => (string) $order->grand_total,
+                'shipping' => (string) $order->shipping_total, 'tax' => (string) $order->tax_total, 'transaction_id' => $order->order_number,
+                'items' => $items, 'page_location' => $request->getSchemeAndHttpHost().'/checkout', 'user_data' => $user];
+            $this->persist($store, $payload, $order->id);
+        } catch (\Throwable) { /* No raw token/contact/provider logging; checkout succeeds independently. */
+        }
+    }
+
+    public function purchaseForBrowser(StoreOrder $order, Request $request): ?array
+    {
+        if (! $this->allowed($request) || $order->status === 'cancelled') {
+            return null;
+        }
+        $store = Store::find($order->store_id);
+        if (! $store || ! $this->settings->enabled($store)) {
+            return null;
+        }
+        $event = StoreTrackingEvent::where('store_id', $store->id)->where('store_order_id', $order->id)->where('event_name', 'purchase')
+            ->where('occurred_at', '>=', now()->subDays(2))->first();
+
+        return $event ? $this->browser($store, $event) : null;
+    }
+
+    private function userData(Request $request): array
+    {
+        $data = ['client_user_agent' => substr((string) $request->userAgent(), 0, 512)];
+        if (filter_var($request->ip(), FILTER_VALIDATE_IP)) {
+            $data['client_ip_address'] = $request->ip();
+        }
+
+        return $data;
+    }
+
+    private function persist(Store $store, array $payload, ?int $orderId = null): StoreTrackingEvent
+    {
+        return DB::transaction(function () use ($store, $payload, $orderId) {
+            $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
+            $existing = StoreTrackingEvent::where('store_id', $store->id)->where('event_key', $payload['event_id'])->first();
+            if ($existing) {
+                return $existing;
+            }
+            $rows = array_filter($this->settings->configuration($store)['conversions'], fn ($row) => $row['enabled']);
+            // Matching data is needed only by server pixels and never leaves in browser payloads.
+            if (! $rows) {
+                $payload['user_data'] = [];
+            }
+            $event = StoreTrackingEvent::create(['store_id' => $store->id, 'event_key' => $payload['event_id'], 'event_name' => $payload['event'],
+                'store_order_id' => $orderId, 'payload' => $payload, 'occurred_at' => now()]);
+            foreach ($rows as $row) {
+                StoreTrackingDelivery::create(['store_id' => $store->id, 'store_tracking_event_id' => $event->id,
+                    'destination_id' => $row['id'], 'generation' => $row['generation'], 'provider' => $row['provider'], 'pixel_id' => $row['pixel_id'], 'available_at' => now()]);
+            }
+
+            return $event;
+        });
+    }
+
+    private function browser(Store $store, StoreTrackingEvent $event): ?array
+    {
+        $store = Store::findOrFail($store->id);
+        if (! $this->settings->enabled($store)) {
+            return null;
+        }
+        $payload = $event->payload;
+        unset($payload['user_data']);
+
+        return ['configuration' => $this->settings->publicConfiguration($store), 'event' => $payload];
+    }
+}

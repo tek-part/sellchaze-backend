@@ -33,6 +33,7 @@ use App\Services\Commerce\QuantityOffers;
 use App\Services\Commerce\StorefrontEvents;
 use App\Services\Commerce\StorePaymentService;
 use App\Services\Commerce\StoreShipping;
+use App\Services\Commerce\StoreTrackingEvents;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -175,6 +176,9 @@ class CheckoutController extends Controller
                 $order->update(['analytics_session_hash' => app(StorefrontEvents::class)->orderSession($store, $validated['analytics_session'])]);
             }
             app(CheckoutLeads::class)->converted($store, $validated['lead_token'] ?? null, $order);
+            if ($order->wasRecentlyCreated) {
+                app(StoreTrackingEvents::class)->purchase($store, $order, $request);
+            }
 
             return $order;
         });
