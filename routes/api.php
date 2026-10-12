@@ -79,12 +79,14 @@ use App\Http\Controllers\Api\StoreDashboardMetricsController;
 use App\Http\Controllers\Api\StoreDesignAssetsController;
 use App\Http\Controllers\Api\StoreDigitalDeliveryController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
+use App\Http\Controllers\Api\StoreDownsellController;
 use App\Http\Controllers\Api\Storefront\BotVerificationController;
 use App\Http\Controllers\Api\Storefront\CartController;
 use App\Http\Controllers\Api\Storefront\CheckoutController;
 use App\Http\Controllers\Api\Storefront\CheckoutLeadController;
 use App\Http\Controllers\Api\Storefront\CustomerAddressController;
 use App\Http\Controllers\Api\Storefront\CustomerAuthController;
+use App\Http\Controllers\Api\Storefront\DownsellController;
 use App\Http\Controllers\Api\Storefront\PersonalizationUploadController;
 use App\Http\Controllers\Api\Storefront\PhoneVerificationController;
 use App\Http\Controllers\Api\Storefront\ProductFeedController;
@@ -345,6 +347,7 @@ Route::prefix('v1')->group(function () {
         Route::get('collections/{slug}', [StorefrontCollectionController::class, 'show'])->where('slug', '[a-z0-9\-]+');
         Route::get('brands', [StorefrontBrandController::class, 'index']);
         Route::get('coupons', [StorefrontCouponController::class, 'index']);
+        Route::get('downsell', [DownsellController::class, 'index']);
 
         // ---- Engagement capture (newsletter opt-in / contact form) — guest-friendly ----
         Route::post('newsletter', [StorefrontEngagementController::class, 'subscribe']);
@@ -903,6 +906,10 @@ Route::prefix('v1')->group(function () {
             });
             Route::get('google-merchant', [GoogleMerchantController::class, 'show'])->middleware('permission:store.settings.manage');
             Route::get('apps', [StoreAppsController::class, 'index'])->middleware(['permission:store.settings.manage', 'throttle:tenant-read']);
+            Route::prefix('downsell')->middleware(['permission:store.settings.manage', 'permission:store.coupons.manage'])->group(function () {
+                Route::get('/', [StoreDownsellController::class, 'index'])->middleware('throttle:tenant-read');
+                Route::put('/', [StoreDownsellController::class, 'update'])->middleware('throttle:20,1');
+            });
             Route::prefix('sheets')->middleware(['permission:store.settings.manage', 'permission:store.orders.manage'])->group(function () {
                 Route::get('/', [StoreSheetsController::class, 'index'])->middleware('throttle:tenant-read');
                 Route::post('/', [StoreSheetsController::class, 'save'])->middleware('throttle:20,1');

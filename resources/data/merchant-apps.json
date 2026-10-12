@@ -521,8 +521,8 @@
         "sales",
         "marketing-tools"
       ],
-      "route": null,
-      "available": false,
+      "route": "downsell",
+      "available": true,
       "reference_id": "a30e4f68-5bf4-409b-9717-36f0a2510881",
       "icon": "/app-icons/downsell.png",
       "features": {

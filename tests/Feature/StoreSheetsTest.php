@@ -132,7 +132,7 @@ class StoreSheetsTest extends TestCase
         $this->getJson('/api/v1/my-store/apps', $this->auth)->assertOk()->assertJsonCount(32, 'data')->assertJsonCount(9, 'categories');
         $before = $this->getJson('/api/v1/my-store/apps', $this->auth)->json('data');
         $this->assertFalse(collect($before)->firstWhere('key', 'sheets')['configured']);
-        $this->assertCount(11, array_filter($before, fn ($app) => $app['included']));
+        $this->assertCount(12, array_filter($before, fn ($app) => $app['included']));
         $this->createConnection();
         $response = $this->getJson('/api/v1/my-store/apps', $this->auth)->assertOk();
         $this->assertTrue(collect($response->json('data'))->firstWhere('key', 'sheets')['configured']);

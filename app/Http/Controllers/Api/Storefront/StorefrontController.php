@@ -12,6 +12,7 @@ use App\Http\Resources\Storefront\StorefrontProductResource;
 use App\Models\Store;
 use App\Models\StoreContentPage;
 use App\Models\StoreMenu;
+use App\Services\Commerce\DownsellOffers;
 use App\Services\Commerce\GoogleMerchantSettings;
 use App\Services\Commerce\ShoppingPreferences;
 use App\Services\Commerce\StoreTrackingSettings;
@@ -177,6 +178,7 @@ class StorefrontController extends Controller
             'currency' => $baseCurrency,
             'auto_select_variants' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
             'tracking_enabled' => app(StoreTrackingSettings::class)->enabled($store),
+            'downsell_enabled' => app(DownsellOffers::class)->enabled($store),
             'merchant_information' => app(GoogleMerchantSettings::class)->publicInformation($store),
             'supported_currencies' => array_keys($multipliers),
             'currency_multipliers' => $multipliers,

@@ -6,6 +6,7 @@ use App\Models\Store;
 use App\Models\StoreMenu;
 use App\Models\StorePage;
 use App\Models\StorePageSection;
+use App\Services\Commerce\DownsellOffers;
 use App\Services\Commerce\GoogleMerchantSettings;
 use App\Services\PageBuilder\StoreMenuService;
 use App\Services\Themes\SectionRegistry;
@@ -267,6 +268,7 @@ class StorefrontContextBuilder
         return [
             'id' => $store->id,
             'identity' => $store->identity(),
+            'downsell_enabled' => app(DownsellOffers::class)->enabled($store),
             'merchant_information' => app(GoogleMerchantSettings::class)->publicInformation($store),
             'ui_blocks' => app(UiBlocks::class)->publicConfiguration($store, $this->currentLocale($store)),
             'design_assets' => app(DesignAssets::class)->publicManifest($store),
