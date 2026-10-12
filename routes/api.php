@@ -53,6 +53,7 @@ use App\Http\Controllers\Api\OrganizationFollowController;
 use App\Http\Controllers\Api\PartnersApiController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\PlatformHealthController;
+use App\Http\Controllers\Api\PlatformWalletController;
 use App\Http\Controllers\Api\PostCommentController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\ProductsApiController;
@@ -313,6 +314,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['resolve.store', 'storefront.locale', 'throttle:storefront-read'])->get('/storefront/resolve', StorefrontContextController::class);
     Route::post('/payment-webhooks/{store}/{gateway}', [PaymentWebhookController::class, 'handle'])
         ->whereNumber('store')->whereIn('gateway', ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'fawaterak', 'paytabs', 'fawry']);
+    Route::post('/platform-wallet/fawaterak_json', [PlatformWalletController::class, 'fawaterak'])->middleware('throttle:120,1');
     Route::post('/payment-webhooks/{store}/fawaterak_json', [PaymentWebhookController::class, 'fawaterak'])
         ->whereNumber('store');
     Route::get('/payment-returns/hyperpay/{transaction}', [PaymentWebhookController::class, 'hyperpayReturn']);
@@ -417,6 +419,13 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['jwt.auth', 'pending.restrict'])->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
+        Route::get('/me/platform-wallet', [PlatformWalletController::class, 'wallet'])->middleware('throttle:tenant-read');
+        Route::post('/me/platform-wallet/fund', [PlatformWalletController::class, 'fund'])->middleware('throttle:20,1');
+        Route::post('/me/platform-wallet/payments/{payment}/refresh', [PlatformWalletController::class, 'refreshPayment'])->whereUuid('payment')->middleware('throttle:20,1');
+        Route::get('/me/platform-wallet/entries', [PlatformWalletController::class, 'entries'])->middleware('throttle:tenant-read');
+        Route::get('/me/platform-referral', [PlatformWalletController::class, 'referral'])->middleware('throttle:tenant-read');
+        Route::post('/me/platform-referral', [PlatformWalletController::class, 'createReferral'])->middleware('throttle:20,1');
+        Route::post('/admin/platform-wallet/reconcile', [PlatformWalletController::class, 'reconcile'])->middleware('throttle:20,1');
         Route::patch('/auth/me', [AuthController::class, 'updateMe']);
         Route::put('/auth/password', [AuthController::class, 'changePassword']);
         Route::post('/auth/me/avatar', [AuthController::class, 'uploadAvatar']);

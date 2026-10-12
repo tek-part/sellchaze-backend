@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Commerce\ProductPersonalization;
+use App\Services\PlatformWallet;
 use App\Support\AttributeBadgeCache;
 use App\Support\ProductImageUrl;
 use Carbon\Carbon;
@@ -23,6 +24,9 @@ class OrderApiResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        if ($request->user()) {
+            app(PlatformWallet::class)->assertBridgeVisible($this->resource, $request->user());
+        }
         $base = [
             'id' => $this->id,
             'code' => $this->code,

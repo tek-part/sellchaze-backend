@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Notifications\LoginAlertNotification;
 use App\Services\ActivityLogger;
 use App\Services\JwtTokenService;
+use App\Services\PlatformWallet;
 use App\Services\UserProfileSync;
 use App\Services\Users\RegistrationApprover;
 use Illuminate\Auth\Events\PasswordReset;
@@ -456,6 +457,7 @@ class AuthController extends Controller
             'registration_role' => ['required', Rule::in(['Staff', 'Supplier', 'Merchant'])],
             'company_name' => ['nullable', 'string', 'max:160'],
             'store_name' => ['nullable', 'string', 'max:160'],
+            'platform_referral_code' => ['nullable', 'uuid'],
         ]);
 
         $approver = app(RegistrationApprover::class);
@@ -505,6 +507,9 @@ class AuthController extends Controller
                     'store_id' => $created['store']->id,
                     'next' => "/stores/{$created['store']->id}/onboarding?organization={$created['organization']->id}",
                 ];
+            }
+            if ($selfService) {
+                app(PlatformWallet::class)->attachSignup($user, $data['platform_referral_code'] ?? null);
             }
             DB::commit();
         } catch (Throwable $exception) {
@@ -580,6 +585,7 @@ class AuthController extends Controller
             'access_token' => ['required_without:id_token', 'string'],
             'id_token' => ['required_without:access_token', 'string'],
             'registration_role' => ['nullable', Rule::in(['Staff', 'Supplier', 'Merchant'])],
+            'platform_referral_code' => ['nullable', 'uuid'],
         ]);
 
         try {
@@ -628,6 +634,7 @@ class AuthController extends Controller
             }
 
             try {
+                DB::beginTransaction();
                 $user = User::query()->create([
                     'name' => $name,
                     'email' => $emailNormalized,
@@ -648,11 +655,15 @@ class AuthController extends Controller
                     'online' => 1,
                 ]);
 
+                app(PlatformWallet::class)->attachSignup($user, $data['platform_referral_code'] ?? null);
+                DB::commit();
+
                 return response()->json([
                     'pending_approval' => true,
                     'message' => __('Your registration was received. An administrator must approve your account before you can sign in.'),
                 ], 201);
             } catch (QueryException $e) {
+                DB::rollBack();
                 if (! $this->isDuplicateKeyException($e)) {
                     throw $e;
                 }
@@ -677,6 +688,9 @@ class AuthController extends Controller
                     throw $e;
                 }
                 $this->restoreTrashedUserForGoogleSignup($user, $data);
+            } catch (Throwable $exception) {
+                DB::rollBack();
+                throw $exception;
             }
         }
 

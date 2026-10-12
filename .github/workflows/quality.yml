@@ -57,9 +57,9 @@ jobs:
       - name: Verify migrations against MySQL
         run: |
           php artisan migrate:fresh --force
-          # Verify both new catalog migrations can reverse on an empty database
+          # Verify wallet ledger, billing boundary and payments on an empty database
           # and apply again without breaking MySQL foreign-key indexes.
-          php artisan migrate:rollback --step=2 --force
+          php artisan migrate:rollback --step=3 --force
           php artisan migrate --force
         env:
           DB_CONNECTION: mysql
