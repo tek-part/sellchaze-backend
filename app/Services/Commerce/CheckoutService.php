@@ -97,6 +97,7 @@ class CheckoutService
                     'quantity_offer' => $selection['offer'],
                     'name' => $selection['name'],
                     'unit_price' => $selection['price'],
+                    'unit_cost' => $variant?->cost ?? $product->cost,
                     'quantity' => $item->quantity,
                     'line_total' => $lineTotal,
                 ];

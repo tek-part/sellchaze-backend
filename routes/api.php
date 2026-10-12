@@ -71,6 +71,7 @@ use App\Http\Controllers\Api\StoreCategoriesApiController;
 use App\Http\Controllers\Api\StoreCheckoutFieldsController;
 use App\Http\Controllers\Api\StoreContentPagesApiController;
 use App\Http\Controllers\Api\StoreCustomersApiController;
+use App\Http\Controllers\Api\StoreDashboardMetricsController;
 use App\Http\Controllers\Api\StoreDesignAssetsController;
 use App\Http\Controllers\Api\StoreDigitalDeliveryController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
@@ -89,6 +90,7 @@ use App\Http\Controllers\Api\Storefront\StorefrontCollectionController;
 use App\Http\Controllers\Api\Storefront\StorefrontController;
 use App\Http\Controllers\Api\Storefront\StorefrontCouponController;
 use App\Http\Controllers\Api\Storefront\StorefrontEngagementController;
+use App\Http\Controllers\Api\Storefront\StorefrontEventsController;
 use App\Http\Controllers\Api\Storefront\StorefrontLayoutController;
 use App\Http\Controllers\Api\Storefront\StorefrontProductController;
 use App\Http\Controllers\Api\Storefront\StorefrontThankYouController;
@@ -334,6 +336,7 @@ Route::prefix('v1')->group(function () {
         // ---- Engagement capture (newsletter opt-in / contact form) — guest-friendly ----
         Route::post('newsletter', [StorefrontEngagementController::class, 'subscribe']);
         Route::post('checkout-leads', [CheckoutLeadController::class, 'store'])->middleware('throttle:30,1');
+        Route::post('events', [StorefrontEventsController::class, 'store'])->middleware('throttle:90,1');
         Route::post('contact', [StorefrontEngagementController::class, 'contact']);
 
         // ---- Editable system pages (about/contact/faq/shipping/returns/blog) ----
@@ -772,6 +775,7 @@ Route::prefix('v1')->group(function () {
 
             // ---- Analytics (Phase 6F, read-only) ----
             Route::prefix('analytics')->group(function () {
+                Route::get('dashboard', StoreDashboardMetricsController::class)->middleware('permission:store.analytics.view');
                 Route::get('overview', [StoreAnalyticsController::class, 'overview']);
                 Route::get('products', [StoreAnalyticsController::class, 'products']);
                 Route::get('categories', [StoreAnalyticsController::class, 'categories']);
