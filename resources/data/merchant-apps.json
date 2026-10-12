@@ -1,0 +1,647 @@
+{
+  "categories": [
+    {
+      "key": "tracking",
+      "ar": "التتبع والاحصائيات",
+      "en": "Tracking and statistics"
+    },
+    {
+      "key": "sales",
+      "ar": "تحسين النتائج والمبيعات",
+      "en": "Sales and conversions"
+    },
+    {
+      "key": "affiliate",
+      "ar": "منصات افلييت ودروب شيبنج",
+      "en": "Affiliate and dropshipping"
+    },
+    {
+      "key": "orders",
+      "ar": "إدارة الطلبات",
+      "en": "Order management"
+    },
+    {
+      "key": "protection",
+      "ar": "الحماية",
+      "en": "Protection"
+    },
+    {
+      "key": "marketing-services",
+      "ar": "خدمات تسويق",
+      "en": "Marketing services"
+    },
+    {
+      "key": "seo",
+      "ar": "SEO",
+      "en": "SEO"
+    },
+    {
+      "key": "marketing-tools",
+      "ar": "أدوات التسويق",
+      "en": "Marketing tools"
+    },
+    {
+      "key": "store-management",
+      "ar": "ادارة المتجر",
+      "en": "Store management"
+    }
+  ],
+  "apps": [
+    {
+      "key": "conversion",
+      "title": {
+        "ar": "Conversion API",
+        "en": "Conversion API"
+      },
+      "description": {
+        "ar": "اربط أحداث الشراء بمنصات الإعلانات عبر السيرفر باستخدام بيانات البيكسل والتوكن التي تختارها.",
+        "en": "Connect server purchase events to advertising platforms using your pixel and token settings."
+      },
+      "categories": [
+        "tracking",
+        "marketing-tools"
+      ],
+      "route": "pixel-conversion",
+      "available": true,
+      "reference_id": "fcead231-e247-4ba5-93d6-aa17ac7e8c4c",
+      "icon": "/app-icons/conversion.png"
+    },
+    {
+      "key": "utm",
+      "title": {
+        "ar": "بناء روابط UTM",
+        "en": "UTM link builder"
+      },
+      "description": {
+        "ar": "أنشئ روابط حملات إعلانية بأكواد UTM وتابع مصدر الزيارات والطلبات.",
+        "en": "Create UTM campaign links and track visits and orders by source."
+      },
+      "categories": [
+        "tracking",
+        "marketing-tools"
+      ],
+      "route": "utm-builder",
+      "available": true,
+      "reference_id": "923389d1-81a6-44f9-ad27-819394a627a0",
+      "icon": "/app-icons/utm.png"
+    },
+    {
+      "key": "google-tag",
+      "title": {
+        "ar": "Google Tag Manager",
+        "en": "Google Tag Manager"
+      },
+      "description": {
+        "ar": "اربط معرف جوجل تاج لقياس أداء المتجر وتتبع التحويلات.",
+        "en": "Connect Google tag identifiers to measure store performance and conversions."
+      },
+      "categories": [
+        "tracking"
+      ],
+      "route": "ga",
+      "available": true,
+      "reference_id": "3d70a4a5-b589-4a06-975d-07dade4b97ae",
+      "icon": "/app-icons/google-tag.png"
+    },
+    {
+      "key": "pixels",
+      "title": {
+        "ar": "اعدادات البيكسل",
+        "en": "Pixel settings"
+      },
+      "description": {
+        "ar": "أضف معرفات Facebook وTikTok وSnapchat لإعداد تتبع المتجر.",
+        "en": "Configure Facebook, TikTok and Snapchat pixel identifiers."
+      },
+      "categories": [
+        "tracking",
+        "marketing-tools"
+      ],
+      "route": "pixels-settings",
+      "available": true,
+      "reference_id": "cfcb5250-c3c2-4c9a-946e-f03be616346a",
+      "icon": "/app-icons/pixels.png"
+    },
+    {
+      "key": "bundles",
+      "title": {
+        "ar": "حزم المنتجات أو العروض المجمعة",
+        "en": "Product bundles"
+      },
+      "description": {
+        "ar": "اجمع منتجات في عرض واحد وحدد المنتجات والكميات والسعر.",
+        "en": "Combine products, quantities and prices in one offer."
+      },
+      "categories": [
+        "sales",
+        "marketing-tools"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "e59dd5ad-37d9-4541-9f24-710426e69f1f",
+      "icon": "/app-icons/bundles.png"
+    },
+    {
+      "key": "social-proof",
+      "title": {
+        "ar": "إشعار مبيعات للعملاء Social Proof",
+        "en": "Sales notifications"
+      },
+      "description": {
+        "ar": "اعرض إشعارات المبيعات على واجهة المتجر.",
+        "en": "Show sales notifications in your storefront."
+      },
+      "categories": [
+        "sales",
+        "marketing-tools"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "30f5e52d-0e3d-4054-bfee-6bed2534f24e",
+      "icon": "/app-icons/social-proof.png"
+    },
+    {
+      "key": "catalog",
+      "title": {
+        "ar": "Catalog أداة وضع العلامات على الصور",
+        "en": "Image tagging catalog"
+      },
+      "description": {
+        "ar": "ضع علامات المنتجات على الصور لتسهيل استكشافها.",
+        "en": "Tag products on images for shoppers to explore."
+      },
+      "categories": [
+        "sales",
+        "marketing-tools"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "04d7caea-9d5f-491c-8ebb-a5332686ca66",
+      "icon": "/app-icons/catalog.png"
+    },
+    {
+      "key": "cross-selling",
+      "title": {
+        "ar": "Cross Selling",
+        "en": "Cross Selling"
+      },
+      "description": {
+        "ar": "اقترح منتجات إضافية مناسبة للطلب أثناء الشراء.",
+        "en": "Suggest additional products during checkout."
+      },
+      "categories": [
+        "sales",
+        "marketing-tools"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "8e73fd5d-896c-44ef-86bb-785fb248810b",
+      "icon": "/app-icons/cross-selling.png"
+    },
+    {
+      "key": "branding",
+      "title": {
+        "ar": "ازالة نص Powered By Sellchaze",
+        "en": "Remove Powered by Sellchaze"
+      },
+      "description": {
+        "ar": "تحكم في ظهور نص Powered By Sellchaze في المتجر.",
+        "en": "Control the Powered By Sellchaze storefront label."
+      },
+      "categories": [
+        "sales",
+        "marketing-tools"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "8b8630be-94c1-4f6a-95a3-850f2b939afc"
+    },
+    {
+      "key": "splendapp",
+      "title": {
+        "ar": "ابني تطبيق موبيل لمتجر مع SplendApp",
+        "en": "SplendApp mobile app"
+      },
+      "description": {
+        "ar": "أنشئ تطبيقًا للموبايل متصلًا بمتجرك مع SplendApp.",
+        "en": "Create a mobile application connected to your store with SplendApp."
+      },
+      "categories": [
+        "sales",
+        "store-management"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "3e97169e-7207-4381-8577-85b0f38fe272",
+      "icon": "/app-icons/splendapp.png"
+    },
+    {
+      "key": "downsell",
+      "title": {
+        "ar": "Downsell",
+        "en": "Downsell"
+      },
+      "description": {
+        "ar": "اعرض بديلًا للعرض الإضافي عند رفضه.",
+        "en": "Present an alternative when an additional offer is declined."
+      },
+      "categories": [
+        "sales",
+        "marketing-tools"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "a30e4f68-5bf4-409b-9717-36f0a2510881",
+      "icon": "/app-icons/downsell.png"
+    },
+    {
+      "key": "minimum-order",
+      "title": {
+        "ar": "الحد الأدني للشحن المجاني وللطلب",
+        "en": "Minimum order and free shipping"
+      },
+      "description": {
+        "ar": "حدد الحد الأدنى للطلب والحد المؤهل للشحن المجاني.",
+        "en": "Set minimum order and free-shipping thresholds."
+      },
+      "categories": [
+        "sales"
+      ],
+      "route": "settings/order-limits",
+      "available": true,
+      "reference_id": "1ef74e2b-9107-4415-b0e7-e02e9ef1ad45"
+    },
+    {
+      "key": "whatsapp-official",
+      "title": {
+        "ar": "واتساب الرسمي من ميتا",
+        "en": "Official WhatsApp"
+      },
+      "description": {
+        "ar": "اربط واتساب الرسمي لتأكيد الطلبات والتواصل مع العملاء.",
+        "en": "Connect official WhatsApp for order confirmations and customer communication."
+      },
+      "categories": [
+        "sales",
+        "orders",
+        "store-management"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "618ec307-5276-45a4-ac26-1ff431d343e3",
+      "icon": "/app-icons/whatsapp-official.png"
+    },
+    {
+      "key": "coupons",
+      "title": {
+        "ar": "كوبونات التخفيضات",
+        "en": "Discount coupons"
+      },
+      "description": {
+        "ar": "أنشئ كوبونات وخصومات بشروط الاستخدام التي تحددها.",
+        "en": "Create discount coupons with your chosen usage rules."
+      },
+      "categories": [
+        "sales",
+        "marketing-tools"
+      ],
+      "route": "coupons",
+      "available": true,
+      "reference_id": "991b4c15-afc1-4859-ad25-eff1a0eac8fb",
+      "icon": "/app-icons/coupons.png"
+    },
+    {
+      "key": "cloaking",
+      "title": {
+        "ar": "خاصية التمويه",
+        "en": "Cloaking"
+      },
+      "description": {
+        "ar": "تحكم في المحتوى الذي يظهر للزوار والبوتات.",
+        "en": "Control content presented to visitors and bots."
+      },
+      "categories": [
+        "sales",
+        "protection"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "d45473a9-bd4f-40bc-9b6e-3f5a6263ea1b",
+      "icon": "/app-icons/cloaking.png"
+    },
+    {
+      "key": "ai",
+      "title": {
+        "ar": "Sellchaze AI",
+        "en": "Sellchaze AI"
+      },
+      "description": {
+        "ar": "ساعد في بناء صفحات منتجات ومسارات بيع باستخدام الذكاء الاصطناعي.",
+        "en": "Use AI to help create product pages and sales funnels."
+      },
+      "categories": [
+        "sales",
+        "marketing-tools",
+        "store-management"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "67a6e129-8dc1-4164-9720-73fcef7c592c"
+    },
+    {
+      "key": "angezny",
+      "title": {
+        "ar": "أنجزني",
+        "en": "Angezny"
+      },
+      "description": {
+        "ar": "اربط المنتجات والطلبات بمنصة أنجزني.",
+        "en": "Connect products and orders with Angezny."
+      },
+      "categories": [
+        "affiliate"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "d0640dee-d1cb-43c0-92c5-ace59c534d30",
+      "icon": "/app-icons/angezny.png"
+    },
+    {
+      "key": "rimonda",
+      "title": {
+        "ar": "Rimonda Dropshipping",
+        "en": "Rimonda Dropshipping"
+      },
+      "description": {
+        "ar": "اربط متجر الدروب شيبنج بمنصة Rimonda.",
+        "en": "Connect your dropshipping store with Rimonda."
+      },
+      "categories": [
+        "affiliate"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "33f76e1f-51b3-4dce-8a27-5afe71602ede",
+      "icon": "/app-icons/rimonda.png"
+    },
+    {
+      "key": "taager",
+      "title": {
+        "ar": "منصة تاجر",
+        "en": "Taager"
+      },
+      "description": {
+        "ar": "اربط منتجات ومتطلبات العمل مع منصة تاجر.",
+        "en": "Connect your store workflow with Taager."
+      },
+      "categories": [
+        "affiliate"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "4ceef731-c0e6-4957-bc87-8d73e0530efa"
+    },
+    {
+      "key": "shopify",
+      "title": {
+        "ar": "تكامل مع Shopify",
+        "en": "Shopify integration"
+      },
+      "description": {
+        "ar": "زامن المنتجات والطلبات والمخزون مع Shopify.",
+        "en": "Synchronize products, orders and inventory with Shopify."
+      },
+      "categories": [
+        "orders",
+        "store-management"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "18f3abcd-e6e9-4fbe-a667-ecaa87898794",
+      "icon": "/app-icons/shopify.svg"
+    },
+    {
+      "key": "sheets",
+      "title": {
+        "ar": "تكامل مع جوجل شيت",
+        "en": "Google Sheets integration"
+      },
+      "description": {
+        "ar": "أرسل الطلبات الجديدة إلى Google Sheets وحدد المنتجات التي يشملها الربط.",
+        "en": "Send new orders to Google Sheets for all or selected products."
+      },
+      "categories": [
+        "orders",
+        "store-management"
+      ],
+      "route": "sheets",
+      "available": true,
+      "reference_id": "445f4883-a88e-4f23-995b-5aa6b15ee750",
+      "icon": "/app-icons/sheets.svg"
+    },
+    {
+      "key": "wesell",
+      "title": {
+        "ar": "وي سيل",
+        "en": "WeSell"
+      },
+      "description": {
+        "ar": "اربط الطلبات بمنصة وي سيل.",
+        "en": "Connect order management with WeSell."
+      },
+      "categories": [
+        "orders"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "69b13b14-09e8-415a-8651-07bbdf04ce0d",
+      "icon": "/app-icons/wesell.png"
+    },
+    {
+      "key": "woocommerce",
+      "title": {
+        "ar": "ووكومرس و وردبريس",
+        "en": "WooCommerce and WordPress"
+      },
+      "description": {
+        "ar": "زامن المنتجات والطلبات والمخزون مع WooCommerce.",
+        "en": "Synchronize products, orders and inventory with WooCommerce."
+      },
+      "categories": [
+        "orders",
+        "store-management"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "64437e14-ef25-4ff4-9777-9c89eed54762",
+      "icon": "/app-icons/woocommerce.svg"
+    },
+    {
+      "key": "country-restriction",
+      "title": {
+        "ar": "عدم استقبال طلبات من خارج دولة متجرك",
+        "en": "Restrict orders to the store country"
+      },
+      "description": {
+        "ar": "حدد الدولة التي يسمح باستقبال الطلبات منها.",
+        "en": "Restrict orders to your chosen store country."
+      },
+      "categories": [
+        "protection",
+        "store-management"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "2748af01-d32a-4e23-a23b-09b3570458e2",
+      "icon": "/app-icons/country-restriction.svg"
+    },
+    {
+      "key": "otp",
+      "title": {
+        "ar": "إضافة التحقق عبر واتساب OTP",
+        "en": "WhatsApp OTP"
+      },
+      "description": {
+        "ar": "أضف التحقق من رقم واتساب قبل إتمام الطلب.",
+        "en": "Require WhatsApp phone verification at checkout."
+      },
+      "categories": [
+        "protection",
+        "store-management"
+      ],
+      "route": "settings/phone-verification",
+      "available": true,
+      "reference_id": "926d0429-de05-4c30-85bc-9e1a69687b39",
+      "icon": "/app-icons/otp.svg"
+    },
+    {
+      "key": "fake-orders",
+      "title": {
+        "ar": "حاجب الطلبات الوهمية",
+        "en": "Fake order protection"
+      },
+      "description": {
+        "ar": "احم المتجر من الطلبات الوهمية وفق قواعد الحماية التي تختارها.",
+        "en": "Protect your store against fraudulent orders."
+      },
+      "categories": [
+        "protection",
+        "store-management"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "792d90ce-fb5f-4354-b3d6-cbda963874c6",
+      "icon": "/app-icons/fake-orders.svg"
+    },
+    {
+      "key": "top-media-buyer",
+      "title": {
+        "ar": "ربط متجرك مع Top Media Buyer",
+        "en": "Top Media Buyer"
+      },
+      "description": {
+        "ar": "افتح أدوات خدمات التسويق ومعرض الأعمال لدى Top Media Buyer.",
+        "en": "Access marketing services and portfolio tools at Top Media Buyer."
+      },
+      "categories": [
+        "marketing-services"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "0570c0b2-5f7a-48ba-b516-0d56ff1ff36f",
+      "icon": "/app-icons/top-media-buyer.png"
+    },
+    {
+      "key": "sitemap",
+      "title": {
+        "ar": "Sitemap مُنشئ خريطة الموقع",
+        "en": "Sitemap builder"
+      },
+      "description": {
+        "ar": "اعرض خريطة روابط المتجر لمحركات البحث.",
+        "en": "Provide a storefront sitemap for search engines."
+      },
+      "categories": [
+        "seo"
+      ],
+      "route": "settings/publish",
+      "available": true,
+      "reference_id": "1bea5c8c-d887-4c28-b1df-75b5a309d054",
+      "icon": "/app-icons/sitemap.svg"
+    },
+    {
+      "key": "google-merchant",
+      "title": {
+        "ar": "إضافة Google Merchant",
+        "en": "Google Merchant"
+      },
+      "description": {
+        "ar": "جهز بيانات المنتجات وسياسات المتجر لربط Google Merchant.",
+        "en": "Prepare product feeds and store policies for Google Merchant."
+      },
+      "categories": [
+        "seo",
+        "marketing-tools"
+      ],
+      "route": "google-merchant",
+      "available": true,
+      "reference_id": "8892a25d-a375-4f74-b65d-972812daeeeb",
+      "icon": "/app-icons/google-merchant.png"
+    },
+    {
+      "key": "whatsapp-unofficial",
+      "title": {
+        "ar": "واتساب v2 (غير رسمي)",
+        "en": "WhatsApp v2"
+      },
+      "description": {
+        "ar": "اربط واتساب لإدارة رسائل وتأكيدات الطلبات.",
+        "en": "Connect WhatsApp messages and order confirmations."
+      },
+      "categories": [
+        "marketing-tools",
+        "store-management"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "e390f9c8-73f3-4161-b284-a939cf574534",
+      "icon": "/app-icons/whatsapp-unofficial.svg"
+    },
+    {
+      "key": "localization",
+      "title": {
+        "ar": "تعدد اللغات",
+        "en": "Multiple languages"
+      },
+      "description": {
+        "ar": "حدد اللغات والعملات التي يدعمها متجرك.",
+        "en": "Choose the languages and currencies supported by your store."
+      },
+      "categories": [
+        "store-management"
+      ],
+      "route": "settings/localization",
+      "available": true,
+      "reference_id": "d0b3de15-8f2d-44e1-9435-9a9a768f3d9b",
+      "icon": "/app-icons/localization.svg"
+    },
+    {
+      "key": "team",
+      "title": {
+        "ar": "إضافة المشرفين بصلاحيات محددة",
+        "en": "Permission-based moderators"
+      },
+      "description": {
+        "ar": "أضف فريقًا لإدارة المتجر بصلاحيات محددة.",
+        "en": "Give your store team specific management permissions."
+      },
+      "categories": [
+        "store-management"
+      ],
+      "route": null,
+      "available": false,
+      "reference_id": "609a1c52-e399-4079-8a99-fe7e18d29d24",
+      "icon": "/app-icons/team.svg"
+    }
+  ]
+}

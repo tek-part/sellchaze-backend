@@ -16,6 +16,7 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('checkout-otp:prune')->daily()->withoutOverlapping();
         $schedule->command('checkout-bot:prune')->daily()->withoutOverlapping();
+        $schedule->command('store-sheets:dispatch --limit=50')->everyMinute()->withoutOverlapping();
         $schedule->command('outbox:publish --limit=200')
             ->everyMinute()
             ->withoutOverlapping()
