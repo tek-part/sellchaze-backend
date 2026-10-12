@@ -57,15 +57,18 @@ class CheckoutService
             $counts = [];
             $productCounts = [];
             $requiresShipping = false;
+            $offerFreeShipping = false;
             $hasDigital = false;
             $requiresWhatsapp = false;
 
             foreach ($items as $item) {
-                $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id, true);
+                $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id, true,
+                    $item->quantity_offer['id'] ?? null, (int) $item->quantity, $item->quantity_offer['version'] ?? null);
                 $product = $selection['product'];
                 $productCounts[$product->id] = ($productCounts[$product->id] ?? 0) + $item->quantity;
                 app(OrderLimits::class)->assertQuantity($store, $productCounts[$product->id]);
                 $requiresShipping = $requiresShipping || $product->digital_type === 'physical';
+                $offerFreeShipping = $offerFreeShipping || ($product->digital_type === 'physical' && ($selection['offer']['free_shipping'] ?? false));
                 $hasDigital = $hasDigital || $product->digital_type !== 'physical';
                 $deliverySettings = app(DigitalDeliverySettings::class)->effective($store, (int) $product->id);
                 $requiresWhatsapp = $requiresWhatsapp || ($product->digital_type !== 'physical' && $deliverySettings['enabled'] && $deliverySettings['whatsapp_enabled']);
@@ -91,6 +94,7 @@ class CheckoutService
                     'variant_options' => $variant?->options,
                     'sku' => $variant?->sku ?? $product->sku,
                     'personalization' => $custom['snapshot'] ?: null,
+                    'quantity_offer' => $selection['offer'],
                     'name' => $selection['name'],
                     'unit_price' => $selection['price'],
                     'quantity' => $item->quantity,
@@ -127,9 +131,9 @@ class CheckoutService
                 Validator::make(['shipping_address' => $shippingAddress], $addressRules)->validate();
             }
             app(OrderLimits::class)->assertMinimum($store, $subtotal, $discount);
-            $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping);
+            $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping);
             if ($requiresShipping) {
-                $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection);
+                $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection, $offerFreeShipping);
                 if ($shippingAddress !== null || $delivery['address'] !== []) {
                     $shippingAddress = array_merge($shippingAddress ?? [], $delivery['address'], ['shipping_details' => $delivery['details']]);
                 }

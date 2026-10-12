@@ -5,6 +5,7 @@ namespace App\Http\Requests\Storefront;
 use App\Services\Commerce\CheckoutBasket;
 use App\Services\Commerce\CheckoutFields;
 use App\Services\Commerce\ProductPersonalization;
+use App\Services\Commerce\QuantityOffers;
 use App\Services\Commerce\StoreShipping;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Foundation\Http\FormRequest;
@@ -24,7 +25,7 @@ class CheckoutRequest extends FormRequest
 
         $basket = app(CheckoutBasket::class)->forRequest($store, $this);
 
-        return app(CheckoutFields::class)->rules($store, is_string($this->input('payment_method')) ? $this->input('payment_method') : null, $basket['requires_shipping'], $basket['has_digital'], $basket['requires_whatsapp']) + StoreShipping::SELECTION_RULES + ProductPersonalization::inputRules('items.*.personalization') + [
+        return app(CheckoutFields::class)->rules($store, is_string($this->input('payment_method')) ? $this->input('payment_method') : null, $basket['requires_shipping'], $basket['has_digital'], $basket['requires_whatsapp']) + StoreShipping::SELECTION_RULES + ProductPersonalization::inputRules('items.*.personalization') + QuantityOffers::inputRules('items.*.') + [
             'payment_method' => ['nullable', 'string', 'max:80'],
             'lead_token' => ['nullable', 'uuid'],
             'phone_verification' => ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],

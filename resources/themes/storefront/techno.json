@@ -1745,7 +1745,7 @@
           "id": "ends_at",
           "type": "text",
           "label": "Ends at (date & time)",
-          "default": "2026-09-17T14:00",
+          "default": "2026-10-19T07:00",
           "hint": "ISO format, e.g. 2026-12-31T23:59 (store time zone)."
         },
         {
@@ -2553,7 +2553,7 @@
           "id": "ends_at",
           "type": "text",
           "label": "Ends at (date & time)",
-          "default": "2026-09-13T14:00",
+          "default": "2026-10-15T07:00",
           "hint": "ISO format, e.g. 2026-12-31T23:59 (store time zone)."
         },
         {
@@ -6346,6 +6346,24 @@
           "type": "toggle",
           "label": "Show SKU",
           "default": false
+        },
+        {
+          "id": "show_quantity_offers",
+          "type": "toggle",
+          "label": "Show quantity offers",
+          "default": true
+        },
+        {
+          "id": "show_buy_now",
+          "type": "toggle",
+          "label": "Show buy now button",
+          "default": false
+        },
+        {
+          "id": "show_wishlist",
+          "type": "toggle",
+          "label": "Show wishlist",
+          "default": true
         }
       ],
       "style": true,
@@ -6664,7 +6682,7 @@
               "ar": "أسعار تنتهي مع انتهاء العداد — الكمية محدودة",
               "en": "Prices end when the timer does — limited stock"
             },
-            "ends_at": "2026-09-13T14:00",
+            "ends_at": "2026-10-15T07:00",
             "collection": "sale",
             "layout": "carousel",
             "background": "none",

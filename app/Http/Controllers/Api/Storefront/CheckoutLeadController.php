@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Storefront;
 use App\Http\Controllers\Concerns\ResolvesStorefront;
 use App\Http\Controllers\Controller;
 use App\Services\Commerce\CheckoutLeads;
+use App\Services\Commerce\QuantityOffers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,7 +15,7 @@ class CheckoutLeadController extends Controller
 
     public function store(Request $request, CheckoutLeads $leads): JsonResponse
     {
-        $data = $request->validate([
+        $data = $request->validate(QuantityOffers::inputRules('items.*.') + [
             'lead_token' => ['required', 'uuid'], 'sequence' => ['required', 'integer', 'min:1', 'max:2147483647'],
             'clear' => ['sometimes', 'boolean'], 'source' => ['required', 'in:storefront,funnel'],
             'source_path' => ['nullable', 'string', 'max:512', 'regex:~^/(?:checkout|(?:funnels|pages|products|p)/[a-z0-9-]+)?$~i'],

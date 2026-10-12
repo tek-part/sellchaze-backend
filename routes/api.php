@@ -109,6 +109,7 @@ use App\Http\Controllers\Api\StorePaymentsApiController;
 use App\Http\Controllers\Api\StorePhoneBlockController;
 use App\Http\Controllers\Api\StorePhoneVerificationController;
 use App\Http\Controllers\Api\StorePublishingApiController;
+use App\Http\Controllers\Api\StoreQuantityOffersController;
 use App\Http\Controllers\Api\StoreReusableSectionsApiController;
 use App\Http\Controllers\Api\StoresApiController;
 use App\Http\Controllers\Api\StoreShipmentController;
@@ -730,6 +731,8 @@ Route::prefix('v1')->group(function () {
 
             // Storefront catalog remains tenant-scoped and separate from the B2B catalog.
             Route::prefix('catalog/products')->group(function () {
+                Route::middleware('permission:products-list')->get('{product}/quantity-offers', [StoreQuantityOffersController::class, 'show'])->whereNumber('product');
+                Route::middleware('permission:products-edit')->put('{product}/quantity-offers', [StoreQuantityOffersController::class, 'update'])->whereNumber('product');
                 Route::middleware('permission:products-list')->get('/', [StorefrontProductsApiController::class, 'index']);
                 Route::middleware('permission:products-create')->post('/', [StorefrontProductsApiController::class, 'store']);
                 Route::middleware('permission:products-edit')->put('bulk', [StorefrontProductsApiController::class, 'bulkUpdate']);

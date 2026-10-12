@@ -29,6 +29,7 @@ use App\Services\Commerce\CustomerAuthService;
 use App\Services\Commerce\OrderReceipt;
 use App\Services\Commerce\PaymentRetryToken;
 use App\Services\Commerce\PricingCalculator;
+use App\Services\Commerce\QuantityOffers;
 use App\Services\Commerce\StorePaymentService;
 use App\Services\Commerce\StoreShipping;
 use Illuminate\Http\JsonResponse;
@@ -131,7 +132,8 @@ class CheckoutController extends Controller
                     if (! empty($items)) {
                         $this->carts->clear($cart);
                         foreach ($items as $line) {
-                            $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1), isset($line['variant_id']) ? (int) $line['variant_id'] : null, $line['personalization'] ?? []);
+                            $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1), isset($line['variant_id']) ? (int) $line['variant_id'] : null, $line['personalization'] ?? [],
+                                $line['quantity_offer_id'] ?? null, isset($line['quantity_offer_version']) ? (int) $line['quantity_offer_version'] : null);
                         }
                     }
                     if ($request->has('coupon_code')) {
@@ -310,6 +312,7 @@ class CheckoutController extends Controller
         }
 
         $subtotal = $cart->subtotal();
+        $offerFreeShipping = app(QuantityOffers::class)->freeShippingForCart($cart);
         $this->coupons->validate($coupon, $customer, $subtotal);
 
         $cart->update(['coupon_id' => $coupon->id]);
@@ -318,7 +321,7 @@ class CheckoutController extends Controller
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
             'coupon' => ['code' => $coupon->code, 'type' => $coupon->type, 'value' => $coupon->value],
-            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping),
+            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -334,11 +337,12 @@ class CheckoutController extends Controller
         $customer = $this->auth->resolve($request);
         $cart = $this->carts->resolve($request, $store, $customer);
 
+        $offerFreeShipping = app(QuantityOffers::class)->freeShippingForCart($cart);
         $cart->update(['coupon_id' => null]);
 
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
-            'totals' => $this->pricing->forStore($store, $cart->subtotal(), '0.00', $shippingSelection, $requiresShipping),
+            'totals' => $this->pricing->forStore($store, $cart->subtotal(), '0.00', $shippingSelection, $requiresShipping, $offerFreeShipping),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 }

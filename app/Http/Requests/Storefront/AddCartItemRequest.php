@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Storefront;
 
 use App\Services\Commerce\ProductPersonalization;
+use App\Services\Commerce\QuantityOffers;
 use Illuminate\Foundation\Http\FormRequest;
 
 class AddCartItemRequest extends FormRequest
@@ -15,7 +16,7 @@ class AddCartItemRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
-        return ProductPersonalization::inputRules() + [
+        return ProductPersonalization::inputRules() + QuantityOffers::inputRules() + [
             'store_product_id' => ['required', 'integer', 'min:1'],
             'variant_id' => ['nullable', 'integer', 'min:1'],
             'quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
