@@ -84,9 +84,9 @@ class PruneLegacyThemesTest extends TestCase
         return $this->service->activate($store, $install);
     }
 
-    public function test_allowed_keys_are_exactly_the_five_first_party_themes(): void
+    public function test_allowed_keys_cover_every_shipped_theme_including_sphinx(): void
     {
-        $this->assertSame(['naseem', 'bazaar', 'sahra', 'fresh', 'techno'], PruneLegacyThemes::ALLOWED_KEYS);
+        $this->assertSame(['naseem', 'bazaar', 'sahra', 'fresh', 'techno', 'sphinx-v3'], PruneLegacyThemes::ALLOWED_KEYS);
         $shipped = array_map(fn (string $p) => basename($p, '.json'), ThemeRegistry::manifestPaths());
         sort($shipped);
         $allowed = PruneLegacyThemes::ALLOWED_KEYS;

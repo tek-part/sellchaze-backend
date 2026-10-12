@@ -166,6 +166,8 @@ class StorefrontController extends Controller
             'id' => $store->id,
             'name' => $store->name,
             'description' => $store->description,
+            'email' => $store->email,
+            'phone' => $store->phone,
             'identity' => $store->identity(),
             'slug' => $store->slug,
             'currency' => $baseCurrency,

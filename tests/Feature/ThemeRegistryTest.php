@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Store;
 use App\Models\Theme;
 use App\Models\ThemeVersion;
+use App\Models\User;
+use App\Services\Themes\StoreThemeService;
 use App\Services\Themes\ThemeRegistry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -80,9 +83,27 @@ class ThemeRegistryTest extends TestCase
             ThemeRegistry::manifestPaths(),
         );
 
-        $this->assertSame(['bazaar', 'fresh', 'naseem', 'sahra', 'techno'], $keys);
+        $this->assertSame(['bazaar', 'fresh', 'naseem', 'sahra', 'sphinx-v3', 'techno'], $keys);
         foreach (ThemeRegistry::manifestPaths() as $path) {
             $this->assertStringStartsWith(realpath(resource_path('themes/storefront')).DIRECTORY_SEPARATOR, realpath($path));
         }
+    }
+
+    public function test_sphinx_installs_activates_and_publishes_translatable_footer_settings(): void
+    {
+        $theme = $this->registry->registerFromFile(resource_path('themes/storefront/sphinx-v3.json'));
+        $owner = User::factory()->create();
+        $store = Store::create(['owner_user_id' => $owner->id, 'owner_type' => 'merchant', 'name' => 'Sphinx', 'slug' => 'sphinx-registry', 'currency' => 'EGP', 'status' => 'active']);
+        $service = app(StoreThemeService::class);
+        $install = $service->install($store, $theme, $this->registry->resolveThemeVersion($theme), $owner->id);
+        $this->assertSame('Raleway', $install->settings['heading_font']);
+        $service->activate($store, $install, $owner->id);
+        $this->assertSame($theme->id, $store->fresh()->theme_id);
+        $service->updateSettings($install, ['newsletter_heading' => ['ar' => 'أخبارنا', 'en' => 'Our news'], 'show_newsletter' => false], $owner->id);
+        $this->assertTrue($install->fresh()->settings['show_newsletter']);
+        $published = $service->publish($store, $install, $owner->id);
+        $this->assertFalse($published->settings['show_newsletter']);
+        $this->assertSame(['ar' => 'أخبارنا', 'en' => 'Our news'], $store->fresh()->theme_settings['newsletter_heading']);
+        $this->assertArrayHasKey('sphinx-categories', $this->registry->resolveThemeVersion($theme)->sections_schema);
     }
 }
