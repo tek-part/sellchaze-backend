@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreCustomer;
 use App\Models\StoreOrder;
+use App\Notifications\StoreOrderActivity;
 use App\Services\Outbox\OutboxRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -185,6 +186,7 @@ class CheckoutService
             ]);
 
             app(DigitalDelivery::class)->recordReceipt($order);
+            $store->owner?->notify(new StoreOrderActivity($order, 'created'));
 
             // Mirror into the B2B pipeline after commit, including bank transfers.
             // A bridge failure can never roll the customer order back.

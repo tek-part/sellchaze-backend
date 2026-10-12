@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Models\StoreOrder;
 use App\Models\StoreOrderStatusChange;
+use App\Notifications\StoreOrderActivity;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -99,6 +100,7 @@ class StoreOrderService
             ]);
 
             DB::afterCommit(fn () => StoreAnalyticsService::forget($order->store_id));
+            $order->store?->owner?->notify(new StoreOrderActivity($order, 'status_changed'));
 
             // One-way mirror onto the bridged B2B order (cancelled only). Never let it break the transition.
             try {

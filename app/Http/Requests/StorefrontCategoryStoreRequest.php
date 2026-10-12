@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\StoreCategoryFields;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StorefrontCategoryStoreRequest extends FormRequest
 {
+    use StoreCategoryFields;
+
     public function authorize(): bool
     {
         return true; // gated by ScopeToStore middleware (store ownership)
@@ -20,6 +23,6 @@ class StorefrontCategoryStoreRequest extends FormRequest
             'is_active' => ['nullable', 'boolean'],
             'position' => ['nullable', 'integer', 'min:0'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-        ];
+        ] + $this->categoryFields();
     }
 }

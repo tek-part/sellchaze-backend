@@ -13,6 +13,7 @@ use App\Models\StoreDomain;
 use App\Models\StoreOrder;
 use App\Models\User;
 use App\Notifications\OrderAssignedToSupplierNotification;
+use App\Notifications\StoreOrderActivity;
 use App\Services\Commerce\StorefrontOrderBridge;
 use App\Services\JwtTokenService;
 use Database\Seeders\PermissionTableSeeder;
@@ -160,7 +161,9 @@ class StorefrontOrderBridgeTest extends TestCase
         $b2b = Order::query()->where('store_order_id', $placed['id'])->firstOrFail();
         $this->assertSame(0, OrderSuppliers::query()->where('order_id', $b2b->id)->count());
         $this->assertNull($b2b->assigned_supplier_id);
-        Notification::assertNothingSent();
+        Notification::assertNotSentTo($merchant, OrderAssignedToSupplierNotification::class);
+        Notification::assertSentTo($merchant, StoreOrderActivity::class);
+        Notification::assertCount(1);
 
         $this->as($merchant)->getJson('/api/v1/orders?direction=in&source=storefront')
             ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.code', $b2b->code);
@@ -180,7 +183,9 @@ class StorefrontOrderBridgeTest extends TestCase
         $b2b = Order::query()->where('store_order_id', $placed['id'])->firstOrFail();
         $this->assertDatabaseHas('order_suppliers', ['order_id' => $b2b->id, 'customer' => $supplier->id, 'supplier' => $supplier->id]);
         $this->assertSame(1, OrderSuppliers::query()->where('order_id', $b2b->id)->count());
-        Notification::assertNothingSent(); // self-routed owners are not notified about their own order
+        Notification::assertNotSentTo($supplier, OrderAssignedToSupplierNotification::class);
+        Notification::assertSentTo($supplier, StoreOrderActivity::class);
+        Notification::assertCount(1); // Store activity is separate from supplier-assignment alerts.
 
         $this->as($supplier)->getJson('/api/v1/orders?direction=out&source=storefront')
             ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.code', $b2b->code);

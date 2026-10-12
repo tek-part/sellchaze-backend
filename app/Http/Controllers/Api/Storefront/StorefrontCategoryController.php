@@ -42,6 +42,7 @@ class StorefrontCategoryController extends Controller
 
         return response()->json([
             'data' => new StorefrontCategoryResource($category),
+            'children' => StorefrontCategoryResource::collection($this->storefront->categoryChildren($category)),
             'products' => [
                 'data' => StorefrontProductResource::collection($products->getCollection()),
                 'meta' => [

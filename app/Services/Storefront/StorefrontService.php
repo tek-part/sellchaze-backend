@@ -77,6 +77,7 @@ class StorefrontService
 
             $categories = Category::query()
                 ->where('is_active', true)
+                ->where('is_hidden', false)
                 ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
                 ->orderBy('position')->orderBy('name')
                 ->limit(12)->get();
@@ -93,6 +94,8 @@ class StorefrontService
                     'id' => $c->id,
                     'name' => $c->translated('name', $locale),
                     'slug' => $c->slug,
+                    'show_in_header' => (bool) $c->show_in_header,
+                    'parent_id' => $c->parent_id,
                     'image_url' => $c->imageUrl(),
                     'products_count' => (int) $c->products_count,
                 ])->all(),
@@ -124,7 +127,8 @@ class StorefrontService
         $query = Product::query()
             ->where('is_active', true)
             ->when($categorySlug, function ($q) use ($categorySlug) {
-                $q->whereHas('category', fn ($c) => $c->where('slug', $categorySlug)->where('is_active', true));
+                $root = $this->category($categorySlug);
+                $q->whereIn('category_id', $root ? $this->categoryTreeIds($root) : []);
             })
             ->when($filter === 'best_sellers', fn ($q) => $q->where('is_bestseller', true))
             ->when($filter === 'new_arrivals', fn ($q) => $q->where('is_new_arrival', true))
@@ -216,6 +220,7 @@ class StorefrontService
     {
         return Category::query()
             ->where('is_active', true)
+            ->where('is_hidden', false)
             ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
             ->orderBy('position')->orderBy('name')
             ->get();
@@ -227,6 +232,30 @@ class StorefrontService
             ->where('is_active', true)
             ->where('slug', $slug)
             ->first();
+    }
+
+    /** Visible active children only; a hidden category remains reachable by its direct URL. */
+    public function categoryChildren(Category $category): Collection
+    {
+        return $category->children()->where('is_active', true)->where('is_hidden', false)->get();
+    }
+
+    /** Tenant-scoped breadth-first traversal, guarded against historical cyclic data. */
+    private function categoryTreeIds(Category $root): array
+    {
+        $all = Category::query()->where('is_active', true)->get(['id', 'parent_id'])->groupBy('parent_id');
+        $ids = [$root->id];
+        $visited = [$root->id => true];
+        for ($index = 0; $index < count($ids); $index++) {
+            foreach ($all->get($ids[$index], collect()) as $child) {
+                if (! isset($visited[$child->id])) {
+                    $visited[$child->id] = true;
+                    $ids[] = $child->id;
+                }
+            }
+        }
+
+        return $ids;
     }
 
     /** Card-sized product payload with names resolved for `$locale` (request locale by default). */

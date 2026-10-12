@@ -741,6 +741,8 @@ Route::prefix('v1')->group(function () {
             Route::middleware('permission:products-edit')->put('catalog/inventory/{product}', [StoreInventoryController::class, 'update'])->whereNumber('product');
 
             Route::prefix('catalog/categories')->group(function () {
+                Route::middleware('permission:categories-delete')->post('bulk-delete', [StoreCategoriesApiController::class, 'bulkDestroy']);
+                Route::middleware('permission:categories-delete')->delete('{category}', [StoreCategoriesApiController::class, 'destroy'])->whereNumber('category');
                 Route::middleware('permission:categories-list')->get('/', [StoreCategoriesApiController::class, 'index']);
                 Route::middleware('permission:categories-create')->post('/', [StoreCategoriesApiController::class, 'store']);
                 Route::middleware('permission:categories-list')->get('{category}', [StoreCategoriesApiController::class, 'show'])->whereNumber('category');

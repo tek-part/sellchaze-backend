@@ -1,0 +1,25 @@
+Store category workspace and notifications, 2026-10-12
+
+Categories are managed through the existing tenant-scoped catalog/categories API.
+The additive migration supplies show_in_header=true and is_hidden=false for existing
+rows. Hidden categories are omitted from listing/homepage but remain directly readable;
+unpublished categories are not publicly readable. Parent views include active descendant
+products and expose visible child links. Header visibility applies to generated navigation.
+
+Store-serialized hierarchy edits reject self/cyclic/foreign parents. Optional edit versions
+reject stale saves; selected deletion requires versions for every row and is atomic. Delete
+permissions remain mandatory. Products and children are detached before deleting categories;
+invalid cross-store associations reject deletion. Managed image replacements/deletion are
+cleaned after commit, preserving globally referenced files. Rich content is sanitized and
+mirrored into default-locale translations. Public resources do not expose edit versions.
+
+Notification lists support all/read/unread filters with a global unread count. Read actions
+remain account-scoped and idempotent. Store checkout/status changes create database-only
+owner notifications inside the order transaction. Replayed checkout does not duplicate
+notifications; rollback removes both event and order change. No new email/provider calls.
+
+Validation:798 backend tests/6367 assertions; focused27 tests/308 assertions; Pint and
+PHPStan. Frontend scope/notification/category UI is tracked in its companion repository.
+Production requires a fresh private backup and verified MySQL migration before activating
+code that queries the new columns. Complete the prior pending frontend release verification
+first. Source/CI success does not prove production publication or full competitor parity.
