@@ -65,7 +65,7 @@ class ThemeManifestValidationTest extends TestCase
             $this->assertSame("builtin:{$key}@{$manifest['version']}", $manifest['bundle_url']);
             $keys[] = $key;
         }
-        $this->assertSame(['bazaar', 'fresh', 'naseem', 'sahra', 'techno'], $keys);
+        $this->assertSame(['bazaar', 'fresh', 'naseem', 'sahra', 'sphinx-v3', 'techno'], $keys);
 
         // The legacy manifests are gone for good.
         foreach (['default', 'aurora', 'modern', 'atlas', 'verde'] as $legacy) {

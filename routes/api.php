@@ -100,6 +100,7 @@ use App\Http\Controllers\Api\StoreFunnelsApiController;
 use App\Http\Controllers\Api\StoreInventoryController;
 use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
+use App\Http\Controllers\Api\StoreNewsletterController;
 use App\Http\Controllers\Api\StoreOrderLimitsController;
 use App\Http\Controllers\Api\StorePagesApiController;
 use App\Http\Controllers\Api\StorePaymentsApiController;
@@ -679,6 +680,7 @@ Route::prefix('v1')->group(function () {
         // Both bind the resolved Store as the `store` route parameter, so every
         // controller below is shared verbatim between the two prefixes.
         $storeScopedRoutes = function (): void {
+            Route::middleware('permission:store.orders.manage')->get('newsletter', [StoreNewsletterController::class, 'index']);
             Route::get('funnels/templates', [StoreFunnelsApiController::class, 'templates']);
             Route::get('funnels', [StoreFunnelsApiController::class, 'index']);
             Route::post('funnels/generate', [StoreFunnelsApiController::class, 'generate'])->middleware('throttle:3,1');
