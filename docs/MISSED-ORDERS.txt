@@ -1,0 +1,49 @@
+Missed orders
+=============
+
+Contactable unfinished storefront and funnel checkouts are captured separately
+from orders. A merchant can filter, export and mark attempts as reviewed through
+the order group's Missed orders page. A completed review is not a placed order.
+
+The anonymous POST /api/storefront/checkout-leads resolves the store from the
+host, validates tenant-owned active products/variants and calculates product
+prices on the server. It accepts only configured visible contact fields and
+does not capture verification proofs, uploads or personalization files. The
+checkout form explains the purpose of capturing contact details.
+
+Each browser checkout has an opaque UUID and monotonic sequence; only those two
+values are saved in sessionStorage. The database stores a scoped hash of the
+UUID. Addresses and notes are encrypted. The anonymous endpoint returns the
+same generic response and provides no contact lookup. Clear operations leave a
+sequence fence so earlier requests cannot restore cleared details.
+
+Private lists and versioned status updates require store.orders.manage. Data is
+tenant scoped and marked private/no-store. Literal search, source, date range,
+status and stable pagination are supported. Product subtotal excludes shipping
+and coupon discounts; captured coupons are not redeemed. Delivery selection
+names come from the store configuration. Digital-only attempts omit delivery
+fields and do not reserve codes.
+
+After five minutes without contact updates, an unconverted attempt appears in
+the private list. This is an implementation choice: the reference account was
+empty, so its timing, populated columns, filters and review semantics were not
+verified. Its title, explanatory copy, three review tabs, export/filter labels,
+IBM Plex Sans Arabic and desktop/mobile empty-state geometry were observed.
+Do not claim complete reference behavior or all-page/theme parity.
+
+Successful order creation converts the attempt in the same order transaction.
+It writes a tombstone even if the first capture arrives later. A placed unpaid
+order already belongs to All orders and does not become a missed order. Capture
+and review do not create orders/carts, reserve inventory, consume coupons, send
+notifications/email/messages or call payment/shipping providers.
+
+Migration 2026_10_12_020000_create_store_checkout_leads is additive. Rollback
+refuses a populated table. Production activation must stage it along with the
+pending category visibility and phone newsletter migrations after the guarded
+fresh backup. SSH access is currently closed before authentication; no source
+or schema activation is implied by GitHub publication.
+
+Feature tests cover exact server pricing, encryption, no business side effects,
+late/reordered/duplicate captures, clear fences, conversion before first capture,
+checkout replay, failed checkout, tenant permissions, literal filters/pagination,
+atomic stale-version rejection, hidden/digital fields and populated rollback.
