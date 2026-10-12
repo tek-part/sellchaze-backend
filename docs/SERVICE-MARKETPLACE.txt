@@ -1,0 +1,35 @@
+SERVICE MARKETPLACE — 2026-10-12
+
+The authenticated merchant workspace now has a real service marketplace rather
+than a navigation placeholder. Active, approved Merchant/Supplier owners can
+explicitly publish a provider profile and its services. The directory offers
+ten categories, stable pagination, rating/newest/price sorting, service details,
+related services, provider profiles, biographies, skills and portfolios.
+
+Profiles start private/unpublished. Existing user email, phone and avatar are
+never automatically published. Contact visibility requires a separate explicit
+opt-in. Inactive, pending or deleted owners are excluded from public listings.
+Portfolio URLs accept HTTP/HTTPS only; descriptions render as plain text.
+
+Provider/service updates use integer versions and return409 for stale edits.
+Service creation uses a client UUID plus immutable payload fingerprint, so exact
+retries preserve one publication and changed/reused requests fail. Archiving
+preserves service records, images and ratings. One1–5 rating per authenticated
+viewer can be edited/retried without increasing the count; own-service votes
+are rejected. Ratings describe member feedback, not verified purchases.
+
+Prices use integer currency minor units. Price comparisons stay within one
+currency (EGP default, or an explicitly requested supported currency); no
+invented exchange rate. Uploaded PNG/JPG/WebP images are limited to2MiB,64
+per provider and8 per service/portfolio entry. Upload paths must belong to the
+owner. Draft/orphan media requires authenticated ownership; public media must
+be claimed by a visible publication. Relative API media paths avoid tenant-root
+URL rewriting. Removed drafts retain files; automatic orphan cleanup and an
+archive restore interface remain separate work.
+
+Additive migration2026_10_12_120000 creates three independent tables. Empty
+rollback is supported; any populated table prevents rollback to protect history.
+No competitor provider identities, portfolio content or ratings are seeded.
+No bookings, payments, third-party messages or paid subscriptions are generated.
+Publisher portal/admin approval parity and all other competitor sections/themes
+remain part of the ongoing scope; this increment does not establish full parity.
