@@ -45,6 +45,7 @@ class MerchantOrderResource extends JsonResource
             'items_count' => $this->when(isset($this->items_count), fn () => (int) $this->items_count),
             'customer_notes' => $this->notes,
             'marketing_attribution' => $this->marketing_attribution,
+            'referral_attribution' => $this->referral_attribution,
             'placed_at' => $this->placed_at,
             'cancelled_at' => $this->cancelled_at,
             'created_at' => $this->created_at,
