@@ -6,6 +6,7 @@ use App\Models\StoreOrder;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\ProductPersonalization;
 use App\Services\Commerce\StoreOrderService;
+use App\Services\PlatformWallet;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,6 +21,8 @@ class MerchantOrderResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        app(PlatformWallet::class)->assertOrderVisible($this->resource);
+
         return [
             'id' => $this->id,
             'order_number' => $this->order_number,

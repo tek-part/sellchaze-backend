@@ -11,6 +11,7 @@ use App\Models\StoreCustomer;
 use App\Models\StoreOrder;
 use App\Notifications\StoreOrderActivity;
 use App\Services\Outbox\OutboxRecorder;
+use App\Services\PlatformWallet;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -190,6 +191,7 @@ class CheckoutService
                 'payment_method' => $paymentMethod,
             ]);
 
+            app(PlatformWallet::class)->orderFee($order);
             app(DigitalDelivery::class)->recordReceipt($order);
             $store->owner?->notify(new StoreOrderActivity($order, 'created'));
 

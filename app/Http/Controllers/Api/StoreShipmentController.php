@@ -8,6 +8,7 @@ use App\Models\StoreCarrierConnection;
 use App\Models\StoreOrder;
 use App\Models\StoreShipment;
 use App\Models\StoreShipmentEvent;
+use App\Services\PlatformWallet;
 use App\Services\Shipping\BostaClient;
 use App\Services\Shipping\CarrierException;
 use App\Services\Shipping\StoreShipmentEvents;
@@ -23,7 +24,10 @@ class StoreShipmentController extends Controller
     {
         $store = $access->store($request, false);
 
-        return StoreOrder::where('store_id', $store->id)->whereKey((int) $request->route('order'))->firstOrFail();
+        $order = StoreOrder::where('store_id', $store->id)->whereKey((int) $request->route('order'))->firstOrFail();
+        app(PlatformWallet::class)->assertOrderVisible($order);
+
+        return $order;
     }
 
     public function show(Request $request, Store $store, StoreCarrierController $access): JsonResponse

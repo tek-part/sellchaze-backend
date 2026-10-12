@@ -13,9 +13,11 @@ use App\Services\Commerce\DigitalOrderEmail;
 use App\Services\Commerce\ManualBankPayment;
 use App\Services\Commerce\ManualCashPayment;
 use App\Services\Commerce\StoreOrderService;
+use App\Services\PlatformWallet;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -37,8 +39,12 @@ class MerchantOrderController extends Controller
         $perPage = min(max((int) $request->get('per_page', 15), 1), 100);
         $sort = in_array($request->get('sort'), self::SORTABLE, true) ? (string) $request->get('sort') : 'created_at';
         $dir = $request->get('dir') === 'asc' ? 'asc' : 'desc';
+        $locked = $store->owner && app(PlatformWallet::class)->ordersLocked($store->owner);
+        $charged = DB::table('platform_wallet_entries')->where('type', 'order_fee')->whereNotNull('store_order_id')->select('store_order_id');
+        $lockedCount = $locked ? StoreOrder::query()->whereIn('id', $charged)->count() : 0;
 
         $paginator = StoreOrder::query()
+            ->when($locked, fn (Builder $q) => $q->whereNotIn('id', $charged))
             ->when($request->filled('status'), fn (Builder $q) => $q->where('status', $request->get('status')))
             ->when($request->filled('order_number'), fn (Builder $q) => $q->where('order_number', 'like', '%'.$request->get('order_number').'%'))
             ->when($request->filled('customer'), fn (Builder $q) => $q->where(fn (Builder $w) => $w
@@ -62,6 +68,7 @@ class MerchantOrderController extends Controller
                 'last_page' => $paginator->lastPage(),
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
+                'locked_orders' => $lockedCount,
             ],
         ]);
     }
@@ -140,6 +147,7 @@ class MerchantOrderController extends Controller
     {
         $order = StoreOrder::query()->find($id); // StoreScope-isolated to the current store
         abort_if($order === null, 404, 'Order not found.');
+        app(PlatformWallet::class)->assertOrderVisible($order);
 
         return $order;
     }

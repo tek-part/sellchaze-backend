@@ -10,10 +10,12 @@ use App\Models\OrderSuppliers;
 use App\Models\User;
 use App\Notifications\OrderAssignedToSupplierNotification;
 use App\Services\OrderSyncService;
+use App\Services\PlatformWallet;
 use App\Services\Rbac\UserScope;
 use App\Services\Wigpleasure\WigpleasureOrderStatusClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -72,6 +74,16 @@ class OrdersApiController extends Controller
             });
         }
 
+        if (! UserScope::isAdmin($user) && ! $user->hasAnyRole(['Staff', 'Manager']) && config('platform_wallet.fees_enabled')) {
+            $ownerId = UserScope::effectiveMerchantUserId($user);
+            $owner = User::query()->find($ownerId);
+            if ($owner && app(PlatformWallet::class)->ordersLocked($owner)) {
+                $charged = DB::table('platform_wallet_entries')
+                    ->join('platform_wallet_accounts', 'platform_wallet_accounts.id', '=', 'platform_wallet_entries.account_id')
+                    ->where('platform_wallet_accounts.user_id', $ownerId)->where('type', 'order_fee')->select('store_order_id');
+                $query->where(fn ($q) => $q->whereNull('orders.store_order_id')->orWhereNotIn('orders.store_order_id', $charged));
+            }
+        }
         $perPage = min((int) $request->get('per_page', 15), 100);
         $orders = $query->paginate($perPage)->withQueryString();
 
@@ -286,6 +298,8 @@ class OrdersApiController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
+        app(PlatformWallet::class)->assertBridgeVisible($order, $user);
+
         $this->markOrderSeenByAssignedSupplier($user, $order);
 
         if (Schema::hasTable('payment_gateways') && Schema::hasTable('gateway_transactions')) {
@@ -310,6 +324,7 @@ class OrdersApiController extends Controller
     {
         $user = $request->user();
         $order = Order::query()->where('code', $code)->firstOrFail();
+        app(PlatformWallet::class)->assertBridgeVisible($order, $user);
 
         if (! UserScope::isAdmin($user) && ! $user->hasAnyRole(['Staff', 'Manager'])) {
             $uid = UserScope::effectiveMerchantUserId($user);
