@@ -29,6 +29,7 @@ class CheckoutRequest extends FormRequest
             'payment_method' => ['nullable', 'string', 'max:80'],
             'lead_token' => ['nullable', 'uuid'],
             'analytics_session' => ['nullable', 'uuid'],
+            'advertising_allowed' => ['sometimes', 'boolean'],
             'phone_verification' => ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'bot_proof' => ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'coupon_code' => ['nullable', 'string', 'max:100'],

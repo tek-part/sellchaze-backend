@@ -13,6 +13,7 @@ use App\Models\Store;
 use App\Models\StoreContentPage;
 use App\Models\StoreMenu;
 use App\Services\Commerce\ShoppingPreferences;
+use App\Services\Commerce\StoreTrackingSettings;
 use App\Services\CurrencyRateService;
 use App\Services\PageBuilder\StoreMenuService;
 use App\Services\Storefront\SimplePages;
@@ -172,6 +173,7 @@ class StorefrontController extends Controller
             'slug' => $store->slug,
             'currency' => $baseCurrency,
             'auto_select_variants' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
+            'tracking_enabled' => app(StoreTrackingSettings::class)->enabled($store),
             'supported_currencies' => array_keys($multipliers),
             'currency_multipliers' => $multipliers,
             'shipping' => ['enabled' => (bool) $store->shipping_enabled, 'free_over' => $store->shipping_free_over, 'currency' => $baseCurrency],

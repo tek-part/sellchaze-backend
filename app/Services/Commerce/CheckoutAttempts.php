@@ -138,6 +138,13 @@ class CheckoutAttempts
         }
         if ($attempt->response_status !== null) {
             $body = $attempt->response_body;
+            // Refresh optional advertising destinations on replay; never return a disabled cached pixel.
+            if (isset($body['data']) && is_array($body['data'])) {
+                unset($body['data']['tracking']);
+                if ($order && request()->boolean('advertising_allowed')) {
+                    $body['data']['tracking'] = app(StoreTrackingEvents::class)->purchaseForBrowser($order, request());
+                }
+            }
             if ($order !== null) {
                 $body['data'] = (new StoreOrderResource($order))->resolve();
                 $body['receipt'] = app(OrderReceipt::class)->make($order);

@@ -5,6 +5,7 @@ namespace App\Http\Resources\Storefront;
 use App\Models\StoreOrder;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\ProductPersonalization;
+use App\Services\Commerce\StoreTrackingEvents;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,6 +21,7 @@ class StoreOrderResource extends JsonResource
             'order_number' => $this->order_number,
             // Aliases the storefront view-models read (number/total/shipping).
             'number' => $this->order_number,
+            'tracking' => $this->when($request->boolean('advertising_allowed'), fn () => app(StoreTrackingEvents::class)->purchaseForBrowser($this->resource, $request)),
             'total' => $this->grand_total,
             'shipping' => $this->shipping_total,
             'items_count' => $this->whenLoaded('items', fn () => $this->items->sum('quantity')),

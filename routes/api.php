@@ -95,6 +95,7 @@ use App\Http\Controllers\Api\Storefront\StorefrontLayoutController;
 use App\Http\Controllers\Api\Storefront\StorefrontProductController;
 use App\Http\Controllers\Api\Storefront\StorefrontThankYouController;
 use App\Http\Controllers\Api\Storefront\StoreOrderController;
+use App\Http\Controllers\Api\Storefront\TrackingEventsController;
 use App\Http\Controllers\Api\Storefront\WishlistController;
 use App\Http\Controllers\Api\StorefrontContextController;
 use App\Http\Controllers\Api\StorefrontProductsApiController;
@@ -120,6 +121,7 @@ use App\Http\Controllers\Api\StoreShoppingPreferencesController;
 use App\Http\Controllers\Api\StoreSimplePagesController;
 use App\Http\Controllers\Api\StoreThankYouController;
 use App\Http\Controllers\Api\StoreThemesApiController;
+use App\Http\Controllers\Api\StoreTrackingController;
 use App\Http\Controllers\Api\StoreUiBlocksController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SuppliersApiController;
@@ -337,6 +339,8 @@ Route::prefix('v1')->group(function () {
         Route::post('newsletter', [StorefrontEngagementController::class, 'subscribe']);
         Route::post('checkout-leads', [CheckoutLeadController::class, 'store'])->middleware('throttle:30,1');
         Route::post('events', [StorefrontEventsController::class, 'store'])->middleware('throttle:90,1');
+        Route::get('tracking', [TrackingEventsController::class, 'configuration']);
+        Route::post('tracking/events', [TrackingEventsController::class, 'store'])->middleware('throttle:90,1');
         Route::post('contact', [StorefrontEngagementController::class, 'contact']);
 
         // ---- Editable system pages (about/contact/faq/shipping/returns/blog) ----
@@ -857,6 +861,16 @@ Route::prefix('v1')->group(function () {
             Route::put('blocked-phones/{block}', [StorePhoneBlockController::class, 'update'])->whereNumber('block')->middleware('throttle:30,1');
             Route::get('blocked-phones/{block}/history', [StorePhoneBlockController::class, 'history'])->whereNumber('block');
             Route::get('phone-verification', [StorePhoneVerificationController::class, 'index']);
+            Route::prefix('tracking')->middleware('permission:store.settings.manage')->group(function () {
+                Route::get('pixels', [StoreTrackingController::class, 'pixels']);
+                Route::put('pixels', [StoreTrackingController::class, 'updatePixels']);
+                Route::get('google-tag', [StoreTrackingController::class, 'google']);
+                Route::put('google-tag', [StoreTrackingController::class, 'updateGoogle']);
+                Route::get('conversions', [StoreTrackingController::class, 'conversions']);
+                Route::post('conversions', [StoreTrackingController::class, 'saveConversion'])->middleware('throttle:20,1');
+                Route::put('conversions/{destination}', [StoreTrackingController::class, 'saveConversion'])->whereUuid('destination')->middleware('throttle:20,1');
+                Route::delete('conversions/{destination}', [StoreTrackingController::class, 'removeConversion'])->whereUuid('destination')->middleware('throttle:20,1');
+            });
             Route::get('bot-protection', [StoreBotProtectionController::class, 'index']);
             Route::get('shopping-preferences', [StoreShoppingPreferencesController::class, 'index']);
             Route::put('shopping-preferences', [StoreShoppingPreferencesController::class, 'update']);
