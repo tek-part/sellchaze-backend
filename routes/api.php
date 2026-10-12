@@ -723,6 +723,7 @@ Route::prefix('v1')->group(function () {
             Route::prefix('catalog/products')->group(function () {
                 Route::middleware('permission:products-list')->get('/', [StorefrontProductsApiController::class, 'index']);
                 Route::middleware('permission:products-create')->post('/', [StorefrontProductsApiController::class, 'store']);
+                Route::middleware('permission:products-edit')->put('bulk', [StorefrontProductsApiController::class, 'bulkUpdate']);
                 Route::middleware('permission:products-list')->get('{product}', [StorefrontProductsApiController::class, 'show'])->whereNumber('product');
                 Route::middleware('permission:products-edit')->match(['put', 'post'], '{product}', [StorefrontProductsApiController::class, 'update'])->whereNumber('product');
                 Route::middleware('permission:products-delete')->delete('{product}', [StorefrontProductsApiController::class, 'destroy'])->whereNumber('product');
