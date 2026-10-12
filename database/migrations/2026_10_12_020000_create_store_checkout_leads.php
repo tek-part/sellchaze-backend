@@ -37,7 +37,7 @@ return new class extends Migration
             $table->timestamp('converted_at')->nullable();
             $table->timestamps();
             $table->unique(['store_id', 'key_hash']);
-            $table->index(['store_id', 'converted_at', 'last_activity_at']);
+            $table->index(['store_id', 'converted_at', 'last_activity_at'], 'checkout_leads_store_activity_index');
             $table->index(['store_id', 'review_status']);
         });
     }
