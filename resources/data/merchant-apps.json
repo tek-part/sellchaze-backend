@@ -3,47 +3,121 @@
     {
       "key": "tracking",
       "ar": "التتبع والاحصائيات",
-      "en": "Tracking and statistics"
+      "en": "Tracking and statistics",
+      "app_keys": [
+        "conversion",
+        "utm",
+        "google-tag",
+        "pixels"
+      ]
     },
     {
       "key": "sales",
       "ar": "تحسين النتائج والمبيعات",
-      "en": "Sales and conversions"
+      "en": "Sales and conversions",
+      "app_keys": [
+        "bundles",
+        "social-proof",
+        "catalog",
+        "cross-selling",
+        "branding",
+        "splendapp",
+        "downsell",
+        "minimum-order",
+        "whatsapp-official",
+        "coupons",
+        "cloaking",
+        "ai"
+      ]
     },
     {
       "key": "affiliate",
       "ar": "منصات افلييت ودروب شيبنج",
-      "en": "Affiliate and dropshipping"
+      "en": "Affiliate and dropshipping",
+      "app_keys": [
+        "angezny",
+        "rimonda",
+        "taager"
+      ]
     },
     {
       "key": "orders",
       "ar": "إدارة الطلبات",
-      "en": "Order management"
+      "en": "Order management",
+      "app_keys": [
+        "shopify",
+        "sheets",
+        "wesell",
+        "whatsapp-official",
+        "woocommerce"
+      ]
     },
     {
       "key": "protection",
       "ar": "الحماية",
-      "en": "Protection"
+      "en": "Protection",
+      "app_keys": [
+        "country-restriction",
+        "otp",
+        "fake-orders",
+        "cloaking"
+      ]
     },
     {
       "key": "marketing-services",
       "ar": "خدمات تسويق",
-      "en": "Marketing services"
+      "en": "Marketing services",
+      "app_keys": [
+        "top-media-buyer"
+      ]
     },
     {
       "key": "seo",
       "ar": "SEO",
-      "en": "SEO"
+      "en": "SEO",
+      "app_keys": [
+        "sitemap",
+        "google-merchant"
+      ]
     },
     {
       "key": "marketing-tools",
       "ar": "أدوات التسويق",
-      "en": "Marketing tools"
+      "en": "Marketing tools",
+      "app_keys": [
+        "conversion",
+        "google-merchant",
+        "bundles",
+        "social-proof",
+        "catalog",
+        "cross-selling",
+        "branding",
+        "whatsapp-unofficial",
+        "downsell",
+        "utm",
+        "pixels",
+        "coupons",
+        "ai"
+      ]
     },
     {
       "key": "store-management",
       "ar": "ادارة المتجر",
-      "en": "Store management"
+      "en": "Store management",
+      "app_keys": [
+        "shopify",
+        "sheets",
+        "country-restriction",
+        "otp",
+        "localization",
+        "fake-orders",
+        "team",
+        "splendapp",
+        "whatsapp-unofficial",
+        "whatsapp-official",
+        "woocommerce",
+        "ai"
+      ]
     }
   ],
   "apps": [
@@ -64,7 +138,25 @@
       "route": "pixel-conversion",
       "available": true,
       "reference_id": "fcead231-e247-4ba5-93d6-aa17ac7e8c4c",
-      "icon": "/app-icons/conversion.png"
+      "icon": "/app-icons/conversion.png",
+      "features": {
+        "ar": [
+          "إرسال أحداث الشراء إلى Meta",
+          "إرسال أحداث الشراء إلى TikTok"
+        ],
+        "en": [
+          "Send purchase events to Meta",
+          "Send purchase events to TikTok"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/conversion-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "utm",
@@ -83,7 +175,27 @@
       "route": "utm-builder",
       "available": true,
       "reference_id": "923389d1-81a6-44f9-ad27-819394a627a0",
-      "icon": "/app-icons/utm.png"
+      "icon": "/app-icons/utm.png",
+      "features": {
+        "ar": [
+          "إنشاء رابط مخصص لكل حملة",
+          "تحديد المصدر والوسيط واسم الحملة",
+          "روابط متوافقة مع Google Analytics"
+        ],
+        "en": [
+          "Create a dedicated campaign link",
+          "Set the source, medium and campaign name",
+          "Links compatible with Google Analytics"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/utm-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "google-tag",
@@ -101,7 +213,29 @@
       "route": "ga",
       "available": true,
       "reference_id": "3d70a4a5-b589-4a06-975d-07dade4b97ae",
-      "icon": "/app-icons/google-tag.png"
+      "icon": "/app-icons/google-tag.png",
+      "features": {
+        "ar": [
+          "إعداد معرف جوجل تاج من لوحة المتجر",
+          "تحديث المعرف دون تعديل ملفات المتجر",
+          "قياس زيارات المتجر",
+          "قياس أحداث التحويل عند تفعيل التتبع"
+        ],
+        "en": [
+          "Configure a Google tag ID from the dashboard",
+          "Update the ID without editing store files",
+          "Measure storefront visits",
+          "Measure conversion events when tracking is enabled"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/google-tag-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "pixels",
@@ -120,7 +254,29 @@
       "route": "pixels-settings",
       "available": true,
       "reference_id": "cfcb5250-c3c2-4c9a-946e-f03be616346a",
-      "icon": "/app-icons/pixels.png"
+      "icon": "/app-icons/pixels.png",
+      "features": {
+        "ar": [
+          "إعداد Meta Pixel",
+          "إعداد TikTok Pixel",
+          "إعداد Snapchat Pixel",
+          "تتبع أحداث المتجر باستخدام المعرفات المحفوظة"
+        ],
+        "en": [
+          "Configure Meta Pixel",
+          "Configure TikTok Pixel",
+          "Configure Snapchat Pixel",
+          "Track storefront events with your saved IDs"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/pixels-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "bundles",
@@ -139,7 +295,27 @@
       "route": null,
       "available": false,
       "reference_id": "e59dd5ad-37d9-4541-9f24-710426e69f1f",
-      "icon": "/app-icons/bundles.png"
+      "icon": "/app-icons/bundles.png",
+      "features": {
+        "ar": [
+          "إنشاء عروض تضم عدة منتجات",
+          "اقتراح منتجات مكملة للشراء",
+          "عرض الحزمة أثناء إتمام الطلب"
+        ],
+        "en": [
+          "Create offers containing multiple products",
+          "Suggest complementary products",
+          "Present bundles during checkout"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/bundles-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "social-proof",
@@ -158,7 +334,27 @@
       "route": null,
       "available": false,
       "reference_id": "30f5e52d-0e3d-4054-bfee-6bed2534f24e",
-      "icon": "/app-icons/social-proof.png"
+      "icon": "/app-icons/social-proof.png",
+      "features": {
+        "ar": [
+          "إشعارات بعمليات الشراء الحديثة",
+          "تقديم دليل اجتماعي للزوار",
+          "عرض مناسب للهاتف والكمبيوتر"
+        ],
+        "en": [
+          "Notifications of recent purchases",
+          "Provide social proof to visitors",
+          "Layouts for phones and desktops"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/social-proof-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "catalog",
@@ -177,7 +373,29 @@
       "route": null,
       "available": false,
       "reference_id": "04d7caea-9d5f-491c-8ebb-a5332686ca66",
-      "icon": "/app-icons/catalog.png"
+      "icon": "/app-icons/catalog.png",
+      "features": {
+        "ar": [
+          "إضافة نقاط تفاعلية إلى صور المنتجات",
+          "فتح المنتج المرتبط بالنقطة",
+          "تخصيص مواضع النقاط ومظهرها",
+          "الانتقال من الصورة إلى الشراء"
+        ],
+        "en": [
+          "Add interactive product image hotspots",
+          "Open the product linked to a hotspot",
+          "Customize hotspot positions and appearance",
+          "Go from an image to purchasing"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/catalog-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "cross-selling",
@@ -196,7 +414,27 @@
       "route": null,
       "available": false,
       "reference_id": "8e73fd5d-896c-44ef-86bb-785fb248810b",
-      "icon": "/app-icons/cross-selling.png"
+      "icon": "/app-icons/cross-selling.png",
+      "features": {
+        "ar": [
+          "عرض منتجات تكمل اختيار العميل",
+          "اقتراح منتجات مرتبطة أثناء الشراء",
+          "إضافة المنتج المقترح إلى الطلب"
+        ],
+        "en": [
+          "Show products that complement the customer selection",
+          "Suggest related products while shopping",
+          "Add a suggested product to the order"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/cross-selling-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "branding",
@@ -214,7 +452,24 @@
       ],
       "route": null,
       "available": false,
-      "reference_id": "8b8630be-94c1-4f6a-95a3-850f2b939afc"
+      "reference_id": "8b8630be-94c1-4f6a-95a3-850f2b939afc",
+      "features": {
+        "ar": [
+          "إخفاء نص Powered By Sellchaze",
+          "إظهار هوية المتجر في التذييل"
+        ],
+        "en": [
+          "Hide the Powered By Sellchaze credit",
+          "Present the store identity in the footer"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        }
+      ]
     },
     {
       "key": "splendapp",
@@ -233,7 +488,24 @@
       "route": null,
       "available": false,
       "reference_id": "3e97169e-7207-4381-8577-85b0f38fe272",
-      "icon": "/app-icons/splendapp.png"
+      "icon": "/app-icons/splendapp.png",
+      "features": {
+        "ar": [
+          "إنشاء تطبيق للهواتف مرتبط بالمتجر",
+          "إرسال إشعارات عبر تطبيق المتجر"
+        ],
+        "en": [
+          "Create a mobile app connected to the store",
+          "Send notifications through the store app"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        }
+      ]
     },
     {
       "key": "downsell",
@@ -242,8 +514,8 @@
         "en": "Downsell"
       },
       "description": {
-        "ar": "اعرض بديلًا للعرض الإضافي عند رفضه.",
-        "en": "Present an alternative when an additional offer is declined."
+        "ar": "اعرض خصومات وكوبونات عند تردد العميل أو محاولة مغادرة المتجر، وحدد توقيت ظهور العرض.",
+        "en": "Present coupons when a customer hesitates or attempts to leave, and choose when the offer appears."
       },
       "categories": [
         "sales",
@@ -252,7 +524,31 @@
       "route": null,
       "available": false,
       "reference_id": "a30e4f68-5bf4-409b-9717-36f0a2510881",
-      "icon": "/app-icons/downsell.png"
+      "icon": "/app-icons/downsell.png",
+      "features": {
+        "ar": [
+          "عرض خصم عند تردد العميل",
+          "اختيار الكوبون الذي يظهر في العرض",
+          "تحديد توقيت ظهور العرض"
+        ],
+        "en": [
+          "Offer a discount when a customer hesitates",
+          "Choose the coupon presented in the offer",
+          "Control when the offer appears"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 900,
+          "height": 591
+        },
+        {
+          "kind": "concept",
+          "width": 900,
+          "height": 591
+        }
+      ]
     },
     {
       "key": "minimum-order",
@@ -269,7 +565,27 @@
       ],
       "route": "settings/order-limits",
       "available": true,
-      "reference_id": "1ef74e2b-9107-4415-b0e7-e02e9ef1ad45"
+      "reference_id": "1ef74e2b-9107-4415-b0e7-e02e9ef1ad45",
+      "features": {
+        "ar": [
+          "تحديد الحد الأدنى لقيمة المنتجات بعد الخصم",
+          "تحديد قيمة الطلب المؤهلة للشحن المجاني",
+          "عرض المبلغ المتبقي لإكمال الحد للعميل"
+        ],
+        "en": [
+          "Set a minimum discounted merchandise total",
+          "Set the free-shipping threshold",
+          "Show the customer the remaining amount to qualify"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/minimum-order-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "whatsapp-official",
@@ -289,7 +605,30 @@
       "route": null,
       "available": false,
       "reference_id": "618ec307-5276-45a4-ac26-1ff431d343e3",
-      "icon": "/app-icons/whatsapp-official.png"
+      "icon": "/app-icons/whatsapp-official.png",
+      "features": {
+        "ar": [
+          "تأكيد الطلبات عبر واتساب",
+          "إرسال حملات للعملاء المشتركين",
+          "إرسال تحديثات حالة الطلب",
+          "ربط حساب واتساب للأعمال",
+          "اختيار رقم إرسال معتمد"
+        ],
+        "en": [
+          "Confirm orders through WhatsApp",
+          "Send campaigns to opted-in customers",
+          "Send order status updates",
+          "Connect a WhatsApp Business account",
+          "Choose an approved sender number"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        }
+      ]
     },
     {
       "key": "coupons",
@@ -308,7 +647,27 @@
       "route": "coupons",
       "available": true,
       "reference_id": "991b4c15-afc1-4859-ad25-eff1a0eac8fb",
-      "icon": "/app-icons/coupons.png"
+      "icon": "/app-icons/coupons.png",
+      "features": {
+        "ar": [
+          "إنشاء أكواد خصم للمتجر",
+          "تحديد شروط وحدود استخدام الكوبون",
+          "اختيار نسبة مئوية أو مبلغ ثابت"
+        ],
+        "en": [
+          "Create store discount codes",
+          "Set coupon eligibility and usage limits",
+          "Choose a percentage or fixed discount"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/coupons-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "cloaking",
@@ -327,7 +686,27 @@
       "route": null,
       "available": false,
       "reference_id": "d45473a9-bd4f-40bc-9b6e-3f5a6263ea1b",
-      "icon": "/app-icons/cloaking.png"
+      "icon": "/app-icons/cloaking.png",
+      "features": {
+        "ar": [
+          "اختيار المحتوى الذي يظهر للزيارات الآلية",
+          "إدارة قواعد تصنيف الزوار",
+          "توجيه الزيارة وفق القواعد المحددة"
+        ],
+        "en": [
+          "Choose content presented to automated visitors",
+          "Manage visitor classification rules",
+          "Route visits according to the configured rules"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/cloaking-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "ai",
@@ -346,7 +725,26 @@
       ],
       "route": null,
       "available": false,
-      "reference_id": "67a6e129-8dc1-4164-9720-73fcef7c592c"
+      "reference_id": "67a6e129-8dc1-4164-9720-73fcef7c592c",
+      "features": {
+        "ar": [
+          "المساعدة في إنشاء محتوى المنتجات",
+          "المساعدة في بناء صفحات مسارات البيع",
+          "تحليل محتوى صفحات الهبوط"
+        ],
+        "en": [
+          "Help create product content",
+          "Help build sales funnel pages",
+          "Analyze landing page content"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        }
+      ]
     },
     {
       "key": "angezny",
@@ -364,7 +762,25 @@
       "route": null,
       "available": false,
       "reference_id": "d0640dee-d1cb-43c0-92c5-ace59c534d30",
-      "icon": "/app-icons/angezny.png"
+      "icon": "/app-icons/angezny.png",
+      "features": {
+        "ar": [
+          "استيراد منتجات من أنجزني",
+          "ربط الطلبات بحساب المورد"
+        ],
+        "en": [
+          "Import products from Angezny",
+          "Connect orders to the supplier account"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/angezny-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "rimonda",
@@ -382,7 +798,27 @@
       "route": null,
       "available": false,
       "reference_id": "33f76e1f-51b3-4dce-8a27-5afe71602ede",
-      "icon": "/app-icons/rimonda.png"
+      "icon": "/app-icons/rimonda.png",
+      "features": {
+        "ar": [
+          "استعراض منتجات المورد"
+        ],
+        "en": [
+          "Browse the supplier catalogue"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        },
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        }
+      ]
     },
     {
       "key": "taager",
@@ -399,7 +835,27 @@
       ],
       "route": null,
       "available": false,
-      "reference_id": "4ceef731-c0e6-4957-bc87-8d73e0530efa"
+      "reference_id": "4ceef731-c0e6-4957-bc87-8d73e0530efa",
+      "features": {
+        "ar": [
+          "استيراد منتجات من تاجر",
+          "مزامنة الطلبات مع حساب المورد",
+          "متابعة تحديثات الشحن"
+        ],
+        "en": [
+          "Import products from Taager",
+          "Synchronize orders with the supplier account",
+          "Follow shipping updates"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/taager-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "shopify",
@@ -418,7 +874,24 @@
       "route": null,
       "available": false,
       "reference_id": "18f3abcd-e6e9-4fbe-a667-ecaa87898794",
-      "icon": "/app-icons/shopify.svg"
+      "icon": "/app-icons/shopify.svg",
+      "features": {
+        "ar": [
+          "مزامنة المنتجات مع Shopify",
+          "ربط الطلبات بين المتجرين"
+        ],
+        "en": [
+          "Synchronize products with Shopify",
+          "Connect orders between the two stores"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        }
+      ]
     },
     {
       "key": "sheets",
@@ -437,7 +910,26 @@
       "route": "sheets",
       "available": true,
       "reference_id": "445f4883-a88e-4f23-995b-5aa6b15ee750",
-      "icon": "/app-icons/sheets.svg"
+      "icon": "/app-icons/sheets.svg",
+      "features": {
+        "ar": [
+          "إرسال الطلبات الجديدة إلى Google Sheets",
+          "حفظ تفاصيل الطلب في صف مستقل",
+          "اختيار جميع المنتجات أو منتج محدد"
+        ],
+        "en": [
+          "Send new orders to Google Sheets",
+          "Save each order in its own row",
+          "Choose all products or a selected product"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        }
+      ]
     },
     {
       "key": "wesell",
@@ -455,7 +947,18 @@
       "route": null,
       "available": false,
       "reference_id": "69b13b14-09e8-415a-8651-07bbdf04ce0d",
-      "icon": "/app-icons/wesell.png"
+      "icon": "/app-icons/wesell.png",
+      "features": {
+        "ar": [],
+        "en": []
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        }
+      ]
     },
     {
       "key": "woocommerce",
@@ -474,7 +977,24 @@
       "route": null,
       "available": false,
       "reference_id": "64437e14-ef25-4ff4-9777-9c89eed54762",
-      "icon": "/app-icons/woocommerce.svg"
+      "icon": "/app-icons/woocommerce.svg",
+      "features": {
+        "ar": [
+          "مزامنة الطلبات مع WooCommerce",
+          "ربط بيانات المنتجات بين المتجرين"
+        ],
+        "en": [
+          "Synchronize orders with WooCommerce",
+          "Connect product data between stores"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        }
+      ]
     },
     {
       "key": "country-restriction",
@@ -493,7 +1013,25 @@
       "route": null,
       "available": false,
       "reference_id": "2748af01-d32a-4e23-a23b-09b3570458e2",
-      "icon": "/app-icons/country-restriction.svg"
+      "icon": "/app-icons/country-restriction.svg",
+      "features": {
+        "ar": [
+          "قبول الطلبات من دول المتجر المدعومة",
+          "تقليل الطلبات التي يتعذر شحنها"
+        ],
+        "en": [
+          "Accept orders from supported store countries",
+          "Reduce orders that cannot be shipped"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/country-restriction-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "otp",
@@ -512,7 +1050,29 @@
       "route": "settings/phone-verification",
       "available": true,
       "reference_id": "926d0429-de05-4c30-85bc-9e1a69687b39",
-      "icon": "/app-icons/otp.svg"
+      "icon": "/app-icons/otp.svg",
+      "features": {
+        "ar": [
+          "التحقق من رقم واتساب قبل إتمام الطلب",
+          "مدة صلاحية محدودة لكل رمز",
+          "تقييد محاولات الإرسال والتحقق",
+          "منع إعادة استخدام الرمز بعد التحقق"
+        ],
+        "en": [
+          "Verify WhatsApp numbers before checkout",
+          "Limited lifetime for each code",
+          "Limit sending and verification attempts",
+          "Prevent reuse after verification"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/otp-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "fake-orders",
@@ -531,7 +1091,27 @@
       "route": null,
       "available": false,
       "reference_id": "792d90ce-fb5f-4354-b3d6-cbda963874c6",
-      "icon": "/app-icons/fake-orders.svg"
+      "icon": "/app-icons/fake-orders.svg",
+      "features": {
+        "ar": [
+          "فحص أسماء وعناوين الطلبات آليًا",
+          "تمييز البيانات التي تحتاج مراجعة",
+          "تطبيق الفحص على نموذج الطلب"
+        ],
+        "en": [
+          "Automatically assess order names and addresses",
+          "Identify data that needs review",
+          "Apply checks to the order form"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/fake-orders-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "top-media-buyer",
@@ -549,7 +1129,28 @@
       "route": null,
       "available": false,
       "reference_id": "0570c0b2-5f7a-48ba-b516-0d56ff1ff36f",
-      "icon": "/app-icons/top-media-buyer.png"
+      "icon": "/app-icons/top-media-buyer.png",
+      "features": {
+        "ar": [
+          "ربط المتجر بملف Top Media Buyer",
+          "اختيار إحصائيات الحملات التي تُعرض",
+          "عرض النتائج في ملف الأعمال",
+          "إدارة مشاركة إحصائيات المتجر"
+        ],
+        "en": [
+          "Connect the store to a Top Media Buyer profile",
+          "Choose which campaign statistics are shown",
+          "Present results in the portfolio",
+          "Manage sharing of store statistics"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        }
+      ]
     },
     {
       "key": "sitemap",
@@ -567,7 +1168,27 @@
       "route": "settings/publish",
       "available": true,
       "reference_id": "1bea5c8c-d887-4c28-b1df-75b5a309d054",
-      "icon": "/app-icons/sitemap.svg"
+      "icon": "/app-icons/sitemap.svg",
+      "features": {
+        "ar": [
+          "توفير خريطة XML لروابط المتجر",
+          "إتاحة الروابط لمحركات البحث",
+          "تضمين الروابط المنشورة الحالية"
+        ],
+        "en": [
+          "Provide an XML sitemap of store URLs",
+          "Make store URLs available to search engines",
+          "Include currently published URLs"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/sitemap-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "google-merchant",
@@ -586,7 +1207,27 @@
       "route": "google-merchant",
       "available": true,
       "reference_id": "8892a25d-a375-4f74-b65d-972812daeeeb",
-      "icon": "/app-icons/google-merchant.png"
+      "icon": "/app-icons/google-merchant.png",
+      "features": {
+        "ar": [
+          "تجهيز بيانات المنتجات لـ Google Merchant",
+          "عرض رابط تغذية منتجات المتجر",
+          "تحديد بلد ولغة بيانات المنتجات"
+        ],
+        "en": [
+          "Prepare product data for Google Merchant",
+          "Expose a store product feed URL",
+          "Set the product data country and language"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/google-merchant-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "whatsapp-unofficial",
@@ -605,7 +1246,26 @@
       "route": null,
       "available": false,
       "reference_id": "e390f9c8-73f3-4161-b284-a939cf574534",
-      "icon": "/app-icons/whatsapp-unofficial.svg"
+      "icon": "/app-icons/whatsapp-unofficial.svg",
+      "features": {
+        "ar": [
+          "إرسال رموز التحقق عبر واتساب",
+          "إرسال تحديثات الطلبات للعملاء",
+          "إعداد حملات للمشتركين في الرسائل"
+        ],
+        "en": [
+          "Send verification codes through WhatsApp",
+          "Send customer order updates",
+          "Configure campaigns for opted-in recipients"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "concept",
+          "width": 752,
+          "height": 501
+        }
+      ]
     },
     {
       "key": "localization",
@@ -623,7 +1283,25 @@
       "route": "settings/localization",
       "available": true,
       "reference_id": "d0b3de15-8f2d-44e1-9435-9a9a768f3d9b",
-      "icon": "/app-icons/localization.svg"
+      "icon": "/app-icons/localization.svg",
+      "features": {
+        "ar": [
+          "اختيار اللغات والعملات المدعومة",
+          "عرض المحتوى المترجم الذي تضيفه للمتجر"
+        ],
+        "en": [
+          "Choose supported languages and currencies",
+          "Display the translated content you add to the store"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/localization-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     },
     {
       "key": "team",
@@ -641,7 +1319,29 @@
       "route": null,
       "available": false,
       "reference_id": "609a1c52-e399-4079-8a99-fe7e18d29d24",
-      "icon": "/app-icons/team.svg"
+      "icon": "/app-icons/team.svg",
+      "features": {
+        "ar": [
+          "إنشاء حسابات فريق للمتجر",
+          "تحديد صلاحيات الطلبات والمنتجات والمحتوى",
+          "توزيع مهام إدارة المتجر",
+          "متابعة سجل العمليات الإدارية"
+        ],
+        "en": [
+          "Create store team accounts",
+          "Set order, product and content permissions",
+          "Delegate store management tasks",
+          "Review administrative activity"
+        ]
+      },
+      "gallery": [
+        {
+          "kind": "image",
+          "src": "/app-previews/team-1.png",
+          "width": 752,
+          "height": 520
+        }
+      ]
     }
   ]
 }
