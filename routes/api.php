@@ -77,6 +77,7 @@ use App\Http\Controllers\Api\StoreDomainsApiController;
 use App\Http\Controllers\Api\Storefront\BotVerificationController;
 use App\Http\Controllers\Api\Storefront\CartController;
 use App\Http\Controllers\Api\Storefront\CheckoutController;
+use App\Http\Controllers\Api\Storefront\CheckoutLeadController;
 use App\Http\Controllers\Api\Storefront\CustomerAddressController;
 use App\Http\Controllers\Api\Storefront\CustomerAuthController;
 use App\Http\Controllers\Api\Storefront\PersonalizationUploadController;
@@ -100,6 +101,7 @@ use App\Http\Controllers\Api\StoreFunnelsApiController;
 use App\Http\Controllers\Api\StoreInventoryController;
 use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
+use App\Http\Controllers\Api\StoreMissedOrdersController;
 use App\Http\Controllers\Api\StoreNewsletterController;
 use App\Http\Controllers\Api\StoreOrderLimitsController;
 use App\Http\Controllers\Api\StorePagesApiController;
@@ -330,6 +332,7 @@ Route::prefix('v1')->group(function () {
 
         // ---- Engagement capture (newsletter opt-in / contact form) — guest-friendly ----
         Route::post('newsletter', [StorefrontEngagementController::class, 'subscribe']);
+        Route::post('checkout-leads', [CheckoutLeadController::class, 'store'])->middleware('throttle:30,1');
         Route::post('contact', [StorefrontEngagementController::class, 'contact']);
 
         // ---- Editable system pages (about/contact/faq/shipping/returns/blog) ----
@@ -680,6 +683,10 @@ Route::prefix('v1')->group(function () {
         // Both bind the resolved Store as the `store` route parameter, so every
         // controller below is shared verbatim between the two prefixes.
         $storeScopedRoutes = function (): void {
+            Route::middleware('permission:store.orders.manage')->prefix('missed-orders')->group(function () {
+                Route::get('/', [StoreMissedOrdersController::class, 'index']);
+                Route::post('bulk-status', [StoreMissedOrdersController::class, 'bulkStatus']);
+            });
             Route::middleware('permission:store.orders.manage')->get('newsletter', [StoreNewsletterController::class, 'index']);
             Route::get('funnels/templates', [StoreFunnelsApiController::class, 'templates']);
             Route::get('funnels', [StoreFunnelsApiController::class, 'index']);

@@ -20,6 +20,7 @@ use App\Services\Commerce\CheckoutAttempts;
 use App\Services\Commerce\CheckoutBasket;
 use App\Services\Commerce\CheckoutBotProtection;
 use App\Services\Commerce\CheckoutFields;
+use App\Services\Commerce\CheckoutLeads;
 use App\Services\Commerce\CheckoutPhoneVerification;
 use App\Services\Commerce\CheckoutQuote;
 use App\Services\Commerce\CheckoutService;
@@ -167,6 +168,7 @@ class CheckoutController extends Controller
                 $shippingSelection,
             );
             $attempt?->update(['store_order_id' => $order->id]);
+            app(CheckoutLeads::class)->converted($store, $validated['lead_token'] ?? null, $order);
 
             return $order;
         });
