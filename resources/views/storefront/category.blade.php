@@ -2,7 +2,7 @@
 
 @section('content')
     <h2 style="margin-top:0">{{ $category->name }}</h2>
-    @if($category->description)<p class="muted">{{ $category->description }}</p>@endif
+    @if($category->description)<div class="muted">{!! \App\Support\ProductDescription::clean($category->translated('description')) !!}</div>@endif
 
     @if($products->count())
         <div class="grid">

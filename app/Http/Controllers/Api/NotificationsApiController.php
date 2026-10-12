@@ -11,11 +11,15 @@ class NotificationsApiController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $filters = $request->validate(['status' => ['sometimes', 'in:all,read,unread']]);
         $perPage = min(50, max(5, (int) $request->input('per_page', 20)));
 
         $paginator = $request->user()
             ->notifications()
+            ->when(($filters['status'] ?? 'all') === 'unread', fn ($q) => $q->whereNull('read_at'))
+            ->when(($filters['status'] ?? 'all') === 'read', fn ($q) => $q->whereNotNull('read_at'))
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate($perPage);
 
         return response()->json([

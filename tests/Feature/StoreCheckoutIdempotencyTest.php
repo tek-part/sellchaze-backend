@@ -77,6 +77,14 @@ class StoreCheckoutIdempotencyTest extends TestCase
             $this->assertSame(1, $coupon->usages()->count());
         }
         $this->assertDatabaseCount('store_orders', 2);
+        $notifications = $this->store->owner->notifications;
+        $this->assertCount(2, $notifications);
+        foreach ($notifications as $notification) {
+            $this->assertSame('store_order', $notification->data['type']);
+            $this->assertSame('created', $notification->data['event']);
+            $this->assertSame($this->store->id, $notification->data['store_id']);
+            $this->assertArrayNotHasKey('customer_email', $notification->data);
+        }
         $this->assertDatabaseCount('store_inventory_movements', 2);
         $this->assertDatabaseCount('store_payment_transactions', 2);
         Queue::assertPushed(BridgeStorefrontOrderJob::class, 2);

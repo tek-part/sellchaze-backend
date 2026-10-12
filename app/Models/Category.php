@@ -31,6 +31,8 @@ use Illuminate\Support\Facades\Cache;
  * @property string|null $icon
  * @property bool $is_active
  * @property bool $is_featured
+ * @property bool $show_in_header
+ * @property bool $is_hidden
  * @property int $position
  * @property string|null $seo_title
  * @property string|null $seo_description
@@ -54,7 +56,7 @@ class Category extends Model
         'name', 'name_en', 'name_ar', 'wigpleasure_category_id',
         // canonical superset (from Category)
         'user_id', 'store_id', 'parent_id', 'slug', 'description', 'image', 'icon',
-        'is_active', 'is_featured', 'position', 'seo_title', 'seo_description', 'translations',
+        'is_active', 'is_featured', 'show_in_header', 'is_hidden', 'position', 'seo_title', 'seo_description', 'translations',
     ];
 
     /**
@@ -65,6 +67,8 @@ class Category extends Model
         return [
             'is_active' => 'boolean',
             'is_featured' => 'boolean',
+            'show_in_header' => 'boolean',
+            'is_hidden' => 'boolean',
             'position' => 'integer',
             'translations' => 'array',
         ];

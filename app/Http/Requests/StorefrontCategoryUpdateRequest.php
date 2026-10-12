@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\StoreCategoryFields;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StorefrontCategoryUpdateRequest extends FormRequest
 {
+    use StoreCategoryFields;
+
     public function authorize(): bool
     {
         return true;
@@ -20,6 +23,6 @@ class StorefrontCategoryUpdateRequest extends FormRequest
             'is_active' => ['sometimes', 'boolean'],
             'position' => ['sometimes', 'integer', 'min:0'],
             'image' => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-        ];
+        ] + $this->categoryFields();
     }
 }
