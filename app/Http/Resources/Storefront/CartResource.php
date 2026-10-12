@@ -27,6 +27,7 @@ class CartResource extends JsonResource
                 'store_product_id' => $item->store_product_id,
                 'variant_id' => $item->variant_id,
                 'personalization' => $item->personalization ?? [],
+                'quantity_offer' => $item->quantity_offer,
                 'name' => $item->name,
                 'unit_price' => $item->unit_price,
                 'quantity' => $item->quantity,

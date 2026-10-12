@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * @property array|null $personalization
  * @property array|null $digital_delivery
+ * @property array|null $quantity_offer
  */
 class StoreOrderItem extends Model
 {
@@ -20,7 +21,7 @@ class StoreOrderItem extends Model
 
     protected $fillable = [
         'store_id', 'store_order_id', 'store_product_id', 'name',
-        'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku', 'inventory_status', 'personalization', 'digital_delivery',
+        'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku', 'inventory_status', 'personalization', 'digital_delivery', 'quantity_offer',
     ];
 
     protected $casts = [
@@ -29,6 +30,7 @@ class StoreOrderItem extends Model
         'quantity' => 'integer',
         'variant_options' => 'array',
         'personalization' => 'array',
+        'quantity_offer' => 'array',
         'digital_delivery' => 'encrypted:array',
     ];
 

@@ -1,10 +1,10 @@
 {
   "key": "sphinx-v3",
   "name": "Sphinx V3",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Sellchaze",
   "category": "general",
-  "description": "A green storefront with a category mosaic, featured category shelves, inline search, a cart drawer and mobile bottom navigation.",
+  "description": "A green storefront with category mosaics, quantity offers, direct purchase, responsive media galleries and mobile navigation.",
   "is_marketplace": true,
   "is_featured": true,
   "min_platform_version": "1.0.0",
@@ -16,7 +16,7 @@
     "quick-add",
     "newsletter"
   ],
-  "bundle_url": "builtin:sphinx-v3@1.0.0",
+  "bundle_url": "builtin:sphinx-v3@1.1.0",
   "changelog": "1.0.0 (2026-10-12): Independent Sphinx layout, editable sections and phone newsletter.",
   "settings_schema": [
     {
@@ -1648,7 +1648,7 @@
           "id": "ends_at",
           "type": "text",
           "label": "Ends at (date & time)",
-          "default": "2026-10-19T04:00",
+          "default": "2026-10-19T07:00",
           "hint": "ISO format, e.g. 2026-12-31T23:59 (store time zone)."
         },
         {
@@ -2456,7 +2456,7 @@
           "id": "ends_at",
           "type": "text",
           "label": "Ends at (date & time)",
-          "default": "2026-10-15T04:00",
+          "default": "2026-10-15T07:00",
           "hint": "ISO format, e.g. 2026-12-31T23:59 (store time zone)."
         },
         {
@@ -6234,27 +6234,6 @@
       "description": "The product listing of a category page.",
       "icon": "HiOutlineSquares2X2"
     },
-    "product-details": {
-      "label": "Product details",
-      "category": "products",
-      "settings": [
-        {
-          "id": "show_share",
-          "type": "toggle",
-          "label": "Show share button",
-          "default": true
-        },
-        {
-          "id": "show_sku",
-          "type": "toggle",
-          "label": "Show SKU",
-          "default": false
-        }
-      ],
-      "style": true,
-      "description": "Gallery, price, options and add-to-cart of a product page.",
-      "icon": "HiOutlineShoppingCart"
-    },
     "related-products": {
       "label": "Related products",
       "category": "products",
@@ -6416,6 +6395,45 @@
       "style": true,
       "description": "Products the visitor looked at recently.",
       "icon": "HiOutlineClock"
+    },
+    "product-details": {
+      "label": "Product details",
+      "category": "products",
+      "settings": [
+        {
+          "id": "show_share",
+          "type": "toggle",
+          "label": "Show share button",
+          "default": false
+        },
+        {
+          "id": "show_sku",
+          "type": "toggle",
+          "label": "Show SKU",
+          "default": false
+        },
+        {
+          "id": "show_quantity_offers",
+          "type": "toggle",
+          "label": "Show quantity offers",
+          "default": true
+        },
+        {
+          "id": "show_buy_now",
+          "type": "toggle",
+          "label": "Show buy now button",
+          "default": true
+        },
+        {
+          "id": "show_wishlist",
+          "type": "toggle",
+          "label": "Show wishlist",
+          "default": false
+        }
+      ],
+      "style": true,
+      "description": "Gallery, price, options and add-to-cart of a product page.",
+      "icon": "HiOutlineShoppingCart"
     },
     "sphinx-categories": {
       "label": "Category mosaic",
@@ -6637,7 +6655,10 @@
           "type": "product-details",
           "settings": {
             "show_share": false,
-            "show_sku": false
+            "show_sku": false,
+            "show_buy_now": true,
+            "show_wishlist": false,
+            "show_quantity_offers": true
           }
         },
         {

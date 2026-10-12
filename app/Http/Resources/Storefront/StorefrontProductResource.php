@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\OrderLimits;
 use App\Services\Commerce\ProductPersonalization;
+use App\Services\Commerce\QuantityOffers;
 use App\Services\Commerce\ShoppingPreferences;
 use App\Services\Storefront\ResponsiveImageUrl;
 use App\Support\ProductOptionDisplay;
@@ -36,6 +37,7 @@ class StorefrontProductResource extends JsonResource
             'short_description' => $this->translated('short_description'),
             'long_description' => $this->long_description,
             'price' => $this->price,
+            'quantity_offers' => app(QuantityOffers::class)->publicOffers($this->resource),
             'compare_price' => $this->compare_price,
             'image' => $this->image,
             'image_url' => $imageUrl,

@@ -10,8 +10,8 @@ use Illuminate\Validation\ValidationException;
 /** Resolve a live, tenant-owned product selection for cart and order pricing. */
 class PurchasableSelection
 {
-    /** @return array{product:Product,variant:?ProductVariant,price:string,name:string} */
-    public function resolve(Store $store, int $productId, ?int $variantId = null, bool $lock = false): array
+    /** @return array{product:Product,variant:?ProductVariant,price:string,name:string,offer:array|null} */
+    public function resolve(Store $store, int $productId, ?int $variantId = null, bool $lock = false, ?string $offerId = null, int $quantity = 1, ?int $offerVersion = null): array
     {
         $product = Product::query()->where('store_id', $store->id)->where('is_active', true)->when($lock, fn ($query) => $query->lockForUpdate())->find($productId);
         if ($product === null) {
@@ -28,10 +28,13 @@ class PurchasableSelection
             throw ValidationException::withMessages(['items' => 'Choose a product option before ordering.']);
         }
 
+        $pricing = app(QuantityOffers::class)->resolve($product, (string) ($variant?->price_override ?? $product->price), $offerId, $quantity, $offerVersion);
+
         return [
             'product' => $product,
             'variant' => $variant,
-            'price' => (string) ($variant?->price_override ?? $product->price),
+            'price' => $pricing['price'],
+            'offer' => $pricing['offer'],
             'name' => $variant ? $product->name.' — '.$variant->name : $product->name,
         ];
     }

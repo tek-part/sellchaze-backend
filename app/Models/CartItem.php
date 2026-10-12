@@ -8,19 +8,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Phase 5: a cart line. name + unit_price are snapshots taken at add time.
+ *
+ * @property array|null $quantity_offer
  */
 class CartItem extends Model
 {
     use BelongsToStore;
 
     protected $fillable = [
-        'store_id', 'cart_id', 'store_product_id', 'variant_id', 'name', 'unit_price', 'quantity', 'personalization', 'personalization_key',
+        'store_id', 'cart_id', 'store_product_id', 'variant_id', 'name', 'unit_price', 'quantity', 'personalization', 'personalization_key', 'quantity_offer',
     ];
 
     protected $casts = [
         'unit_price' => 'decimal:2',
         'quantity' => 'integer',
         'personalization' => 'array',
+        'quantity_offer' => 'array',
     ];
 
     /** @return BelongsTo<Cart, $this> */

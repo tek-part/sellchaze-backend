@@ -40,6 +40,8 @@ use Illuminate\Support\Facades\Storage;
  * @property array|null $content
  * @property array|null $option_display
  * @property array|null $personalization_fields
+ * @property array|null $quantity_offers
+ * @property int $quantity_offers_version
  * @property string $digital_type
  * @property string|null $digital_url
  * @property array|null $dimensions
@@ -97,7 +99,7 @@ class Product extends Model
         // ownership / taxonomy / tenancy
         'user_id', 'category_id', 'store_id', 'store_brand_id',
         // structured content
-        'tags', 'specifications', 'content', 'dimensions', 'option_display', 'personalization_fields', 'digital_type', 'digital_url',
+        'tags', 'specifications', 'content', 'dimensions', 'option_display', 'personalization_fields', 'digital_type', 'digital_url', 'quantity_offers', 'quantity_offers_version',
         // pricing
         'price', 'compare_price', 'cost', 'vat_rate', 'discount_percent', 'currency',
         // logistics
@@ -140,6 +142,8 @@ class Product extends Model
             'specifications' => 'array',
             'content' => 'array',
             'option_display' => 'array',
+            'quantity_offers' => 'array',
+            'quantity_offers_version' => 'integer',
             'personalization_fields' => 'array',
             'dimensions' => 'array',
             'highlights' => 'array',

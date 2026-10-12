@@ -45,12 +45,13 @@ class CheckoutLeads
             $items = [];
             $subtotal = '0.00';
             foreach ($data['items'] as $item) {
-                $selection = app(PurchasableSelection::class)->resolve($store, (int) $item['product_id'], isset($item['variant_id']) ? (int) $item['variant_id'] : null);
+                $selection = app(PurchasableSelection::class)->resolve($store, (int) $item['product_id'], isset($item['variant_id']) ? (int) $item['variant_id'] : null, false,
+                    $item['quantity_offer_id'] ?? null, (int) $item['quantity'], isset($item['quantity_offer_version']) ? (int) $item['quantity_offer_version'] : null);
                 $total = bcmul($selection['price'], (string) $item['quantity'], 2);
                 $subtotal = bcadd($subtotal, $total, 2);
                 $items[] = ['product_id' => $selection['product']->id, 'variant_id' => $selection['variant']?->id,
                     'name' => $selection['name'], 'sku' => $selection['variant']?->sku ?? $selection['product']->sku,
-                    'quantity' => (int) $item['quantity'], 'unit_price' => $selection['price'], 'line_total' => $total];
+                    'quantity' => (int) $item['quantity'], 'unit_price' => $selection['price'], 'line_total' => $total, 'quantity_offer' => $selection['offer']];
             }
             $lead ??= new StoreCheckoutLead(['store_id' => $store->id, 'key_hash' => $key]);
             $lead->fill(['customer_name' => $contact['customer_name'] ?? null, 'customer_email' => $email,

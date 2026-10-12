@@ -22,10 +22,13 @@ class CheckoutQuote
         $counts = [];
         $digitalCounts = [];
         $requiresShipping = false;
+        $offerFreeShipping = false;
         foreach ($items as $item) {
             $variantId = isset($item['variant_id']) ? (int) $item['variant_id'] : null;
-            $selection = $this->selections->resolve($store, (int) $item['product_id'], $variantId);
+            $selection = $this->selections->resolve($store, (int) $item['product_id'], $variantId, false,
+                $item['quantity_offer_id'] ?? null, (int) $item['quantity'], isset($item['quantity_offer_version']) ? (int) $item['quantity_offer_version'] : null);
             $requiresShipping = $requiresShipping || $selection['product']->digital_type === 'physical';
+            $offerFreeShipping = $offerFreeShipping || ($selection['product']->digital_type === 'physical' && ($selection['offer']['free_shipping'] ?? false));
             $custom = app(ProductPersonalization::class)->resolve($selection['product'], $item['personalization'] ?? []);
             $quantity = (int) $item['quantity'];
             $key = $item['product_id'].':'.($variantId ?? 'base');
@@ -41,6 +44,7 @@ class CheckoutQuote
             $lineTotal = bcmul($selection['price'], (string) $quantity, 2);
             $subtotal = bcadd($subtotal, $lineTotal, 2);
             $lines[] = ['product_id' => $selection['product']->id, 'variant_id' => $variantId,
+                'quantity_offer' => $selection['offer'],
                 'personalization' => ProductPersonalization::present($custom['snapshot'], $store->id), 'personalization_key' => $custom['key'],
                 'name' => $selection['name'], 'unit_price' => $selection['price'], 'quantity' => $quantity, 'line_total' => $lineTotal];
         }
@@ -54,8 +58,8 @@ class CheckoutQuote
             $discount = $this->coupons->computeDiscount($coupon, $subtotal);
         }
 
-        return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'requires_shipping' => $requiresShipping,
+        return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'requires_shipping' => $requiresShipping, 'offer_free_shipping' => $offerFreeShipping,
             'order_minimum' => app(OrderLimits::class)->minimum($store, $subtotal, $discount),
-            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping)];
+            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping)];
     }
 }
