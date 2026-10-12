@@ -15,6 +15,7 @@ use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\BankTransferInstructions;
+use App\Services\Commerce\CampaignAttribution;
 use App\Services\Commerce\CartService;
 use App\Services\Commerce\CheckoutAttempts;
 use App\Services\Commerce\CheckoutBasket;
@@ -172,6 +173,9 @@ class CheckoutController extends Controller
                 $shippingSelection,
             );
             $attempt?->update(['store_order_id' => $order->id]);
+            if ($order->wasRecentlyCreated && isset($validated['marketing_attribution'])) {
+                $order->update(['marketing_attribution' => app(CampaignAttribution::class)->snapshot($validated['marketing_attribution'])]);
+            }
             if ($order->wasRecentlyCreated && isset($validated['analytics_session'])) {
                 $order->update(['analytics_session_hash' => app(StorefrontEvents::class)->orderSession($store, $validated['analytics_session'])]);
             }

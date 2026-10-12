@@ -1,0 +1,38 @@
+Merchants can create a tagged campaign URL in the frontend and see the source and
+campaign name on the resulting order. The visitor supplies these two labels; they
+are attribution hints, not independent proof of an advertisement or payment.
+
+POST storefront/checkout accepts an optional marketing_attribution object with
+only source and campaign, bounded100/200 characters, no control characters or
+markup. It requires a valid optional analytics session UUID when supplied. The
+two labels are trimmed/whitespace-normalized into an immutable first-placement
+snapshot. Existing checkout idempotency/recovery/payment retries preserve it;
+changing a completed request body conflicts rather than creating another order.
+No URL, referrer, click identifier, contact or provider credential is retained in
+this object, and no advertising/provider call is introduced. Attribution can
+survive a delayed/failed metrics visit; no fabricated visit or analytics session
+is inserted into the existing first-party counters to make it appear successful.
+
+One additive migration070000 adds a nullable marketing_attribution JSON column to
+store_orders. Existing order values stayNULL. A populated snapshot prevents down()
+until history has been preserved. Raw StoreOrder serialization and the public
+checkout/receipt/account resources omit it. MerchantOrderResource explicitly
+returns it under existing owner/tenant/order permissions. No unrelated store,
+stock, shipping, tax, offers, customers or historical order settings are changed.
+
+Local validation: five dedicated tests/37 assertions and full857/7089 passed,
+including actual COD placement, financial totals, owner/foreign-tenant guards,
+public receipt exclusion, bounded/allowlisted labels, missing session, replay and
+populated rollback. Pint/full single-worker PHPStan passed. Exact release CI/MySQL
+is required. Actual named local browser order25 from the generated URL retained
+local-meta-20261012/local-campaign-20261012 after navigating to /checkout, total
+275+85=360EGP, item cost125. Reload preserved one order and three metrics events.
+These disposable rows were removed with all174 original tables verified before
+and after;070000 empty reversal/reapply succeeded. No real advertising, payment,
+shipment, mail or message was dispatched by this review.
+
+Full competitor parity is not completed by this phase. The authenticated current
+reference gates Cross Selling, Easy Catalog and minimum-order plugin details
+behind an inactive subscription. No competitor purchase/activation/settings save
+was performed. Production activation remains pending SSH access and exact source,
+backup, additive staging, data/asset/health verification.
