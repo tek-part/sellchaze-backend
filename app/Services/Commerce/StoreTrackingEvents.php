@@ -37,21 +37,28 @@ class StoreTrackingEvents
         }
         $items = [];
         $value = '0.00';
+        $groupView = false;
         foreach ($data['items'] ?? [] as $line) {
             if ($data['event'] === 'view_item' && ! isset($line['variant_id'])) {
                 $product = Product::withoutGlobalScopes()->where('store_id', $store->id)->where('is_active', true)->findOrFail($line['product_id']);
                 $price = (string) $product->price;
+                $groupView = $product->variants()->where('store_id', $store->id)->where('is_active', true)->exists();
             } else {
                 $selection = app(PurchasableSelection::class)->resolve($store, (int) $line['product_id'], $line['variant_id'] ?? null, false,
                     $line['quantity_offer_id'] ?? null, (int) $line['quantity'], $line['quantity_offer_version'] ?? null);
                 $product = $selection['product'];
                 $price = $selection['price'];
             }
-            $items[] = ['item_id' => (string) $product->id, 'item_name' => $product->name, 'price' => $price, 'quantity' => (int) $line['quantity']];
+            $variantId = isset($selection) ? $selection['variant']?->id : null;
+            $items[] = ['item_id' => CatalogItemId::selection($product->id, $variantId), 'item_name' => $product->name, 'price' => $price, 'quantity' => (int) $line['quantity']];
+            unset($selection);
             $value = bcadd($value, bcmul($price, (string) $line['quantity'], 2), 2);
         }
         $payload = ['event' => $data['event'], 'event_id' => $key, 'currency' => $store->currency ?: 'USD', 'value' => $value, 'items' => $items,
             'page_location' => $request->getSchemeAndHttpHost().($data['page_path'] ?? '/'), 'user_data' => $this->userData($request)];
+        if ($groupView) {
+            $payload['content_type'] = 'product_group';
+        }
 
         return $this->browser($store, $this->persist($store, $payload));
     }
@@ -63,7 +70,7 @@ class StoreTrackingEvents
             return;
         }
         try {
-            $items = $order->items()->get()->map(fn ($line) => ['item_id' => (string) $line->store_product_id, 'item_name' => $line->name,
+            $items = $order->items()->get()->map(fn ($line) => ['item_id' => CatalogItemId::selection((int) $line->store_product_id, $line->variant_id), 'item_name' => $line->name,
                 'price' => $line->unit_price, 'quantity' => (int) $line->quantity])->all();
             $user = $this->userData($request);
             if ($order->customer_email) {

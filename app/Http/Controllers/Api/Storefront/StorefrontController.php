@@ -12,6 +12,7 @@ use App\Http\Resources\Storefront\StorefrontProductResource;
 use App\Models\Store;
 use App\Models\StoreContentPage;
 use App\Models\StoreMenu;
+use App\Services\Commerce\GoogleMerchantSettings;
 use App\Services\Commerce\ShoppingPreferences;
 use App\Services\Commerce\StoreTrackingSettings;
 use App\Services\CurrencyRateService;
@@ -75,10 +76,12 @@ class StorefrontController extends Controller
             ->get()->keyBy('handle');
         $locale = $this->locale->current();
 
-        return app(SimplePages::class)->navigation($store, [
+        $navigation = app(SimplePages::class)->navigation($store, [
             'header' => $menus->has('header') ? $this->menus->tree($menus->get('header'), $locale) : [],
             'footer' => $menus->has('footer') ? $this->menus->tree($menus->get('footer'), $locale) : [],
         ], $locale);
+
+        return app(GoogleMerchantSettings::class)->navigation($store, $navigation);
     }
 
     /**
@@ -174,6 +177,7 @@ class StorefrontController extends Controller
             'currency' => $baseCurrency,
             'auto_select_variants' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
             'tracking_enabled' => app(StoreTrackingSettings::class)->enabled($store),
+            'merchant_information' => app(GoogleMerchantSettings::class)->publicInformation($store),
             'supported_currencies' => array_keys($multipliers),
             'currency_multipliers' => $multipliers,
             'shipping' => ['enabled' => (bool) $store->shipping_enabled, 'free_over' => $store->shipping_free_over, 'currency' => $baseCurrency],

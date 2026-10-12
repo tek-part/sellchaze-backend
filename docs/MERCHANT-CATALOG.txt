@@ -1,0 +1,62 @@
+Merchant catalog feeds and Google Merchant information
+=====================================================
+
+The private product-feed and product-feed/download endpoints support Google,
+Meta, Snapchat and TikTok. They share store.settings.manage authorization with
+Google Merchant settings. Public feeds resolve the active store by its own host
+at /api/v1/storefront/product-feed/{channel}; unknown/suspended stores and unknown
+channels cannot export. Both public and private downloads are throttled and use
+no-store headers. Export and information requests do not mutate stock or orders.
+There are no provider calls, OAuth tokens or advertising-account writes here.
+
+Google uses UTF-8 tab-separated data; the other channels use UTF-8 CSV, with a BOM
+and CRLF records. TikTok uses sku_id; the other feeds use id. Public catalog data
+is projected explicitly; cost, supplier identifiers, delivery links/codes, private
+customer data and tracking credentials are excluded. Text is stripped of HTML and
+controls, CSV fields are quoted, and leading spreadsheet formula characters are
+escaped. Cover/gallery images must have safe HTTP(S) URLs and a supported file
+extension. TikTok accepts JPG/PNG; the other feeds also accept WebP. Unusable images
+and missing required brand/GTIN data for social feeds omit the row. No fake brand,
+MPN or GTIN is synthesized. GTIN checks lengths/check digits and rejects all zeroes.
+Actual image dimensions, external accessibility and provider moderation remain
+the merchant's responsibility and require production acceptance.
+
+Each active variant is exported separately, with its own price/image/availability
+and ?variant=ID landing URL. The parent ID is item_group_id. Standalone product IDs
+stay numeric; variant IDs are p{product}-v{variant}, shared with cart/checkout and
+purchase advertising items. Generic parent views use product_group matching.
+Reserved physical stock and available digital codes determine availability.
+Prices use the base currency and current one-unit offer; compare prices become
+regular price plus sale_price. Draft/future products and inactive variants are
+excluded. Existing products with no publication timestamp remain supported.
+
+Apply 2026_10_12_060000_add_google_merchant_configuration BEFORE code activation.
+It adds one NULL JSON column to stores. Existing stores remain disabled. The
+private google-merchant GET/PUT endpoints require a shared version and reject stale
+edits. Enabling requires contact details and authored shipping/return policies;
+the authored COD policy may be disabled independently. Formatting is sanitized by
+the existing product/page HTML policy. Nothing is generated as a legal document.
+Disabling unpublishes contacts/policies without deleting authored draft content.
+Down refuses any populated configuration; production rollback must preserve it.
+
+Enabled information is exposed deliberately through merchant_information in the
+public bootstrap/render context, with automatic policy footer links. Existing
+store contact fields, custom pages, publications, themes and menu records are not
+rewritten. The raw configuration is hidden from normal Store serialization.
+
+Validation: nine dedicated feature tests/145 assertions cover formats, tenant and
+permission guards, safe data projection, price/stock freshness, real variant order
+and browser/server/catalog ID matching, stale edits, publication/sanitization and
+populated rollback and unresolvable product slugs. Full local baseline852/7050
+passed before the final phone/slug guards; final dedicated tests and PHPStan/Pint
+passed afterward. Exact release CI is required.
+Actual local browser downloads were parsed and matched Blue200/available and
+Red350/unavailable; the browser download-event observer timed out, but actual
+created files were independently verified. No live provider upload was attempted.
+
+Primary format references reviewed:
+https://support.google.com/google-ads/answer/12631822?hl=en-GB
+https://ads.tiktok.com/resources/help/article/catalog-product-parameters
+https://businesshelp.snapchat.com/articles/en_US/Knowledge/product-catalog-specs
+Meta's business-help page requires login in the documentation reader; format
+acceptance by Meta, Google, Snapchat and TikTok remains unverified with real accounts.

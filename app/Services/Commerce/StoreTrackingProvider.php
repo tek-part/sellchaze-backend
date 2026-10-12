@@ -16,7 +16,7 @@ class StoreTrackingProvider
     public function body(string $provider, array $event, int $time, string $pixel): array
     {
         $user = $event['user_data'];
-        $custom = ['currency' => $event['currency'], 'value' => (float) ($event['gross_value'] ?? $event['value']), 'content_type' => 'product',
+        $custom = ['currency' => $event['currency'], 'value' => (float) ($event['gross_value'] ?? $event['value']), 'content_type' => $event['content_type'] ?? 'product',
             'content_ids' => array_column($event['items'], 'item_id'), 'contents' => array_map(fn ($item) => ['id' => $item['item_id'], 'quantity' => $item['quantity'], 'item_price' => (float) $item['price']], $event['items'])];
         if (isset($event['transaction_id'])) {
             $custom['order_id'] = $event['transaction_id'];
@@ -28,7 +28,7 @@ class StoreTrackingProvider
                     $mapped[$to] = $user[$from];
                 }
             }
-            $properties = ['currency' => $event['currency'], 'value' => $custom['value'], 'content_type' => 'product',
+            $properties = ['currency' => $event['currency'], 'value' => $custom['value'], 'content_type' => $custom['content_type'],
                 'contents' => array_map(fn ($item) => ['content_id' => $item['item_id'], 'content_name' => $item['item_name'], 'quantity' => $item['quantity'], 'price' => (float) $item['price']], $event['items'])];
 
             return ['event_source' => 'web', 'event_source_id' => $pixel, 'data' => [['event' => self::NAMES[$provider][$event['event']],
@@ -38,6 +38,9 @@ class StoreTrackingProvider
             if (isset($user[$key])) {
                 $user[$key] = [$user[$key]];
             }
+        }
+        if ($provider === 'snapchat' && ($event['content_type'] ?? '') === 'product_group') {
+            $custom['item_category'] = $event['items'][0]['item_id'] ?? '';
         }
 
         return ['data' => [['event_name' => self::NAMES[$provider][$event['event']], 'event_id' => $event['event_id'], 'event_time' => $time,

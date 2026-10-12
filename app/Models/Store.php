@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\Storage;
  * @property array<string,mixed>|null $bot_protection_credentials
  * @property array<string,mixed>|null $tracking_configuration
  * @property array<string,string>|null $tracking_credentials
+ * @property array<string,mixed>|null $google_merchant_configuration
  */
 class Store extends Model
 {
@@ -49,9 +50,11 @@ class Store extends Model
         'phone_otp_configuration', 'phone_otp_credentials',
         'bot_protection_configuration', 'bot_protection_credentials',
         'tracking_configuration', 'tracking_credentials',
+        'google_merchant_configuration',
     ];
 
     protected $casts = [
+        'google_merchant_configuration' => 'array',
         'tracking_configuration' => 'array',
         'tracking_credentials' => 'encrypted:array',
         'bot_protection_configuration' => 'array',
@@ -79,7 +82,7 @@ class Store extends Model
         'shipping_free_over' => 'decimal:2',
     ];
 
-    protected $hidden = ['digital_delivery_credentials', 'phone_otp_credentials', 'phone_otp_configuration', 'bot_protection_configuration', 'bot_protection_credentials', 'tracking_configuration', 'tracking_credentials'];
+    protected $hidden = ['digital_delivery_credentials', 'phone_otp_credentials', 'phone_otp_configuration', 'bot_protection_configuration', 'bot_protection_credentials', 'tracking_configuration', 'tracking_credentials', 'google_merchant_configuration'];
 
     /** Task 6: any store change (status, name, settings...) invalidates its page cache. */
     protected static function booted(): void
