@@ -12,20 +12,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array|null $personalization
  * @property array|null $digital_delivery
  * @property array|null $quantity_offer
+ * @property string|null $unit_cost
  */
 class StoreOrderItem extends Model
 {
-    protected $hidden = ['digital_delivery'];
+    protected $hidden = ['digital_delivery', 'unit_cost'];
 
     use BelongsToStore;
 
     protected $fillable = [
         'store_id', 'store_order_id', 'store_product_id', 'name',
-        'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku', 'inventory_status', 'personalization', 'digital_delivery', 'quantity_offer',
+        'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku', 'inventory_status', 'personalization', 'digital_delivery', 'quantity_offer', 'unit_cost',
     ];
 
     protected $casts = [
         'unit_price' => 'decimal:2',
+        'unit_cost' => 'decimal:2',
         'line_total' => 'decimal:2',
         'quantity' => 'integer',
         'variant_options' => 'array',

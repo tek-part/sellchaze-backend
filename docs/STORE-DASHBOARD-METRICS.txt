@@ -1,0 +1,61 @@
+Merchant dashboard metrics
+
+GET /api/v1/my-store/analytics/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD
+GET /api/v1/stores/{store}/analytics/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD
+
+Both require the existing store scope and store.analytics.view permission. Responses
+are private/no-store. Dates are inclusive in app.timezone; maximum 366 days. The
+default starts seven calendar days before today, including both endpoints.
+
+The summary contains visits, placed orders, average delivered order value, cart
+addition actions, checkout start actions, cross-sell addition actions, pending
+orders, missed orders, session conversion, completion including missed orders,
+delivered gross sales, and saved merchandise profit. Five daily series, low-stock
+SKUs, delivered best sellers, and a three-stage session funnel share this period.
+Available stock subtracts reservations and respects the shared unused digital-code
+pool; the display cutoff is max(5, product reorder level). At most ten low-stock
+SKUs and five best sellers are returned. No digital code values are returned.
+
+Session conversion counts distinct non-cancelled order sessions with a visit in
+the selected period. Checkout funnel sessions must also have a visit in that
+period. Completion including missed orders = placed orders / (placed + missed).
+Missed uses the existing five-minute inactivity, unconverted, nonempty contact
+predicate, including reviewed attempts. Recommendation additions on a product
+page are currently the cross-sell source; this does not implement checkout upsells.
+These definitions are explicit implementation choices, not verified calculations
+from a populated competitor account.
+
+Profit = delivered subtotal - discount - sum(saved unit cost * quantity). Cost is
+captured under the checkout transaction from the selected variant, falling back
+to product cost. Changing catalog costs does not rewrite orders. Historical NULL
+costs remain unknown and make period profit unavailable. Fees and operating costs
+are excluded. Unit costs and analytics session hashes are hidden from model JSON
+and public checkout responses. No existing totals/payment behavior is changed.
+
+POST /api/v1/storefront/events, resolved exclusively by the current store host,
+accepts event_id/session_id UUIDs, visit/add_to_cart/checkout_started, source
+storefront/funnel/cross_sell, a current own product for non-visits, and an addition
+quantity 1..999. Unknown payload fields are discarded. At most 90 requests/minute
+plus the existing storefront throttle. Store-specific HMAC keys deduplicate retries;
+replays preserve original receipt time even if the product is later inactive.
+No contacts, URL, referrer, IP, advertising identifiers, or personalization are
+stored in this table. Counters are anonymous client reports, not fraud-proof traffic.
+Recording does not create carts/orders, reserve stock/codes, or send notifications.
+
+Checkout accepts an optional analytics_session. It links only a recorded visit in
+this store within two days, only when creating a new order. Missing/unknown sessions
+do not block checkout. Existing idempotent response replay is preserved.
+The client excludes design previews, DNT and GPC, uses a thirty-minute idle session
+and a bounded retry queue, and sends no third-party telemetry. Earlier traffic
+cannot be reconstructed. Daily traffic before the first recorded day is NULL;
+tracking_started_at exposes the first receipt time. Counts refer only to recorded
+activity, including partial data on the first day.
+
+Migration: 2026_10_12_040000_create_storefront_events_and_order_cost_snapshots
+is additive. Existing order fields default NULL. Stage this migration before code
+activation. Rollback refuses populated events, costs or session snapshots; preserve
+such data rather than force-dropping it. No legacy data is backfilled or reset.
+
+Tests cover event retries/privacy/host and product boundaries, inclusive ranges,
+unknown historical traffic, real checkout/replay/cost changes, variant fallback,
+legacy costs, missed contacts, reserved/digital stock, access and tenant isolation.

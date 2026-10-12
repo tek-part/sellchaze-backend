@@ -30,6 +30,7 @@ use App\Services\Commerce\OrderReceipt;
 use App\Services\Commerce\PaymentRetryToken;
 use App\Services\Commerce\PricingCalculator;
 use App\Services\Commerce\QuantityOffers;
+use App\Services\Commerce\StorefrontEvents;
 use App\Services\Commerce\StorePaymentService;
 use App\Services\Commerce\StoreShipping;
 use Illuminate\Http\JsonResponse;
@@ -170,6 +171,9 @@ class CheckoutController extends Controller
                 $shippingSelection,
             );
             $attempt?->update(['store_order_id' => $order->id]);
+            if ($order->wasRecentlyCreated && isset($validated['analytics_session'])) {
+                $order->update(['analytics_session_hash' => app(StorefrontEvents::class)->orderSession($store, $validated['analytics_session'])]);
+            }
             app(CheckoutLeads::class)->converted($store, $validated['lead_token'] ?? null, $order);
 
             return $order;
