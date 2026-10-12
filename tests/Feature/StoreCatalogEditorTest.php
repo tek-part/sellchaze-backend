@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class StoreCatalogEditorTest extends TestCase
@@ -47,6 +48,92 @@ class StoreCatalogEditorTest extends TestCase
     private function create(array $extra = []): int
     {
         return $this->postJson($this->base, array_merge(['name' => 'حقيبة', 'slug' => 'bag', 'price' => 125, 'is_active' => true], $extra), $this->auth)->assertCreated()->json('data.id');
+    }
+
+    public function test_catalog_sku_search_filters_parent_and_variant_skus_without_wildcard_or_tenant_leaks(): void
+    {
+        $first = $this->create(['name' => 'Bag first', 'slug' => 'first', 'sku' => 'BAG_10%']);
+        $second = $this->create(['name' => 'Bag second', 'slug' => 'second', 'sku' => 'BAGX10X']);
+        $this->postJson($this->base.'/'.$second.'/variants', ['name' => 'Blue', 'sku' => 'BLUE-42'], $this->auth)->assertCreated();
+        app(CurrentStore::class)->forget();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Foreign', 'slug' => 'foreign-catalog', 'status' => 'active']);
+        Product::create(['store_id' => $other->id, 'name' => 'Bag foreign', 'slug' => 'foreign', 'sku' => 'BAG_10%', 'price' => 1]);
+        Product::create(['store_id' => null, 'name' => 'Bag B2B', 'sku' => 'BAG_10%', 'price' => 2]);
+        $this->getJson($this->base.'?sku=BAG_10%25', $this->auth)->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $first);
+        $this->getJson($this->base.'?sku=BLUE-42&search=Bag', $this->auth)->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $second);
+        $this->getJson($this->base.'?sku=BLUE-42&search=first', $this->auth)->assertOk()->assertJsonPath('meta.total', 0);
+        $this->getJson($this->base.'?search=BAGX10X', $this->auth)->assertOk()->assertJsonPath('data.0.id', $second);
+        $this->getJson($this->public.'/products/first')->assertOk()->assertJsonMissingPath('data.edit_version');
+    }
+
+    public function test_catalog_sorting_is_server_side_stable_and_allowlisted(): void
+    {
+        $one = $this->create(['name' => 'Zulu', 'slug' => 'zulu', 'price' => 0]);
+        $two = $this->create(['name' => 'Alpha', 'slug' => 'alpha', 'price' => 25]);
+        $three = $this->create(['name' => 'Alpha', 'slug' => 'alpha-two', 'price' => 25]);
+        $this->getJson($this->base.'?sort_by=price&sort_direction=asc&per_page=1', $this->auth)->assertOk()->assertJsonPath('data.0.id', $one)->assertJsonPath('meta.total', 3);
+        $this->getJson($this->base.'?sort_by=price&sort_direction=desc&per_page=1&page=2', $this->auth)->assertOk()->assertJsonPath('data.0.id', $two);
+        $this->getJson($this->base.'?sort_by=name&sort_direction=asc', $this->auth)->assertOk()->assertJsonPath('data.0.id', $three)->assertJsonPath('data.2.id', $one);
+        $this->getJson($this->base.'?sort_by=created_at&sort_direction=desc', $this->auth)->assertOk();
+        foreach (['sort_by=cost', 'sort_by=price%20desc', 'sort_direction=random'] as $query) {
+            $this->getJson($this->base.'?'.$query, $this->auth)->assertUnprocessable();
+        }
+    }
+
+    public function test_bulk_catalog_edit_changes_only_requested_fields_and_preserves_inventory_and_variants(): void
+    {
+        $one = $this->create(['slug' => 'one', 'price' => 10, 'cost' => 7]);
+        $two = $this->create(['slug' => 'two', 'price' => 20]);
+        $variant = $this->postJson($this->base.'/'.$two.'/variants', ['name' => 'Blue', 'price_override' => 5], $this->auth)->assertCreated()->json('data.id');
+        $rows = $this->getJson($this->base, $this->auth)->assertOk()->json('data');
+        $targets = array_map(fn ($row) => ['id' => $row['id'], 'version' => $row['edit_version']], $rows);
+        Product::query()->whereKey($one)->update(['stock_quantity' => 8, 'reserved_quantity' => 2, 'track_inventory' => true]);
+        $this->putJson($this->base.'/bulk', ['products' => $targets, 'changes' => ['price' => 0, 'is_active' => false, 'category_id' => null]], $this->auth)->assertOk()->assertJsonPath('meta.updated', 2);
+        $this->assertDatabaseHas('products', ['id' => $one, 'name' => 'حقيبة', 'cost' => 7, 'price' => 0, 'is_active' => false, 'stock_quantity' => 8, 'reserved_quantity' => 2]);
+        $this->assertDatabaseHas('store_product_variants', ['id' => $variant, 'price_override' => 5]);
+        $this->getJson($this->public.'/products/one')->assertNotFound();
+        $rows = $this->getJson($this->base, $this->auth)->assertOk()->json('data');
+        $targets = array_map(fn ($row) => ['id' => $row['id'], 'version' => $row['edit_version']], $rows);
+        $this->putJson($this->base.'/bulk', ['products' => $targets, 'changes' => ['is_active' => true]], $this->auth)->assertOk();
+        $this->getJson($this->public.'/products/one')->assertOk()->assertJsonPath('data.price', '0.00');
+    }
+
+    public function test_bulk_catalog_edit_rejects_stale_or_foreign_products_atomically(): void
+    {
+        $one = $this->create(['slug' => 'one', 'price' => 10]);
+        $two = $this->create(['slug' => 'two', 'price' => 20]);
+        $rows = $this->getJson($this->base, $this->auth)->assertOk()->json('data');
+        $targets = array_map(fn ($row) => ['id' => $row['id'], 'version' => $row['edit_version']], $rows);
+        $this->putJson($this->base.'/'.$two, ['price' => 22], $this->auth)->assertOk();
+        $this->putJson($this->base.'/bulk', ['products' => $targets, 'changes' => ['price' => 99]], $this->auth)->assertUnprocessable()->assertJsonValidationErrors('products');
+        $this->assertDatabaseHas('products', ['id' => $one, 'price' => 10]);
+        $this->assertDatabaseHas('products', ['id' => $two, 'price' => 22]);
+        app(CurrentStore::class)->forget();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Foreign', 'slug' => 'foreign-bulk', 'status' => 'active']);
+        $foreign = Product::create(['store_id' => $other->id, 'name' => 'Foreign', 'slug' => 'foreign', 'price' => 4]);
+        $targets[0] = ['id' => $foreign->id, 'version' => str_repeat('a', 64)];
+        $this->putJson($this->base.'/bulk', ['products' => $targets, 'changes' => ['price' => 99]], $this->auth)->assertUnprocessable();
+        $this->assertDatabaseHas('products', ['id' => $one, 'price' => 10]);
+        $this->assertDatabaseHas('products', ['id' => $foreign->id, 'price' => 4]);
+    }
+
+    public function test_bulk_catalog_edit_rejects_unknown_fields_duplicates_foreign_category_and_missing_permission(): void
+    {
+        $id = $this->create();
+        $row = $this->getJson($this->base.'/'.$id, $this->auth)->assertOk()->json('data');
+        $target = ['id' => $id, 'version' => $row['edit_version']];
+        foreach ([['stock_quantity' => 99], ['cost' => 99], ['slug' => 'hacked'], ['price' => -1], ['price' => 0.999], ['price' => null], ['is_active' => null], []] as $changes) {
+            $this->putJson($this->base.'/bulk', ['products' => [$target], 'changes' => $changes], $this->auth)->assertUnprocessable();
+        }
+        $this->putJson($this->base.'/bulk', ['products' => [$target, $target], 'changes' => ['price' => 1]], $this->auth)->assertUnprocessable();
+        $this->putJson($this->base.'/bulk', ['products' => array_fill(0, 101, $target), 'changes' => ['price' => 1]], $this->auth)->assertUnprocessable();
+        app(CurrentStore::class)->forget();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Foreign', 'slug' => 'foreign-category', 'status' => 'active']);
+        $category = Category::create(['store_id' => $other->id, 'name' => 'Foreign', 'slug' => 'foreign']);
+        $this->putJson($this->base.'/bulk', ['products' => [$target], 'changes' => ['category_id' => $category->id]], $this->auth)->assertUnprocessable();
+        $this->assertDatabaseHas('products', ['id' => $id, 'price' => 125, 'category_id' => null]);
+        Role::findByName('Merchant', 'web')->revokePermissionTo('products-edit');
+        $this->putJson($this->base.'/bulk', ['products' => [$target], 'changes' => ['price' => 1]], $this->auth)->assertForbidden();
     }
 
     public function test_option_display_round_trips_and_localizes_without_changing_variant_identity(): void

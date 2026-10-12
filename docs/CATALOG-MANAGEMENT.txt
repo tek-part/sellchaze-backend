@@ -1,0 +1,26 @@
+Merchant catalog management
+
+GET /api/v1/my-store/catalog/products and /api/v1/stores/{store}/catalog/products
+accept sku (literal partial base/variant SKU), search (name/slug/base SKU), status,
+category_id, pagination, sort_by (position/name/price/created_at) and sort_direction
+(asc/desc). Filtering and sorting happen before pagination; equal values use id
+descending. The default remains position ascending followed by id descending.
+
+PUT .../catalog/products/bulk requires products-edit and ownership of every row.
+Body: {products:[{id,version}], changes:{price?,is_active?,category_id?}}.
+Choose 1–100 distinct products and at least one allowed field. The merchant-only
+edit_version token covers displayed identity, price, category and publication;
+independently managed inventory and variant overrides are excluded. Every row is
+tenant scoped, locked in id order and checked before any save. A stale/unavailable
+row rejects the entire request with 422. Foreign categories and unknown fields
+are rejected. Null category removes the category; zero price is valid. Return:
+{meta:{updated:N}}. Cache invalidation runs after the transaction commits.
+
+These changes do not alter option overrides, inventory, reservations, delivery
+secrets or existing order snapshots. The token is absent from public products.
+No database migration or dependency change is required.
+
+StoreCatalogEditorTest covers SKU literals and variants, tenant isolation,
+sorting/pagination/ties, successful edits, stale/foreign atomic rejection,
+inventory preservation, field validation and missing edit permission. JSON/Excel
+import, clone and bulk delete remain separate unfinished competitor requirements.

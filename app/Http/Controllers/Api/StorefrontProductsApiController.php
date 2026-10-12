@@ -3,14 +3,20 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StorefrontProductBulkUpdateRequest;
 use App\Http\Requests\StorefrontProductStoreRequest;
 use App\Http\Requests\StorefrontProductUpdateRequest;
 use App\Http\Resources\StoreCatalogProductResource;
 use App\Models\Product;
 use App\Models\Store;
 use App\Services\StoreCatalog\StorefrontProductService;
+use App\Services\Storefront\StorefrontPageCache;
+use App\Services\Storefront\StorefrontService;
+use App\Support\CatalogProductVersion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Owner management of a store's products. Mounted under
@@ -23,12 +29,23 @@ class StorefrontProductsApiController extends Controller
 
     public function index(Request $request, Store $store): JsonResponse
     {
-        $request->validate(['status' => ['nullable', 'in:active,draft']]);
+        $request->validate([
+            'status' => ['nullable', 'in:active,draft'],
+            'search' => ['nullable', 'string', 'max:255'],
+            'sku' => ['nullable', 'string', 'max:120'],
+            'sort_by' => ['nullable', 'in:position,name,price,created_at'],
+            'sort_direction' => ['nullable', 'in:asc,desc'],
+        ]);
         $query = Product::query()->with(['category:id,name,slug', 'variants', 'media']); // StoreScope -> this store only
 
         if ($request->filled('search')) {
             $term = '%'.$request->string('search')->trim().'%';
-            $query->where(fn ($q) => $q->where('name', 'like', $term)->orWhere('slug', 'like', $term));
+            $query->where(fn ($q) => $q->where('name', 'like', $term)->orWhere('slug', 'like', $term)->orWhere('sku', 'like', $term));
+        }
+        if ($request->filled('sku')) {
+            $term = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], (string) $request->string('sku')->trim()).'%';
+            $query->where(fn ($q) => $q->whereRaw("sku LIKE ? ESCAPE '!'", [$term])
+                ->orWhereHas('variants', fn ($variants) => $variants->whereRaw("sku LIKE ? ESCAPE '!'", [$term])));
         }
         if ($request->filled('category_id')) {
             $query->where('category_id', (int) $request->get('category_id'));
@@ -39,7 +56,9 @@ class StorefrontProductsApiController extends Controller
         }
 
         $perPage = min(max((int) $request->get('per_page', 15), 1), 100);
-        $paginator = $query->orderBy('position')->orderByDesc('id')->paginate($perPage);
+        $sort = $request->input('sort_by') ?: 'position';
+        $direction = $request->input('sort_direction') ?: 'asc';
+        $paginator = $query->orderBy($sort, $direction)->orderByDesc('id')->paginate($perPage);
 
         return response()->json([
             'data' => StoreCatalogProductResource::collection($paginator->getCollection()),
@@ -57,6 +76,35 @@ class StorefrontProductsApiController extends Controller
         $product = $this->service->create($request->validated(), $request->file('image'), $request->file('gallery', []));
 
         return response()->json(['data' => new StoreCatalogProductResource($product->load(['category:id,name,slug', 'variants', 'media']))], 201, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function bulkUpdate(StorefrontProductBulkUpdateRequest $request, Store $store): JsonResponse
+    {
+        $data = $request->validated();
+        $updated = DB::transaction(function () use ($data, $request, $store) {
+            $targets = collect($data['products'])->keyBy('id');
+            $products = Product::query()->whereIn('id', $targets->keys())->orderBy('id')->lockForUpdate()->get();
+            if ($products->count() !== $targets->count()) {
+                throw ValidationException::withMessages(['products' => 'Refresh the list: a selected product is unavailable.']);
+            }
+            foreach ($products as $product) {
+                abort_unless($request->user()->can('update', $product), 403);
+                if (! hash_equals(CatalogProductVersion::for($product), $targets[$product->id]['version'])) {
+                    throw ValidationException::withMessages(['products' => 'A selected product has changed. Refresh the list and review your selection before saving again.']);
+                }
+            }
+            foreach ($products as $product) {
+                $product->fill($data['changes'])->save();
+            }
+            DB::afterCommit(function () use ($store) {
+                StorefrontService::forgetHomepage((int) $store->id);
+                app(StorefrontPageCache::class)->flushStore((int) $store->id);
+            });
+
+            return $products->count();
+        });
+
+        return response()->json(['meta' => ['updated' => $updated]], 200);
     }
 
     public function show(Request $request, Store $store, int $product): JsonResponse
