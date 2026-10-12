@@ -61,6 +61,7 @@ use App\Http\Controllers\Api\PublicContactApiController;
 use App\Http\Controllers\Api\PublicProfileApiController;
 use App\Http\Controllers\Api\QuotationsApiController;
 use App\Http\Controllers\Api\RolesApiController;
+use App\Http\Controllers\Api\ServiceMarketplaceController;
 use App\Http\Controllers\Api\SettingsSummaryApiController;
 use App\Http\Controllers\Api\ShippingCompaniesApiController;
 use App\Http\Controllers\Api\SocialSafetyController;
@@ -315,6 +316,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/payment-webhooks/{store}/{gateway}', [PaymentWebhookController::class, 'handle'])
         ->whereNumber('store')->whereIn('gateway', ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'fawaterak', 'paytabs', 'fawry']);
     Route::post('/platform-wallet/fawaterak_json', [PlatformWalletController::class, 'fawaterak'])->middleware('throttle:120,1');
+    Route::get('/service-marketplace/media/{provider}/{file}', [ServiceMarketplaceController::class, 'media'])->whereUuid('provider')->middleware('throttle:storefront-read');
     Route::post('/payment-webhooks/{store}/fawaterak_json', [PaymentWebhookController::class, 'fawaterak'])
         ->whereNumber('store');
     Route::get('/payment-returns/hyperpay/{transaction}', [PaymentWebhookController::class, 'hyperpayReturn']);
@@ -426,6 +428,17 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/platform-referral', [PlatformWalletController::class, 'referral'])->middleware('throttle:tenant-read');
         Route::post('/me/platform-referral', [PlatformWalletController::class, 'createReferral'])->middleware('throttle:20,1');
         Route::post('/admin/platform-wallet/reconcile', [PlatformWalletController::class, 'reconcile'])->middleware('throttle:20,1');
+        Route::get('/service-marketplace', [ServiceMarketplaceController::class, 'index'])->middleware('throttle:tenant-read');
+        Route::get('/service-marketplace/providers/{provider}', [ServiceMarketplaceController::class, 'provider'])->whereUuid('provider')->middleware('throttle:tenant-read');
+        Route::get('/service-marketplace/services/{service}', [ServiceMarketplaceController::class, 'show'])->whereUuid('service')->middleware('throttle:tenant-read');
+        Route::put('/service-marketplace/services/{service}/rating', [ServiceMarketplaceController::class, 'rate'])->whereUuid('service')->middleware('throttle:20,1');
+        Route::get('/me/service-marketplace', [ServiceMarketplaceController::class, 'mine'])->middleware('throttle:tenant-read');
+        Route::put('/me/service-marketplace/provider', [ServiceMarketplaceController::class, 'saveProvider'])->middleware('throttle:20,1');
+        Route::post('/me/service-marketplace/images', [ServiceMarketplaceController::class, 'upload'])->middleware('throttle:20,1');
+        Route::get('/me/service-marketplace/media/{file}', [ServiceMarketplaceController::class, 'privateMedia'])->middleware('throttle:tenant-read');
+        Route::post('/me/service-marketplace/services', [ServiceMarketplaceController::class, 'store'])->middleware('throttle:20,1');
+        Route::put('/me/service-marketplace/services/{service}', [ServiceMarketplaceController::class, 'update'])->whereUuid('service')->middleware('throttle:20,1');
+        Route::delete('/me/service-marketplace/services/{service}', [ServiceMarketplaceController::class, 'destroy'])->whereUuid('service')->middleware('throttle:20,1');
         Route::patch('/auth/me', [AuthController::class, 'updateMe']);
         Route::put('/auth/password', [AuthController::class, 'changePassword']);
         Route::post('/auth/me/avatar', [AuthController::class, 'uploadAvatar']);
