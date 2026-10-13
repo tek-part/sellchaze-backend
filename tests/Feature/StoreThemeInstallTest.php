@@ -118,6 +118,26 @@ class StoreThemeInstallTest extends TestCase
         $this->assertSame('naseem', $this->registry->resolveActiveTheme($other->fresh())->theme->key);
     }
 
+    public function test_nature_kids_install_keeps_other_store_activation_and_settings(): void
+    {
+        $store = $this->makeStore();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other', 'slug' => 'other-kids-store', 'currency' => 'USD', 'status' => 'active']);
+        $this->installer->installAndActivateDefault($other);
+        $oldTheme = $other->fresh()->theme_id;
+        $oldSettings = $other->fresh()->theme_settings;
+        $theme = $this->registry->registerFromFile(resource_path('themes/storefront/nature-kids.json'));
+        $version = $this->registry->resolveThemeVersion($theme);
+        $this->assertSame('builtin:nature-kids@1.0.0', $version->bundle_url);
+        $this->assertArrayHasKey('kids-peek-hero', $version->sections_schema);
+        $this->assertArrayHasKey('kids-shop-look', $version->sections_schema);
+        $installed = $this->installer->install($store, $theme, $version);
+        $this->installer->activate($store, $installed);
+        $this->assertSame('nature-kids', $this->registry->resolveActiveTheme($store->fresh())->theme->key);
+        $this->assertSame('#1470F2', $store->fresh()->theme_settings['primary_color']);
+        $this->assertSame($oldTheme, $other->fresh()->theme_id);
+        $this->assertSame($oldSettings, $other->fresh()->theme_settings);
+    }
+
     public function test_store_created_via_service_gets_default_theme(): void
     {
         // StoreService::create resolves the owner from the authenticated user.

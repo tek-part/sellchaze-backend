@@ -122,7 +122,7 @@ class StorefrontService
      * (best_sellers|new_arrivals|trending|on_sale — driven by real product flags),
      * and free-text search over name/short_description/sku.
      */
-    public function products(?string $categorySlug, int $perPage, ?string $filter = null, ?string $search = null): LengthAwarePaginator
+    public function products(?string $categorySlug, int $perPage, ?string $filter = null, ?string $search = null, ?string $sort = null): LengthAwarePaginator
     {
         $query = Product::query()
             ->where('is_active', true)
@@ -146,13 +146,23 @@ class StorefrontService
             ->with(['category:id,name,name_en,name_ar,slug,translations', 'variants']);
 
         // Merchandising rows sort by their signal; everything else by curated position.
-        match ($filter) {
-            'best_sellers' => $query->orderByDesc('sales_count')->orderByDesc('id'),
-            'new_arrivals' => $query->orderByDesc('published_at')->orderByDesc('id'),
-            'trending' => $query->orderByDesc('views_count')->orderByDesc('id'),
-            'on_sale' => $query->orderByDesc('discount_percent')->orderByDesc('id'),
-            default => $query->orderBy('position')->orderByDesc('id'),
-        };
+        if (in_array($sort, ['rating', 'newest', 'oldest', 'price_asc', 'price_desc'], true)) {
+            match ($sort) {
+                'rating' => $query->orderByDesc('rating_avg')->orderByDesc('rating_count')->orderByDesc('id'),
+                'newest' => $query->orderByDesc('created_at')->orderByDesc('id'),
+                'oldest' => $query->orderBy('created_at')->orderBy('id'),
+                'price_asc' => $query->orderBy('price')->orderBy('id'),
+                'price_desc' => $query->orderByDesc('price')->orderByDesc('id'),
+            };
+        } else {
+            match ($filter) {
+                'best_sellers' => $query->orderByDesc('sales_count')->orderByDesc('id'),
+                'new_arrivals' => $query->orderByDesc('published_at')->orderByDesc('id'),
+                'trending' => $query->orderByDesc('views_count')->orderByDesc('id'),
+                'on_sale' => $query->orderByDesc('discount_percent')->orderByDesc('id'),
+                default => $query->orderBy('position')->orderByDesc('id'),
+            };
+        }
 
         return $query->paginate($perPage);
     }
