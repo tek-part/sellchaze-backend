@@ -21,6 +21,15 @@ class ScopeToStore
     {
         $store = $request->route('store');
 
+        // Settings controllers use the request tenant rather than a typed Store
+        // argument, so Laravel's implicit model binding does not resolve their ID.
+        if ((is_string($store) && ctype_digit($store)) || is_int($store)) {
+            $store = Store::find($store);
+            if ($store instanceof Store) {
+                $request->route()->setParameter('store', $store);
+            }
+        }
+
         if (! $store instanceof Store) {
             abort(404);
         }

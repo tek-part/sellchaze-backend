@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Storage;
 /**
  * @property list<array<string,mixed>>|null $checkout_fields
  * @property array<string,mixed>|null $social_links_configuration
+ * @property array<string,mixed>|null $head_code_configuration
  * @property array<string,mixed>|null $shipping_configuration
  * @property array<string,mixed>|null $downsell_configuration
  * @property array<string,mixed>|null $dashboard_preferences
@@ -55,10 +56,11 @@ class Store extends Model
         'bot_protection_configuration', 'bot_protection_credentials',
         'tracking_configuration', 'tracking_credentials',
         'google_merchant_configuration',
-        'social_links_configuration',
+        'social_links_configuration', 'head_code_configuration',
     ];
 
     protected $casts = [
+        'head_code_configuration' => 'array',
         'social_links_configuration' => 'array',
         'google_merchant_configuration' => 'array',
         'tracking_configuration' => 'array',
@@ -90,7 +92,7 @@ class Store extends Model
         'shipping_free_over' => 'decimal:2',
     ];
 
-    protected $hidden = ['digital_delivery_credentials', 'phone_otp_credentials', 'phone_otp_configuration', 'bot_protection_configuration', 'bot_protection_credentials', 'tracking_configuration', 'tracking_credentials', 'google_merchant_configuration', 'social_links_configuration'];
+    protected $hidden = ['digital_delivery_credentials', 'phone_otp_credentials', 'phone_otp_configuration', 'bot_protection_configuration', 'bot_protection_credentials', 'tracking_configuration', 'tracking_credentials', 'google_merchant_configuration', 'social_links_configuration', 'head_code_configuration'];
 
     /** Task 6: any store change (status, name, settings...) invalidates its page cache. */
     protected static function booted(): void
