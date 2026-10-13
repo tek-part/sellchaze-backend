@@ -22,11 +22,16 @@ class MerchantOrderResource extends JsonResource
     public function toArray(Request $request): array
     {
         app(PlatformWallet::class)->assertOrderVisible($this->resource);
+        $this->resource->loadMissing('merchantReview');
+        $review = $this->merchantReview;
 
         return [
             'id' => $this->id,
             'order_number' => $this->order_number,
             'status' => $this->status,
+            'archived_at' => $this->deleted_at,
+            'review' => ['classification' => $review?->classification, 'version' => $review?->version ?? 0,
+                'actor_id' => $review?->actor_id, 'updated_at' => $review?->updated_at],
             'currency' => $this->currency,
             'customer' => [
                 'store_customer_id' => $this->store_customer_id,
@@ -67,6 +72,10 @@ class MerchantOrderResource extends JsonResource
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'store_product_id' => $item->store_product_id,
+                'sku' => $item->sku,
+                'variant_id' => $item->variant_id,
+                'variant_name' => $item->variant_name,
+                'variant_options' => $item->variant_options,
                 'personalization' => ProductPersonalization::present($item->personalization ?? [], $this->store_id),
                 'digital_delivery' => DigitalProducts::present($item, $this->resource),
                 'name' => $item->name,
