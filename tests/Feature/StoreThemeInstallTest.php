@@ -79,6 +79,24 @@ class StoreThemeInstallTest extends TestCase
         $this->assertSame(1, StoreTheme::where('store_id', $store->id)->count());
     }
 
+    public function test_elite_furniture_registers_and_activates_only_the_selected_store_with_editable_comparison(): void
+    {
+        $store = $this->makeStore();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other', 'slug' => 'other-theme-store', 'currency' => 'USD', 'status' => 'active']);
+        $this->installer->installAndActivateDefault($other);
+        $oldTheme = $other->fresh()->theme_id;
+        $theme = $this->registry->registerFromFile(resource_path('themes/storefront/elite-furniture.json'));
+        $version = $this->registry->resolveThemeVersion($theme);
+        $this->assertSame('builtin:elite-furniture@1.0.0', $version->bundle_url);
+        $this->assertArrayHasKey('elite-image-compare', $version->sections_schema);
+        $installed = $this->installer->install($store, $theme, $version);
+        $this->installer->activate($store, $installed);
+        $this->assertSame('elite-furniture', $this->registry->resolveActiveTheme($store->fresh())->theme->key);
+        $this->assertSame('Instrument Sans', $store->fresh()->theme_settings['body_font']);
+        $this->assertSame($oldTheme, $other->fresh()->theme_id);
+        $this->assertSame('naseem', $this->registry->resolveActiveTheme($other->fresh())->theme->key);
+    }
+
     public function test_store_created_via_service_gets_default_theme(): void
     {
         // StoreService::create resolves the owner from the authenticated user.
