@@ -75,6 +75,7 @@ use App\Http\Controllers\Api\StoreCategoriesApiController;
 use App\Http\Controllers\Api\StoreCheckoutFieldsController;
 use App\Http\Controllers\Api\StoreContentPagesApiController;
 use App\Http\Controllers\Api\StoreCustomersApiController;
+use App\Http\Controllers\Api\StoreDashboardGuideController;
 use App\Http\Controllers\Api\StoreDashboardMetricsController;
 use App\Http\Controllers\Api\StoreDesignAssetsController;
 use App\Http\Controllers\Api\StoreDigitalDeliveryController;
@@ -906,6 +907,10 @@ Route::prefix('v1')->group(function () {
             });
             Route::get('google-merchant', [GoogleMerchantController::class, 'show'])->middleware('permission:store.settings.manage');
             Route::get('apps', [StoreAppsController::class, 'index'])->middleware(['permission:store.settings.manage', 'throttle:tenant-read']);
+            Route::prefix('dashboard-guide')->middleware('permission:store.settings.manage')->group(function () {
+                Route::get('/', [StoreDashboardGuideController::class, 'index'])->middleware('throttle:tenant-read');
+                Route::put('/', [StoreDashboardGuideController::class, 'update'])->middleware('throttle:30,1');
+            });
             Route::prefix('downsell')->middleware(['permission:store.settings.manage', 'permission:store.coupons.manage'])->group(function () {
                 Route::get('/', [StoreDownsellController::class, 'index'])->middleware('throttle:tenant-read');
                 Route::put('/', [StoreDownsellController::class, 'update'])->middleware('throttle:20,1');

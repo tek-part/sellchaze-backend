@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Storage;
  * @property list<array<string,mixed>>|null $checkout_fields
  * @property array<string,mixed>|null $shipping_configuration
  * @property array<string,mixed>|null $downsell_configuration
+ * @property array<string,mixed>|null $dashboard_preferences
  * @property array<string,mixed>|null $digital_delivery_configuration
  * @property array<string,mixed>|null $digital_delivery_credentials
  * @property array<string,mixed>|null $order_limits
@@ -42,7 +43,7 @@ class Store extends Model
         'default_locale', 'supported_locales', 'supported_currencies', 'timezone',
         'tax_enabled', 'tax_rate', 'tax_prices_include', 'shipping_enabled',
         'shipping_flat_rate', 'shipping_free_over',
-        'theme_id', 'theme_settings', 'checkout_fields', 'shipping_configuration', 'downsell_configuration',
+        'theme_id', 'theme_settings', 'checkout_fields', 'shipping_configuration', 'downsell_configuration', 'dashboard_preferences',
         'digital_delivery_configuration', 'digital_delivery_credentials',
         'order_limits',
         'shopping_preferences',
@@ -73,6 +74,7 @@ class Store extends Model
         'checkout_fields' => 'array',
         'shipping_configuration' => 'array',
         'downsell_configuration' => 'array',
+        'dashboard_preferences' => 'array',
         'is_primary' => 'boolean',
         'supported_locales' => 'array',
         'supported_currencies' => 'array',
