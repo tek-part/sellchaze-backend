@@ -43,6 +43,25 @@ class StoreGeneralSettingsController extends Controller
 
     public function update(Request $request): JsonResponse
     {
+        return $this->save($request, false);
+    }
+
+    public function seo(Request $request): JsonResponse
+    {
+        $store = $this->store($request);
+        $data = array_intersect_key($this->settings->data($store), array_flip(['revision', 'site_title', 'logo_url', 'favicon_url']));
+        $data['description'] = $store->description ?? '';
+
+        return response()->json(['data' => $data, 'store' => new StoreResource($store)], 200, ['Cache-Control' => 'private, no-store']);
+    }
+
+    public function updateSeo(Request $request): JsonResponse
+    {
+        return $this->save($request, true);
+    }
+
+    private function save(Request $request, bool $seo): JsonResponse
+    {
         $store = $this->store($request);
         if (is_string($request->input('currency'))) {
             $request->merge(['currency' => strtoupper($request->input('currency'))]);
@@ -58,8 +77,13 @@ class StoreGeneralSettingsController extends Controller
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
             'favicon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:512', 'dimensions:min_width=16,min_height=16,max_width=512,max_height=512,ratio=1/1'],
             'remove_logo' => ['sometimes', 'boolean'], 'remove_favicon' => ['sometimes', 'boolean']];
-        foreach (['disable_auto_select_shipping', 'disable_auto_select_variants', 'disable_bot_protection'] as $field) {
-            $rules[$field] = ['required', 'boolean'];
+        if ($seo) {
+            $rules = array_intersect_key($rules, array_flip(['revision', 'site_title', 'logo', 'favicon', 'remove_logo', 'remove_favicon']));
+            $rules['description'] = ['present', 'nullable', 'string', 'max:5000'];
+        } else {
+            foreach (['disable_auto_select_shipping', 'disable_auto_select_variants', 'disable_bot_protection'] as $field) {
+                $rules[$field] = ['required', 'boolean'];
+            }
         }
         $data = $request->validate($rules);
         foreach (['logo', 'favicon'] as $field) {
@@ -67,33 +91,35 @@ class StoreGeneralSettingsController extends Controller
         }
         $staged = [];
         try {
-            $updated = DB::transaction(function () use ($store, $data, $request, &$staged) {
+            $updated = DB::transaction(function () use ($store, $data, $request, $seo, &$staged) {
                 $locked = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
                 abort_unless(hash_equals($this->settings->revision($locked), $data['revision']), 409, 'Store settings changed. Reload before saving.');
                 $before = $this->settings->data($locked);
                 $protection = app(CheckoutBotProtection::class);
-                if ($before['disable_bot_protection'] !== (bool) $data['disable_bot_protection']) {
+                if (! $seo && $before['disable_bot_protection'] !== (bool) $data['disable_bot_protection']) {
                     $locked = $protection->save($locked, ['enabled' => ! (bool) $data['disable_bot_protection'], 'version' => $protection->configuration($locked)['version']]);
                 }
-                $changes = array_intersect_key($data, array_flip(['site_title', 'primary_color', 'font_family', 'default_locale', 'currency', 'timezone']));
-                $changes['supported_locales'] = array_values(array_unique([$data['default_locale'], ...($locked->supported_locales ?? [])]));
-                $changes['supported_currencies'] = array_values(array_unique([$data['currency'], ...($locked->supported_currencies ?? [])]));
-                if (($data['header_text'] ?? '') !== ($before['header_text'] ?? '')) {
-                    $changes['header_text'] = $data['header_text'];
-                    $changes['header_mode'] = $data['header_text'] ? 'custom' : 'hidden';
-                }
-                if (bccomp((string) $data['shipping_flat_rate'], $before['shipping_flat_rate'], 2) !== 0) {
-                    $changes['shipping_flat_rate'] = bcadd((string) $data['shipping_flat_rate'], '0', 2);
-                    $changes['shipping_enabled'] = true;
-                }
-                $preferences = app(ShoppingPreferences::class)->configured($locked);
-                if ($before['disable_auto_select_shipping'] !== (bool) $data['disable_auto_select_shipping'] || $before['disable_auto_select_variants'] !== (bool) $data['disable_auto_select_variants']) {
-                    $changes['shopping_preferences'] = array_replace($locked->shopping_preferences ?? [], ['auto_select_variants' => ! (bool) $data['disable_auto_select_variants'], 'version' => $preferences['version'] + 1]);
-                    $changes['shipping_configuration'] = array_replace(app(StoreShipping::class)->configuration($locked), ['auto_select_region' => ! (bool) $data['disable_auto_select_shipping']]);
-                }
-                $limits = app(OrderLimits::class)->configured($locked);
-                if ($limits['phone_country'] !== $data['phone_country'] || $limits['max_product_quantity'] !== (int) $data['max_product_quantity'] || $limits['max_orders_per_phone_24h'] !== (int) $data['max_orders_per_phone_24h']) {
-                    $changes['order_limits'] = array_replace($locked->order_limits ?? [], $limits, ['phone_country' => $data['phone_country'], 'max_product_quantity' => (int) $data['max_product_quantity'], 'max_orders_per_phone_24h' => (int) $data['max_orders_per_phone_24h'], 'version' => $limits['version'] + 1]);
+                $changes = array_intersect_key($data, array_flip($seo ? ['site_title', 'description'] : ['site_title', 'primary_color', 'font_family', 'default_locale', 'currency', 'timezone']));
+                if (! $seo) {
+                    $changes['supported_locales'] = array_values(array_unique([$data['default_locale'], ...($locked->supported_locales ?? [])]));
+                    $changes['supported_currencies'] = array_values(array_unique([$data['currency'], ...($locked->supported_currencies ?? [])]));
+                    if (($data['header_text'] ?? '') !== ($before['header_text'] ?? '')) {
+                        $changes['header_text'] = $data['header_text'];
+                        $changes['header_mode'] = $data['header_text'] ? 'custom' : 'hidden';
+                    }
+                    if (bccomp((string) $data['shipping_flat_rate'], $before['shipping_flat_rate'], 2) !== 0) {
+                        $changes['shipping_flat_rate'] = bcadd((string) $data['shipping_flat_rate'], '0', 2);
+                        $changes['shipping_enabled'] = true;
+                    }
+                    $preferences = app(ShoppingPreferences::class)->configured($locked);
+                    if ($before['disable_auto_select_shipping'] !== (bool) $data['disable_auto_select_shipping'] || $before['disable_auto_select_variants'] !== (bool) $data['disable_auto_select_variants']) {
+                        $changes['shopping_preferences'] = array_replace($locked->shopping_preferences ?? [], ['auto_select_variants' => ! (bool) $data['disable_auto_select_variants'], 'version' => $preferences['version'] + 1]);
+                        $changes['shipping_configuration'] = array_replace(app(StoreShipping::class)->configuration($locked), ['auto_select_region' => ! (bool) $data['disable_auto_select_shipping']]);
+                    }
+                    $limits = app(OrderLimits::class)->configured($locked);
+                    if ($limits['phone_country'] !== $data['phone_country'] || $limits['max_product_quantity'] !== (int) $data['max_product_quantity'] || $limits['max_orders_per_phone_24h'] !== (int) $data['max_orders_per_phone_24h']) {
+                        $changes['order_limits'] = array_replace($locked->order_limits ?? [], $limits, ['phone_country' => $data['phone_country'], 'max_product_quantity' => (int) $data['max_product_quantity'], 'max_orders_per_phone_24h' => (int) $data['max_orders_per_phone_24h'], 'version' => $limits['version'] + 1]);
+                    }
                 }
                 $old = [];
                 foreach (['logo', 'favicon'] as $field) {
@@ -127,6 +153,6 @@ class StoreGeneralSettingsController extends Controller
         }
         $request->attributes->set('store', $updated);
 
-        return $this->index($request);
+        return $seo ? $this->seo($request) : $this->index($request);
     }
 }
