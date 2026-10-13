@@ -19,7 +19,7 @@ return new class extends Migration
             $table->unsignedBigInteger('store_owner_id');
             $table->uuid('request_key');
             $table->text('filters')->nullable();
-            $table->text('order_ids')->nullable();
+            $table->mediumText('order_ids')->nullable();
             $table->unsignedBigInteger('order_boundary');
             $table->string('status', 16)->default('queued');
             $table->unsignedTinyInteger('attempts')->default(0);
