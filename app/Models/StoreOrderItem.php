@@ -20,9 +20,14 @@ class StoreOrderItem extends Model
 
     use BelongsToStore;
 
+    protected static function booted(): void
+    {
+        static::addGlobalScope('current_items', fn ($query) => $query->whereNull($query->getModel()->qualifyColumn('superseded_at')));
+    }
+
     protected $fillable = [
         'store_id', 'store_order_id', 'store_product_id', 'name',
-        'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku', 'inventory_status', 'personalization', 'digital_delivery', 'quantity_offer', 'unit_cost',
+        'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku', 'inventory_status', 'personalization', 'digital_delivery', 'quantity_offer', 'unit_cost', 'superseded_at',
     ];
 
     protected $casts = [
@@ -34,6 +39,7 @@ class StoreOrderItem extends Model
         'personalization' => 'array',
         'quantity_offer' => 'array',
         'digital_delivery' => 'encrypted:array',
+        'superseded_at' => 'datetime',
     ];
 
     /** @return BelongsTo<StoreOrder, $this> */

@@ -45,7 +45,8 @@ class SendDigitalDelivery
             $item = $order->items->firstWhere('id', $event->message->payload['store_order_item_id'] ?? 0);
             $channel = array_search($event->message->event_type, DigitalDeliverySettings::CHANNELS, true);
             $current = $item ? $settings->effective($store, (int) $item->store_product_id) : null;
-            if (! $item || ! $current['enabled'] || ! $current[$channel.'_enabled']) {
+            if (! $item || ! $current['enabled'] || ! $current[$channel.'_enabled']
+                || ($channel === 'email' && ($event->message->payload['recipient'] ?? null) !== $order->customer_email)) {
                 $event->message->update(['metadata' => array_merge($event->message->metadata ?? [], ['mail_outcome' => 'skipped'])]);
 
                 return;

@@ -32,11 +32,12 @@ class SendDigitalWhatsapp implements ShouldQueue
             $storeId = (int) $message->payload['store_id'];
             $store = Store::find($storeId);
             $order = StoreOrder::forStore($storeId)->whereKey($message->payload['store_order_id'])->lockForUpdate()->first();
-            $item = StoreOrderItem::withoutGlobalScopes()->where('store_id', $storeId)->where('store_order_id', $order?->id)->whereKey($message->payload['store_order_item_id'])->first();
+            $item = StoreOrderItem::withoutGlobalScopes()->whereNull('superseded_at')->where('store_id', $storeId)->where('store_order_id', $order?->id)->whereKey($message->payload['store_order_item_id'])->first();
             $active = $store && $item ? $settings->effective($store, (int) $item->store_product_id) : null;
             $phone = StoreDigitalWhatsappClient::phone((string) ($message->payload['recipient'] ?? ''));
             $text = $store && $order && $item ? DigitalDeliverySettings::render($message->metadata['settings']['whatsapp_body'], DigitalDeliverySettings::variables($store, $order, $item)) : '';
             $eligible = $store && $order && $item && $order->payment_status === 'paid' && $order->status !== 'cancelled'
+                && $phone === StoreDigitalWhatsappClient::phone((string) $order->customer_phone)
                 && $active['enabled'] && $active['whatsapp_enabled'] && ! empty($store->digital_delivery_credentials['verified_at']);
             $state = ! $eligible ? 'skipped' : (! $phone || ! $text || mb_strlen($text) > 4096 ? 'invalid' : 'sending');
             $message->update(['metadata' => array_merge($message->metadata ?? [], ['transport_state' => $state, 'transport_claimed_at' => now()->toIso8601String()])]);

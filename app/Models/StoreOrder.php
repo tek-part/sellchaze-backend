@@ -59,7 +59,7 @@ class StoreOrder extends Model
     /** @return HasMany<StoreOrderItem, $this> */
     public function items(): HasMany
     {
-        return $this->hasMany(StoreOrderItem::class);
+        return $this->hasMany(StoreOrderItem::class)->whereNull('superseded_at');
     }
 
     /** Immutable order snapshots determine shipping even after catalog deletion.
@@ -68,7 +68,7 @@ class StoreOrder extends Model
     public function physicalItems(): Builder
     {
         return StoreOrderItem::query()->withoutGlobalScopes()->where('store_id', $this->store_id)
-            ->where('store_order_id', $this->id)->whereNull('digital_delivery');
+            ->where('store_order_id', $this->id)->whereNull('superseded_at')->whereNull('digital_delivery');
     }
 
     /** @return array{type:string,requires_shipping:bool,physical_quantity:int,digital_quantity:int} */

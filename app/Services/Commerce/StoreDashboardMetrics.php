@@ -30,7 +30,7 @@ class StoreDashboardMetrics
             ->where('last_activity_at', '<=', now()->subMinutes(CheckoutLeads::INACTIVE_MINUTES))
             ->where('created_at', '>=', $start)->where('created_at', '<', $end)
             ->where(fn (Builder $query) => $query->whereNotNull('customer_phone')->orWhereNotNull('customer_email'))->count();
-        $costs = DB::table('store_order_items as i')->join('store_orders as o', 'o.id', '=', 'i.store_order_id')
+        $costs = DB::table('store_order_items as i')->whereNull('i.superseded_at')->join('store_orders as o', 'o.id', '=', 'i.store_order_id')
             ->where('o.store_id', $store->id)->where('i.store_id', $store->id)->where('o.status', 'delivered')
             ->where('o.placed_at', '>=', $start)->where('o.placed_at', '<', $end)
             ->selectRaw('COALESCE(SUM(i.unit_cost*i.quantity),0) as cost, SUM(CASE WHEN i.unit_cost IS NULL THEN 1 ELSE 0 END) as unknown')->first();
@@ -52,7 +52,7 @@ class StoreDashboardMetrics
                 'visits' => $trafficKnown ? (int) ($kinds?->get('visit')?->sessions ?? 0) : null,
                 'checkout_started' => $trafficKnown ? (int) ($kinds?->get('checkout_started')?->sessions ?? 0) : null];
         }
-        $top = DB::table('store_order_items as i')->join('store_orders as o', 'o.id', '=', 'i.store_order_id')
+        $top = DB::table('store_order_items as i')->whereNull('i.superseded_at')->join('store_orders as o', 'o.id', '=', 'i.store_order_id')
             ->leftJoin('products as p', fn ($join) => $join->on('p.id', '=', 'i.store_product_id')->on('p.store_id', '=', 'i.store_id'))
             ->where('o.store_id', $store->id)->where('i.store_id', $store->id)->where('o.status', 'delivered')->where('o.placed_at', '>=', $start)->where('o.placed_at', '<', $end)
             ->selectRaw('i.store_product_id as product_id, COALESCE(p.name,MAX(i.name)) as name, SUM(i.quantity) as quantity, SUM(i.line_total) as revenue')
