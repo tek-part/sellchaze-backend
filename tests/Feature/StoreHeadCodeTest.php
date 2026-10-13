@@ -144,8 +144,8 @@ class StoreHeadCodeTest extends TestCase
         $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($other));
         $this->getJson('/api/v1/my-store')->assertOk();
         $this->getJson($this->url)->assertOk()->assertJsonPath('data.html', '');
-        $this->getJson('/api/v1/stores/'.$this->store->id.'/head-code')->assertForbidden();
-        $this->putJson('/api/v1/stores/'.$this->store->id.'/head-code', ['version' => 2, 'html' => 'foreign'])->assertForbidden();
+        $this->getJson('/api/v1/stores/'.$this->store->id.'/head-code')->assertNotFound();
+        $this->putJson('/api/v1/stores/'.$this->store->id.'/head-code', ['version' => 2, 'html' => 'foreign'])->assertNotFound();
         $this->assertSame($this->code(), app(StoreHeadCode::class)->configuration($this->store->fresh())['html']);
     }
 
