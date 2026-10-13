@@ -130,6 +130,7 @@ use App\Http\Controllers\Api\StoreShipmentController;
 use App\Http\Controllers\Api\StoreShippingController;
 use App\Http\Controllers\Api\StoreShoppingPreferencesController;
 use App\Http\Controllers\Api\StoreSimplePagesController;
+use App\Http\Controllers\Api\StoreSocialLinksController;
 use App\Http\Controllers\Api\StoreThankYouController;
 use App\Http\Controllers\Api\StoreThemesApiController;
 use App\Http\Controllers\Api\StoreTrackingController;
@@ -911,6 +912,12 @@ Route::prefix('v1')->group(function () {
             Route::prefix('general-settings')->middleware('permission:store.settings.manage')->group(function () {
                 Route::get('/', [StoreGeneralSettingsController::class, 'index'])->middleware('throttle:tenant-read');
                 Route::put('/', [StoreGeneralSettingsController::class, 'update'])->middleware('throttle:30,1');
+            });
+            Route::middleware('permission:store.settings.manage')->group(function () {
+                Route::get('seo-settings', [StoreGeneralSettingsController::class, 'seo'])->middleware('throttle:tenant-read');
+                Route::put('seo-settings', [StoreGeneralSettingsController::class, 'updateSeo'])->middleware('throttle:30,1');
+                Route::get('social-links', [StoreSocialLinksController::class, 'index'])->middleware('throttle:tenant-read');
+                Route::put('social-links', [StoreSocialLinksController::class, 'update'])->middleware('throttle:30,1');
             });
             Route::prefix('dashboard-guide')->middleware('permission:store.settings.manage')->group(function () {
                 Route::get('/', [StoreDashboardGuideController::class, 'index'])->middleware('throttle:tenant-read');

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Scopes\ProductScope;
+use App\Services\Commerce\StoreSocialLinks;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Stores\StoreDomainResolver;
 use Illuminate\Database\Eloquent\Model;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * @property list<array<string,mixed>>|null $checkout_fields
+ * @property array<string,mixed>|null $social_links_configuration
  * @property array<string,mixed>|null $shipping_configuration
  * @property array<string,mixed>|null $downsell_configuration
  * @property array<string,mixed>|null $dashboard_preferences
@@ -53,9 +55,11 @@ class Store extends Model
         'bot_protection_configuration', 'bot_protection_credentials',
         'tracking_configuration', 'tracking_credentials',
         'google_merchant_configuration',
+        'social_links_configuration',
     ];
 
     protected $casts = [
+        'social_links_configuration' => 'array',
         'google_merchant_configuration' => 'array',
         'tracking_configuration' => 'array',
         'tracking_credentials' => 'encrypted:array',
@@ -86,7 +90,7 @@ class Store extends Model
         'shipping_free_over' => 'decimal:2',
     ];
 
-    protected $hidden = ['digital_delivery_credentials', 'phone_otp_credentials', 'phone_otp_configuration', 'bot_protection_configuration', 'bot_protection_credentials', 'tracking_configuration', 'tracking_credentials', 'google_merchant_configuration'];
+    protected $hidden = ['digital_delivery_credentials', 'phone_otp_credentials', 'phone_otp_configuration', 'bot_protection_configuration', 'bot_protection_credentials', 'tracking_configuration', 'tracking_credentials', 'google_merchant_configuration', 'social_links_configuration'];
 
     /** Task 6: any store change (status, name, settings...) invalidates its page cache. */
     protected static function booted(): void
@@ -177,6 +181,7 @@ class Store extends Model
         return ['site_title' => $this->site_title, 'header_mode' => $this->header_mode ?? 'theme',
             'header_text' => $this->header_text, 'primary_color' => $this->primary_color,
             'font_family' => $this->font_family,
+            'social' => app(StoreSocialLinks::class)->publicLinks($this),
             'favicon_url' => $this->favicon ? Storage::disk('public')->url($this->favicon) : null];
     }
 

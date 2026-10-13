@@ -12,7 +12,7 @@ class MerchantGeneralSettings
 {
     public function revision(Store $store): string
     {
-        $fields = ['site_title', 'header_mode', 'header_text', 'primary_color', 'font_family', 'logo', 'favicon',
+        $fields = ['site_title', 'description', 'header_mode', 'header_text', 'primary_color', 'font_family', 'logo', 'favicon',
             'default_locale', 'supported_locales', 'currency', 'supported_currencies', 'timezone',
             'shipping_enabled', 'shipping_flat_rate', 'shipping_configuration', 'shopping_preferences',
             'order_limits', 'bot_protection_configuration', 'bot_protection_credentials'];
