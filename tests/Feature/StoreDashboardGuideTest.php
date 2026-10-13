@@ -85,6 +85,16 @@ class StoreDashboardGuideTest extends TestCase
         $this->assertNull($this->store->fresh()->logo);
     }
 
+    public function test_host_post_alias_preserves_the_same_authentication_and_version_checks(): void
+    {
+        $this->postJson($this->url, $this->body())->assertUnauthorized();
+        $data = $this->body(['completed' => ['wallet' => true]]);
+        $this->postJson($this->url, $data, $this->auth)->assertOk()->assertJsonPath('data.preferences.version', 2);
+        $this->postJson($this->url, $data, $this->auth)->assertConflict();
+        $this->putJson($this->url, $data, $this->auth)->assertConflict();
+        $this->getJson($this->url, $this->auth)->assertOk()->assertJsonPath('data.completed.wallet', true);
+    }
+
     public function test_validation_permissions_and_other_store_are_enforced(): void
     {
         foreach ([['completed' => ['unknown' => true]], ['completed' => ['wallet' => 'complete']], ['hidden_panels' => ['billing']], ['hidden_panels' => ['setup', 'setup']], ['version' => 0]] as $change) {

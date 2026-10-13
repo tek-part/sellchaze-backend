@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Phase 5: a storefront order. Separate from the legacy B2B Order model.
@@ -22,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  */
 class StoreOrder extends Model
 {
-    use BelongsToStore;
+    use BelongsToStore, SoftDeletes;
 
     public const STATUSES = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
 

@@ -181,10 +181,22 @@ class StoreCheckoutIdempotencyTest extends TestCase
         $this->assertStringNotContainsString('replay@example.test', $raw->response_body);
         $this->assertSame(hash('sha256', $this->headers['Idempotency-Key']), $raw->key_hash);
         $this->assertArrayNotHasKey('response_body', StoreCheckoutAttempt::firstOrFail()->toArray());
-        StoreOrder::withoutGlobalScopes()->delete();
+        StoreOrder::withoutGlobalScopes()->forceDelete();
         $this->postJson($this->url.'/recover', [], $this->headers)->assertGone();
         $this->postJson($this->url, $this->payload(), $this->headers)->assertGone();
         $this->assertDatabaseCount('store_orders', 0);
+    }
+
+    public function test_archived_order_recovery_never_exposes_cached_data_or_creates_another_order(): void
+    {
+        $first = $this->postJson($this->url, $this->payload(), $this->headers)->assertCreated();
+        $order = StoreOrder::withoutGlobalScopes()->findOrFail($first->json('data.id'));
+        $order->delete();
+        $this->postJson($this->url.'/recover', [], $this->headers)->assertGone();
+        $this->postJson($this->url, $this->payload(), $this->headers)->assertGone();
+        $this->assertDatabaseCount('store_orders', 1);
+        $this->assertDatabaseCount('store_inventory_movements', 1);
+        $this->assertNotNull($order->fresh()->deleted_at);
     }
 
     public function test_nested_payment_start_calls_only_one_provider_and_preserves_early_paid_callback(): void
