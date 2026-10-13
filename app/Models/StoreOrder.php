@@ -34,9 +34,10 @@ class StoreOrder extends Model
         'payment_method', 'payment_status', 'payment_reference',
         'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'notes',
         'placed_at', 'cancelled_at', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'coupon_code',
+        'manual_actor_id', 'manual_owner_id', 'manual_request_key', 'manual_request_hash', 'manual_adjustment_total', 'manual_tax_included',
     ];
 
-    protected $hidden = ['customer_phone_normalized', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution'];
+    protected $hidden = ['customer_phone_normalized', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'manual_request_key', 'manual_request_hash', 'manual_owner_id'];
 
     protected $casts = [
         'shipping_address' => 'array',
@@ -47,6 +48,8 @@ class StoreOrder extends Model
         'discount_total' => 'decimal:2',
         'tax_total' => 'decimal:2',
         'grand_total' => 'decimal:2',
+        'manual_adjustment_total' => 'decimal:2',
+        'manual_tax_included' => 'boolean',
         'placed_at' => 'datetime',
         'cancelled_at' => 'datetime',
     ];

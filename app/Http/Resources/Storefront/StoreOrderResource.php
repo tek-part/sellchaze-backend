@@ -40,6 +40,8 @@ class StoreOrderResource extends JsonResource
             'discount_total' => $this->discount_total,
             'tax_total' => $this->tax_total,
             'grand_total' => $this->grand_total,
+            'manual_adjustment_total' => $this->manual_adjustment_total ?? '0.00',
+            'manual_tax_included' => $this->manual_tax_included,
             'notes' => $this->notes,
             'placed_at' => $this->placed_at,
             'cancelled_at' => $this->cancelled_at,
