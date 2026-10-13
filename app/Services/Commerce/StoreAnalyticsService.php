@@ -49,7 +49,7 @@ class StoreAnalyticsService
         $totalOrders = array_sum($orders);
 
         $deliveredCount = $orders['delivered_orders'];
-        $totalItems = (int) DB::table('store_order_items as i')
+        $totalItems = (int) DB::table('store_order_items as i')->whereNull('i.superseded_at')
             ->join('store_orders as o', 'i.store_order_id', '=', 'o.id')
             ->where('o.store_id', $sid)->where('o.status', self::REVENUE_STATUS)
             ->sum('i.quantity');
@@ -175,7 +175,7 @@ class StoreAnalyticsService
     /** @return array<int, array{id:int, name:string, quantity_sold:int, revenue_generated:string}> */
     public function topProducts(Store $store, int $limit): array
     {
-        return DB::table('store_order_items as i')
+        return DB::table('store_order_items as i')->whereNull('i.superseded_at')
             ->join('store_orders as o', 'i.store_order_id', '=', 'o.id')
             ->join('products as p', 'i.store_product_id', '=', 'p.id')
             ->where('o.store_id', $store->id)->where('o.status', self::REVENUE_STATUS)
@@ -193,7 +193,7 @@ class StoreAnalyticsService
     /** @return array<int, array{category:string, category_id:int, quantity_sold:int, revenue_generated:string}> */
     public function topCategories(Store $store, int $limit): array
     {
-        return DB::table('store_order_items as i')
+        return DB::table('store_order_items as i')->whereNull('i.superseded_at')
             ->join('store_orders as o', 'i.store_order_id', '=', 'o.id')
             ->join('products as p', 'i.store_product_id', '=', 'p.id')
             ->join('categories as c', 'p.category_id', '=', 'c.id')

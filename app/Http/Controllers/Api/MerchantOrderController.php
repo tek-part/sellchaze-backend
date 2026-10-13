@@ -80,7 +80,7 @@ class MerchantOrderController extends Controller
     {
         $data = $request->validate(['search' => ['nullable', 'string', 'max:200']]);
         $visible = app(MerchantOrderQuery::class)->build($store, [])->select('store_orders.id');
-        $rows = DB::table('store_order_items')->where('store_id', $store->id)->whereNotNull('store_product_id')->whereIn('store_order_id', $visible)
+        $rows = DB::table('store_order_items')->whereNull('superseded_at')->where('store_id', $store->id)->whereNotNull('store_product_id')->whereIn('store_order_id', $visible)
             ->when(isset($data['search']) && $data['search'] !== '', fn ($query) => $query->where('name', 'like', '%'.$data['search'].'%'))
             ->select('store_product_id')->selectRaw('MIN(name) AS name')->groupBy('store_product_id')->orderBy('name')->limit(50)->get();
 

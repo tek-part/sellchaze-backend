@@ -84,7 +84,7 @@ class MerchantOrderQuery
             }
         }
         if (isset($filters['product_id']) && $filters['product_id'] !== '') {
-            $query->whereIn('store_orders.id', DB::table('store_order_items')->where('store_id', $store->id)->where('store_product_id', $filters['product_id'])->select('store_order_id'));
+            $query->whereIn('store_orders.id', DB::table('store_order_items')->whereNull('superseded_at')->where('store_id', $store->id)->where('store_product_id', $filters['product_id'])->select('store_order_id'));
         }
         if (isset($filters['coupon']) && $filters['coupon'] !== '') {
             $query->where(fn (Builder $inner) => $inner->where('coupon_code', 'like', '%'.$filters['coupon'].'%')

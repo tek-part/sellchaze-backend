@@ -214,6 +214,38 @@ class StorefrontOrderBridge
         }
     }
 
+    /** Editor holds both parent rows and rejects edits once supplier quotations exist. */
+    public function syncEdit(StoreOrder $storeOrder, Order $order): void
+    {
+        abort_unless((int) $order->store_id === (int) $storeOrder->store_id && (int) $order->store_order_id === (int) $storeOrder->id, 422);
+        $physical = $storeOrder->physicalItems()->get();
+        $address = $storeOrder->shipping_address ?? [];
+        $previous = collect($order->storefront_items ?? [])->keyBy('store_order_item_id');
+        $wasEmptyBridge = $order->status === 'cancelled' && (int) $order->quantity === 0 && $previous->isEmpty();
+        $products = Product::withoutGlobalScope(ProductScope::class)->where('store_id', $storeOrder->store_id)
+            ->whereIn('id', $physical->pluck('store_product_id')->filter())->get()->keyBy('id');
+        $items = $physical->map(fn ($item) => ['store_order_item_id' => $item->id, 'product_id' => $item->store_product_id,
+            'variant_id' => $item->variant_id, 'variant_name' => $item->variant_name, 'variant_options' => $item->variant_options,
+            'personalization' => $item->personalization ?? [], 'fulfillment_type' => 'physical', 'sku' => $item->sku,
+            'name' => $item->name, 'slug' => $previous->get($item->id)['slug'] ?? $products->get($item->store_product_id)?->slug,
+            'image' => $previous->get($item->id)['image'] ?? $products->get($item->store_product_id)?->image,
+            'unit_price' => $item->unit_price, 'quantity' => $item->quantity, 'line_total' => $item->line_total])->all();
+        $order->fill(['storefront_items' => $items, 'quantity' => (int) $physical->sum('quantity'),
+            'customer_name' => $storeOrder->customer_name, 'customer_phone' => $storeOrder->customer_phone, 'customer_email' => $storeOrder->customer_email,
+            'shipping_address' => $address ? $this->formatShippingAddress($address) : null,
+            'shipping_address_json' => $address ? json_encode($address, JSON_UNESCAPED_UNICODE) : null]);
+        if ($physical->isEmpty()) {
+            $order->status = 'cancelled';
+        } elseif ($physical->first()->store_product_id) {
+            if ($wasEmptyBridge) {
+                $order->status = 'pending';
+            }
+            $order->product_id = $physical->first()->store_product_id;
+            $order->image = $items[0]['image'];
+        }
+        $order->save();
+    }
+
     /** @return int[] */
     private function resolveSupplierIds(User $owner): array
     {

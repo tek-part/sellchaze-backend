@@ -45,6 +45,40 @@ class StoreInventory
         $this->flushAfterCommit($item->store_id);
     }
 
+    /** Order editing locks the catalog rows before changing a retained snapshot quantity. */
+    public function editQuantity(StoreOrderItem $item, Product|ProductVariant|null $stock, int $quantity, int $actorId): void
+    {
+        if ($quantity === $item->quantity) {
+            return;
+        }
+        abort_unless(! in_array($item->inventory_status, ['committed', 'released'], true), 422, 'Settled inventory cannot be edited.');
+        if ($item->inventory_status === 'reserved') {
+            if ($stock) {
+                abort_unless($stock->reserved_quantity >= $item->quantity, 422, 'Inventory reservations need reconciliation.');
+                $delta = $quantity - $item->quantity;
+                if ($delta > 0) {
+                    $this->assertAvailable($stock, $delta);
+                }
+                $stock->reserved_quantity += $delta;
+                $stock->save();
+                $this->record($stock, 'order_edited', 0, $delta, $item->id, $actorId);
+                $this->flushAfterCommit($item->store_id);
+            } else {
+                abort_unless($quantity === 0, 422, 'This reserved product is unavailable. Remove it or reconcile its inventory.');
+            }
+            if ($quantity === 0) {
+                $item->inventory_status = 'released';
+            }
+        } elseif ($quantity > 0 && $stock?->track_inventory) {
+            $this->assertAvailable($stock, $quantity);
+            $stock->reserved_quantity += $quantity;
+            $stock->save();
+            $item->inventory_status = 'reserved';
+            $this->record($stock, 'order_edited', 0, $quantity, $item->id, $actorId);
+            $this->flushAfterCommit($item->store_id);
+        }
+    }
+
     /** The order row is locked by StoreOrderService before calling this method. */
     public function settle(StoreOrder $order, bool $shipped): void
     {

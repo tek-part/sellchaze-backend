@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\ManualStoreOrderController;
 use App\Http\Controllers\Api\MarketplaceThemesController;
 use App\Http\Controllers\Api\MerchantOrderActionsController;
 use App\Http\Controllers\Api\MerchantOrderController;
+use App\Http\Controllers\Api\MerchantOrderEditController;
 use App\Http\Controllers\Api\MerchantOrderPushController;
 use App\Http\Controllers\Api\MerchantReviewController;
 use App\Http\Controllers\Api\MerchantsApiController;
@@ -879,6 +880,9 @@ Route::prefix('v1')->group(function () {
                 Route::post('bulk-status', [MerchantOrderController::class, 'bulkStatus'])->middleware(['permission:store.orders.manage', 'throttle:20,1']);
                 Route::middleware('permission:store.orders.manage')->group(function () {
                     Route::get('{order}/detail', [MerchantOrderActionsController::class, 'show'])->whereNumber('order');
+                    Route::get('{order}/edit', [MerchantOrderEditController::class, 'show'])->whereNumber('order');
+                    Route::post('{order}/edit', [MerchantOrderEditController::class, 'update'])->whereNumber('order')->middleware('throttle:20,1');
+                    Route::get('{order}/edits/request/{key}', [MerchantOrderEditController::class, 'reconcile'])->whereNumber('order')->whereUuid('key');
                     Route::post('{order}/archive', [MerchantOrderActionsController::class, 'archive'])->whereNumber('order');
                     Route::post('{order}/review', [MerchantOrderActionsController::class, 'review'])->whereNumber('order');
                     Route::post('{order}/block-phone', [MerchantOrderActionsController::class, 'blockPhone'])->whereNumber('order')->middleware('throttle:10,1');

@@ -38,6 +38,7 @@ class MerchantOrderResource extends JsonResource
                 'name' => $this->customer_name,
                 'email' => $this->customer_email,
                 'phone' => $this->customer_phone,
+                'whatsapp_phone' => $this->customer_phone_normalized,
             ],
             'shipping_address' => $this->shipping_address,
             'subtotal' => $this->subtotal,
