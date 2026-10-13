@@ -33,7 +33,7 @@ class StoreOrder extends Model
         'customer_phone_normalized',
         'payment_method', 'payment_status', 'payment_reference',
         'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'notes',
-        'placed_at', 'cancelled_at', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution',
+        'placed_at', 'cancelled_at', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'coupon_code',
     ];
 
     protected $hidden = ['customer_phone_normalized', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution'];

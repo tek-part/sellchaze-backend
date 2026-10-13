@@ -38,6 +38,7 @@ class MerchantOrderResource extends JsonResource
             'subtotal' => $this->subtotal,
             'shipping_total' => $this->shipping_total,
             'discount_total' => $this->discount_total, // coupon discount
+            'coupon_code' => $this->coupon_code,
             'tax_total' => $this->tax_total,
             'payment_method' => $this->payment_method,
             'payment_status' => $this->payment_status,

@@ -12,12 +12,13 @@ use App\Services\Commerce\DigitalDeliveryTracking;
 use App\Services\Commerce\DigitalOrderEmail;
 use App\Services\Commerce\ManualBankPayment;
 use App\Services\Commerce\ManualCashPayment;
+use App\Services\Commerce\MerchantOrderQuery;
 use App\Services\Commerce\StoreOrderService;
 use App\Services\PlatformWallet;
-use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -29,47 +30,29 @@ use Illuminate\Validation\ValidationException;
  */
 class MerchantOrderController extends Controller
 {
-    private const SORTABLE = ['created_at', 'placed_at', 'grand_total', 'status', 'order_number'];
-
     public function __construct(private readonly StoreOrderService $orders) {}
 
     /** GET /stores/{store}/orders */
     public function index(Request $request, Store $store): JsonResponse
     {
-        $perPage = min(max((int) $request->get('per_page', 15), 1), 100);
-        $sort = in_array($request->get('sort'), self::SORTABLE, true) ? (string) $request->get('sort') : 'created_at';
-        $dir = $request->get('dir') === 'asc' ? 'asc' : 'desc';
+        $query = app(MerchantOrderQuery::class);
+        $filters = $query->filters($request);
+        $perPage = min(max((int) $request->get('per_page', 25), 1), 100);
+        $sort = $filters['sort'] ?? 'created_at';
+        $dir = $filters['dir'] ?? 'desc';
+        $base = $query->build($store, array_diff_key($filters, array_flip(['status', 'payment_status', 'sort', 'dir'])));
+        $counts = (clone $base)->select('status')->selectRaw('COUNT(*) AS total')->groupBy('status')->pluck('total', 'status');
+        $paymentCounts = (clone $base)->select('payment_status')->selectRaw('COUNT(*) AS total')->groupBy('payment_status')->pluck('total', 'payment_status');
         $locked = $store->owner && app(PlatformWallet::class)->ordersLocked($store->owner);
         $charged = DB::table('platform_wallet_entries')->where('type', 'order_fee')->whereNotNull('store_order_id')->select('store_order_id');
-        $lockedCount = $locked ? StoreOrder::query()->whereIn('id', $charged)->count() : 0;
-
-        $paginator = StoreOrder::query()
-            ->when($locked, fn (Builder $q) => $q->whereNotIn('id', $charged))
-            ->when($request->filled('status'), fn (Builder $q) => $q->where('status', $request->get('status')))
-            ->when($request->filled('order_number'), fn (Builder $q) => $q->where('order_number', 'like', '%'.$request->get('order_number').'%'))
-            ->when($request->filled('customer'), fn (Builder $q) => $q->where(fn (Builder $w) => $w
-                ->where('customer_name', 'like', '%'.$request->get('customer').'%')
-                ->orWhere('customer_email', 'like', '%'.$request->get('customer').'%')))
-            ->when($request->filled('search'), fn (Builder $q) => $q->where(fn (Builder $w) => $w
-                ->where('order_number', 'like', '%'.$request->get('search').'%')
-                ->orWhere('customer_name', 'like', '%'.$request->get('search').'%')
-                ->orWhere('customer_email', 'like', '%'.$request->get('search').'%')))
-            ->when($request->filled('date_from'), fn (Builder $q) => $q->whereDate('placed_at', '>=', $request->get('date_from')))
-            ->when($request->filled('date_to'), fn (Builder $q) => $q->whereDate('placed_at', '<=', $request->get('date_to')))
-            ->withCount('items')
-            ->with('b2bOrder')
-            ->orderBy($sort, $dir)
-            ->paginate($perPage);
+        $lockedCount = $locked ? StoreOrder::forStore($store)->whereIn('id', $charged)->count() : 0;
+        $paginator = $query->build($store, $filters)->withCount('items')->with('b2bOrder')->orderBy($sort, $dir)->orderBy('id', $dir)->paginate($perPage);
 
         return response()->json([
             'data' => MerchantOrderResource::collection($paginator->getCollection()),
-            'meta' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-                'locked_orders' => $lockedCount,
-            ],
+            'counts' => $counts, 'payment_counts' => $paymentCounts,
+            'meta' => ['current_page' => $paginator->currentPage(), 'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(), 'total' => $paginator->total(), 'locked_orders' => $lockedCount],
         ]);
     }
 
@@ -79,6 +62,61 @@ class MerchantOrderController extends Controller
         return response()->json([
             'data' => new MerchantOrderResource($this->find($order)->load(['items', 'statusChanges.actor', 'b2bOrder'])),
         ]);
+    }
+
+    public function printData(Request $request, Store $store): JsonResponse
+    {
+        $data = $request->validate(['ids' => ['required', 'array', 'min:1', 'max:100'], 'ids.*' => ['required', 'integer', 'min:1', 'distinct']]);
+        $rows = StoreOrder::forStore($store)->whereIn('id', $data['ids'])->with(['items', 'b2bOrder'])->orderBy('id')->get();
+        abort_unless($rows->count() === count($data['ids']), 404);
+        foreach ($rows as $row) {
+            app(PlatformWallet::class)->assertOrderVisible($row);
+        }
+
+        return response()->json(['store' => ['name' => $store->name], 'data' => MerchantOrderResource::collection($rows)]);
+    }
+
+    public function filterProducts(Request $request, Store $store): JsonResponse
+    {
+        $data = $request->validate(['search' => ['nullable', 'string', 'max:200']]);
+        $visible = app(MerchantOrderQuery::class)->build($store, [])->select('store_orders.id');
+        $rows = DB::table('store_order_items')->where('store_id', $store->id)->whereNotNull('store_product_id')->whereIn('store_order_id', $visible)
+            ->when(isset($data['search']) && $data['search'] !== '', fn ($query) => $query->where('name', 'like', '%'.$data['search'].'%'))
+            ->select('store_product_id')->selectRaw('MIN(name) AS name')->groupBy('store_product_id')->orderBy('name')->limit(50)->get();
+
+        return response()->json(['data' => $rows->map(fn ($row) => ['id' => $row->store_product_id, 'name' => $row->name])]);
+    }
+
+    public function bulkStatus(Request $request, Store $store): JsonResponse
+    {
+        $data = $request->validate(['status' => ['required', Rule::in(StoreOrder::STATUSES)],
+            'orders' => ['required', 'array', 'min:1', 'max:100'], 'orders.*.id' => ['required', 'integer', 'min:1', 'distinct'],
+            'orders.*.status' => ['required', Rule::in(StoreOrder::STATUSES)]]);
+        $updated = DB::transaction(function () use ($request, $store, $data) {
+            $expected = collect($data['orders'])->keyBy('id');
+            $rows = StoreOrder::forStore($store)->whereIn('id', $expected->keys())->orderBy('id')->lockForUpdate()->get();
+            abort_unless($rows->count() === $expected->count(), 404);
+            foreach ($rows as $row) {
+                app(PlatformWallet::class)->assertOrderVisible($row);
+                if ($row->status !== $data['status']) {
+                    abort_unless($row->status === $expected[$row->id]['status'], 409, 'Order changed. Reload before changing its status.');
+                    if (! $this->orders->canTransition($row, $data['status'])) {
+                        throw ValidationException::withMessages(['status' => 'One or more selected orders cannot make this transition.']);
+                    }
+                }
+            }
+            $changed = 0;
+            foreach ($rows as $row) {
+                if ($row->status !== $data['status']) {
+                    $this->orders->transition($row, $data['status'], (int) $request->user()->id);
+                    $changed++;
+                }
+            }
+
+            return $changed;
+        });
+
+        return response()->json(['updated' => $updated]);
     }
 
     /** PATCH /stores/{store}/orders/{order}/status */

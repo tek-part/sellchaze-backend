@@ -120,6 +120,7 @@ use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
 use App\Http\Controllers\Api\StoreMissedOrdersController;
 use App\Http\Controllers\Api\StoreNewsletterController;
+use App\Http\Controllers\Api\StoreOrderExportController;
 use App\Http\Controllers\Api\StoreOrderLimitsController;
 use App\Http\Controllers\Api\StoreOrderWebhookController;
 use App\Http\Controllers\Api\StorePagesApiController;
@@ -864,6 +865,15 @@ Route::prefix('v1')->group(function () {
             // ---- Orders (Phase 6E) ----
             Route::prefix('orders')->group(function () {
                 Route::get('/', [MerchantOrderController::class, 'index']);
+                Route::get('print-data', [MerchantOrderController::class, 'printData'])->middleware('permission:store.orders.manage');
+                Route::get('filter-products', [MerchantOrderController::class, 'filterProducts'])->middleware('permission:store.orders.manage');
+                Route::post('bulk-status', [MerchantOrderController::class, 'bulkStatus'])->middleware(['permission:store.orders.manage', 'throttle:20,1']);
+                Route::middleware('permission:store.orders.manage')->prefix('exports')->group(function () {
+                    Route::get('/', [StoreOrderExportController::class, 'index']);
+                    Route::post('/', [StoreOrderExportController::class, 'store'])->middleware('throttle:10,1');
+                    Route::get('{export}', [StoreOrderExportController::class, 'show'])->whereUuid('export');
+                    Route::get('{export}/download', [StoreOrderExportController::class, 'download'])->whereUuid('export')->middleware('throttle:20,1');
+                });
                 Route::get('{order}', [MerchantOrderController::class, 'show'])->whereNumber('order');
                 Route::match(['patch', 'post'], '{order}/status', [MerchantOrderController::class, 'updateStatus'])->whereNumber('order');
                 Route::post('{order}/note', [MerchantOrderController::class, 'addNote'])->whereNumber('order');
