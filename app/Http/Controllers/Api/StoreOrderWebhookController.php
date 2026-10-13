@@ -74,7 +74,7 @@ class StoreOrderWebhookController extends Controller
 
                 return $existing;
             }
-            abort_if(StoreOrderWebhook::where('store_id', $store->id)->count() >= 50, 422, 'A store may configure up to50 webhooks.');
+            abort_if(StoreOrderWebhook::where('store_id', $store->id)->where('user_id', $store->owner_user_id)->count() >= 50, 422, 'A store may configure up to50 webhooks.');
 
             return StoreOrderWebhook::create(['store_id' => $store->id, 'user_id' => $store->owner_user_id, 'url' => $data['url'],
                 'description' => $data['description'] ?? null, 'event_type' => $data['type'], 'enabled' => $data['enabled'], 'secret' => $secret, 'request_key' => $data['request_key']]);
