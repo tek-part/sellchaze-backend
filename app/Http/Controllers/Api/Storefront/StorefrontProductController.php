@@ -28,7 +28,8 @@ class StorefrontProductController extends Controller
         $allowedFilters = ['best_sellers', 'new_arrivals', 'trending', 'on_sale'];
         $filter = in_array($request->query('filter'), $allowedFilters, true) ? $request->query('filter') : null;
         $search = trim((string) $request->query('q')) ?: null;
-        $paginator = $this->storefront->products($request->query('category'), $perPage, $filter, $search);
+        $request->validate(['sort' => ['nullable', 'in:rating,newest,oldest,price_asc,price_desc']]);
+        $paginator = $this->storefront->products($request->query('category'), $perPage, $filter, $search, $request->query('sort'));
 
         return response()->json([
             'data' => StorefrontProductResource::collection($paginator->getCollection()),

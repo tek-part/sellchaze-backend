@@ -73,6 +73,20 @@ class StorefrontApiTest extends TestCase
         $this->getJson('http://adidas.sellchase.com/api/v1/storefront/products/gazelle')->assertOk();
     }
 
+    public function test_listing_sort_and_pagination_keep_category_and_store_scope(): void
+    {
+        Product::withoutGlobalScopes()->where('slug', 'air-max')->update(['rating_avg' => 5, 'rating_count' => 2, 'created_at' => '2025-01-01 00:00:00']);
+        Product::withoutGlobalScopes()->where('slug', 'pegasus')->update(['rating_avg' => 3, 'rating_count' => 8, 'created_at' => '2026-01-01 00:00:00']);
+        foreach (['rating' => 'air-max', 'newest' => 'pegasus', 'oldest' => 'air-max', 'price_asc' => 'air-max', 'price_desc' => 'pegasus'] as $sort => $first) {
+            $this->getJson('http://nike.sellchase.com/api/v1/storefront/products?category=shoes-nike&per_page=1&sort='.$sort)
+                ->assertOk()->assertJsonPath('meta.total', 2)->assertJsonPath('meta.last_page', 2)->assertJsonPath('data.0.slug', $first);
+        }
+        $this->getJson('http://nike.sellchase.com/api/v1/storefront/products?category=shoes-nike&per_page=1&page=2&sort=price_desc')
+            ->assertOk()->assertJsonPath('data.0.slug', 'air-max');
+        $this->getJson('http://nike.sellchase.com/api/v1/storefront/products?sort=price;drop')->assertUnprocessable()->assertJsonValidationErrors('sort');
+        $this->getJson('http://nike.sellchase.com/api/v1/storefront/products?category=shoes-adidas&sort=rating')->assertOk()->assertJsonCount(0, 'data');
+    }
+
     public function test_categories_endpoint_is_store_scoped(): void
     {
         $this->getJson('http://nike.sellchase.com/api/v1/storefront/categories')
