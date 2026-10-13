@@ -11,10 +11,10 @@ return new class extends Migration
     {
         Schema::create('merchant_push_subscriptions', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignId('store_id')->constrained()->restrictOnDelete();
-            $table->foreignId('user_id')->constrained()->restrictOnDelete();
-            $table->uuid('auth_session_id');
-            $table->foreign('auth_session_id')->references('id')->on('auth_sessions')->restrictOnDelete();
+            $table->foreignId('store_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->uuid('auth_session_id')->nullable();
+            $table->foreign('auth_session_id')->references('id')->on('auth_sessions')->nullOnDelete();
             $table->char('endpoint_hash', 64)->unique();
             $table->text('subscription');
             $table->char('vapid_fingerprint', 64);
@@ -26,8 +26,8 @@ return new class extends Migration
         Schema::create('merchant_order_push_deliveries', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('subscription_id');
-            $table->foreign('subscription_id')->references('id')->on('merchant_push_subscriptions')->restrictOnDelete();
-            $table->foreignId('store_order_id')->constrained('store_orders')->restrictOnDelete();
+            $table->foreign('subscription_id')->references('id')->on('merchant_push_subscriptions')->cascadeOnDelete();
+            $table->foreignId('store_order_id')->constrained('store_orders')->cascadeOnDelete();
             $table->unsignedInteger('subscription_version');
             $table->string('status', 20)->default('queued');
             $table->unsignedTinyInteger('attempts')->default(0);

@@ -276,4 +276,31 @@ class MerchantDevicePushTest extends TestCase
         $this->assertDatabaseHas('merchant_order_push_deliveries', ['subscription_id' => $broken->id, 'status' => 'skipped']);
         $this->assertDatabaseHas('merchant_order_push_deliveries', ['status' => 'sent']);
     }
+
+    public function test_existing_admin_session_deletion_still_works_and_suppresses_notifications(): void
+    {
+        $subscription = $this->subscribe();
+        app(MerchantOrderPush::class)->record($this->order());
+        $admin = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
+        $admin->assignRole('Admin');
+        $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($admin));
+        $this->postJson('/api/v1/admin/monitoring/sessions/bulk-destroy', ['ids' => [$this->session->id]])->assertOk()->assertJsonPath('deleted', 1);
+        $this->assertNull($subscription->fresh()->auth_session_id);
+        $this->mock(MerchantPushTransport::class)->shouldNotReceive('send');
+        $this->assertSame(0, app(MerchantOrderPush::class)->deliver());
+        $this->assertDatabaseHas('merchant_order_push_deliveries', ['status' => 'skipped']);
+    }
+
+    public function test_inactive_owner_is_suppressed_and_explicit_store_deletion_clears_its_device_queue(): void
+    {
+        $this->subscribe();
+        app(MerchantOrderPush::class)->record($this->order());
+        $this->owner->update(['is_active' => false]);
+        $this->mock(MerchantPushTransport::class)->shouldNotReceive('send');
+        $this->assertSame(0, app(MerchantOrderPush::class)->deliver());
+        $this->assertDatabaseHas('merchant_order_push_deliveries', ['status' => 'skipped']);
+        $this->store->delete();
+        $this->assertDatabaseCount('merchant_push_subscriptions', 0);
+        $this->assertDatabaseCount('merchant_order_push_deliveries', 0);
+    }
 }

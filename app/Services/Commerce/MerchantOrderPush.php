@@ -93,6 +93,7 @@ class MerchantOrderPush
             $store = $order?->store;
             $valid = $subscription && $subscription->enabled && $subscription->version === (int) $row->subscription_version && $subscription->vapid_fingerprint === $this->settings->fingerprint()
                 && $store && (int) $subscription->store_id === (int) $store->id && (int) $subscription->user_id === (int) $store->owner_user_id
+                && $store->owner && $store->owner->is_active && ! $store->owner->pending_approval
                 && AuthSession::whereKey($subscription->auth_session_id)->where('user_id', $subscription->user_id)->whereNull('revoked_at')->where('expires_at', '>', now())->exists()
                 && is_array($device) && $this->settings->endpointAllowed((string) ($device['endpoint'] ?? ''));
             if (! $valid) {
