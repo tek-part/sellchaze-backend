@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\InvoicesApiController;
 use App\Http\Controllers\Api\LedgerApiController;
 use App\Http\Controllers\Api\MarketplaceThemesController;
 use App\Http\Controllers\Api\MerchantOrderController;
+use App\Http\Controllers\Api\MerchantOrderPushController;
 use App\Http\Controllers\Api\MerchantReviewController;
 use App\Http\Controllers\Api\MerchantsApiController;
 use App\Http\Controllers\Api\MeSectorController;
@@ -914,6 +915,8 @@ Route::prefix('v1')->group(function () {
                 Route::put('/', [StoreGeneralSettingsController::class, 'update'])->middleware('throttle:30,1');
             });
             Route::middleware('permission:store.settings.manage')->group(function () {
+                Route::get('order-push', [MerchantOrderPushController::class, 'index'])->middleware('throttle:tenant-read');
+                Route::put('order-push', [MerchantOrderPushController::class, 'update'])->middleware('throttle:30,1');
                 Route::get('seo-settings', [StoreGeneralSettingsController::class, 'seo'])->middleware('throttle:tenant-read');
                 Route::put('seo-settings', [StoreGeneralSettingsController::class, 'updateSeo'])->middleware('throttle:30,1');
                 Route::get('social-links', [StoreSocialLinksController::class, 'index'])->middleware('throttle:tenant-read');

@@ -395,12 +395,14 @@ class AuthController extends Controller
                 'ip_address' => $s->ip_address,
                 'user_agent' => $s->user_agent,
                 'device_name' => $s->device_name,
+                'email' => $user->email,
+                'created_at' => $s->created_at?->toIso8601String(),
                 'last_used_at' => $s->last_used_at?->toIso8601String(),
                 'expires_at' => $s->expires_at?->toIso8601String(),
                 'current' => $currentSessionId !== null && $s->id === $currentSessionId,
             ])->values(),
             'current_session_id' => $currentSessionId,
-        ]);
+        ], 200, ['Cache-Control' => 'private, no-store']);
     }
 
     public function revokeSession(Request $request, string $sessionId): JsonResponse

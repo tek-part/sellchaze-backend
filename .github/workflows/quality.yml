@@ -59,7 +59,7 @@ jobs:
           php artisan migrate:fresh --force
           # Verify Sheets, marketplace and wallet migrations on an empty database
           # and apply again without breaking MySQL foreign-key indexes.
-          php artisan migrate:rollback --step=8 --force
+            php artisan migrate:rollback --step=9 --force
           php artisan migrate --force
         env:
           DB_CONNECTION: mysql
