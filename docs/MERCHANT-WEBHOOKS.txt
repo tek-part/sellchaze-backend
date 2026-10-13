@@ -1,0 +1,50 @@
+Merchant order webhooks
+
+Owner or global stores-edit administration configures /api/v1/my-store/webhooks
+or /api/v1/stores/{store}/webhooks. General employee settings/order permissions
+cannot configure destinations. GET lists20 rows per page. POST accepts url,
+description, type (orders or order-status-update), enabled and a UUID request_key.
+The same unchanged creation request returns the same configuration and secret;
+an altered, edited or deleted request conflicts. GET /{webhook} includes the
+last20 delivery metadata rows. PUT and DELETE require the current version.
+Deletion is soft and stops queued deliveries; an already sending request can
+finish. Fifty active configurations per store limit unbounded export work.
+
+Only public HTTPS receivers are supported, including explicit HTTPS ports.
+User/password URLs, fragments, local hostnames and private/reserved addresses
+are rejected. DNS is resolved on each attempt; any unsafe returned address
+rejects the whole target. Named-host addresses are pinned through CURL_RESOLVE,
+with TLS certificate verification, redirects disabled and proxies disabled.
+Secret and queued payload are encrypted in storage and excluded from model JSON.
+The secret is returned only through the authenticated creation/replay response.
+No public storefront bootstrap or feed contains webhook configuration.
+
+Checkout records the new-order event inside the transaction, after order lines
+exist. Idempotent checkout replay cannot record a second event. Older orders are
+not replayed when a configuration is created. The common status transition
+service records each status timeline event once. Bodies use immutable item
+snapshots, never later catalog values. Payloads include native order/store IDs,
+numeric totals, customer/address data, items, or old/new status with payment
+reference. Payment status is separate from this platform's order status.
+
+Run php artisan store-webhooks:deliver --limit=50 through the scheduler; the
+existing Console Kernel schedules it every minute without overlap. The worker
+claims a one-minute lease, rechecks the current owner, active store/account,
+configuration version and wallet eligibility, and sends HTTP POST JSON with
+secret and X-Sellchaze-Event-Id headers. Receivers must deduplicate that stable
+event ID: a crash after acceptance can cause a repeated request. Eight attempts,
+backoff up to one hour and a24-hour expiry bound delivery. A2xx response succeeds;
+410/unsafe targets fail terminally. Network errors, DNS outages and other HTTP
+statuses retry. Terminal/expired/skipped rows clear encrypted payloads. Wallet
+debt suspends delivery of charged private orders without consuming attempts;
+funding resumes them if not expired. Their event references are also hidden in
+the owner delivery history. Configuration edits invalidate older pending events.
+
+References reviewed: authenticated EasyOrders #/webhooks/create, and
+https://public-api-docs.easy-orders.net/docs/webhooks (2026-10-13).
+No competitor configuration/key was created and no real receiver was contacted.
+Real receiver/scheduler acceptance and production publication are pending.
+API-key management, the external products/orders/categories APIs and the
+external delete-by-url endpoint remain separate unfinished work. Populated
+reference table/history geometry is unverified; available reference empty and
+creation views are used for visual review. Rollback refuses populated tables.

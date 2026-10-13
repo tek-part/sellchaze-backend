@@ -194,6 +194,7 @@ class CheckoutService
             app(PlatformWallet::class)->orderFee($order);
             app(StoreSheets::class)->record($order);
             app(MerchantOrderPush::class)->record($order);
+            app(StoreOrderWebhooks::class)->created($order);
             app(DigitalDelivery::class)->recordReceipt($order);
             $store->owner?->notify(new StoreOrderActivity($order, 'created'));
 
