@@ -20,6 +20,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('merchant-push:deliver --limit=50')->everyTenSeconds()->withoutOverlapping();
         $schedule->command('store-webhooks:deliver --limit=50')->everyMinute()->withoutOverlapping();
         $schedule->command('store-api-keys:expire-receipts')->everyMinute()->withoutOverlapping();
+        $schedule->command('merchant-subscriptions:renew --limit=50')->everyMinute()->withoutOverlapping();
         $schedule->command('outbox:publish --limit=200')
             ->everyMinute()
             ->withoutOverlapping()
