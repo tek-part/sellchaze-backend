@@ -111,6 +111,7 @@ use App\Http\Controllers\Api\StorefrontProductsApiController;
 use App\Http\Controllers\Api\StorefrontProductVariantsApiController;
 use App\Http\Controllers\Api\StoreFunnelsApiController;
 use App\Http\Controllers\Api\StoreGeneralSettingsController;
+use App\Http\Controllers\Api\StoreHeadCodeController;
 use App\Http\Controllers\Api\StoreInventoryController;
 use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
@@ -916,6 +917,8 @@ Route::prefix('v1')->group(function () {
             });
             Route::middleware('permission:store.settings.manage')->group(function () {
                 Route::get('order-push', [MerchantOrderPushController::class, 'index'])->middleware('throttle:tenant-read');
+                Route::get('head-code', [StoreHeadCodeController::class, 'index'])->middleware('throttle:tenant-read');
+                Route::put('head-code', [StoreHeadCodeController::class, 'update'])->middleware('throttle:30,1');
                 Route::put('order-push', [MerchantOrderPushController::class, 'update'])->middleware('throttle:30,1');
                 Route::get('seo-settings', [StoreGeneralSettingsController::class, 'seo'])->middleware('throttle:tenant-read');
                 Route::put('seo-settings', [StoreGeneralSettingsController::class, 'updateSeo'])->middleware('throttle:30,1');

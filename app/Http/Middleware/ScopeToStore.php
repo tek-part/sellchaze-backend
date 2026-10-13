@@ -20,12 +20,25 @@ class ScopeToStore
     public function handle(Request $request, Closure $next): Response
     {
         $store = $request->route('store');
+        $resolvedNumeric = false;
+
+        // Settings controllers use the request tenant rather than a typed Store
+        // argument, so Laravel's implicit model binding does not resolve their ID.
+        if ((is_string($store) && ctype_digit($store)) || is_int($store)) {
+            $store = Store::find($store);
+            if ($store instanceof Store) {
+                $resolvedNumeric = true;
+                $request->route()->setParameter('store', $store);
+            }
+        }
 
         if (! $store instanceof Store) {
             abort(404);
         }
         if (! $request->user() || ! $request->user()->can('view', $store)) {
-            abort(403, 'Forbidden.');
+            // Retain the concealed-resource response for request-only settings
+            // controllers, while keeping existing typed-controller responses.
+            abort($resolvedNumeric ? 404 : 403, 'Forbidden.');
         }
 
         $this->currentStore->set($store);

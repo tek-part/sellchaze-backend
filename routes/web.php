@@ -6,6 +6,7 @@ use App\Http\Controllers\InvitationsController;
 use App\Http\Controllers\Storefront\ReferralLinkController;
 use App\Http\Controllers\Storefront\StorefrontPageController;
 use App\Http\Controllers\Storefront\ThemeBundleController;
+use App\Http\Middleware\InjectStoreHeadCode;
 use App\Models\Store;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -17,7 +18,7 @@ use Illuminate\Support\Facades\Route;
 | domains like nike.com. "/" serves the store homepage on a resolved host, or
 | the app welcome on the main domain; other storefront paths 404 on unknown hosts.
 */
-Route::middleware(['resolve.store', 'storefront.locale'])->group(function () {
+Route::middleware(['resolve.store', 'storefront.locale', InjectStoreHeadCode::class])->group(function () {
     Route::get('/storefront.webmanifest', [StorefrontPageController::class, 'manifest']);
     Route::get('/theme-bundles/{version}/{checksum}.js', [ThemeBundleController::class, 'show'])
         ->whereNumber('version')->where('checksum', '[a-f0-9]{64}');
@@ -51,7 +52,7 @@ Route::get('login', function (Request $request) {
     $front = rtrim((string) config('sellchase.frontend_url', env('FRONTEND_URL', 'http://localhost:5173')), '/');
 
     return redirect()->away($front.'/login');
-})->middleware(['resolve.store', 'storefront.locale'])->name('login');
+})->middleware(['resolve.store', 'storefront.locale', InjectStoreHeadCode::class])->name('login');
 
 /** Legacy Blade layouts (e.g. Growtech 404) link here; keeps session locale for optional SetLocale middleware. */
 Route::get('locale/{locale}', function (string $locale) {
@@ -75,7 +76,7 @@ Route::middleware('auth')->group(function () {
 
 // Any other GET on a resolved tenant host is a React-storefront route (cart, checkout,
 // account, search, …). Registered as a fallback so it never shadows the app-host routes.
-Route::fallback([StorefrontPageController::class, 'spa'])->middleware(['resolve.store', 'storefront.locale']);
+Route::fallback([StorefrontPageController::class, 'spa'])->middleware(['resolve.store', 'storefront.locale', InjectStoreHeadCode::class]);
 
 // "/" is handled host-agnostically by StorefrontPageController@root above:
 // resolved store -> storefront homepage; main domain -> app welcome JSON.

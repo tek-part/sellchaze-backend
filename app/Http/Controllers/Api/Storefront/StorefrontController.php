@@ -15,6 +15,7 @@ use App\Models\StoreMenu;
 use App\Services\Commerce\DownsellOffers;
 use App\Services\Commerce\GoogleMerchantSettings;
 use App\Services\Commerce\ShoppingPreferences;
+use App\Services\Commerce\StoreHeadCode;
 use App\Services\Commerce\StoreTrackingSettings;
 use App\Services\CurrencyRateService;
 use App\Services\PageBuilder\StoreMenuService;
@@ -54,6 +55,7 @@ class StorefrontController extends Controller
 
         return response()->json([
             'store' => $this->storeSummary($store),
+            'head_code' => app(StoreHeadCode::class)->publication($store, $request),
             'locale' => $this->locale->toArray(),
             'seo' => $this->seo->forStore($store),
             'theme' => $theme === null ? null : [
