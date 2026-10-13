@@ -2,16 +2,12 @@
 
 namespace App\Services\Commerce;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Cart;
 use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreCustomer;
 use App\Models\StoreOrder;
-use App\Notifications\StoreOrderActivity;
-use App\Services\Outbox\OutboxRecorder;
-use App\Services\PlatformWallet;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -28,7 +24,6 @@ class CheckoutService
         private readonly StoreOrderService $orders,
         private readonly CouponService $coupons,
         private readonly PricingCalculator $pricing,
-        private readonly OutboxRecorder $outbox,
         private readonly PurchasableSelection $selections,
         private readonly StoreInventory $inventory,
     ) {}
@@ -181,27 +176,7 @@ class CheckoutService
 
             $cart->update(['status' => 'converted', 'coupon_id' => null]);
 
-            StoreAnalyticsService::forget($store->id);
-
-            $this->outbox->record('StorefrontOrderPlaced', 'store_order', $order->id, [
-                'store_id' => $store->id,
-                'store_order_id' => $order->id,
-                'order_number' => $order->order_number,
-                'grand_total' => $totals['grand_total'],
-                'currency' => $order->currency,
-                'payment_method' => $paymentMethod,
-            ]);
-
-            app(PlatformWallet::class)->orderFee($order);
-            app(StoreSheets::class)->record($order);
-            app(MerchantOrderPush::class)->record($order);
-            app(StoreOrderWebhooks::class)->created($order);
-            app(DigitalDelivery::class)->recordReceipt($order);
-            $store->owner?->notify(new StoreOrderActivity($order, 'created'));
-
-            // Mirror into the B2B pipeline after commit, including bank transfers.
-            // A bridge failure can never roll the customer order back.
-            BridgeStorefrontOrderJob::dispatch($order->id, $store->id)->afterCommit();
+            app(StoreOrderPlacement::class)->record($order);
 
             return $order->load('items');
         });

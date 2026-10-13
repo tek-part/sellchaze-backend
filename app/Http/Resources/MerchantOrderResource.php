@@ -39,6 +39,8 @@ class MerchantOrderResource extends JsonResource
             'shipping_total' => $this->shipping_total,
             'discount_total' => $this->discount_total, // coupon discount
             'coupon_code' => $this->coupon_code,
+            'entry_source' => $this->manual_request_key ? 'manual' : 'storefront',
+            'manual_actor_id' => $this->manual_actor_id,
             'tax_total' => $this->tax_total,
             'payment_method' => $this->payment_method,
             'payment_status' => $this->payment_status,
@@ -46,6 +48,8 @@ class MerchantOrderResource extends JsonResource
             'fulfillment' => $this->whenLoaded('items', fn () => $this->resource->fulfillment()),
             'next_statuses' => $this->whenLoaded('items', fn () => app(StoreOrderService::class)->nextStatuses($this->resource)),
             'grand_total' => $this->grand_total,
+            'manual_adjustment_total' => $this->manual_adjustment_total ?? '0.00',
+            'manual_tax_included' => $this->manual_tax_included,
             'items_count' => $this->when(isset($this->items_count), fn () => (int) $this->items_count),
             'customer_notes' => $this->notes,
             'marketing_attribution' => $this->marketing_attribution,

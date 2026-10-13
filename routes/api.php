@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\InventoryApiController;
 use App\Http\Controllers\Api\InvestmentOpportunityController;
 use App\Http\Controllers\Api\InvoicesApiController;
 use App\Http\Controllers\Api\LedgerApiController;
+use App\Http\Controllers\Api\ManualStoreOrderController;
 use App\Http\Controllers\Api\MarketplaceThemesController;
 use App\Http\Controllers\Api\MerchantOrderController;
 use App\Http\Controllers\Api\MerchantOrderPushController;
@@ -867,6 +868,13 @@ Route::prefix('v1')->group(function () {
                 Route::get('/', [MerchantOrderController::class, 'index']);
                 Route::get('print-data', [MerchantOrderController::class, 'printData'])->middleware('permission:store.orders.manage');
                 Route::get('filter-products', [MerchantOrderController::class, 'filterProducts'])->middleware('permission:store.orders.manage');
+                Route::middleware('permission:store.orders.manage')->prefix('manual')->group(function () {
+                    Route::get('products', [ManualStoreOrderController::class, 'products']);
+                    Route::get('request/{key}', [ManualStoreOrderController::class, 'reconcile'])->whereUuid('key');
+                    Route::get('products/{product}/variants', [ManualStoreOrderController::class, 'variants'])->whereNumber('product');
+                    Route::post('products/{product}/personalization-image', [ManualStoreOrderController::class, 'upload'])->whereNumber('product')->middleware('throttle:5,1');
+                    Route::post('/', [ManualStoreOrderController::class, 'store'])->middleware('throttle:20,1');
+                });
                 Route::post('bulk-status', [MerchantOrderController::class, 'bulkStatus'])->middleware(['permission:store.orders.manage', 'throttle:20,1']);
                 Route::middleware('permission:store.orders.manage')->prefix('exports')->group(function () {
                     Route::get('/', [StoreOrderExportController::class, 'index']);
