@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\MerchantOrderController;
 use App\Http\Controllers\Api\MerchantOrderPushController;
 use App\Http\Controllers\Api\MerchantReviewController;
 use App\Http\Controllers\Api\MerchantsApiController;
+use App\Http\Controllers\Api\MerchantSubscriptionsController;
 use App\Http\Controllers\Api\MeSectorController;
 use App\Http\Controllers\Api\MonitoringApiController;
 use App\Http\Controllers\Api\NotificationsApiController;
@@ -460,6 +461,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::get('/me/platform-wallet', [PlatformWalletController::class, 'wallet'])->middleware('throttle:tenant-read');
+        Route::get('/me/merchant-subscription', [MerchantSubscriptionsController::class, 'show'])->middleware('throttle:tenant-read');
+        Route::post('/me/merchant-subscription', [MerchantSubscriptionsController::class, 'purchase'])->middleware('throttle:10,1');
+        Route::put('/me/merchant-subscription/preferences', [MerchantSubscriptionsController::class, 'preferences'])->middleware('throttle:10,1');
         Route::post('/me/platform-wallet/fund', [PlatformWalletController::class, 'fund'])->middleware('throttle:20,1');
         Route::post('/me/platform-wallet/payments/{payment}/refresh', [PlatformWalletController::class, 'refreshPayment'])->whereUuid('payment')->middleware('throttle:20,1');
         Route::get('/me/platform-wallet/entries', [PlatformWalletController::class, 'entries'])->middleware('throttle:tenant-read');

@@ -35,6 +35,9 @@ class PlatformWallet
 
     public function ordersLocked(User $owner): bool
     {
+        if (app(MerchantSubscriptions::class)->active($owner)) {
+            return false;
+        }
         $fee = (int) config('platform_wallet.fee_milli');
         $limit = (int) config('platform_wallet.debt_order_limit');
 
@@ -160,6 +163,9 @@ class PlatformWallet
         if ($user && $amount > 0) {
             DB::transaction(function () use ($user, $order, $amount) {
                 $account = $this->lockAccount($user);
+                if (app(MerchantSubscriptions::class)->exempt($order, $user)) {
+                    return;
+                }
                 $this->append($account, 'order:'.$order->id, 'order_fee', -$amount, null, $order->id);
             });
         }
@@ -170,6 +176,24 @@ class PlatformWallet
         return DB::table('platform_referrals')->where('profile_id', $profile)->whereExists(function ($q) {
             $q->selectRaw('1')->from('stores')->whereColumn('stores.owner_user_id', 'platform_referrals.invitee_user_id');
         })->count();
+    }
+
+    public function subscriptionCharge(User $user, int $amount, string $eventKey, bool $allowDebt): object
+    {
+        if ($amount <= 0 || $amount > 1000000 || ! str_starts_with($eventKey, 'subscription:') || strlen($eventKey) > 140) {
+            throw new \LogicException('Invalid subscription charge.');
+        }
+
+        return DB::transaction(function () use ($user, $amount, $eventKey, $allowDebt) {
+            $account = $this->lockAccount($user);
+            $prior = DB::table('platform_wallet_entries')->where('event_key', $eventKey)->first();
+            if ($prior) {
+                return $this->replay($prior, $account->id, 'subscription', -$amount, null, null);
+            }
+            abort_if(! $allowDebt && (int) $account->balance_milli < $amount, 402, 'PLATFORM_WALLET_FUNDING_REQUIRED');
+
+            return $this->append($account, $eventKey, 'subscription', -$amount);
+        });
     }
 
     /** Records an operator-confirmed cash payout; never credits the spendable wallet. */
