@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Phase 5: a storefront order. Separate from the legacy B2B Order model.
@@ -20,6 +21,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $grand_total
  * @property array{source:string,campaign:string}|null $marketing_attribution
  * @property array{code:string,product_id:int}|null $referral_attribution
+ * @property Carbon|null $deleted_at
  */
 class StoreOrder extends Model
 {
@@ -88,6 +90,12 @@ class StoreOrder extends Model
     public function statusChanges(): HasMany
     {
         return $this->hasMany(StoreOrderStatusChange::class)->orderBy('id');
+    }
+
+    /** @return HasOne<StoreOrderReview, $this> */
+    public function merchantReview(): HasOne
+    {
+        return $this->hasOne(StoreOrderReview::class);
     }
 
     /** @return BelongsTo<StoreCustomer, $this> */

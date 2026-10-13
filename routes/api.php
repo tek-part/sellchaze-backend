@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\InvoicesApiController;
 use App\Http\Controllers\Api\LedgerApiController;
 use App\Http\Controllers\Api\ManualStoreOrderController;
 use App\Http\Controllers\Api\MarketplaceThemesController;
+use App\Http\Controllers\Api\MerchantOrderActionsController;
 use App\Http\Controllers\Api\MerchantOrderController;
 use App\Http\Controllers\Api\MerchantOrderPushController;
 use App\Http\Controllers\Api\MerchantReviewController;
@@ -876,6 +877,13 @@ Route::prefix('v1')->group(function () {
                     Route::post('/', [ManualStoreOrderController::class, 'store'])->middleware('throttle:20,1');
                 });
                 Route::post('bulk-status', [MerchantOrderController::class, 'bulkStatus'])->middleware(['permission:store.orders.manage', 'throttle:20,1']);
+                Route::middleware('permission:store.orders.manage')->group(function () {
+                    Route::get('{order}/detail', [MerchantOrderActionsController::class, 'show'])->whereNumber('order');
+                    Route::post('{order}/archive', [MerchantOrderActionsController::class, 'archive'])->whereNumber('order');
+                    Route::post('{order}/review', [MerchantOrderActionsController::class, 'review'])->whereNumber('order');
+                    Route::post('{order}/block-phone', [MerchantOrderActionsController::class, 'blockPhone'])->whereNumber('order')->middleware('throttle:10,1');
+                    Route::post('{order}/resend-webhook', [MerchantOrderActionsController::class, 'resendWebhook'])->whereNumber('order')->middleware('throttle:10,1');
+                });
                 Route::middleware('permission:store.orders.manage')->prefix('exports')->group(function () {
                     Route::get('/', [StoreOrderExportController::class, 'index']);
                     Route::post('/', [StoreOrderExportController::class, 'store'])->middleware('throttle:10,1');
@@ -884,7 +892,7 @@ Route::prefix('v1')->group(function () {
                 });
                 Route::get('{order}', [MerchantOrderController::class, 'show'])->whereNumber('order');
                 Route::match(['patch', 'post'], '{order}/status', [MerchantOrderController::class, 'updateStatus'])->whereNumber('order');
-                Route::post('{order}/note', [MerchantOrderController::class, 'addNote'])->whereNumber('order');
+                Route::post('{order}/note', [MerchantOrderController::class, 'addNote'])->whereNumber('order')->middleware('permission:store.orders.manage');
                 Route::post('{order}/payment/confirm-bank', [MerchantOrderController::class, 'confirmBankPayment'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:20,1']);
                 Route::post('{order}/payment/confirm-cash', [MerchantOrderController::class, 'confirmCashPayment'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:20,1']);
                 Route::get('{order}/digital-email', [MerchantOrderController::class, 'digitalEmail'])->whereNumber('order')->middleware('permission:store.orders.manage');

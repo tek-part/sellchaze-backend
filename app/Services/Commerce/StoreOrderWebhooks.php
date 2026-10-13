@@ -19,6 +19,18 @@ class StoreOrderWebhooks
     /** Database-only: called inside the checkout transaction, after immutable items exist. */
     public function created(StoreOrder $order): void
     {
+        $this->record($order, 'orders', 'order:'.$order->id, $this->orderPayload($order), true);
+    }
+
+    public function resend(StoreOrder $order, string $eventKey): int
+    {
+        $this->record($order, 'orders', $eventKey, $this->orderPayload($order));
+
+        return StoreOrderWebhookDelivery::where('store_id', $order->store_id)->where('store_order_id', $order->id)->where('event_key', $eventKey)->count();
+    }
+
+    private function orderPayload(StoreOrder $order): array
+    {
         $order->loadMissing(['items' => fn ($query) => $query->withoutGlobalScopes()->where('store_id', $order->store_id)]);
         $address = $order->shipping_address ?? [];
         $payload = ['id' => $order->id, 'store_id' => $order->store_id, 'created_at' => $order->created_at?->toIso8601String(),
@@ -31,7 +43,8 @@ class StoreOrderWebhooks
                 'variant_id' => $item->variant_id, 'store_id' => $order->store_id, 'price' => (float) $item->unit_price,
                 'quantity' => $item->quantity, 'product' => ['id' => $item->store_product_id, 'name' => $item->name, 'sku' => $item->sku],
                 'variant' => $item->variant_id ? ['id' => $item->variant_id, 'name' => $item->variant_name, 'variation_props' => $item->variant_options] : null])->all()];
-        $this->record($order, 'orders', 'order:'.$order->id, $payload, true);
+
+        return $payload;
     }
 
     public function statusChanged(StoreOrder $order, string $oldStatus, int $changeId): void

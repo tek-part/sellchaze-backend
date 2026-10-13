@@ -46,7 +46,7 @@ class MerchantOrderController extends Controller
         $locked = $store->owner && app(PlatformWallet::class)->ordersLocked($store->owner);
         $charged = DB::table('platform_wallet_entries')->where('type', 'order_fee')->whereNotNull('store_order_id')->select('store_order_id');
         $lockedCount = $locked ? StoreOrder::forStore($store)->whereIn('id', $charged)->count() : 0;
-        $paginator = $query->build($store, $filters)->withCount('items')->with('b2bOrder')->orderBy($sort, $dir)->orderBy('id', $dir)->paginate($perPage);
+        $paginator = $query->build($store, $filters)->withCount('items')->with(['b2bOrder', 'merchantReview'])->orderBy($sort, $dir)->orderBy('id', $dir)->paginate($perPage);
 
         return response()->json([
             'data' => MerchantOrderResource::collection($paginator->getCollection()),
