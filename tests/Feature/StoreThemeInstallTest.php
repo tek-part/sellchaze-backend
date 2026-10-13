@@ -97,6 +97,27 @@ class StoreThemeInstallTest extends TestCase
         $this->assertSame('naseem', $this->registry->resolveActiveTheme($other->fresh())->theme->key);
     }
 
+    public function test_pure_furniture_registration_is_additive_and_activation_is_store_scoped(): void
+    {
+        $store = $this->makeStore();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other', 'slug' => 'other-pure-store', 'currency' => 'USD', 'status' => 'active']);
+        $this->installer->installAndActivateDefault($other);
+        $oldTheme = $other->fresh()->theme_id;
+        $oldSettings = $other->fresh()->theme_settings;
+        $theme = $this->registry->registerFromFile(resource_path('themes/storefront/pure-furniture.json'));
+        $version = $this->registry->resolveThemeVersion($theme);
+        $this->assertSame('builtin:pure-furniture@1.0.0', $version->bundle_url);
+        $this->assertArrayHasKey('pure-image-compare', $version->sections_schema);
+        $this->assertArrayHasKey('pure-hero', $version->sections_schema);
+        $installed = $this->installer->install($store, $theme, $version);
+        $this->installer->activate($store, $installed);
+        $this->assertSame('pure-furniture', $this->registry->resolveActiveTheme($store->fresh())->theme->key);
+        $this->assertSame('#834523', $store->fresh()->theme_settings['primary_color']);
+        $this->assertSame($oldTheme, $other->fresh()->theme_id);
+        $this->assertSame($oldSettings, $other->fresh()->theme_settings);
+        $this->assertSame('naseem', $this->registry->resolveActiveTheme($other->fresh())->theme->key);
+    }
+
     public function test_store_created_via_service_gets_default_theme(): void
     {
         // StoreService::create resolves the owner from the authenticated user.
