@@ -158,6 +158,7 @@ class CheckoutService
                 'subtotal' => $totals['subtotal'],
                 'shipping_total' => $totals['shipping_total'],
                 'discount_total' => $totals['discount_total'],
+                'coupon_code' => $coupon?->code,
                 'tax_total' => $totals['tax_total'],
                 'grand_total' => $totals['grand_total'],
                 'notes' => $contact['notes'] ?? null,
