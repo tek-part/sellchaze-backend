@@ -109,6 +109,7 @@ use App\Http\Controllers\Api\StorefrontContextController;
 use App\Http\Controllers\Api\StorefrontProductsApiController;
 use App\Http\Controllers\Api\StorefrontProductVariantsApiController;
 use App\Http\Controllers\Api\StoreFunnelsApiController;
+use App\Http\Controllers\Api\StoreGeneralSettingsController;
 use App\Http\Controllers\Api\StoreInventoryController;
 use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
@@ -907,6 +908,10 @@ Route::prefix('v1')->group(function () {
             });
             Route::get('google-merchant', [GoogleMerchantController::class, 'show'])->middleware('permission:store.settings.manage');
             Route::get('apps', [StoreAppsController::class, 'index'])->middleware(['permission:store.settings.manage', 'throttle:tenant-read']);
+            Route::prefix('general-settings')->middleware('permission:store.settings.manage')->group(function () {
+                Route::get('/', [StoreGeneralSettingsController::class, 'index'])->middleware('throttle:tenant-read');
+                Route::put('/', [StoreGeneralSettingsController::class, 'update'])->middleware('throttle:30,1');
+            });
             Route::prefix('dashboard-guide')->middleware('permission:store.settings.manage')->group(function () {
                 Route::get('/', [StoreDashboardGuideController::class, 'index'])->middleware('throttle:tenant-read');
                 Route::put('/', [StoreDashboardGuideController::class, 'update'])->middleware('throttle:30,1');
