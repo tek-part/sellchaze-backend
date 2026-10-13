@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\EmailLogsApiController;
 use App\Http\Controllers\Api\EmailSettingsApiController;
 use App\Http\Controllers\Api\EmailTemplatesApiController;
 use App\Http\Controllers\Api\EmployeesApiController;
+use App\Http\Controllers\Api\ExternalStoreOrdersController;
 use App\Http\Controllers\Api\FeedController;
 use App\Http\Controllers\Api\FeedEventController;
 use App\Http\Controllers\Api\FinancingRequestController;
@@ -68,6 +69,7 @@ use App\Http\Controllers\Api\ShippingCompaniesApiController;
 use App\Http\Controllers\Api\SocialSafetyController;
 use App\Http\Controllers\Api\StockTransfersApiController;
 use App\Http\Controllers\Api\StoreAnalyticsController;
+use App\Http\Controllers\Api\StoreApiKeysController;
 use App\Http\Controllers\Api\StoreAppsController;
 use App\Http\Controllers\Api\StoreArticlesApiController;
 use App\Http\Controllers\Api\StoreBotProtectionController;
@@ -172,6 +174,7 @@ use App\Http\Controllers\Api\Wavex\WavexTemplatesApiController;
 use App\Http\Controllers\Api\Wavex\WavexWebhookController;
 use App\Http\Controllers\Api\WigpleasureSyncApiController;
 use App\Http\Controllers\Storefront\ReferralLinkController;
+use App\Http\Middleware\AuthenticateStoreApiKey;
 use App\Http\Middleware\IdempotentCheckout;
 use App\Http\Middleware\ResolveOwnStore;
 use App\Services\PageBuilder\StorePageService;
@@ -427,6 +430,30 @@ Route::prefix('v1')->group(function () {
             Route::put('products/{slug}/reviews/{review}', [ProductReviewController::class, 'update'])->where('slug', '[a-z0-9\-]+')->whereNumber('review');
             Route::delete('products/{slug}/reviews/{review}', [ProductReviewController::class, 'destroy'])->where('slug', '[a-z0-9\-]+')->whereNumber('review');
         });
+    });
+
+    // Isolated machine credentials: never accept profile/global keys or JWTs here.
+    Route::prefix('external-apps')->withoutMiddleware('throttle:api')->group(function () {
+        $key = fn (string $permission) => AuthenticateStoreApiKey::class.':'.$permission;
+        Route::get('products', [StorefrontProductsApiController::class, 'index'])->middleware($key('products:read'));
+        Route::post('products', [StorefrontProductsApiController::class, 'store'])->middleware($key('products:create'));
+        Route::get('products/{product}', [StorefrontProductsApiController::class, 'show'])->whereNumber('product')->middleware($key('products:read'));
+        Route::match(['put', 'patch'], 'products/{product}', [StorefrontProductsApiController::class, 'update'])->whereNumber('product')->middleware($key('products:update'));
+        Route::delete('products/{product}', [StorefrontProductsApiController::class, 'destroy'])->whereNumber('product')->middleware($key('products:delete'));
+        Route::get('categories', [StoreCategoriesApiController::class, 'index'])->middleware($key('categories:read'));
+        Route::post('categories', [StoreCategoriesApiController::class, 'store'])->middleware($key('categories:create'));
+        Route::get('categories/{category}', [StoreCategoriesApiController::class, 'show'])->whereNumber('category')->middleware($key('categories:read'));
+        Route::match(['put', 'patch'], 'categories/{category}', [StoreCategoriesApiController::class, 'update'])->whereNumber('category')->middleware($key('categories:update'));
+        Route::delete('categories/{category}', [StoreCategoriesApiController::class, 'destroy'])->whereNumber('category')->middleware($key('categories:delete'));
+        Route::get('orders', [MerchantOrderController::class, 'index'])->middleware($key('orders:read'));
+        Route::get('orders/short-id/{number}', [ExternalStoreOrdersController::class, 'byNumber'])->where('number', '[A-Za-z0-9\-]+')->middleware($key('orders:read'));
+        Route::get('orders/{order}', [MerchantOrderController::class, 'show'])->whereNumber('order')->middleware($key('orders:read'));
+        Route::match(['put', 'patch', 'post'], 'orders/{order}/status', [MerchantOrderController::class, 'updateStatus'])->whereNumber('order')->middleware($key('orders:update'));
+        Route::post('orders/{order}/notes', [MerchantOrderController::class, 'addNote'])->whereNumber('order')->middleware($key('orders:update'));
+        Route::delete('orders/{order}', [ExternalStoreOrdersController::class, 'destroy'])->whereNumber('order')->middleware($key('orders:delete'));
+        Route::get('shipping-areas', [StoreShippingController::class, 'index'])->middleware($key('shipping_areas'));
+        Route::put('shipping-areas', [StoreShippingController::class, 'update'])->middleware($key('shipping_areas'));
+        Route::delete('webhooks/delete-by-url', [ExternalStoreOrdersController::class, 'deleteWebhook'])->middleware($key('orders:delete'));
     });
 
     Route::middleware(['jwt.auth', 'pending.restrict'])->group(function () {
@@ -917,6 +944,11 @@ Route::prefix('v1')->group(function () {
                 Route::put('/', [StoreGeneralSettingsController::class, 'update'])->middleware('throttle:30,1');
             });
             Route::middleware('permission:store.settings.manage')->group(function () {
+                Route::get('public-api', [StoreApiKeysController::class, 'index'])->middleware('throttle:tenant-read');
+                Route::post('public-api', [StoreApiKeysController::class, 'create'])->middleware('throttle:20,1');
+                Route::get('public-api/{key}', [StoreApiKeysController::class, 'show'])->whereUuid('key')->middleware('throttle:tenant-read');
+                Route::put('public-api/{key}', [StoreApiKeysController::class, 'update'])->whereUuid('key')->middleware('throttle:20,1');
+                Route::delete('public-api/{key}', [StoreApiKeysController::class, 'destroy'])->whereUuid('key')->middleware('throttle:20,1');
                 Route::get('webhooks', [StoreOrderWebhookController::class, 'index'])->middleware('throttle:tenant-read');
                 Route::post('webhooks', [StoreOrderWebhookController::class, 'create'])->middleware('throttle:20,1');
                 Route::get('webhooks/{webhook}', [StoreOrderWebhookController::class, 'show'])->whereUuid('webhook')->middleware('throttle:tenant-read');
@@ -933,7 +965,8 @@ Route::prefix('v1')->group(function () {
             });
             Route::prefix('dashboard-guide')->middleware('permission:store.settings.manage')->group(function () {
                 Route::get('/', [StoreDashboardGuideController::class, 'index'])->middleware('throttle:tenant-read');
-                Route::put('/', [StoreDashboardGuideController::class, 'update'])->middleware('throttle:30,1');
+                // POST supports hosts whose method policy blocks PUT; both use the same authorization and validation.
+                Route::match(['put', 'post'], '/', [StoreDashboardGuideController::class, 'update'])->middleware('throttle:30,1');
             });
             Route::prefix('downsell')->middleware(['permission:store.settings.manage', 'permission:store.coupons.manage'])->group(function () {
                 Route::get('/', [StoreDownsellController::class, 'index'])->middleware('throttle:tenant-read');

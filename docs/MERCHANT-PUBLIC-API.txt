@@ -1,0 +1,50 @@
+Merchant Public API keys and external store access
+
+Owners and existing global store administration can manage named configurations under
+my-store/public-api and stores/{store}/public-api. Employees with general settings
+permissions cannot create, read, edit or delete these credentials. Keys belong to the
+store's current owner; ownership transfer invalidates former owner keys and does not
+consume the new owner's 50-key quota.
+
+Creation accepts description, the 12 observed permissions, enabled and request_key UUID.
+An identical creation retry returns the same configuration and secret for ten minutes.
+GET never reveals token hashes, creation receipt, request key or the full secret. Token
+hashes authenticate requests; the temporary recovery receipt is encrypted at rest.
+The scheduled store-api-keys:expire-receipts command clears expired receipts every minute.
+Settings edits and deletion require the current version; both clear the receipt.
+Deletion disables and soft-deletes the configuration. A request already accepted may finish.
+
+External routes are under /api/v1/external-apps and require Api-Key or Authorization:
+Bearer with the new sc_ credential. JWTs, profile and global integration keys cannot
+authenticate these endpoints. Conflicting headers are rejected. Store/owner activation,
+approval, ownership and roles are checked on every request. Each key allows 40 requests
+per minute; an additional 120-per-minute IP bucket bounds invalid lookup attempts.
+Private JSON and error responses are not cached. The tenant and authentication context
+is restored after execution, including on validation or concealed-resource failures.
+
+The existing tenant catalog controllers, policies, requests and persistence services
+handle products/categories CRUD; there is no second catalog. Orders support list,
+numeric ID, order number, canonical status transitions, internal notes and archival.
+The shipping_areas grant reads and writes the existing shipping settings. Webhook
+delete-by-url requires orders:delete and disables matching destinations only in the
+key's own store. Wallet debt restrictions hide charged orders through the API too.
+Archived orders retain items, payment/fee ledger records and checkout tombstones.
+Archival does not cancel payment or shipment; callers can transition to cancelled
+before archival when the order lifecycle permits cancellation. Pending webhook payloads
+are cleared; archived orders cannot start new deliveries or retry an expired lease.
+
+Deploy migration 2026_10_13_070000_create_store_api_keys.php before code that enables
+StoreOrder SoftDeletes. It creates one table and a nullable deleted_at column; it does
+not charge, change, archive or delete existing orders. Empty MySQL rollback is verified;
+rollback refuses any existing key row or archived order before changing either surface.
+Take a fresh private production database/code backup and verify the current migration
+boundary before publication. No live keys or outgoing receiver calls are needed for
+source publication. The existing schedule:run entry must execute receipt pruning.
+
+Reference: https://app.easy-orders.net/#/public-api/create and primary public API docs.
+The observed form contains 12 permissions; orders:create is described in the docs but
+is absent from the live form. This version exposes Sellchaze numeric IDs and native
+catalog/shipping fields, documented in the merchant UI. Competitor filter operators,
+variant/variation wire mappings, general order/address updates, authorized-app links,
+dropshipping provider linking and further external API parity still require follow-up.
+This increment is not a claim that the complete competitor scope is implemented.

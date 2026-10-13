@@ -42,6 +42,9 @@ class StoreOrderWebhooks
 
     private function record(StoreOrder $order, string $type, string $eventKey, array $payload, bool $created = false): void
     {
+        if ($order->trashed()) {
+            return;
+        }
         $store = Store::find($order->store_id);
         if (! $store) {
             return;
@@ -120,7 +123,7 @@ class StoreOrderWebhooks
             $hook = StoreOrderWebhook::whereKey($row->webhook_id)->lockForUpdate()->first();
             $order = StoreOrder::withoutGlobalScopes()->where('store_id', $row->store_id)->find($row->store_order_id);
             $store = $order?->store;
-            $valid = $hook && $hook->enabled && $hook->version === $row->webhook_version && $store && $store->status === 'active'
+            $valid = $hook && $hook->enabled && $hook->version === $row->webhook_version && $order && ! $order->trashed() && $store && $store->status === 'active'
                 && (int) $hook->store_id === (int) $row->store_id && (int) $hook->user_id === (int) $store->owner_user_id
                 && $store->owner && $store->owner->is_active && ! $store->owner->pending_approval;
             if (! $valid) {
