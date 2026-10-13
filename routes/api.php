@@ -118,6 +118,7 @@ use App\Http\Controllers\Api\StoreMenusApiController;
 use App\Http\Controllers\Api\StoreMissedOrdersController;
 use App\Http\Controllers\Api\StoreNewsletterController;
 use App\Http\Controllers\Api\StoreOrderLimitsController;
+use App\Http\Controllers\Api\StoreOrderWebhookController;
 use App\Http\Controllers\Api\StorePagesApiController;
 use App\Http\Controllers\Api\StorePaymentsApiController;
 use App\Http\Controllers\Api\StorePhoneBlockController;
@@ -916,6 +917,11 @@ Route::prefix('v1')->group(function () {
                 Route::put('/', [StoreGeneralSettingsController::class, 'update'])->middleware('throttle:30,1');
             });
             Route::middleware('permission:store.settings.manage')->group(function () {
+                Route::get('webhooks', [StoreOrderWebhookController::class, 'index'])->middleware('throttle:tenant-read');
+                Route::post('webhooks', [StoreOrderWebhookController::class, 'create'])->middleware('throttle:20,1');
+                Route::get('webhooks/{webhook}', [StoreOrderWebhookController::class, 'show'])->whereUuid('webhook')->middleware('throttle:tenant-read');
+                Route::put('webhooks/{webhook}', [StoreOrderWebhookController::class, 'update'])->whereUuid('webhook')->middleware('throttle:20,1');
+                Route::delete('webhooks/{webhook}', [StoreOrderWebhookController::class, 'destroy'])->whereUuid('webhook')->middleware('throttle:20,1');
                 Route::get('order-push', [MerchantOrderPushController::class, 'index'])->middleware('throttle:tenant-read');
                 Route::get('head-code', [StoreHeadCodeController::class, 'index'])->middleware('throttle:tenant-read');
                 Route::put('head-code', [StoreHeadCodeController::class, 'update'])->middleware('throttle:30,1');

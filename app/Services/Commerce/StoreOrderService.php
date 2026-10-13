@@ -91,7 +91,7 @@ class StoreOrderService
             }
             $order->save();
 
-            $order->statusChanges()->create([
+            $change = $order->statusChanges()->create([
                 'from_status' => $from,
                 'to_status' => $to,
                 'actor_id' => $actorId,
@@ -101,6 +101,7 @@ class StoreOrderService
 
             DB::afterCommit(fn () => StoreAnalyticsService::forget($order->store_id));
             $order->store?->owner?->notify(new StoreOrderActivity($order, 'status_changed'));
+            app(StoreOrderWebhooks::class)->statusChanged($order, $from, (int) $change->id);
 
             // One-way mirror onto the bridged B2B order (cancelled only). Never let it break the transition.
             try {
