@@ -292,4 +292,23 @@ class StoreOrderWebhooksTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $migration->down();
     }
+
+    public function test_previous_owner_configurations_do_not_consume_the_new_owner_quota(): void
+    {
+        $hook = $this->hook(['enabled' => false]);
+        for ($index = 1; $index < 50; $index++) {
+            $copy = $hook->replicate();
+            $copy->request_key = (string) Str::uuid();
+            $copy->save();
+        }
+        $newOwner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
+        $newOwner->assignRole('Merchant');
+        $this->store->update(['owner_user_id' => $newOwner->id]);
+        $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($newOwner));
+        $this->postJson('/api/v1/my-store/webhooks', $this->body(['enabled' => false]))->assertCreated();
+        $this->getJson('/api/v1/my-store/webhooks')->assertOk()->assertJsonPath('meta.total', 1);
+        $this->getJson('/api/v1/my-store/webhooks/'.$hook->id)->assertNotFound();
+        $this->assertDatabaseCount('store_order_webhooks', 51);
+        Http::assertNothingSent();
+    }
 }
