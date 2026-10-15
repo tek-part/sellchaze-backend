@@ -7,12 +7,20 @@ use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\ProductPersonalization;
 use App\Support\Localization\TranslationRules;
 use App\Support\ProductOptionDisplay;
+use App\Support\Tenancy\CurrentStore;
+use Illuminate\Validation\Rule;
 
 trait StoreCatalogFields
 {
     protected function prepareForValidation(): void
     {
         TranslationRules::decodeRequest($this);
+        if (is_string($this->input('category_ids'))) {
+            $decoded = json_decode($this->input('category_ids'), true);
+            if (is_array($decoded)) {
+                $this->merge(['category_ids' => $decoded]);
+            }
+        }
         if (is_string($this->input('personalization_fields'))) {
             $fields = json_decode($this->input('personalization_fields'), true);
             if (is_array($fields)) {
@@ -30,6 +38,8 @@ trait StoreCatalogFields
     private function catalogFields(): array
     {
         return [
+            'category_ids' => ['sometimes', 'array', 'list', 'max:20'],
+            'category_ids.*' => ['required', 'integer', 'distinct', Rule::exists('categories', 'id')->where('store_id', app(CurrentStore::class)->id())],
             'cost' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', 'decimal:0,2'],
             'weight' => ['nullable', 'numeric', 'min:0', 'max:999999.999', 'decimal:0,3'],
             'seo_title' => ['nullable', 'string', 'max:255'],

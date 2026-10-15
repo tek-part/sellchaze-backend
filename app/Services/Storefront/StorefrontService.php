@@ -78,7 +78,7 @@ class StorefrontService
             $categories = Category::query()
                 ->where('is_active', true)
                 ->where('is_hidden', false)
-                ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
+                ->withCatalogProductCount(true)
                 ->orderBy('position')->orderBy('name')
                 ->limit(12)->get();
 
@@ -128,7 +128,7 @@ class StorefrontService
             ->where('is_active', true)
             ->when($categorySlug, function ($q) use ($categorySlug) {
                 $root = $this->category($categorySlug);
-                $q->whereIn('category_id', $root ? $this->categoryTreeIds($root) : []);
+                $q->inCategories($root ? $this->categoryTreeIds($root) : []);
             })
             ->when($filter === 'best_sellers', fn ($q) => $q->where('is_bestseller', true))
             ->when($filter === 'new_arrivals', fn ($q) => $q->where('is_new_arrival', true))
@@ -231,7 +231,7 @@ class StorefrontService
         return Category::query()
             ->where('is_active', true)
             ->where('is_hidden', false)
-            ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
+            ->withCatalogProductCount(true)
             ->orderBy('position')->orderBy('name')
             ->get();
     }

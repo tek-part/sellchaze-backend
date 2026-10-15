@@ -1,0 +1,86 @@
+Merchant product transfers
+==========================
+
+Deploy the backend and run the additive migration
+2026_10_16_010000_create_store_catalog_operations before deploying the paired
+frontend. This creates encrypted operation receipts and category memberships;
+it does not rewrite existing products. Rollback deliberately refuses to drop
+populated transfer history or memberships. Production deployment is not implied
+by a successful source build or local database rehearsal.
+
+Routes below live under /api/v1/my-store/catalog/products and the equivalent
+admin store scope. Existing tenant middleware remains mandatory.
+
+GET import-template: products-create; generated, unbranded XLSX example.
+POST import/preview: products-create; multipart file; validates without writes.
+POST import: products-create; multipart file + UUID idempotency_key.
+POST export: products-list; products: [{id, version: transfer_version}].
+POST {product}/duplicate: products-create; version + UUID idempotency_key.
+POST bulk-delete: products-delete; selected products + UUID idempotency_key.
+
+Imports accept 1-200 products, up to 8 MiB, 500 variants per product and 2000
+variants per document. XLSX archives are bounded to 1000 entries / 40 MiB
+expanded. The first worksheet must have unique headers including name and
+price. JSON accepts a product array, or {currency, products}. Currency must
+match the store; no conversion is inferred. External identities, store IDs,
+reservations and media IDs are never reused. Existing SKUs cause an error;
+imports create new products and do not overwrite existing ones.
+
+Compatible XLSX columns: slug, name, price, sale_price, sku, categories, thumb,
+images, quantity, track_stock, disable_orders_for_no_stock, description,
+meta_description, variation1 through variation6. Option syntax:
+Size: S, M
+Color(color): Blue=#0000ff, Black=#000000
+Pattern(image): Stars=https://your-host.example/stars.jpg
+Wrap(dropdown): Paper, Fabric
+Message(user_text): Customer text
+Photo(user_image): Customer upload
+The row quantity is allocated to EACH generated option combination. Preview
+explicitly warns and displays each option's price and stock before confirmation.
+Tracked products cannot oversell; a source backorder setting produces a warning.
+Image URLs must be HTTP(S); the server never fetches them during import.
+
+Compatible external JSON variations/props and variant variation_props are
+mapped to native options, presentation settings, personalization and inventory.
+References may use names or identities. Exact repeated UNTRACKED options with
+identical data are collapsed with an explicit preview warning; tracked
+duplicates and repeated labels with conflicting color/image settings require
+correction before import. Original source records remain encrypted in history.
+Discounted sale prices become price, with regular price retained as compare_price.
+Product descriptions and readable advanced-text blocks use the existing HTML
+sanitizer. Source page styles, FAQ/social sections, integrations and premium
+features are not automatically activated or represented as equivalent native
+features. Preview warns; the complete original document stays encrypted in the
+private operation record for subsequent migration work. Digital external
+products require delivery configuration rather than silently losing it.
+
+Products can belong to up to 20 categories. category_id remains the primary
+category for existing clients; category_ids holds the complete selection.
+Storefront category filtering/counts and merchant lists include additional
+memberships once each. Explicit category_id-only writes select that category
+alone; category_ids-aware edits preserve the full selection. Creating missing
+categories during import additionally requires categories-create.
+
+Portable JSON exports include editorial prices/cost/SEO/translations, images,
+categories, native variants, option presentation, personalization and AVAILABLE
+inventory only. They are a catalog transfer, not a full store backup: video,
+advanced native PDP merchandising fields and integrations are excluded. Never
+include digital delivery URLs, code pools, reviews, orders, customer uploads or
+reserved units. Digital products export as inactive drafts, retaining their delivery type, with a
+notice: link products require a private delivery URL in the document before import; code products require replenishment before publishing. Imports revalidate all
+fields; preview remains mandatory in the UI. Export at most 200 products/2000
+variants, within a bounded JSON size.
+
+Duplicate preserves native editorial/rich fields and all media, remaps variant
+and option media IDs, creates a unique slug, clears SKU/barcodes/sales counters,
+sets the copy inactive and zeroes stock/reservations. Code pools are not copied; digital code copies require replenishment. Existing private delivery links remain within the same authorized store. Shared managed
+image files are deleted only after their final product/variant/media reference.
+
+Bulk delete is atomic, policy-checked, refuses reserved products and variants,
+and requires current transfer_version values covering editorial fields/options/
+media/category memberships. Stock counters alone do not invalidate selection.
+Existing edit_version remains the smaller bulk editorial-edit contract.
+Import/duplicate/delete serialize per store and save the result in the same
+transaction. An identical UUID+payload retry returns the receipt, even after
+the selected products were deleted. Reusing a key with another payload returns
+409. An invalid row or stale target rolls back the entire operation.
