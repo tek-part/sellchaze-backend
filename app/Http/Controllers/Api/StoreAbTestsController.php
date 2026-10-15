@@ -73,15 +73,19 @@ class StoreAbTestsController extends Controller
         $revisions = $pages->getCollection()->map(function ($revision) use ($store) {
             $targets = json_decode($revision->targets, true, 512, JSON_THROW_ON_ERROR);
             $products = Product::withoutGlobalScopes()->where('store_id', $store->id)->whereIn('id', array_column($targets, 'product_id'))->pluck('name', 'id');
-            $revision->targets = array_map(function ($target) use ($revision, $products, $store) {
-                $visits = DB::table('store_ab_visits')->where('revision_id', $revision->id)->where('product_id', $target['product_id']);
-                $orders = DB::table('store_ab_conversions as c')->join('store_ab_visits as v', 'v.id', '=', 'c.visit_id')
-                    ->join('store_orders as o', 'o.id', '=', 'c.store_order_id')->where('v.revision_id', $revision->id)->where('v.product_id', $target['product_id'])
-                    ->where('o.store_id', $store->id)->whereNull('o.deleted_at');
+            $visits = DB::table('store_ab_visits')->where('revision_id', $revision->id)->groupBy('product_id')->selectRaw('product_id, COUNT(*) as total')->pluck('total', 'product_id');
+            $orders = DB::table('store_ab_conversions as c')->join('store_ab_visits as v', 'v.id', '=', 'c.visit_id')
+                ->join('store_orders as o', 'o.id', '=', 'c.store_order_id')->where('v.revision_id', $revision->id)
+                ->where('o.store_id', $store->id)->whereNull('o.deleted_at');
+            $counts = (clone $orders)->groupBy('v.product_id')->selectRaw('v.product_id, COUNT(*) as orders, SUM(CASE WHEN o.status = ? THEN 1 ELSE 0 END) as cancelled', ['cancelled'])->get()->keyBy('product_id');
+            $paid = (clone $orders)->where('o.payment_status', 'paid')->where('o.status', '!=', 'cancelled')
+                ->selectRaw('v.product_id, o.currency, SUM(o.grand_total) as total')->groupBy('v.product_id', 'o.currency')->get()->groupBy('product_id');
+            $revision->targets = array_map(function ($target) use ($products, $visits, $counts, $paid) {
+                $id = $target['product_id'];
 
-                return $target + ['name' => $products[$target['product_id']] ?? '#'.$target['product_id'], 'visits' => $visits->count(),
-                    'orders' => (clone $orders)->count(), 'cancelled_orders' => (clone $orders)->where('o.status', 'cancelled')->count(),
-                    'paid' => (clone $orders)->where('o.payment_status', 'paid')->where('o.status', '!=', 'cancelled')->selectRaw('o.currency, SUM(o.grand_total) as total')->groupBy('o.currency')->get()];
+                return $target + ['name' => $products[$id] ?? '#'.$id, 'visits' => (int) ($visits[$id] ?? 0),
+                    'orders' => (int) ($counts[$id]->orders ?? 0), 'cancelled_orders' => (int) ($counts[$id]->cancelled ?? 0),
+                    'paid' => ($paid[$id] ?? collect())->map(fn ($sum) => ['currency' => $sum->currency, 'total' => $sum->total])->values()];
             }, $targets);
 
             return $revision;
