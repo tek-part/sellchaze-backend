@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -48,6 +49,95 @@ class StoreCatalogEditorTest extends TestCase
     private function create(array $extra = []): int
     {
         return $this->postJson($this->base, array_merge(['name' => 'حقيبة', 'slug' => 'bag', 'price' => 125, 'is_active' => true], $extra), $this->auth)->assertCreated()->json('data.id');
+    }
+
+    public function test_initial_editor_options_stock_and_display_commit_together_and_retry_does_not_allocate_twice(): void
+    {
+        $input = ['name' => 'Draft options', 'sku' => 'NEW-ROOT', 'price' => 40, 'creation_key' => (string) Str::uuid(),
+            'creation' => ['inventory' => ['track_inventory' => true, 'stock_quantity' => 0], 'variants' => [
+                ['name' => 'Blue', 'sku' => 'NEW-BLUE', 'price_override' => 0, 'options' => ['Color' => 'Blue'], 'is_active' => true, 'track_inventory' => true, 'stock_quantity' => 9],
+                ['name' => 'Red', 'sku' => 'NEW-RED', 'price_override' => null, 'options' => ['Color' => 'Red'], 'is_active' => false, 'track_inventory' => false, 'stock_quantity' => 0],
+            ]], 'option_display' => [['name' => 'Color', 'type' => 'color', 'values' => [['value' => 'Blue', 'color' => '#0055ff'], ['value' => 'Red', 'color' => '#ff0000']]]]];
+        $created = $this->postJson($this->base, $input, $this->auth)->assertCreated()->assertJsonCount(2, 'data.variants')->assertJsonPath('data.option_display.0.type', 'color');
+        $id = $created->json('data.id');
+        $variant = collect($created->json('data.variants'))->firstWhere('sku', 'NEW-BLUE');
+        $this->assertSame('0.00', $variant['price_override']);
+        $this->assertDatabaseHas('store_product_variants', ['id' => $variant['id'], 'stock_quantity' => 9, 'reserved_quantity' => 0]);
+        $this->assertDatabaseCount('store_inventory_movements', 3);
+        $this->assertDatabaseCount('store_catalog_operations', 1);
+        $this->postJson($this->base, $input, $this->auth)->assertCreated()->assertJsonPath('data.id', $id);
+        $this->assertDatabaseCount('products', 1);
+        $this->assertDatabaseCount('store_product_variants', 2);
+        $this->assertDatabaseCount('store_inventory_movements', 3);
+        $this->postJson($this->base, array_replace($input, ['price' => 99]), $this->auth)->assertConflict();
+        $this->putJson($this->base.'/'.$id, ['creation' => $input['creation']], $this->auth)->assertUnprocessable();
+        $this->deleteJson($this->base.'/'.$id, [], $this->auth)->assertOk();
+        $this->postJson($this->base, $input, $this->auth)->assertStatus(410);
+    }
+
+    public function test_initial_editor_base_stock_supports_multipart_without_options(): void
+    {
+        $this->post($this->base, ['name' => 'Simple draft', 'price' => 22, 'creation_key' => (string) Str::uuid(),
+            'creation' => json_encode(['inventory' => ['track_inventory' => true, 'stock_quantity' => 12], 'variants' => []]),
+            'gallery' => [UploadedFile::fake()->image('draft.png')]], $this->auth + ['Accept' => 'application/json'])
+            ->assertCreated()->assertJsonPath('data.stock_quantity', 12)->assertJsonPath('data.track_inventory', true)->assertJsonCount(1, 'data.media');
+        $this->assertDatabaseCount('store_inventory_movements', 1);
+    }
+
+    public function test_initial_image_properties_reference_the_uploaded_gallery_and_reject_missing_images_atomically(): void
+    {
+        $input = ['name' => 'Image properties', 'price' => 12, 'creation_key' => (string) Str::uuid(),
+            'creation' => ['inventory' => ['track_inventory' => false, 'stock_quantity' => 0], 'variants' => [
+                ['name' => 'Blue', 'options' => ['Color' => 'Blue'], 'stock_quantity' => 2, 'track_inventory' => true],
+            ], 'gallery_images' => [['axis' => 'Color', 'value' => 'Blue', 'index' => 0]]],
+            'option_display' => [['name' => 'Color', 'type' => 'image', 'values' => [['value' => 'Blue']]]]];
+        $file = UploadedFile::fake()->image('blue.png');
+        $request = $input;
+        $request['creation'] = json_encode($input['creation']);
+        $request['option_display'] = json_encode($input['option_display']);
+        $request['gallery'] = [$file];
+        $response = $this->post($this->base, $request, $this->auth + ['Accept' => 'application/json'])->assertCreated();
+        $this->assertSame($response->json('data.media.0.id'), $response->json('data.option_display.0.values.0.media_id'));
+        $this->post($this->base, $request, $this->auth + ['Accept' => 'application/json'])->assertCreated()->assertJsonPath('data.id', $response->json('data.id'));
+        $this->assertDatabaseCount('store_product_media', 1);
+        $request['creation_key'] = (string) Str::uuid();
+        $request['gallery'] = [UploadedFile::fake()->image('wrong.png')];
+        $input['creation']['gallery_images'][0]['index'] = 1;
+        $request['creation'] = json_encode($input['creation']);
+        $this->post($this->base, $request, $this->auth + ['Accept' => 'application/json'])->assertUnprocessable();
+        $this->assertDatabaseCount('products', 1);
+        $this->assertDatabaseCount('store_product_media', 1);
+        $this->assertCount(1, Storage::disk('public')->allFiles('store-catalog'));
+    }
+
+    public function test_initial_editor_late_conflict_rolls_back_product_files_stock_and_receipt(): void
+    {
+        $variant = ['name' => 'Blue', 'options' => ['Color' => 'Blue'], 'track_inventory' => true, 'stock_quantity' => 4];
+        foreach ([[$variant, $variant], [$variant + ['sku' => 'DUP'], array_replace($variant, ['name' => 'Red', 'options' => ['Color' => 'Red'], 'sku' => 'dup'])]] as $variants) {
+            $this->post($this->base, ['name' => 'Must roll back', 'creation_key' => (string) Str::uuid(),
+                'creation' => json_encode(['inventory' => ['track_inventory' => false, 'stock_quantity' => 0], 'variants' => $variants]),
+                'gallery' => [UploadedFile::fake()->image('rollback.png')]], $this->auth + ['Accept' => 'application/json'])->assertUnprocessable();
+            $this->assertDatabaseCount('products', 0);
+            $this->assertDatabaseCount('store_product_variants', 0);
+            $this->assertDatabaseCount('store_inventory_movements', 0);
+            $this->assertDatabaseCount('store_catalog_operations', 0);
+            $this->assertSame([], Storage::disk('public')->allFiles('store-catalog'));
+        }
+    }
+
+    public function test_initial_editor_rejects_invalid_or_overlapping_inventory_and_missing_creation_permission(): void
+    {
+        $config = ['inventory' => ['track_inventory' => true, 'stock_quantity' => 3], 'variants' => [
+            ['name' => 'Blue', 'options' => ['Color' => 'Blue'], 'track_inventory' => true, 'stock_quantity' => 1],
+        ]];
+        $input = ['name' => 'Invalid draft', 'creation_key' => (string) Str::uuid(), 'creation' => $config];
+        $this->postJson($this->base, $input, $this->auth)->assertUnprocessable();
+        $this->postJson($this->base, array_replace($input, ['creation_key' => ['bad']]), $this->auth)->assertUnprocessable();
+        $this->postJson($this->base, array_replace($input, ['creation' => ['inventory' => ['track_inventory' => true, 'stock_quantity' => -1], 'variants' => []]]), $this->auth)->assertUnprocessable();
+        $this->postJson($this->base, array_replace($input, ['creation' => ['inventory' => ['track_inventory' => true, 'stock_quantity' => 0], 'variants' => array_fill(0, 201, $config['variants'][0])]]), $this->auth)->assertUnprocessable();
+        $this->assertDatabaseCount('products', 0);
+        Role::findByName('Merchant', 'web')->revokePermissionTo('products-create');
+        $this->postJson($this->base, $input, $this->auth)->assertForbidden();
     }
 
     public function test_catalog_sku_search_filters_parent_and_variant_skus_without_wildcard_or_tenant_leaks(): void

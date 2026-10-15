@@ -1,0 +1,44 @@
+Product editor initial creation
+
+POST /api/v1/my-store/catalog/products (and the existing scoped store route) accepts
+the optional `creation` object as JSON or a multipart JSON field. Existing clients
+without this field retain their existing creation behavior.
+
+creation_key: a UUID, required when creation is supplied. Retries with identical
+validated data and file contents return the same product; a different payload
+under that key returns 409. A removed product returns 410 rather than being
+recreated. Receipts use the existing tenant-scoped store_catalog_operations table.
+The catalog operations migration must therefore be installed before this release.
+
+creation.inventory: {track_inventory: boolean, stock_quantity: integer 0..100000000}
+creation.variants: a list of up to 200 initial variants with the existing editorial
+variant fields plus required stock_quantity and track_inventory. Base stock must
+be zero when variants are present. Each stock allocation uses StoreInventory and
+creates a ledger entry with the current actor. No reservations are copied.
+
+option_display and personalization_fields use their existing validated schemas.
+Creation can set buttons, colors, image swatches, dropdowns, customer text and
+customer image fields before the first product save.
+
+creation.gallery_images optionally maps image-property values to files in this
+request's gallery: [{axis: string, value: string, index: zero-based upload index}].
+Only an uploaded image can be bound to an existing image property value. The
+server resolves new media IDs and validates product ownership in the transaction.
+The editor holds the file identity, so removing an earlier upload cannot silently
+bind a swatch to a different file. Missing chosen files block creation.
+
+Product, gallery, variants, presentation, categories, digital configuration, stock
+ledger and receipt commit atomically. A late option/SKU/media error rolls all of
+them back and cleans newly written files. Existing-product PUT/PATCH rejects
+creation/creation_key; existing reservation and optimistic inventory guards remain.
+
+The merchant layout uses a measured 1068px desktop grid with 2:1 columns and a
+16px gap, compact cards, a persistent save bar, and a single-column phone layout.
+The editor displays regular/sale prices while preserving native price (final)
+and compare_price semantics, including explicit zero-priced variants.
+
+This phase does not implement all competitor advanced settings, per-product
+landing-page builder, external platform connectors, custom currency/pixels or
+premium controls. Existing theme, quantity-offer, personalization and digital
+editors remain available. Existing ascending position semantics are retained and
+explained in the UI; competitor descending priority requires a compatible plan.

@@ -15,6 +15,12 @@ trait StoreCatalogFields
     protected function prepareForValidation(): void
     {
         TranslationRules::decodeRequest($this);
+        if (is_string($this->input('creation'))) {
+            $decoded = json_decode($this->input('creation'), true);
+            if (is_array($decoded)) {
+                $this->merge(['creation' => $decoded]);
+            }
+        }
         if (is_string($this->input('category_ids'))) {
             $decoded = json_decode($this->input('category_ids'), true);
             if (is_array($decoded)) {

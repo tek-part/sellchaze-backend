@@ -21,6 +21,8 @@ class StorefrontProductUpdateRequest extends FormRequest
         $storeId = app(CurrentStore::class)->id();
 
         return [
+            'creation' => ['prohibited'],
+            'creation_key' => ['prohibited'],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'slug' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^[a-z0-9\-]+$/'],
             'sku' => ['sometimes', 'nullable', 'string', 'max:120', Rule::unique('products', 'sku')->where('store_id', $storeId)->ignore($this->route('product'))],

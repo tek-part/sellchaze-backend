@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\StoreCatalogFields;
+use App\Services\StoreCatalog\ProductCreationDraft;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -19,11 +20,12 @@ class StorefrontProductStoreRequest extends FormRequest
     public function rules(): array
     {
         $storeId = app(CurrentStore::class)->id();
+        $replayId = ProductCreationDraft::replayProductId($this->input('creation_key'));
 
         return [
             'name' => ['required', 'string', 'max:255'],
             'slug' => ['nullable', 'string', 'max:255', 'regex:/^[a-z0-9\-]+$/'],
-            'sku' => ['nullable', 'string', 'max:120', Rule::unique('products', 'sku')->where('store_id', $storeId)],
+            'sku' => ['nullable', 'string', 'max:120', Rule::unique('products', 'sku')->where('store_id', $storeId)->ignore($replayId)],
             'barcode' => ['nullable', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:20000'],
             'short_description' => ['nullable', 'string', 'max:500'],
@@ -35,6 +37,6 @@ class StorefrontProductStoreRequest extends FormRequest
             'is_featured' => ['nullable', 'boolean'],
             'position' => ['nullable', 'integer', 'min:0'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'extensions:jpg,jpeg,png,webp', 'max:10240'],
-        ] + $this->catalogFields();
+        ] + $this->catalogFields() + ProductCreationDraft::rules($replayId);
     }
 }
