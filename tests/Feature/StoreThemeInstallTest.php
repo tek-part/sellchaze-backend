@@ -138,6 +138,27 @@ class StoreThemeInstallTest extends TestCase
         $this->assertSame($oldSettings, $other->fresh()->theme_settings);
     }
 
+    public function test_blast_pets_install_keeps_other_store_activation_and_settings(): void
+    {
+        $store = $this->makeStore();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other', 'slug' => 'other-pets-store', 'currency' => 'USD', 'status' => 'active']);
+        $this->installer->installAndActivateDefault($other);
+        $oldTheme = $other->fresh()->theme_id;
+        $oldSettings = $other->fresh()->theme_settings;
+        $theme = $this->registry->registerFromFile(resource_path('themes/storefront/blast-pets.json'));
+        $version = $this->registry->resolveThemeVersion($theme);
+        $this->assertSame('builtin:blast-pets@1.0.0', $version->bundle_url);
+        $this->assertArrayHasKey('pets-slideshow', $version->sections_schema);
+        $this->assertArrayHasKey('pets-linked-look', $version->sections_schema);
+        $installed = $this->installer->install($store, $theme, $version);
+        $this->installer->activate($store, $installed);
+        $this->assertSame('blast-pets', $this->registry->resolveActiveTheme($store->fresh())->theme->key);
+        $this->assertSame('#FDAE03', $store->fresh()->theme_settings['primary_color']);
+        $this->assertSame($oldTheme, $other->fresh()->theme_id);
+        $this->assertSame($oldSettings, $other->fresh()->theme_settings);
+        $this->assertSame('naseem', $this->registry->resolveActiveTheme($other->fresh())->theme->key);
+    }
+
     public function test_store_created_via_service_gets_default_theme(): void
     {
         // StoreService::create resolves the owner from the authenticated user.
