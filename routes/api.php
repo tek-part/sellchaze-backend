@@ -72,6 +72,7 @@ use App\Http\Controllers\Api\SettingsSummaryApiController;
 use App\Http\Controllers\Api\ShippingCompaniesApiController;
 use App\Http\Controllers\Api\SocialSafetyController;
 use App\Http\Controllers\Api\StockTransfersApiController;
+use App\Http\Controllers\Api\StoreAbTestsController;
 use App\Http\Controllers\Api\StoreAnalyticsController;
 use App\Http\Controllers\Api\StoreApiKeysController;
 use App\Http\Controllers\Api\StoreAppsController;
@@ -88,6 +89,7 @@ use App\Http\Controllers\Api\StoreDesignAssetsController;
 use App\Http\Controllers\Api\StoreDigitalDeliveryController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
 use App\Http\Controllers\Api\StoreDownsellController;
+use App\Http\Controllers\Api\Storefront\AbTestController;
 use App\Http\Controllers\Api\Storefront\BotVerificationController;
 use App\Http\Controllers\Api\Storefront\CartController;
 use App\Http\Controllers\Api\Storefront\CheckoutController;
@@ -353,6 +355,7 @@ Route::prefix('v1')->group(function () {
         Route::post('cart/catalog', [StorefrontProductController::class, 'cartCatalog']);
         Route::get('products/{slug}', [StorefrontProductController::class, 'show'])->where('slug', '[a-z0-9\-]+');
         Route::get('referral-products/{product}', [ReferralLinkController::class, 'resolve'])->whereNumber('product');
+        Route::post('ab-tests/{slug}/resolve', [AbTestController::class, 'resolve'])->where('slug', '[a-z0-9\-]+');
         Route::get('categories', [StorefrontCategoryController::class, 'index']);
         Route::get('categories/{slug}', [StorefrontCategoryController::class, 'show'])->where('slug', '[a-z0-9\-]+');
 
@@ -765,6 +768,14 @@ Route::prefix('v1')->group(function () {
         // Both bind the resolved Store as the `store` route parameter, so every
         // controller below is shared verbatim between the two prefixes.
         $storeScopedRoutes = function (): void {
+            Route::middleware('permission:store.products.manage')->prefix('ab-tests')->group(function () {
+                Route::get('/', [StoreAbTestsController::class, 'index']);
+                Route::get('products', [StoreAbTestsController::class, 'products']);
+                Route::post('/', [StoreAbTestsController::class, 'save']);
+                Route::get('{abTest}', [StoreAbTestsController::class, 'show'])->whereNumber('abTest');
+                Route::put('{abTest}', [StoreAbTestsController::class, 'save'])->whereNumber('abTest');
+                Route::delete('{abTest}', [StoreAbTestsController::class, 'destroy'])->whereNumber('abTest');
+            });
             Route::middleware('permission:store.orders.manage')->prefix('missed-orders')->group(function () {
                 Route::get('/', [StoreMissedOrdersController::class, 'index']);
                 Route::post('bulk-status', [StoreMissedOrdersController::class, 'bulkStatus']);
