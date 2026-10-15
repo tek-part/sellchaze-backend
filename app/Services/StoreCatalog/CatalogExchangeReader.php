@@ -133,6 +133,7 @@ class CatalogExchangeReader
             'features' => ['sometimes', 'array', 'list', 'max:100'], 'features.*' => ['array'],
             'features.*.position' => ['nullable', 'integer'], 'features.*.advanced_text' => ['nullable', 'string'],
             'variations' => ['sometimes', 'array', 'list', 'max:10'], 'variations.*' => ['array'],
+            'variations.*.id' => ['nullable', 'string', 'max:255'],
             'variations.*.name' => ['required', 'string', 'max:80'], 'variations.*.type' => ['nullable', 'string'],
             'variations.*.props' => ['sometimes', 'array', 'list', 'max:200'], 'variations.*.props.*' => ['array'],
             'variations.*.props.*.id' => ['nullable', 'string'], 'variations.*.props.*.name' => ['required', 'string', 'max:120'],

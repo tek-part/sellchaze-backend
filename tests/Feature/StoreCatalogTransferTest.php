@@ -137,6 +137,7 @@ class StoreCatalogTransferTest extends TestCase
             ['name' => 'Bad', 'price' => 2, 'categories' => [12]], ['name' => 'Bad', 'price' => 2, 'sale_price' => 1, 'features' => [1]],
             ['name' => 'Bad', 'price' => 2, 'variants' => ['bad']], ['name' => 'Bad', 'price' => 2, 'custom_currency' => 'USD'],
             ['name' => 'Bad', 'price' => 2, 'images' => ['javascript:alert(1)']],
+            ['name' => 'Bad', 'price' => 2, 'sale_price' => 1, 'variations' => [['id' => ['invalid'], 'name' => 'Color', 'props' => [['id' => 'blue', 'name' => 'Blue']]]]],
             ['name' => 'Bad', 'price' => 2, 'variants' => [['name' => 'A', 'options' => ['Size' => 'S']], ['name' => 'B', 'options' => ['size' => 's']]]],
         ] as $row) {
             $this->post($this->base.'/import', ['file' => $this->file([['name' => 'Valid', 'price' => 3], $row]), 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertUnprocessable();
