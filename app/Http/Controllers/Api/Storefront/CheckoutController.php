@@ -30,6 +30,7 @@ use App\Services\Commerce\CustomerAuthService;
 use App\Services\Commerce\OrderReceipt;
 use App\Services\Commerce\PaymentRetryToken;
 use App\Services\Commerce\PricingCalculator;
+use App\Services\Commerce\ProductAbTests;
 use App\Services\Commerce\QuantityOffers;
 use App\Services\Commerce\ReferralAttribution;
 use App\Services\Commerce\StorefrontEvents;
@@ -174,6 +175,7 @@ class CheckoutController extends Controller
                 $shippingSelection,
             );
             $attempt?->update(['store_order_id' => $order->id]);
+            app(ProductAbTests::class)->attribute($store, $order, $validated['ab_token'] ?? null);
             if ($order->wasRecentlyCreated && isset($validated['marketing_attribution'])) {
                 $order->update(['marketing_attribution' => app(CampaignAttribution::class)->snapshot($validated['marketing_attribution'])]);
             }
