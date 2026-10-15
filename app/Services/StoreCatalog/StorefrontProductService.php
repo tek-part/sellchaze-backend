@@ -4,6 +4,7 @@ namespace App\Services\StoreCatalog;
 
 use App\Models\Product;
 use App\Models\ProductMedia;
+use App\Models\ProductVariant;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
@@ -66,6 +67,10 @@ class StorefrontProductService
                     }
                 }
                 $current->save();
+                if (array_key_exists('category_ids', $data) || array_key_exists('category_id', $data)) {
+                    $ids = array_values(array_unique(array_merge($data['category_ids'] ?? [], $current->category_id ? [$current->category_id] : [])));
+                    $current->additionalCategories()->sync(array_fill_keys($ids, ['store_id' => $current->store_id]));
+                }
                 app(DigitalProducts::class)->appendCodes($current, $data['digital_codes'] ?? []);
                 foreach ($removed as $media) {
                     $media->delete();
@@ -167,6 +172,12 @@ class StorefrontProductService
     private function deleteImage(?string $path): void
     {
         if ($path && str_starts_with($path, 'store-catalog/')) {
+            // Duplicated products can share immutable media files; remove only the final reference.
+            if (Product::withoutGlobalScopes()->where('image', $path)->exists()
+                || ProductVariant::withoutGlobalScopes()->where('image', $path)->exists()
+                || ProductMedia::withoutGlobalScopes()->where(fn ($q) => $q->where('path', $path)->orWhere('webp_path', $path)->orWhere('thumbnail_path', $path))->exists()) {
+                return;
+            }
             Storage::disk('public')->delete($path);
         }
     }

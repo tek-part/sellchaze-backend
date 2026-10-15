@@ -7,6 +7,7 @@ use App\Models\Concerns\HasStoreTenancy;
 use App\Models\Concerns\HasTranslations;
 use App\Support\Localization\LocaleContext;
 use App\Support\Localization\LocalizedValue;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -177,6 +178,17 @@ class Category extends Model
     public function products()
     {
         return $this->hasMany(Product::class);
+    }
+
+    public function scopeWithCatalogProductCount(Builder $query, bool $active = false): Builder
+    {
+        return $query->addSelect(['products_count' => Product::query()->selectRaw('count(*)')
+            ->whereColumn('products.store_id', 'categories.store_id')
+            ->when($active, fn ($products) => $products->where('products.is_active', true))
+            ->where(fn ($products) => $products->whereColumn('products.category_id', 'categories.id')
+                ->orWhereExists(fn ($pivot) => $pivot->selectRaw('1')->from('store_product_categories')
+                    ->whereColumn('product_id', 'products.id')->whereColumn('store_product_categories.store_id', 'products.store_id')
+                    ->whereColumn('store_product_categories.category_id', 'categories.id')))]);
     }
 
     // ---- Canonical superset relationships (from Category) ----------------------------------

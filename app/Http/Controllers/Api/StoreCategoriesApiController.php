@@ -23,7 +23,7 @@ class StoreCategoriesApiController extends Controller
     public function index(Request $request, Store $store): JsonResponse
     {
         $filters = $request->validate(['sort_by' => ['sometimes', 'in:name,position,show_in_header'], 'sort_direction' => ['sometimes', 'in:asc,desc']]);
-        $query = Category::query()->withCount(['products', 'children']); // StoreScope -> this store only
+        $query = Category::query()->withCatalogProductCount()->withCount('children'); // StoreScope -> this store only
 
         if ($request->filled('search')) {
             $term = '%'.$request->string('search')->trim().'%';

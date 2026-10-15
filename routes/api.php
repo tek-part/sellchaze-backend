@@ -79,6 +79,7 @@ use App\Http\Controllers\Api\StoreAppsController;
 use App\Http\Controllers\Api\StoreArticlesApiController;
 use App\Http\Controllers\Api\StoreBotProtectionController;
 use App\Http\Controllers\Api\StoreCarrierController;
+use App\Http\Controllers\Api\StoreCatalogTransferController;
 use App\Http\Controllers\Api\StoreCategoriesApiController;
 use App\Http\Controllers\Api\StoreCheckoutFieldsController;
 use App\Http\Controllers\Api\StoreContentPagesApiController;
@@ -823,6 +824,12 @@ Route::prefix('v1')->group(function () {
 
             // Storefront catalog remains tenant-scoped and separate from the B2B catalog.
             Route::prefix('catalog/products')->group(function () {
+                Route::middleware('permission:products-create')->get('import-template', [StoreCatalogTransferController::class, 'template']);
+                Route::middleware('permission:products-create')->post('import/preview', [StoreCatalogTransferController::class, 'preview']);
+                Route::middleware('permission:products-create')->post('import', [StoreCatalogTransferController::class, 'import']);
+                Route::middleware('permission:products-list')->post('export', [StoreCatalogTransferController::class, 'export']);
+                Route::middleware('permission:products-delete')->post('bulk-delete', [StoreCatalogTransferController::class, 'delete']);
+                Route::middleware(['permission:products-create', 'permission:products-list'])->post('{product}/duplicate', [StoreCatalogTransferController::class, 'duplicate'])->whereNumber('product');
                 Route::middleware('permission:products-list')->get('{product}/quantity-offers', [StoreQuantityOffersController::class, 'show'])->whereNumber('product');
                 Route::middleware('permission:products-edit')->put('{product}/quantity-offers', [StoreQuantityOffersController::class, 'update'])->whereNumber('product');
                 Route::middleware('permission:products-list')->get('/', [StorefrontProductsApiController::class, 'index']);

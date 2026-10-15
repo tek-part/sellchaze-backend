@@ -184,6 +184,20 @@ class Product extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** @return BelongsToMany<Category, $this> */
+    public function additionalCategories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class, 'store_product_categories', 'product_id', 'category_id')
+            ->whereColumn('store_product_categories.store_id', 'categories.store_id')->withPivot('store_id');
+    }
+
+    public function scopeInCategories(Builder $query, array $ids): Builder
+    {
+        return $query->where(fn ($q) => $q->whereIn('products.category_id', $ids)->orWhereExists(fn ($pivot) => $pivot
+            ->selectRaw('1')->from('store_product_categories')->whereColumn('product_id', 'products.id')
+            ->whereColumn('store_product_categories.store_id', 'products.store_id')->whereIn('store_product_categories.category_id', $ids)));
+    }
+
     /** @return BelongsTo<Category, $this> */
     public function category(): BelongsTo
     {

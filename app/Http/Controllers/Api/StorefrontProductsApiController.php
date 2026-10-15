@@ -36,7 +36,7 @@ class StorefrontProductsApiController extends Controller
             'sort_by' => ['nullable', 'in:position,name,price,created_at'],
             'sort_direction' => ['nullable', 'in:asc,desc'],
         ]);
-        $query = Product::query()->with(['category:id,name,slug', 'variants', 'media']); // StoreScope -> this store only
+        $query = Product::query()->with(['category:id,name,slug', 'additionalCategories', 'variants', 'media']); // StoreScope -> this store only
 
         if ($request->filled('search')) {
             $term = '%'.$request->string('search')->trim().'%';
@@ -48,7 +48,7 @@ class StorefrontProductsApiController extends Controller
                 ->orWhereHas('variants', fn ($variants) => $variants->whereRaw("sku LIKE ? ESCAPE '!'", [$term])));
         }
         if ($request->filled('category_id')) {
-            $query->where('category_id', (int) $request->get('category_id'));
+            $query->inCategories([(int) $request->get('category_id')]);
         }
 
         if ($request->filled('status')) {
@@ -95,6 +95,9 @@ class StorefrontProductsApiController extends Controller
             }
             foreach ($products as $product) {
                 $product->fill($data['changes'])->save();
+                if (array_key_exists('category_id', $data['changes'])) {
+                    $product->additionalCategories()->sync($product->category_id ? [$product->category_id => ['store_id' => $store->id]] : []);
+                }
             }
             DB::afterCommit(function () use ($store) {
                 StorefrontService::forgetHomepage((int) $store->id);
