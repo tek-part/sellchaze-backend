@@ -172,10 +172,12 @@ class StorefrontProductService
     private function deleteImage(?string $path): void
     {
         if ($path && str_starts_with($path, 'store-catalog/')) {
-            // Duplicated products can share immutable media files; remove only the final reference.
-            if (Product::withoutGlobalScopes()->where('image', $path)->exists()
-                || ProductVariant::withoutGlobalScopes()->where('image', $path)->exists()
-                || ProductMedia::withoutGlobalScopes()->where(fn ($q) => $q->where('path', $path)->orWhere('webp_path', $path)->orWhere('thumbnail_path', $path))->exists()) {
+            // Duplicates keep paths; portable imports can retain the same asset's public URL.
+            $publicUrl = Storage::disk('public')->url($path);
+            $references = array_values(array_unique([$path, $publicUrl, url($publicUrl)]));
+            if (Product::withoutGlobalScopes()->whereIn('image', $references)->exists()
+                || ProductVariant::withoutGlobalScopes()->whereIn('image', $references)->exists()
+                || ProductMedia::withoutGlobalScopes()->where(fn ($q) => $q->whereIn('path', $references)->orWhereIn('webp_path', $references)->orWhereIn('thumbnail_path', $references))->exists()) {
                 return;
             }
             Storage::disk('public')->delete($path);

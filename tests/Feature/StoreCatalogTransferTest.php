@@ -314,4 +314,26 @@ class StoreCatalogTransferTest extends TestCase
         $this->assertSame('<p>Edited copy</p>', $data['description']);
         $this->assertSame('<p>Edited copy</p>', $data['translations']['description']['ar']);
     }
+
+    public function test_reimported_public_media_urls_keep_managed_files_until_the_final_reference_is_removed(): void
+    {
+        $id = $this->imported(['images' => ['https://example.com/original.jpg']]);
+        $path = 'store-catalog/portable-photo.jpg';
+        Storage::disk('public')->put($path, 'synthetic photo');
+        $source = Product::query()->findOrFail($id);
+        $source->update(['image' => $path]);
+        $source->media()->first()->update(['path' => $path]);
+        $document = $this->postJson($this->base.'/export', ['products' => [$this->target($id)]], $this->auth)->assertOk()->json();
+        $copyId = $this->post($this->base.'/import', ['file' => $this->file($document), 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertCreated()->json('meta.ids.0');
+        $this->assertStringContainsString('/storage/'.$path, Product::query()->findOrFail($copyId)->image);
+        $service = app(StorefrontProductService::class);
+        $cleanup = new \ReflectionMethod(StorefrontProductService::class, 'deleteImage');
+        $service->delete($source);
+        // Simulate after-commit file cleanup inside the test transaction.
+        $cleanup->invoke($service, $path);
+        Storage::disk('public')->assertExists($path);
+        $service->delete(Product::query()->findOrFail($copyId));
+        $cleanup->invoke($service, $path);
+        Storage::disk('public')->assertMissing($path);
+    }
 }
