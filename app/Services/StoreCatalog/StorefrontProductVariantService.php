@@ -18,7 +18,7 @@ use Illuminate\Validation\ValidationException;
  */
 class StorefrontProductVariantService
 {
-    public function create(Product $product, array $data): ProductVariant
+    public function create(Product $product, array $data, bool $flush = true): ProductVariant
     {
         $variant = DB::transaction(function () use ($product, $data) {
             $current = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
@@ -35,7 +35,9 @@ class StorefrontProductVariantService
             return $variant;
         });
 
-        $this->flush($product);
+        if ($flush) {
+            $this->flush($product);
+        }
 
         return $variant;
     }

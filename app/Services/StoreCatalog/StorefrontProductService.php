@@ -5,13 +5,17 @@ namespace App\Services\StoreCatalog;
 use App\Models\Product;
 use App\Models\ProductMedia;
 use App\Models\ProductVariant;
+use App\Models\Store;
+use App\Models\StoreCatalogOperation;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
 use App\Support\ProductDescription;
 use App\Support\ProductOptionDisplay;
 use App\Support\Slug;
+use App\Support\Tenancy\CurrentStore;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -38,6 +42,19 @@ class StorefrontProductService
         $createdFiles = [];
         try {
             return DB::transaction(function () use ($product, $data, $image, $gallery, &$createdFiles) {
+                $hash = null;
+                if (! $product && isset($data['creation_key'])) {
+                    $storeId = app(CurrentStore::class)->id();
+                    Store::query()->whereKey($storeId)->lockForUpdate()->firstOrFail();
+                    $hash = hash('sha256', json_encode([Arr::except($data, ['image', 'gallery']), $image ? hash_file('sha256', $image->getRealPath()) : null,
+                        array_map(fn ($file) => [$file->getClientOriginalName(), hash_file('sha256', $file->getRealPath())], $gallery)], JSON_THROW_ON_ERROR));
+                    $receipt = StoreCatalogOperation::query()->where('idempotency_key', $data['creation_key'])->first();
+                    if ($receipt) {
+                        abort_unless($receipt->operation === 'editor-create' && hash_equals($receipt->payload_hash, $hash), 409, 'This creation attempt has already saved different data. Refresh your product list.');
+
+                        return Product::query()->findOr($receipt->result['id'], fn () => abort(410, 'This product was already created and subsequently removed. Start a new creation.'));
+                    }
+                }
                 $current = $product ? Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail() : new Product;
                 $removed = $current->exists ? $current->media()->whereIn('id', $data['remove_media_ids'] ?? [])->get() : collect();
                 if ($removed->count() !== count($data['remove_media_ids'] ?? [])) {
@@ -51,7 +68,7 @@ class StorefrontProductService
                     throw ValidationException::withMessages(['media_order' => 'Refresh the product and order all its remaining media files.']);
                 }
                 $this->fill($current, $data);
-                if (array_key_exists('option_display', $data)) {
+                if (array_key_exists('option_display', $data) && $product) {
                     ProductOptionDisplay::validate($current, $data['option_display'], $data['remove_media_ids'] ?? []);
                     $current->option_display = $data['option_display'];
                 }
@@ -79,12 +96,27 @@ class StorefrontProductService
                     $current->media()->whereKey($id)->update(['position' => $position + 1]);
                 }
                 $position = (int) ($current->media()->max('position') ?? 0);
+                $uploadedMedia = [];
                 foreach ($gallery as $file) {
                     $path = $this->storeImage($file);
                     $createdFiles[] = $path;
-                    ProductMedia::create(['store_id' => $current->store_id, 'store_product_id' => $current->id,
+                    $uploadedMedia[] = ProductMedia::create(['store_id' => $current->store_id, 'store_product_id' => $current->id,
                         'type' => $file->getMimeType() === 'video/mp4' ? 'video' : 'gallery', 'disk' => 'public', 'path' => $path, 'alt' => $current->name,
                         'size' => $file->getSize(), 'mime' => $file->getMimeType(), 'position' => ++$position]);
+                }
+                if (! $product && isset($data['creation'])) {
+                    app(ProductCreationDraft::class)->apply($current, $data['creation'], (int) auth()->id());
+                }
+                if (! $product && (array_key_exists('option_display', $data) || ! empty($data['creation']['gallery_images']))) {
+                    $display = app(ProductCreationDraft::class)->displayImages($data['option_display'] ?? [], $data['creation']['gallery_images'] ?? [], $uploadedMedia);
+                    ProductOptionDisplay::validate($current, $display, []);
+                    $current->option_display = $display;
+                    $current->save();
+                }
+                if ($hash !== null) {
+                    StoreCatalogOperation::create(['store_id' => $current->store_id, 'actor_id' => auth()->id(),
+                        'idempotency_key' => $data['creation_key'], 'operation' => 'editor-create', 'payload_hash' => $hash,
+                        'result' => ['id' => $current->id]]);
                 }
                 DB::afterCommit(function () use ($current, $oldImage, $removed) {
                     $this->deleteImage($oldImage);
