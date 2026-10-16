@@ -260,6 +260,31 @@ class ProductLandingPagesTest extends TestCase
         $this->assertDatabaseCount('store_inventory_movements', 0);
     }
 
+    public function test_video_designs_preserve_owned_content_and_reject_invalid_family_or_provider_without_mutation(): void
+    {
+        $media = ProductMedia::create(['store_id' => $this->store->id, 'store_product_id' => $this->product['id'], 'type' => 'gallery', 'disk' => 'public', 'path' => 'landing/own-video-benefit.png']);
+        $items = array_map(fn ($id) => ['title' => 'Own benefit '.$id, 'text' => "Own explanation\n ", 'icon' => 'shield', 'image' => ['media_id' => $media->id], 'url' => '/pages/own-video', 'html' => '<p>Own details</p><script>bad()</script>'], range(1, 7));
+        $sections = array_map(fn ($id) => $this->block('video', ['variant' => 'video-'.$id, 'title' => 'Own video '.$id, 'description' => 'Own subtitle', 'video' => 'https://www.youtube.com/shorts/abcdefghijk', 'button_text' => '', 'items' => $items, 'accent' => '#112233', 'card_background' => '#fafafa', 'motion' => false, 'css' => '.own-video { color: blue; }']), range(1, 5));
+        $saved = $this->save($this->document($sections))->assertOk()->assertJsonCount(5, 'data.sections')->assertJsonCount(7, 'data.sections.4.settings.items')->assertJsonPath('data.sections.3.settings.button_text', '')->assertJsonPath('data.sections.4.settings.motion', false)->json();
+        $this->getJson($this->public.'/products/landing-bag')->assertOk()->assertJsonPath('data.landing_page.sections.2.settings.items.6.image.url', $media->url())->assertJsonMissingPath('data.landing_page.sections.2.settings.items.6.image.media_id')->assertJsonPath('data.landing_page.sections.4.settings.variant', 'video-5');
+        $portable = ProductLandingPages::portablePayload(Product::withoutGlobalScopes()->findOrFail($this->product['id']));
+        $this->assertSame('https://www.youtube.com/shorts/abcdefghijk', $portable['sections'][0]['settings']['video']);
+        $this->assertSame("Own explanation\n ", $saved['data']['sections'][0]['settings']['items'][0]['text']);
+        $this->assertStringNotContainsString('<script', $portable['sections'][0]['settings']['items'][0]['html']);
+        $this->save($saved['data'], $saved['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        $changed = $saved['data'];
+        $changed['sections'][0]['settings']['variant'] = 'video-5';
+        $changed['sections'][0]['settings']['video'] = '/storage/own-video.mp4';
+        $next = $this->save($changed, $saved['version'])->assertOk()->json();
+        $this->save($saved['data'], $next['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        foreach ([$this->block('video', ['variant' => 'video-6']), $this->block('youtube', ['variant' => 'video-1']), $this->block('faq', ['variant' => 'video-3']), $this->block('video', ['variant' => 'faq-1']), $this->block('video', ['variant' => 'video-1', 'video' => 'https://evil.test/embed/abcdefghijk']), $this->block('video', ['variant' => 'video-3', 'items' => [['image' => ['media_id' => 999999]]]])] as $invalid) {
+            $this->save($this->document([$invalid]), $saved['version'])->assertUnprocessable();
+        }
+        $this->assertSame($saved['version'], ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id'])));
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('store_inventory_movements', 0);
+    }
+
     public function test_banner_destination_picker_is_scoped_bounded_and_never_returns_drafts_or_commerce_fields(): void
     {
         $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other banners', 'slug' => 'other-banners', 'status' => 'active']);
