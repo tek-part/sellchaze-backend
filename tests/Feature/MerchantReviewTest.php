@@ -117,5 +117,13 @@ class MerchantReviewTest extends TestCase
         $review->update(['status' => 'hidden']);
         $this->getJson("http://{$this->alpha->slug}.sellchase.com/api/v1/storefront/products/tee/reviews")
             ->assertOk()->assertJsonCount(0, 'data');
+        $migration = require database_path('migrations/2026_10_16_000002_allow_attributed_imported_product_reviews.php');
+        try {
+            $migration->down();
+            $this->fail('Guest review data must prevent a destructive rollback.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('Preserve imported reviews', $exception->getMessage());
+        }
+        $this->assertSame(['https://example.test/review-image.jpg'], $review->fresh()->media);
     }
 }

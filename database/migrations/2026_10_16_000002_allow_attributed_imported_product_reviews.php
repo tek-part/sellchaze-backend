@@ -24,10 +24,17 @@ return new class extends Migration
         if (DB::table('product_reviews')->whereNull('store_customer_id')->exists()) {
             throw new RuntimeException('Preserve imported reviews before rolling back this migration.');
         }
+        $mysql = in_array(Schema::getConnection()->getDriverName(), ['mysql', 'mariadb'], true);
+        if ($mysql) {
+            Schema::table('product_reviews', fn (Blueprint $table) => $table->dropForeign(['store_customer_id']));
+        }
         Schema::table('product_reviews', function (Blueprint $table): void {
             $table->dropUnique(['store_id', 'external_reference']);
             $table->dropColumn(['external_reference', 'source_url', 'media']);
             $table->unsignedBigInteger('store_customer_id')->nullable(false)->change();
         });
+        if ($mysql) {
+            Schema::table('product_reviews', fn (Blueprint $table) => $table->foreign('store_customer_id')->references('id')->on('store_customers')->cascadeOnDelete());
+        }
     }
 };
