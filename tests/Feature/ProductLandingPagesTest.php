@@ -231,6 +231,35 @@ class ProductLandingPagesTest extends TestCase
         $this->assertDatabaseCount('store_inventory_movements', 0);
     }
 
+    public function test_document_save_preserves_untouched_plain_text_spacing_including_a_return_to_the_original_version(): void
+    {
+        $document = $this->document([$this->block('faq', ['variant' => 'faq-1', 'title' => ' Own heading ', 'description' => "\nOwn intro\n", 'items' => [['title' => ' Own question ', 'text' => "  Own answer\nSecond line  "]]])]);
+        $saved = $this->save($document)->assertOk()->assertJsonPath('data.sections.0.settings.title', ' Own heading ')->assertJsonPath('data.sections.0.settings.description', "\nOwn intro\n")->assertJsonPath('data.sections.0.settings.items.0.text', "  Own answer\nSecond line  ")->json();
+        $edited = $saved['data'];
+        $edited['sections'][0]['settings']['items'][0]['text'] = 'Edited own answer';
+        $changed = $this->save($edited, $saved['version'])->assertOk()->json();
+        $this->save($saved['data'], $changed['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+    }
+
+    public function test_all_faq_designs_keep_answers_owned_media_and_colors_through_versioned_saves(): void
+    {
+        $media = ProductMedia::create(['store_id' => $this->store->id, 'store_product_id' => $this->product['id'], 'type' => 'gallery', 'disk' => 'public', 'path' => 'landing/own-answer.png']);
+        $items = array_map(fn ($id) => ['title' => 'Own question '.$id, 'text' => "Own answer\nSecond line", 'html' => '<p>Own rich answer</p><script>bad()</script>', 'image' => ['media_id' => $media->id], 'url' => '/pages/own-policy'], range(1, 9));
+        $sections = array_map(fn ($id) => $this->block('faq', ['variant' => 'faq-'.$id, 'items' => $items, 'background_image' => ['media_id' => $media->id], 'question_background' => '#f6e6ff', 'card_background' => 'transparent', 'accent' => '#112233', 'foreground' => '#334455', 'motion' => false]), range(1, 35));
+        $saved = $this->save($this->document($sections))->assertOk()->assertJsonCount(35, 'data.sections')->assertJsonCount(9, 'data.sections.34.settings.items')->assertJsonPath('data.sections.34.settings.variant', 'faq-35')->assertJsonPath('data.sections.34.settings.motion', false)->json();
+        $this->getJson($this->endpoint(), $this->auth)->assertOk()->assertJsonPath('data.sections.33.settings.items.8.title', 'Own question 9')->assertJsonPath('data.sections.0.settings.question_background', '#f6e6ff');
+        $this->getJson($this->public.'/products/landing-bag')->assertOk()->assertJsonPath('data.landing_page.sections.0.settings.items.8.image.url', $media->url())->assertJsonMissingPath('data.landing_page.sections.0.settings.items.8.image.media_id');
+        $this->assertStringNotContainsString('<script', $saved['data']['sections'][0]['settings']['items'][0]['html']);
+        $this->save($saved['data'], $saved['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        foreach ([$this->block('faq', ['variant' => 'faq-36']), $this->block('faq', ['variant' => 'features-1']), $this->block('checkout', ['variant' => 'faq-1']), $this->block('faq', ['question_background' => 'url(evil)']), $this->block('faq', ['items' => [['image' => ['media_id' => 999999]]]])] as $invalid) {
+            $this->save($this->document([$invalid]), $saved['version'])->assertUnprocessable();
+        }
+        $this->assertSame($saved['version'], ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id'])));
+        $this->assertDatabaseHas('products', ['id' => $this->product['id'], 'price' => 100, 'cost' => 20, 'reserved_quantity' => 0]);
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('store_inventory_movements', 0);
+    }
+
     public function test_banner_destination_picker_is_scoped_bounded_and_never_returns_drafts_or_commerce_fields(): void
     {
         $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other banners', 'slug' => 'other-banners', 'status' => 'active']);
