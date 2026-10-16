@@ -10,6 +10,7 @@ use App\Models\StoreDomain;
 use App\Models\StorePage;
 use App\Models\User;
 use App\Services\JwtTokenService;
+use App\Services\StoreCatalog\ProductLandingDestinations;
 use App\Services\StoreCatalog\ProductLandingPages;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
@@ -310,6 +311,67 @@ class ProductLandingPagesTest extends TestCase
         }
         $this->assertSame($saved['version'], ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id'])));
         $this->assertDatabaseHas('products', ['id' => $this->product['id'], 'price' => 100, 'reserved_quantity' => 0]);
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('store_inventory_movements', 0);
+    }
+
+    public function test_content_designs_preserve_owned_fields_extra_items_independent_images_and_exact_undo(): void
+    {
+        $media = ProductMedia::create(['store_id' => $this->store->id, 'store_product_id' => $this->product['id'], 'type' => 'gallery', 'disk' => 'public', 'path' => 'landing/own-content.png']);
+        $items = array_map(fn ($id) => ['title' => 'Own value '.$id, 'caption' => ' Own note ', 'text' => " Own description\n ", 'icon' => 'badge', 'image' => ['media_id' => $media->id], 'url' => '/pages/own', 'html' => '<p>Own detail</p><script>bad()</script>'], range(1, 7));
+        $sections = array_map(fn ($id) => $this->block('content', ['variant' => 'content-'.$id, 'title' => 'Own heading '.$id, 'eyebrow' => ' Own intro ', 'eyebrow_color' => '#123456', 'description' => " Own quote\n ", 'author' => ' Own author ', 'caption' => ' Own source ', 'image' => ['media_id' => (string) $media->id], 'secondary_image' => ['media_id' => $media->id], 'images' => [['media_id' => $media->id]], 'items' => $items, 'button_text' => '', 'motion' => false]), range(1, 5));
+        $saved = $this->save($this->document($sections))->assertOk()->assertJsonCount(5, 'data.sections')->assertJsonPath('data.sections.0.settings.eyebrow_color', '#123456')->assertJsonCount(7, 'data.sections.4.settings.items')->assertJsonPath('data.sections.0.settings.image.media_id', $media->id)->assertJsonPath('data.sections.2.settings.author', ' Own author ')->assertJsonPath('data.sections.2.settings.caption', ' Own source ')->json();
+        $this->getJson($this->public.'/products/landing-bag')->assertOk()->assertJsonPath('data.landing_page.sections.1.settings.secondary_image.url', $media->url())->assertJsonMissingPath('data.landing_page.sections.1.settings.secondary_image.media_id');
+        $portable = ProductLandingPages::portablePayload(Product::withoutGlobalScopes()->findOrFail($this->product['id']));
+        $this->assertSame(" Own quote\n ", $portable['sections'][2]['settings']['description']);
+        $this->assertStringNotContainsString('<script', $portable['sections'][0]['settings']['items'][0]['html']);
+        $this->save($saved['data'], $saved['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        $changed = $saved['data'];
+        $changed['sections'][0]['settings']['variant'] = 'content-3';
+        $changed['sections'][2]['settings']['author'] = null;
+        $changed['sections'][2]['settings']['caption'] = null;
+        unset($changed['sections'][1]['settings']['image']);
+        $next = $this->save($changed, $saved['version'])->assertOk()->assertJsonPath('data.sections.2.settings.author', '')->assertJsonPath('data.sections.2.settings.caption', '')->assertJsonMissingPath('data.sections.1.settings.image')->assertJsonPath('data.sections.1.settings.secondary_image.media_id', $media->id)->json();
+        $this->save($saved['data'], $next['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        foreach ([$this->block('content', ['variant' => 'content-6']), $this->block('content', ['eyebrow_color' => 'url(bad)']), $this->block('content', ['variant' => 'howto-1']), $this->block('how_to', ['variant' => 'content-1']), $this->block('content', ['author' => str_repeat('a', 151)]), $this->block('content', ['caption' => str_repeat('a', 201)]), $this->block('content', ['secondary_image' => ['media_id' => 999999]]), $this->block('heading', ['secondary_image' => ['url' => '/own.png']])] as $invalid) {
+            $this->save($this->document([$invalid]), $saved['version'])->assertUnprocessable();
+        }
+        $this->assertSame($saved['version'], ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id'])));
+        $this->assertDatabaseHas('products', ['id' => $this->product['id'], 'price' => 100, 'reserved_quantity' => 0]);
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('store_inventory_movements', 0);
+    }
+
+    public function test_content_image_destinations_follow_current_public_paths_and_never_leak_foreign_or_hidden_targets(): void
+    {
+        $category = Category::create(['store_id' => $this->store->id, 'name' => 'Own content category', 'slug' => 'own-content-category', 'is_active' => true, 'is_hidden' => false]);
+        $page = StorePage::create(['store_id' => $this->store->id, 'title' => 'Own draft title', 'slug' => 'own-draft', 'published_slug' => 'own-content-page', 'template' => 'page', 'locale' => 'en', 'status' => 'published']);
+        $snapshot = json_encode(['page' => ['title' => 'Own public title'], 'sections' => []]);
+        DB::table('store_page_publications')->insert(['store_id' => $this->store->id, 'store_page_id' => $page->id, 'version' => 1, 'snapshot' => $snapshot, 'checksum' => hash('sha256', $snapshot), 'published_at' => now()]);
+        $productDestination = ['type' => 'product', 'id' => $this->product['id']];
+        $categoryDestination = ['type' => 'category', 'id' => $category->id];
+        $pageDestination = ['type' => 'page', 'id' => $page->id];
+        $image = fn ($destination) => ['url' => '/own-content-image.png', 'destination' => $destination, 'link_url' => '/stale-link'];
+        $block = $this->block('content', ['variant' => 'content-1', 'image' => $image($productDestination), 'secondary_image' => $image($categoryDestination), 'images' => [$image($pageDestination)], 'items' => [['title' => 'Own benefit', 'image' => $image($pageDestination)]]]);
+        $saved = $this->save($this->document([$block]))->assertOk()->assertJsonMissingPath('data.sections.0.settings.image.link_url')->assertJsonPath('destination_urls.page:'.$page->id, '/pages/own-content-page')->json();
+        $this->getJson($this->public.'/products/landing-bag')->assertOk()->assertJsonPath('data.landing_page.sections.0.settings.image.link_url', '/products/landing-bag')->assertJsonPath('data.landing_page.sections.0.settings.secondary_image.link_url', '/collections/own-content-category')->assertJsonPath('data.landing_page.sections.0.settings.images.0.link_url', '/pages/own-content-page')->assertJsonMissingPath('data.landing_page.sections.0.settings.image.destination')->assertJsonMissingPath('data.landing_page.sections.0.settings.items.0.image.destination');
+        $category->update(['slug' => 'renamed-content-category']);
+        $product = Product::withoutGlobalScopes()->findOrFail($this->product['id']);
+        $this->assertSame('/collections/renamed-content-category', ProductLandingPages::portablePayload($product)['sections'][0]['settings']['secondary_image']['link_url']);
+        $category->update(['is_hidden' => true]);
+        $this->assertArrayNotHasKey('link_url', ProductLandingPages::portablePayload($product)['sections'][0]['settings']['secondary_image']);
+        $this->assertArrayHasKey('category:'.$category->id, ProductLandingDestinations::documentUrls($product));
+        $this->assertNull(ProductLandingDestinations::documentUrls($product)['category:'.$category->id]);
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other content', 'slug' => 'other-content', 'status' => 'active']);
+        $foreign = Category::create(['store_id' => $other->id, 'name' => 'Foreign private category', 'slug' => 'private-category', 'is_active' => true, 'is_hidden' => false]);
+        foreach ([$this->block('content', ['image' => $image(['type' => 'category', 'id' => $foreign->id])]), $this->block('content', ['image' => ['url' => '/own.png', 'link_url' => 'javascript:bad()']]), $this->block('content', ['image' => ['url' => '/own.png', 'link_url' => '//evil.test']]), $this->block('content', ['image' => ['url' => '/own.png', 'destination' => ['type' => 'page', 'id' => 0]]]), $this->block('content', ['background_image' => $image($productDestination)]), $this->block('video', ['image' => $image($productDestination)])] as $invalid) {
+            $this->save($this->document([$invalid]), $saved['version'])->assertUnprocessable();
+        }
+        $cleared = $saved['data'];
+        unset($cleared['sections'][0]['settings']['image']['destination']);
+        $cleared['sections'][0]['settings']['image']['link_url'] = null;
+        $next = $this->save($cleared, $saved['version'])->assertOk()->assertJsonPath('data.sections.0.settings.image.link_url', '')->json();
+        $this->save($saved['data'], $next['version'])->assertOk()->assertJsonPath('version', $saved['version']);
         $this->assertDatabaseCount('store_orders', 0);
         $this->assertDatabaseCount('store_inventory_movements', 0);
     }
