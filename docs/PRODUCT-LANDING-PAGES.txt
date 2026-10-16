@@ -75,3 +75,6 @@ Invalid variants, crossed families, foreign media and malformed colors cannot
 overwrite the saved document. Empty slots contain no generated commercial policy.
 The native frontend supplies accessible single-open accordions and35 differentiated
 layouts; no new database migration or commerce mutation is introduced.
+Landing-page text, HTML/CSS and image alt fields bypass automatic trimming only
+within the landing document endpoint. Other API fields retain ordinary trimming.
+Versioned save/edit/restore tests retain leading/trailing whitespace and newlines.
