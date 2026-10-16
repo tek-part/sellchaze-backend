@@ -19,6 +19,7 @@ class ProductReviewResource extends JsonResource
             'rating' => $this->rating,
             'title' => $this->title,
             'body' => $this->body,
+            'photos' => $this->media ?? [],
             'status' => $this->status,
             'author' => $this->author_name ?? $this->whenLoaded('customer', fn () => $this->customer?->name),
             // Additive keys the frozen frontend review mapper reads.

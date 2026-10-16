@@ -39,6 +39,7 @@ class StoreResource extends JsonResource
             'default_locale' => $this->default_locale,
             'supported_locales' => $this->supported_locales ?? [$this->default_locale ?: 'en'],
             'supported_currencies' => $this->supported_currencies ?? [$this->currency ?: 'USD'],
+            'auto_currency_by_country' => (bool) $this->auto_currency_by_country,
             'timezone' => $this->timezone,
             'tax' => [
                 'enabled' => (bool) $this->tax_enabled,

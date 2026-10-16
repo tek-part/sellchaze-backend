@@ -7,7 +7,9 @@ use App\Models\CurrencyRate;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreDomain;
+use App\Models\StorePaymentGateway;
 use App\Models\User;
+use App\Services\Storefront\VisitorCurrency;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -113,5 +115,33 @@ class StorefrontApiTest extends TestCase
             ->assertJsonPath('store.currency_multipliers.USD', 1)
             ->assertJsonPath('store.currency_multipliers.EUR', 0.8)
             ->assertJsonMissingPath('store.currency_multipliers.EGP');
+    }
+
+    public function test_country_currency_is_private_supported_and_scoped_to_the_current_store(): void
+    {
+        CurrencyRate::query()->create(['currency_code' => 'EUR', 'rate_to_usd' => 1.25, 'source' => 'test']);
+        Store::query()->where('slug', 'nike')->firstOrFail()->update(['supported_currencies' => ['USD', 'EUR'], 'auto_currency_by_country' => true]);
+        $visitor = $this->mock(VisitorCurrency::class)->makePartial();
+        $visitor->shouldReceive('country')->once()->andReturn('DE');
+        $visitor->shouldReceive('rates')->once()->andReturn(['USD' => 1, 'EUR' => 0.9, 'AED' => 3.67]);
+
+        $this->getJson('http://nike.sellchase.com/api/v1/storefront')->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertJsonPath('store.visitor_currency', 'EUR')
+            ->assertJsonPath('store.currency_multipliers.EUR', 0.9)
+            ->assertJsonMissingPath('store.currency_multipliers.AED');
+        $this->getJson('http://adidas.sellchase.com/api/v1/storefront')->assertOk()
+            ->assertJsonPath('store.auto_currency_by_country', false)
+            ->assertJsonPath('store.visitor_currency', 'USD');
+    }
+
+    public function test_bootstrap_payment_methods_include_only_enabled_methods_for_this_store(): void
+    {
+        foreach (['nike', 'adidas'] as $slug) {
+            $store = Store::query()->where('slug', $slug)->firstOrFail();
+            StorePaymentGateway::create(['store_id' => $store->id, 'gateway' => $slug === 'nike' ? 'cod' : 'fawaterak', 'enabled' => true, 'credentials' => [], 'sort_order' => 0]);
+        }
+        StorePaymentGateway::create(['store_id' => Store::query()->where('slug', 'nike')->value('id'), 'gateway' => 'stripe', 'enabled' => false, 'credentials' => [], 'sort_order' => 1]);
+        $this->getJson('http://nike.sellchase.com/api/v1/storefront')->assertOk()->assertJsonPath('store.payment_methods', ['cod']);
     }
 }

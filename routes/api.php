@@ -775,7 +775,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('products', [StoreAbTestsController::class, 'products']);
                 Route::post('/', [StoreAbTestsController::class, 'save']);
                 Route::get('{abTest}', [StoreAbTestsController::class, 'show'])->whereNumber('abTest');
-                Route::put('{abTest}', [StoreAbTestsController::class, 'save'])->whereNumber('abTest');
+                Route::match(['put', 'post'], '{abTest}', [StoreAbTestsController::class, 'save'])->whereNumber('abTest');
+                Route::post('{abTest}/delete', [StoreAbTestsController::class, 'destroy'])->whereNumber('abTest');
                 Route::delete('{abTest}', [StoreAbTestsController::class, 'destroy'])->whereNumber('abTest');
             });
             Route::middleware('permission:store.orders.manage')->prefix('missed-orders')->group(function () {

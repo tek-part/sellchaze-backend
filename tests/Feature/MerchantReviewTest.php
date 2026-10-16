@@ -104,4 +104,26 @@ class MerchantReviewTest extends TestCase
         $this->owner($this->beta->owner)->getJson($this->reviewsUrl())->assertStatus(403);
         $this->owner($this->beta->owner)->patchJson($this->reviewsUrl($r->id, '/status'), ['status' => 'hidden'])->assertStatus(403);
     }
+
+    public function test_imported_guest_reviews_retain_photos_and_respect_public_moderation(): void
+    {
+        $review = ProductReview::create([
+            'store_id' => $this->alpha->id, 'store_customer_id' => null, 'store_product_id' => $this->tee->id,
+            'author_name' => 'Imported reviewer', 'rating' => 5, 'body' => 'Imported with attribution',
+            'status' => 'approved', 'media' => ['https://example.test/review-image.jpg'],
+        ]);
+        $this->getJson("http://{$this->alpha->slug}.sellchase.com/api/v1/storefront/products/tee/reviews")
+            ->assertOk()->assertJsonPath('data.0.photos.0', 'https://example.test/review-image.jpg');
+        $review->update(['status' => 'hidden']);
+        $this->getJson("http://{$this->alpha->slug}.sellchase.com/api/v1/storefront/products/tee/reviews")
+            ->assertOk()->assertJsonCount(0, 'data');
+        $migration = require database_path('migrations/2026_10_16_000002_allow_attributed_imported_product_reviews.php');
+        try {
+            $migration->down();
+            $this->fail('Guest review data must prevent a destructive rollback.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('Preserve imported reviews', $exception->getMessage());
+        }
+        $this->assertSame(['https://example.test/review-image.jpg'], $review->fresh()->media);
+    }
 }
