@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Http\Resources\Storefront\StorefrontProductResource;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\ProductPreferences;
+use App\Services\StoreCatalog\ProductLandingPages;
 use App\Support\CatalogProductVersion;
 use App\Support\CatalogTransferVersion;
 use Illuminate\Http\Request;
@@ -19,6 +20,9 @@ class StoreCatalogProductResource extends StorefrontProductResource
             'display_priority' => $this->display_priority,
             'catalog_hidden' => $this->catalog_hidden,
             'preferences_version' => ProductPreferences::version($this->resource),
+            'landing_mode' => ProductLandingPages::document($this->resource)['mode'],
+            'landing_version' => ProductLandingPages::version($this->resource),
+            'has_landing_content' => count(ProductLandingPages::document($this->resource)['sections']) > 0,
             'edit_version' => CatalogProductVersion::for($this->resource),
             'transfer_version' => CatalogTransferVersion::for($this->resource),
             'name' => $this->name, 'description' => $this->long_description ?? $this->description, 'short_description' => $this->short_description,

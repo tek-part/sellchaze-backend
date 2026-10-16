@@ -133,6 +133,7 @@ use App\Http\Controllers\Api\StorePagesApiController;
 use App\Http\Controllers\Api\StorePaymentsApiController;
 use App\Http\Controllers\Api\StorePhoneBlockController;
 use App\Http\Controllers\Api\StorePhoneVerificationController;
+use App\Http\Controllers\Api\StoreProductLandingController;
 use App\Http\Controllers\Api\StorePublishingApiController;
 use App\Http\Controllers\Api\StoreQuantityOffersController;
 use App\Http\Controllers\Api\StoreReferralController;
@@ -830,6 +831,9 @@ Route::prefix('v1')->group(function () {
                 Route::middleware('permission:products-list')->post('export', [StoreCatalogTransferController::class, 'export']);
                 Route::middleware('permission:products-delete')->post('bulk-delete', [StoreCatalogTransferController::class, 'delete']);
                 Route::middleware(['permission:products-create', 'permission:products-list'])->post('{product}/duplicate', [StoreCatalogTransferController::class, 'duplicate'])->whereNumber('product');
+                Route::middleware('permission:products-edit')->get('{product}/landing-page', [StoreProductLandingController::class, 'show'])->whereNumber('product');
+                Route::middleware('permission:products-edit')->put('{product}/landing-page', [StoreProductLandingController::class, 'update'])->whereNumber('product');
+                Route::middleware('permission:products-edit')->post('{product}/landing-page/media', [StoreProductLandingController::class, 'upload'])->whereNumber('product');
                 Route::middleware('permission:products-list')->get('{product}/quantity-offers', [StoreQuantityOffersController::class, 'show'])->whereNumber('product');
                 Route::middleware('permission:products-edit')->put('{product}/quantity-offers', [StoreQuantityOffersController::class, 'update'])->whereNumber('product');
                 Route::middleware('permission:products-list')->get('/', [StorefrontProductsApiController::class, 'index']);

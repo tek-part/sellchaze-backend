@@ -51,6 +51,8 @@ trait StoreCatalogFields
     private function catalogFields(): array
     {
         return [
+            'landing_mode' => ['sometimes', 'in:standard,standalone,below'],
+            'landing_version' => ['sometimes', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'category_ids' => ['sometimes', 'array', 'list', 'max:20'],
             'category_ids.*' => ['required', 'integer', 'distinct', Rule::exists('categories', 'id')->where('store_id', app(CurrentStore::class)->id())],
             'cost' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', 'decimal:0,2'],

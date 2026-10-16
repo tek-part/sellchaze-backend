@@ -70,6 +70,9 @@ class CatalogTransfer
                     'digital_url' => ['required_if:digital_type,link', 'nullable', 'url:http,https', 'max:2000']]
                     + (new StorefrontProductStoreRequest)->rules())->validate();
                 ProductPreferences::canonical($plan['data']['product_preferences'] ?? null);
+                if (isset($plan['data']['landing_page'])) {
+                    ProductLandingPages::canonical($plan['data']['landing_page']);
+                }
                 Validator::make($plan, [
                     'categories' => ['array', 'max:20'], 'categories.*.name' => ['required', 'string', 'max:255'],
                     'categories.*.slug' => ['nullable', 'string', 'max:255'], 'categories.*.description' => ['nullable', 'string', 'max:20000'],
@@ -174,6 +177,10 @@ class CatalogTransfer
             }
         }
         $product = app(StorefrontProductService::class)->create($data + ['category_id' => $ids[0] ?? null, 'category_ids' => $ids]);
+        if (isset($data['landing_page'])) {
+            $product->landing_page = ProductLandingPages::canonical($data['landing_page']);
+            $product->save();
+        }
         $images = $plan['images'];
         foreach ($plan['axes'] as $axis) {
             foreach ($axis['values'] as $value) {
@@ -249,6 +256,7 @@ class CatalogTransfer
         $data['description'] = $product->long_description ?? $product->description;
         $data += ['is_active' => $product->is_active, 'is_featured' => $product->is_featured, 'translations' => $product->translationsPayload(),
             'product_preferences' => $product->product_preferences, 'display_priority' => $product->display_priority, 'catalog_hidden' => $product->catalog_hidden,
+            'landing_page' => ProductLandingPages::portablePayload($product),
             'personalization_fields' => $product->personalization_fields ?? [], 'image_url' => $this->absolute($product->imageUrl()),
             'images' => $product->media->whereIn('type', ['cover', 'gallery'])->map(fn ($media) => $this->absolute($media->url()))->filter()->values()->all(),
             'categories' => $product->additionalCategories->merge($product->category ? [$product->category] : [])->unique('id')->map(fn ($category) => ['name' => $category->name, 'slug' => $category->slug])->values()->all(),
@@ -324,6 +332,21 @@ class CatalogTransfer
             }
             unset($axis);
             $copy->option_display = $display;
+            if ($source->landing_page !== null) {
+                $remap = function (array $value) use (&$remap, $mediaIds): array {
+                    if (isset($value['media_id'])) {
+                        $value['media_id'] = $mediaIds[$value['media_id']] ?? $value['media_id'];
+                    }
+                    foreach ($value as $key => $child) {
+                        if (is_array($child)) {
+                            $value[$key] = $remap($child);
+                        }
+                    }
+
+                    return $value;
+                };
+                $copy->landing_page = ProductLandingPages::canonical($remap($source->landing_page), $copy);
+            }
             $copy->save();
             if ($source->variants->isEmpty()) {
                 $this->stock($copy->refresh(), ['stock_quantity' => 0, 'track_inventory' => $copy->track_inventory], $actor);

@@ -9,6 +9,7 @@ use App\Services\Commerce\ProductPersonalization;
 use App\Services\Commerce\ProductPreferences;
 use App\Services\Commerce\QuantityOffers;
 use App\Services\Commerce\ShoppingPreferences;
+use App\Services\StoreCatalog\ProductLandingPages;
 use App\Services\Storefront\ResponsiveImageUrl;
 use App\Support\ProductOptionDisplay;
 use App\Support\Tenancy\CurrentStore;
@@ -30,6 +31,7 @@ class StorefrontProductResource extends JsonResource
             'id' => $this->id,
             'product_preferences' => ProductPreferences::publicPayload($this->resource),
             'catalog_hidden' => $this->catalog_hidden,
+            'landing_page' => $request->route('slug') !== null ? ProductLandingPages::publicPayload($this->resource) : null,
             'store_id' => $this->store_id,
             'auto_select_variant' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
             'name' => $this->translated('name'),

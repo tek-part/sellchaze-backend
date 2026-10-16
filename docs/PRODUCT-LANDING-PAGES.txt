@@ -1,0 +1,30 @@
+Product landing-page API
+
+GET/PUT /api/v1/my-store/catalog/products/{product}/landing-page and the matching
+admin store scope require products-edit. GET returns the schema-1 document, version,
+and minimal editor product data. PUT accepts {version, document}; it locks the
+tenant-owned product, validates a bounded document and its media ownership, sanitizes
+static HTML and invalidates storefront caches after commit. Stale different edits
+return409. Exact canonical retries are idempotent.
+
+POST .../landing-page/media accepts one JPG/PNG/GIF/WebP image, at most10MB. It reuses
+the product-media transaction and cleanup rules and never modifies the saved layout.
+Document saves and media uploads never change product prices, options or stock.
+
+The additive nullable landing_page migration does not rewrite old products and
+refuses populated rollback. Standard mode retains content but returns no public
+landing document. Public product detail resolves media IDs to URLs; cart catalog
+does not carry the layout payload. Native catalog import/export preserves documents;
+duplicates remap product-owned image identities. Managed files referenced in saved
+landing documents are retained on product-media cleanup.
+
+Static HTML/CSS must be rendered in an isolated opaque frame. The sanitizer is not
+intended as permission to insert arbitrary merchant styles in the main application.
+The paired frontend keeps actual checkout outside the untrusted static frame.
+
+An active landing checkout joins the existing product one-page-checkout advertising
+eligibility. This affects configured advertising values only on the product surface;
+actual invoice, tax, shipping, inventory and payment amounts remain authoritative.
+
+Exact competitor template presets, competitor-format conversion and activated AI
+authoring remain separate unfinished scope. No production deployment is asserted.

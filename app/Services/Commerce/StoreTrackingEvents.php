@@ -50,7 +50,7 @@ class StoreTrackingEvents
                 $price = $selection['price'];
             }
             $variantId = isset($selection) ? $selection['variant']?->id : null;
-            if ($data['event'] === 'add_to_cart' || ($data['event'] === 'begin_checkout' && ($data['surface'] ?? null) === 'product' && ProductPreferences::flag($product, 'is_one_page_checkout'))) {
+            if ($data['event'] === 'add_to_cart' || ($data['event'] === 'begin_checkout' && ($data['surface'] ?? null) === 'product' && ProductPreferences::onePage($product))) {
                 $price = $product->product_preferences['pixel_price'] ?? $price;
             }
             $items[] = ['item_id' => CatalogItemId::selection($product->id, $variantId), 'item_name' => $product->name, 'price' => $price, 'quantity' => (int) $line['quantity']];
@@ -80,7 +80,7 @@ class StoreTrackingEvents
             $items = [];
             foreach ($lines as $line) {
                 $product = $products->get($line->store_product_id);
-                $override = $product && ProductPreferences::flag($product, 'is_one_page_checkout') ? $product->product_preferences['pixel_price'] ?? null : null;
+                $override = $product && ProductPreferences::onePage($product) ? $product->product_preferences['pixel_price'] ?? null : null;
                 $custom = $custom || $override !== null;
                 $price = $override ?? $line->unit_price;
                 $customValue = bcadd($customValue, bcmul((string) $price, (string) $line->quantity, 2), 2);

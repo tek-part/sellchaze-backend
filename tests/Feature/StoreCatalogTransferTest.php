@@ -10,6 +10,7 @@ use App\Models\StoreCatalogOperation;
 use App\Models\User;
 use App\Services\JwtTokenService;
 use App\Services\StoreCatalog\CatalogExchangeReader;
+use App\Services\StoreCatalog\ProductLandingPages;
 use App\Services\StoreCatalog\StorefrontProductService;
 use App\Support\Tenancy\CurrentStore;
 use Database\Seeders\PermissionTableSeeder;
@@ -179,6 +180,32 @@ class StoreCatalogTransferTest extends TestCase
         $imported = $this->post($this->base.'/import', ['file' => $this->file($document), 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertCreated()->json('meta.ids.0');
         $this->assertEquals($settings, Product::withoutGlobalScopes()->findOrFail($imported)->product_preferences);
         $this->post($this->base.'/import/preview', ['file' => $this->file([['name' => 'Bad counter range', 'price' => 10, 'product_preferences' => ['fake_visitors_min' => 90, 'fake_visitors_max' => 20]]])], $this->auth)->assertUnprocessable();
+        $this->assertDatabaseCount('products', 3);
+    }
+
+    public function test_landing_layout_round_trips_with_portable_owned_media_and_copy_versions_cover_it(): void
+    {
+        $id = $this->imported(['images' => ['https://example.com/landing.jpg']]);
+        $product = Product::withoutGlobalScopes()->findOrFail($id);
+        $media = $product->media()->firstOrFail();
+        $target = $this->target($id);
+        $doc = ['schema' => 1, 'mode' => 'standalone', 'sections' => [['id' => (string) Str::uuid(), 'type' => 'image', 'settings' => ['image' => ['media_id' => $media->id]]]]];
+        $product->landing_page = ProductLandingPages::canonical($doc, $product);
+        $product->save();
+        $this->postJson($this->base.'/export', ['products' => [$target]], $this->auth)->assertUnprocessable()->assertJsonValidationErrors('products');
+        $target = $this->target($id);
+        $document = $this->postJson($this->base.'/export', ['products' => [$target]], $this->auth)->assertOk()->json();
+        $this->assertSame('https://example.com/landing.jpg', $document['products'][0]['landing_page']['sections'][0]['settings']['image']['url']);
+        $this->assertArrayNotHasKey('media_id', $document['products'][0]['landing_page']['sections'][0]['settings']['image']);
+        $copy = $this->postJson($this->base.'/'.$id.'/duplicate', ['version' => $target['version'], 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertCreated()->json('meta.id');
+        $copyProduct = Product::withoutGlobalScopes()->findOrFail($copy);
+        $this->assertNotSame($media->id, $copyProduct->landing_page['sections'][0]['settings']['image']['media_id']);
+        $this->assertEquals($document['products'][0]['landing_page'], ProductLandingPages::portablePayload($copyProduct));
+        unset($document['products'][0]['slug'], $document['products'][0]['sku']);
+        $imported = $this->post($this->base.'/import', ['file' => $this->file($document), 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertCreated()->json('meta.ids.0');
+        $this->assertEquals($document['products'][0]['landing_page'], Product::withoutGlobalScopes()->findOrFail($imported)->landing_page);
+        $document['products'][0]['landing_page']['sections'][0]['settings']['image'] = ['media_id' => $media->id];
+        $this->post($this->base.'/import', ['file' => $this->file($document), 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertUnprocessable();
         $this->assertDatabaseCount('products', 3);
     }
 
