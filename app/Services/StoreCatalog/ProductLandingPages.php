@@ -65,8 +65,9 @@ final class ProductLandingPages
         }
         $rules = ['schema' => ['required', 'integer', 'in:1'], 'mode' => ['required', 'in:standard,standalone,below'], 'sections' => ['present', 'array', 'list', 'max:60'],
             'sections.*' => ['array:id,type,settings'], 'sections.*.id' => ['required', 'uuid', 'distinct:ignore_case'], 'sections.*.type' => ['required', Rule::in(self::TYPES)],
-            'sections.*.settings' => ['present', 'array:title,description,html,image,background_image,images,video,button_text,button_target,background,foreground,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size'],
-            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9))])],
+            'sections.*.settings' => ['present', 'array:title,description,html,image,background_image,images,video,button_text,button_target,background,foreground,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size,hover_background,hover_foreground,secondary_foreground,hover_secondary_foreground,icon_background,icon_color,motion'],
+            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9)), ...array_map(fn ($id) => 'features-'.$id, range(1, 45))])],
+            'sections.*.settings.motion' => ['sometimes', 'boolean'],
             'sections.*.settings.title' => ['sometimes', 'string', 'max:300'], 'sections.*.settings.description' => ['sometimes', 'string', 'max:2000'],
             'sections.*.settings.html' => ['sometimes', 'string', 'max:20000'], 'sections.*.settings.css' => ['sometimes', 'string', 'max:12000'],
             'sections.*.settings.button_text' => ['sometimes', 'string', 'max:120'], 'sections.*.settings.button_target' => ['sometimes', 'in:purchase,product'],
@@ -75,14 +76,17 @@ final class ProductLandingPages
             'sections.*.settings.ends_at' => ['sometimes', 'nullable', 'date_format:Y-m-d\TH:i:s\Z'], 'sections.*.settings.rating' => ['sometimes', 'numeric', 'between:0,5'],
             'sections.*.settings.padding' => ['sometimes', 'integer', 'between:0,160'], 'sections.*.settings.radius' => ['sometimes', 'integer', 'between:0,48'], 'sections.*.settings.font_size' => ['sometimes', 'integer', 'between:12,96'],
             'sections.*.settings.images' => ['sometimes', 'array', 'list', 'max:30'], 'sections.*.settings.items' => ['sometimes', 'array', 'list', 'max:30'],
-            'sections.*.settings.items.*' => ['array:title,text,html,image,url,icon,rating,author,caption,date,platform,destination'], 'sections.*.settings.items.*.title' => ['sometimes', 'string', 'max:300'],
+            'sections.*.settings.items.*' => ['array:title,text,html,image,url,icon,rating,author,caption,date,platform,destination,accent,background,foreground'], 'sections.*.settings.items.*.title' => ['sometimes', 'string', 'max:300'],
             'sections.*.settings.items.*.destination' => ['sometimes', 'array:type,id', 'required_array_keys:type,id'], 'sections.*.settings.items.*.destination.type' => ['required_with:sections.*.settings.items.*.destination', 'in:product,category,page'], 'sections.*.settings.items.*.destination.id' => ['required_with:sections.*.settings.items.*.destination', 'integer', 'min:1'],
             'sections.*.settings.items.*.author' => ['sometimes', 'string', 'max:150'], 'sections.*.settings.items.*.caption' => ['sometimes', 'string', 'max:200'],
             'sections.*.settings.items.*.date' => ['sometimes', 'nullable', 'date_format:Y-m-d'], 'sections.*.settings.items.*.platform' => ['sometimes', 'string', 'max:40'],
             'sections.*.settings.items.*.text' => ['sometimes', 'string', 'max:6000'], 'sections.*.settings.items.*.html' => ['sometimes', 'string', 'max:6000'],
             'sections.*.settings.items.*.url' => ['sometimes', 'string', 'max:2000'], 'sections.*.settings.items.*.icon' => ['sometimes', 'string', 'max:40'], 'sections.*.settings.items.*.rating' => ['sometimes', 'numeric', 'between:0,5']];
-        foreach (['background', 'foreground', 'accent', 'card_background', 'question_background'] as $field) {
+        foreach (['background', 'foreground', 'accent', 'card_background', 'question_background', 'hover_background', 'hover_foreground', 'secondary_foreground', 'hover_secondary_foreground', 'icon_background', 'icon_color'] as $field) {
             $rules['sections.*.settings.'.$field] = ['sometimes', 'string', 'regex:/^(#(?:[a-f0-9]{3}|[a-f0-9]{4}|[a-f0-9]{6}|[a-f0-9]{8})|transparent)$/i'];
+        }
+        foreach (['accent', 'background', 'foreground'] as $field) {
+            $rules['sections.*.settings.items.*.'.$field] = ['sometimes', 'string', 'regex:/^(#(?:[a-f0-9]{3}|[a-f0-9]{4}|[a-f0-9]{6}|[a-f0-9]{8})|transparent)$/i'];
         }
         foreach (['sections.*.settings.image', 'sections.*.settings.background_image', 'sections.*.settings.images.*', 'sections.*.settings.items.*.image'] as $path) {
             $rules[$path] = ['sometimes', 'array:media_id,url,alt'];
@@ -97,8 +101,16 @@ final class ProductLandingPages
         foreach ($data['sections'] as $index => &$section) {
             $section['id'] = strtolower($section['id']);
             $settings = &$section['settings'];
-            if (isset($settings['variant']) && $section['type'] !== (str_starts_with($settings['variant'], 'testimonials-') ? 'custom_reviews' : 'promo_banners')) {
+            $family = isset($settings['variant']) ? match (true) {
+                str_starts_with($settings['variant'], 'testimonials-') => 'custom_reviews',
+                str_starts_with($settings['variant'], 'features-') => 'store_features',
+                default => 'promo_banners',
+            } : null;
+            if ($family !== null && $section['type'] !== $family) {
                 throw ValidationException::withMessages(['document.sections.'.$index.'.settings.variant' => 'Choose a design belonging to this section family.']);
+            }
+            if (isset($settings['motion'])) {
+                $settings['motion'] = (bool) $settings['motion'];
             }
             foreach (['hours', 'padding', 'radius', 'font_size'] as $field) {
                 if (isset($settings[$field])) {

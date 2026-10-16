@@ -190,6 +190,7 @@ class StoreCatalogTransferTest extends TestCase
         $media = $product->media()->firstOrFail();
         $target = $this->target($id);
         $doc = ['schema' => 1, 'mode' => 'standalone', 'sections' => [['id' => (string) Str::uuid(), 'type' => 'image', 'settings' => ['image' => ['media_id' => $media->id], 'background_image' => ['media_id' => $media->id]]], ['id' => (string) Str::uuid(), 'type' => 'custom_reviews', 'settings' => ['variant' => 'testimonials-11', 'items' => [['author' => 'Own review', 'caption' => 'Own location', 'date' => '2026-10-16', 'platform' => 'Own source', 'text' => 'Own review text']]]], ['id' => (string) Str::uuid(), 'type' => 'promo_banners', 'settings' => ['variant' => 'banners-8', 'items' => [['image' => ['media_id' => $media->id], 'destination' => ['type' => 'product', 'id' => $id]]]]]]];
+        $doc['sections'][] = ['id' => (string) Str::uuid(), 'type' => 'store_features', 'settings' => ['variant' => 'features-35', 'motion' => false, 'hover_background' => '#112233', 'icon_color' => '#abcdef', 'items' => [['title' => 'Own logo', 'image' => ['media_id' => $media->id], 'accent' => '#556677', 'icon' => 'shield', 'url' => '/pages/own']]]];
         $product->landing_page = ProductLandingPages::canonical($doc, $product);
         $product->save();
         $this->postJson($this->base.'/export', ['products' => [$target]], $this->auth)->assertUnprocessable()->assertJsonValidationErrors('products');
@@ -204,6 +205,10 @@ class StoreCatalogTransferTest extends TestCase
         $this->assertArrayNotHasKey('destination', $document['products'][0]['landing_page']['sections'][2]['settings']['items'][0]);
         $this->assertSame('/products/'.$product->slug, $document['products'][0]['landing_page']['sections'][2]['settings']['items'][0]['url']);
         $this->assertSame($copyProduct->landing_page['sections'][0]['settings']['image']['media_id'], $copyProduct->landing_page['sections'][0]['settings']['background_image']['media_id']);
+        $this->assertSame($copyProduct->landing_page['sections'][0]['settings']['image']['media_id'], $copyProduct->landing_page['sections'][3]['settings']['items'][0]['image']['media_id']);
+        $this->assertSame('features-35', $document['products'][0]['landing_page']['sections'][3]['settings']['variant']);
+        $this->assertFalse($document['products'][0]['landing_page']['sections'][3]['settings']['motion']);
+        $this->assertSame('#556677', $document['products'][0]['landing_page']['sections'][3]['settings']['items'][0]['accent']);
         $this->assertEquals($document['products'][0]['landing_page'], ProductLandingPages::portablePayload($copyProduct));
         unset($document['products'][0]['slug'], $document['products'][0]['sku']);
         $imported = $this->post($this->base.'/import', ['file' => $this->file($document), 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertCreated()->json('meta.ids.0');
