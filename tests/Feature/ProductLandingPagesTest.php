@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductMedia;
 use App\Models\Store;
 use App\Models\StoreDomain;
+use App\Models\StorePage;
 use App\Models\User;
 use App\Services\JwtTokenService;
 use App\Services\StoreCatalog\ProductLandingPages;
@@ -13,6 +15,7 @@ use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
@@ -183,6 +186,50 @@ class ProductLandingPagesTest extends TestCase
         $this->getJson($this->endpoint())->assertUnauthorized();
         $this->getJson($this->endpoint(), $auth)->assertNotFound();
         $this->putJson($this->endpoint(), ['version' => $this->product['landing_version'], 'document' => $this->document([$this->block()])], $auth)->assertNotFound();
+        $this->assertNull(Product::withoutGlobalScopes()->findOrFail($this->product['id'])->landing_page);
+    }
+
+    public function test_nine_banner_designs_keep_owned_links_portable_and_follow_current_public_routes(): void
+    {
+        $category = Category::create(['store_id' => $this->store->id, 'name' => 'Own category', 'slug' => 'own-category', 'is_active' => true, 'is_hidden' => false]);
+        $page = StorePage::create(['store_id' => $this->store->id, 'title' => 'Private draft title', 'slug' => 'draft-link', 'published_slug' => 'public-link', 'template' => 'page', 'locale' => 'en', 'status' => 'published']);
+        $snapshot = json_encode(['page' => ['title' => 'Own published title'], 'sections' => []]);
+        DB::table('store_page_publications')->insert(['store_id' => $this->store->id, 'store_page_id' => $page->id, 'version' => 1, 'snapshot' => $snapshot, 'checksum' => hash('sha256', $snapshot), 'published_at' => now()]);
+        $destinations = [['type' => 'product', 'id' => $this->product['id']], ['type' => 'category', 'id' => $category->id], ['type' => 'page', 'id' => $page->id]];
+        $sections = array_map(fn ($id) => $this->block('promo_banners', ['variant' => 'banners-'.$id, 'items' => array_map(fn ($destination) => ['image' => ['url' => '/own-banner.png'], 'destination' => $destination, 'url' => 'https://example.test/stale'], $destinations)]), range(1, 9));
+        $saved = $this->save($this->document($sections))->assertOk()->assertJsonMissingPath('data.sections.0.settings.items.0.url')->assertJsonPath('destination_urls.product:'.$this->product['id'], '/products/landing-bag')->json();
+        $this->getJson($this->public.'/products/landing-bag')->assertOk()->assertJsonPath('data.landing_page.sections.0.settings.items.0.url', '/products/landing-bag')->assertJsonPath('data.landing_page.sections.8.settings.items.1.url', '/collections/own-category')->assertJsonPath('data.landing_page.sections.8.settings.items.2.url', '/pages/public-link')->assertJsonMissingPath('data.landing_page.sections.0.settings.items.0.destination');
+        $this->getJson($this->endpoint().'/destinations?type=page&search=published', $this->auth)->assertOk()->assertJsonPath('data.0.name', 'Own published title')->assertJsonMissing(['name' => 'Private draft title']);
+        $category->update(['slug' => 'renamed-category']);
+        $product = Product::withoutGlobalScopes()->findOrFail($this->product['id']);
+        $this->assertSame('/collections/renamed-category', ProductLandingPages::portablePayload($product)['sections'][0]['settings']['items'][1]['url']);
+        $category->update(['is_active' => false]);
+        $this->assertArrayNotHasKey('url', ProductLandingPages::portablePayload($product)['sections'][0]['settings']['items'][1]);
+        $this->putJson($this->endpoint(), ['version' => $saved['version'], 'document' => $saved['data']], $this->auth)->assertOk();
+        foreach ([$this->block('custom_reviews', ['variant' => 'banners-1']), $this->block('promo_banners', ['variant' => 'banners-10']), $this->block('promo_banners', ['items' => [['destination' => []]]]), $this->block('heading', ['items' => [['destination' => $destinations[0]]]])] as $invalid) {
+            $this->save($this->document([$invalid]), $saved['version'])->assertUnprocessable();
+        }
+        $this->assertDatabaseCount('store_orders', 0);
+    }
+
+    public function test_banner_destination_picker_is_scoped_bounded_and_never_returns_drafts_or_commerce_fields(): void
+    {
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other banners', 'slug' => 'other-banners', 'status' => 'active']);
+        $foreign = Category::create(['store_id' => $other->id, 'name' => 'Foreign private category', 'slug' => 'foreign-category', 'is_active' => true, 'is_hidden' => false]);
+        Category::create(['store_id' => $this->store->id, 'name' => 'Own 100% category', 'slug' => 'own-percent', 'is_active' => true, 'is_hidden' => false]);
+        StorePage::create(['store_id' => $this->store->id, 'title' => 'Draft secret', 'slug' => 'draft-secret', 'template' => 'page', 'locale' => 'en', 'status' => 'draft']);
+        $this->getJson($this->endpoint().'/destinations?type=category&search=%25&selected='.$foreign->id, $this->auth)->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('selected', null)->assertJsonPath('data.0.name', 'Own 100% category');
+        for ($i = 0; $i < 31; $i++) {
+            Category::create(['store_id' => $this->store->id, 'name' => 'Own category '.$i, 'slug' => 'own-paged-'.$i, 'is_active' => true, 'is_hidden' => false]);
+        }
+        $this->getJson($this->endpoint().'/destinations?type=category', $this->auth)->assertOk()->assertJsonCount(30, 'data')->assertJsonPath('meta.has_more', true);
+        $this->getJson($this->endpoint().'/destinations?type=category&page=2', $this->auth)->assertOk()->assertJsonCount(2, 'data')->assertJsonPath('meta.has_more', false);
+        $this->getJson($this->endpoint().'/destinations?type=page', $this->auth)->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson($this->endpoint().'/destinations?type=product', $this->auth)->assertOk()->assertJsonMissingPath('data.0.cost')->assertJsonMissingPath('data.0.stock_quantity');
+        $this->save($this->document([$this->block('promo_banners', ['items' => [['destination' => ['type' => 'category', 'id' => $foreign->id]]]])]))->assertUnprocessable();
+        $this->getJson($this->endpoint().'/destinations?type=product')->assertUnauthorized();
+        $this->getJson($this->endpoint().'/destinations?type=unknown', $this->auth)->assertUnprocessable();
+        $this->getJson($this->endpoint().'/destinations?type=product&page=0', $this->auth)->assertUnprocessable();
         $this->assertNull(Product::withoutGlobalScopes()->findOrFail($this->product['id'])->landing_page);
     }
 }
