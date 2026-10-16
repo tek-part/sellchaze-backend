@@ -12,7 +12,7 @@ class TrimStrings extends Middleware
         // multiline text or static HTML. Keep ordinary API field trimming intact.
         if (request()->is('api/v1/my-store/catalog/products/*/landing-page', 'api/v1/stores/*/catalog/products/*/landing-page')
             && str_starts_with($key, 'document.sections.')
-            && preg_match('/\.(title|description|text|html|css|alt)$/D', $key) === 1) {
+            && preg_match('/\.(title|description|eyebrow|text|html|css|alt|caption|author|platform|button_text)$/D', $key) === 1) {
             return $value;
         }
 

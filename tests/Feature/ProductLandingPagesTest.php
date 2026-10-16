@@ -285,6 +285,35 @@ class ProductLandingPagesTest extends TestCase
         $this->assertDatabaseCount('store_inventory_movements', 0);
     }
 
+    public function test_howto_designs_round_trip_owned_steps_headers_media_and_whitespace_without_commerce_changes(): void
+    {
+        $media = ProductMedia::create(['store_id' => $this->store->id, 'store_product_id' => $this->product['id'], 'type' => 'gallery', 'disk' => 'public', 'path' => 'landing/own-howto.png']);
+        $items = array_map(fn ($id) => ['title' => 'Own step '.$id, 'caption' => ' Own caption ', 'text' => " Own instructions\n ", 'icon' => 'gear', 'image' => ['media_id' => $media->id], 'url' => '/pages/own-instructions', 'html' => '<p>Own detail</p><script>bad()</script>'], range(1, 7));
+        $sections = array_map(fn ($id) => $this->block('how_to', ['variant' => 'howto-'.$id, 'title' => 'Own how-to '.$id, 'eyebrow' => ' Own intro ', 'description' => 'Own subtitle', 'image' => ['media_id' => $media->id], 'button_text' => ' Own action ', 'items' => $items, 'accent' => '#112233', 'card_background' => '#fafafa', 'motion' => false]), range(1, 6));
+        $saved = $this->save($this->document($sections))->assertOk()->assertJsonCount(6, 'data.sections')->assertJsonCount(7, 'data.sections.5.settings.items')->assertJsonPath('data.sections.0.settings.eyebrow', ' Own intro ')->assertJsonPath('data.sections.5.settings.items.6.caption', ' Own caption ')->assertJsonPath('data.sections.5.settings.button_text', ' Own action ')->json();
+        $this->getJson($this->endpoint(), $this->auth)->assertOk()->assertJsonPath('data.sections.5.settings.variant', 'howto-6');
+        $this->getJson($this->public.'/products/landing-bag')->assertOk()->assertJsonPath('data.landing_page.sections.5.settings.items.6.image.url', $media->url())->assertJsonPath('data.landing_page.sections.1.settings.image.url', $media->url())->assertJsonMissingPath('data.landing_page.sections.0.settings.image.media_id');
+        $portable = ProductLandingPages::portablePayload(Product::withoutGlobalScopes()->findOrFail($this->product['id']));
+        $this->assertSame(' Own intro ', $portable['sections'][0]['settings']['eyebrow']);
+        $this->assertSame(" Own instructions\n ", $portable['sections'][0]['settings']['items'][0]['text']);
+        $this->assertStringNotContainsString('<script', $portable['sections'][0]['settings']['items'][0]['html']);
+        $this->save($saved['data'], $saved['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        $changed = $saved['data'];
+        $changed['sections'][0]['settings']['variant'] = 'howto-6';
+        $changed['sections'][0]['settings']['eyebrow'] = null;
+        $changed['sections'][0]['settings']['items'][0]['caption'] = null;
+        $changed['sections'][0]['settings']['button_text'] = null;
+        $next = $this->save($changed, $saved['version'])->assertOk()->assertJsonPath('data.sections.0.settings.eyebrow', '')->assertJsonPath('data.sections.0.settings.items.0.caption', '')->assertJsonPath('data.sections.0.settings.button_text', '')->json();
+        $this->save($saved['data'], $next['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        foreach ([$this->block('how_to', ['variant' => 'howto-7']), $this->block('how_to', ['variant' => 'video-1']), $this->block('video', ['variant' => 'howto-1']), $this->block('checkout', ['variant' => 'howto-6']), $this->block('how_to', ['eyebrow' => str_repeat('a', 301)]), $this->block('how_to', ['image' => ['media_id' => 999999]])] as $invalid) {
+            $this->save($this->document([$invalid]), $saved['version'])->assertUnprocessable();
+        }
+        $this->assertSame($saved['version'], ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id'])));
+        $this->assertDatabaseHas('products', ['id' => $this->product['id'], 'price' => 100, 'reserved_quantity' => 0]);
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('store_inventory_movements', 0);
+    }
+
     public function test_banner_destination_picker_is_scoped_bounded_and_never_returns_drafts_or_commerce_fields(): void
     {
         $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other banners', 'slug' => 'other-banners', 'status' => 'active']);
