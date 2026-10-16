@@ -28,3 +28,14 @@ actual invoice, tax, shipping, inventory and payment amounts remain authoritativ
 
 Exact competitor template presets, competitor-format conversion and activated AI
 authoring remain separate unfinished scope. No production deployment is asserted.
+
+Eleven custom testimonial designs can be selected or changed without replacing
+merchant items. They include carousels, centered quotes, colored cards, a grid,
+two animated rows and speech bubbles. The gallery uses neutral preview-only data;
+empty published sections do not invent reviews, ratings or verified buyers.
+Author, optional date/caption/platform, accent and card colors persist with the
+layout. Motion pauses on hover/focus, has a pause control and honors reduced motion.
+Section background images use the same owned-media validation, portability and
+copy remapping as foreground images. FAQ question backgrounds are configurable.
+Cleared optional text fields remain empty after JSON middleware normalization.
+The storefront also accepts PHP's empty settings-map JSON representation ([]).

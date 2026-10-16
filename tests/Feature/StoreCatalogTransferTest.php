@@ -189,7 +189,7 @@ class StoreCatalogTransferTest extends TestCase
         $product = Product::withoutGlobalScopes()->findOrFail($id);
         $media = $product->media()->firstOrFail();
         $target = $this->target($id);
-        $doc = ['schema' => 1, 'mode' => 'standalone', 'sections' => [['id' => (string) Str::uuid(), 'type' => 'image', 'settings' => ['image' => ['media_id' => $media->id]]]]];
+        $doc = ['schema' => 1, 'mode' => 'standalone', 'sections' => [['id' => (string) Str::uuid(), 'type' => 'image', 'settings' => ['image' => ['media_id' => $media->id], 'background_image' => ['media_id' => $media->id]]], ['id' => (string) Str::uuid(), 'type' => 'custom_reviews', 'settings' => ['variant' => 'testimonials-11', 'items' => [['author' => 'Own review', 'caption' => 'Own location', 'date' => '2026-10-16', 'platform' => 'Own source', 'text' => 'Own review text']]]]]];
         $product->landing_page = ProductLandingPages::canonical($doc, $product);
         $product->save();
         $this->postJson($this->base.'/export', ['products' => [$target]], $this->auth)->assertUnprocessable()->assertJsonValidationErrors('products');
@@ -200,6 +200,7 @@ class StoreCatalogTransferTest extends TestCase
         $copy = $this->postJson($this->base.'/'.$id.'/duplicate', ['version' => $target['version'], 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertCreated()->json('meta.id');
         $copyProduct = Product::withoutGlobalScopes()->findOrFail($copy);
         $this->assertNotSame($media->id, $copyProduct->landing_page['sections'][0]['settings']['image']['media_id']);
+        $this->assertSame($copyProduct->landing_page['sections'][0]['settings']['image']['media_id'], $copyProduct->landing_page['sections'][0]['settings']['background_image']['media_id']);
         $this->assertEquals($document['products'][0]['landing_page'], ProductLandingPages::portablePayload($copyProduct));
         unset($document['products'][0]['slug'], $document['products'][0]['sku']);
         $imported = $this->post($this->base.'/import', ['file' => $this->file($document), 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertCreated()->json('meta.ids.0');
