@@ -91,3 +91,8 @@ Tests cover all five layouts, seven extra items, whitespace, clear/retry/restore
 PURCHASE-BUTTON DESIGNS
 Canonical landing documents accept buy-1 through buy-34 exclusively on buy_button sections. Existing versioned save/retry/conflict handling, root caption/button_text whitespace, explicit null clearing, colors, motion, owned image validation, hidden extra items, portable media and custom CSS preservation apply. No new field or SQL migration is required.
 Tests save34 variants with owned media and styling, change one design and clear labels, verify portable publication and exact restore, and reject invalid/crossed families or foreign media without changing commerce data. The paired frontend executes merchant CSS only inside the existing sandboxed static document. Its native baseline styles do not consume the merchant12000-character CSS allowance. No order, payment or production write is needed for verification.
+
+Product-feature design pass (2026-10-16)
+44 product-features-1..44 variants belong exclusively to product_features.
+No migration or change to orders, pricing, inventory or existing landing documents.
+Versioned saves retain owned media, extra items, explicit clears and custom styles.
