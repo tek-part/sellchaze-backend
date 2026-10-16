@@ -376,6 +376,32 @@ class ProductLandingPagesTest extends TestCase
         $this->assertDatabaseCount('store_inventory_movements', 0);
     }
 
+    public function test_purchase_button_designs_preserve_all_fields_scoped_media_custom_css_and_exact_saved_undo(): void
+    {
+        $media = ProductMedia::create(['store_id' => $this->store->id, 'store_product_id' => $this->product['id'], 'type' => 'gallery', 'disk' => 'public', 'path' => 'landing/own-cart.png']);
+        $sections = array_map(fn ($id) => $this->block('buy_button', ['variant' => 'buy-'.$id, 'button_text' => ' Own purchase '.$id.' ', 'caption' => ' Own alternate ', 'image' => ['media_id' => $media->id], 'css' => 'button { border-radius: 18px }', 'card_background' => '#123456', 'hover_background' => '#654321', 'foreground' => '#ffffff', 'motion' => false, 'items' => [['title' => 'Preserved hidden item']]]), range(1, 34));
+        $saved = $this->save($this->document($sections))->assertOk()->assertJsonCount(34, 'data.sections')->assertJsonPath('data.sections.33.settings.variant', 'buy-34')->assertJsonPath('data.sections.13.settings.image.media_id', $media->id)->assertJsonPath('data.sections.17.settings.caption', ' Own alternate ')->json();
+        $this->save($saved['data'], $saved['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        $portable = ProductLandingPages::portablePayload(Product::withoutGlobalScopes()->findOrFail($this->product['id']));
+        $this->assertSame(' Own purchase 14 ', $portable['sections'][13]['settings']['button_text']);
+        $this->assertSame('button { border-radius: 18px }', $portable['sections'][13]['settings']['css']);
+        $this->assertSame($media->url(), $portable['sections'][13]['settings']['image']['url']);
+        $this->assertArrayNotHasKey('media_id', $portable['sections'][13]['settings']['image']);
+        $changed = $saved['data'];
+        $changed['sections'][0]['settings']['variant'] = 'buy-34';
+        $changed['sections'][17]['settings']['caption'] = null;
+        $changed['sections'][17]['settings']['button_text'] = null;
+        $next = $this->save($changed, $saved['version'])->assertOk()->assertJsonPath('data.sections.17.settings.caption', '')->assertJsonPath('data.sections.17.settings.button_text', '')->assertJsonPath('data.sections.0.settings.items.0.title', 'Preserved hidden item')->json();
+        $this->save($saved['data'], $next['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        foreach ([$this->block('buy_button', ['variant' => 'buy-35']), $this->block('buy_button', ['variant' => 'buy-0']), $this->block('content', ['variant' => 'buy-1']), $this->block('checkout', ['variant' => 'buy-34']), $this->block('buy_button', ['variant' => 'content-1']), $this->block('buy_button', ['variant' => 'buy-14', 'image' => ['media_id' => 999999]])] as $invalid) {
+            $this->save($this->document([$invalid]), $saved['version'])->assertUnprocessable();
+        }
+        $this->assertSame($saved['version'], ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id'])));
+        $this->assertDatabaseHas('products', ['id' => $this->product['id'], 'price' => 100, 'reserved_quantity' => 0]);
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('store_inventory_movements', 0);
+    }
+
     public function test_banner_destination_picker_is_scoped_bounded_and_never_returns_drafts_or_commerce_fields(): void
     {
         $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other banners', 'slug' => 'other-banners', 'status' => 'active']);
