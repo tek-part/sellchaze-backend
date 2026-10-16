@@ -25,6 +25,7 @@ use App\Services\Storefront\StorefrontContextBuilder;
 use App\Services\Storefront\StorefrontService;
 use App\Services\Storefront\StoreSeoService;
 use App\Services\Storefront\VisitorCurrency;
+use App\Services\Themes\ThemePreviewToken;
 use App\Services\Themes\ThemeResolver;
 use App\Support\Localization\LocaleContext;
 use Illuminate\Http\JsonResponse;
@@ -54,22 +55,28 @@ class StorefrontController extends Controller
         $store = $this->currentStore($request);
         $preview = $this->themes->resolvePreview($store, $request->query('__preview'), $this->locale->current());
         $theme = $preview ?? $this->themes->resolve($store, $this->locale->current());
+        $previewRequested = $request->has('__preview');
+        $pageToken = $request->query('__preview');
+        $validPreview = $preview !== null || (is_string($pageToken) && app(ThemePreviewToken::class)->verifyPage($pageToken, $store->id) !== null);
 
         return response()->json([
             'store' => $this->storeSummary($store, $request),
+            ...($previewRequested ? ['preview' => ['valid' => $validPreview]] : []),
             'head_code' => app(StoreHeadCode::class)->publication($store, $request),
             'locale' => $this->locale->toArray(),
             'seo' => $this->seo->forStore($store),
             'theme' => $theme === null ? null : [
                 'key' => $theme['key'],
                 'version' => $theme['version'],
+                'bundle_url' => $theme['bundle_url'] ?? null,
+                'bundle_integrity' => $theme['bundle_integrity'] ?? null,
                 'settings' => $theme['settings'],
                 'settings_i18n' => $theme['settings_i18n'] ?? [],
                 'custom_css' => $theme['custom_css'] ?? null,
             ],
             'homepage' => $this->storefront->homepage($store),
             'navigation' => $this->navigation($store),
-        ], 200, $preview !== null ? ['Cache-Control' => 'private, no-store', 'X-Robots-Tag' => 'noindex, nofollow'] : ($store->auto_currency_by_country ? ['Cache-Control' => 'private, no-store'] : []), JSON_UNESCAPED_UNICODE);
+        ], 200, $previewRequested ? ['Cache-Control' => 'private, no-store', 'X-Robots-Tag' => 'noindex, nofollow'] : ($store->auto_currency_by_country ? ['Cache-Control' => 'private, no-store'] : []), JSON_UNESCAPED_UNICODE);
     }
 
     /** Header/footer menu trees for the current locale; empty arrays when the store has none. */

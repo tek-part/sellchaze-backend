@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Theme;
 use App\Services\Themes\ThemeRegistry;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
@@ -16,6 +17,7 @@ class RegisterThemes extends Command
 {
     protected $signature = 'themes:register
         {--only= : Comma-separated theme keys to register (others are skipped)}
+        {--missing-only : Register absent theme keys without changing existing themes or versions}
         {--path=* : Extra manifest file(s) to register in addition to the discovered ones}';
 
     protected $description = 'Register theme manifests (resources/themes/storefront/*.json) into the theme registry.';
@@ -33,10 +35,16 @@ class RegisterThemes extends Command
 
         $rows = [];
         $failed = 0;
+        $preserved = 0;
         foreach ($paths as $path) {
             $manifest = File::exists($path) ? json_decode((string) File::get($path), true) : null;
             $key = is_array($manifest) ? (string) ($manifest['key'] ?? '') : '';
             if ($only !== [] && ! in_array($key, $only, true)) {
+                continue;
+            }
+            if ($this->option('missing-only') && $key !== '' && Theme::where('key', $key)->exists()) {
+                $preserved++;
+
                 continue;
             }
 
@@ -50,11 +58,18 @@ class RegisterThemes extends Command
         }
 
         if ($rows === []) {
-            $this->warn('No theme manifests matched.');
+            if ($preserved > 0) {
+                $this->info('All matching theme keys already exist; their records were preserved.');
+            } else {
+                $this->warn('No theme manifests matched.');
+            }
         } else {
             $this->table(['Key', 'Version', 'Sections', 'Manifest'], $rows);
         }
         $this->info(sprintf('Registered %d theme manifest(s)%s.', count($rows), $failed ? ", {$failed} failed" : ''));
+        if ($preserved > 0) {
+            $this->info(sprintf('Preserved %d existing theme key(s).', $preserved));
+        }
 
         return $failed === 0 ? self::SUCCESS : self::FAILURE;
     }

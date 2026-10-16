@@ -45,19 +45,27 @@ class StoreThemesApiController extends Controller
         $installs = StoreTheme::query()->where('store_id', $store->id)->get()->keyBy('theme_id');
 
         $licenseRows = StoreThemeLicense::query()->where('store_id', $store->id)->get()->keyBy('theme_id');
-        $themes = Theme::query()->where('status', 'published')->orderBy('name')->get()->map(function (Theme $theme) use ($installs, $licenseRows, $store) {
+        $configuration = config('theme_gallery', []);
+        $gallery = is_array($configuration) ? $configuration : [];
+        $themes = Theme::query()->where('status', 'published')->orderBy('name')->get()->map(function (Theme $theme) use ($installs, $licenseRows, $store, $gallery) {
             $install = $installs->get($theme->id);
             $license = $licenseRows->get($theme->id);
             $latest = $this->registry->resolveThemeVersion($theme);
             $installedVersion = $install
                 ? ThemeVersion::query()->find($install->theme_version_id)
                 : null;
+            $entry = $gallery[$theme->key] ?? [];
+            $metadata = is_array($entry) ? $entry : [];
 
             return [
                 'id' => $theme->id,
                 'key' => $theme->key,
                 'name' => $theme->name,
                 'description' => $theme->description,
+                'category' => $theme->category,
+                'gallery_collection' => $metadata['collection'] ?? 'classic',
+                'gallery_categories' => $metadata['categories'] ?? [],
+                'gallery_rank' => (int) ($metadata['rank'] ?? 1000),
                 'author' => $theme->author,
                 'is_featured' => (bool) $theme->is_featured,
                 'premium' => (float) $theme->price > 0,
@@ -79,7 +87,8 @@ class StoreThemesApiController extends Controller
 
         return response()->json([
             'data' => $themes,
-            'active_theme_id' => $installs->firstWhere('status', 'active')?->theme_id,
+            'active_theme_id' => $installs->firstWhere('status', 'active')?->theme_id
+                ?? $this->registry->resolveActiveTheme($store)?->theme_id,
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 

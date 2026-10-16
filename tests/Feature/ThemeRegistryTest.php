@@ -47,6 +47,36 @@ class ThemeRegistryTest extends TestCase
         $this->assertSame(1, ThemeVersion::count());
     }
 
+    public function test_missing_only_command_preserves_existing_theme_and_version_customizations(): void
+    {
+        $theme = $this->registry->registerFromFile(resource_path('themes/storefront/naseem.json'));
+        $theme->update(['name' => 'Merchant custom theme', 'preview_image' => '/merchant-preview.png', 'status' => 'draft']);
+        $version = ThemeVersion::findOrFail($theme->latest_version_id);
+        $version->update(['changelog' => ['Merchant release notes']]);
+        $themeBefore = $theme->fresh()->getAttributes();
+        $versionBefore = $version->fresh()->getAttributes();
+
+        $this->artisan('themes:register', ['--only' => 'naseem,blast-pets', '--missing-only' => true])
+            ->expectsOutputToContain('Registered 1 theme manifest(s).')
+            ->expectsOutputToContain('Preserved 1 existing theme key(s).')
+            ->assertSuccessful();
+        $this->assertSame($themeBefore, $theme->fresh()->getAttributes());
+        $this->assertSame($versionBefore, $version->fresh()->getAttributes());
+        $this->assertSame(2, Theme::count());
+        $this->assertSame(2, ThemeVersion::count());
+        $this->assertDatabaseHas('themes', ['key' => 'blast-pets', 'status' => 'published']);
+        $this->assertDatabaseCount('store_themes', 0);
+        $this->assertDatabaseCount('store_theme_activations', 0);
+
+        $this->artisan('themes:register', ['--only' => 'naseem,blast-pets', '--missing-only' => true])
+            ->expectsOutputToContain('Registered 0 theme manifest(s).')
+            ->expectsOutputToContain('Preserved 2 existing theme key(s).')
+            ->assertSuccessful();
+        $this->assertSame($themeBefore, $theme->fresh()->getAttributes());
+        $this->assertSame($versionBefore, $version->fresh()->getAttributes());
+        $this->assertSame(2, ThemeVersion::count());
+    }
+
     public function test_resolve_theme_version_returns_latest(): void
     {
         $theme = $this->registry->registerFromFile(resource_path('themes/storefront/naseem.json'));
