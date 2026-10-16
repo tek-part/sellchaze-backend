@@ -7,12 +7,14 @@ use App\Models\StoreDomain;
 use App\Models\StoreTheme;
 use App\Models\StoreThemeActivation;
 use App\Models\Theme;
+use App\Models\ThemeVersion;
 use App\Models\User;
 use App\Services\JwtTokenService;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Themes\StoreThemeService;
 use App\Services\Themes\ThemePreviewToken;
 use App\Services\Themes\ThemeRegistry;
+use App\Services\Themes\ThemeResolver;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -94,6 +96,85 @@ class ThemeManagementTest extends TestCase
     private function asOwnerB(): self
     {
         return $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($this->storeB->owner));
+    }
+
+    public function test_owner_gallery_classifies_real_packages_without_installing_or_activating_them(): void
+    {
+        foreach (['blast-pets', 'pure-furniture', 'nature-kids', 'elite-furniture'] as $key) {
+            app(ThemeRegistry::class)->registerFromFile(resource_path("themes/storefront/{$key}.json"));
+        }
+        $beforeA = $this->storeA->fresh()->getAttributes();
+        $beforeB = $this->storeB->fresh()->getAttributes();
+        $beforeInstalls = StoreTheme::count();
+        $beforeHistory = StoreThemeActivation::count();
+
+        $response = $this->asOwnerA()->getJson('/api/v1/my-store/themes')->assertOk();
+        $rows = collect($response->json('data'))->keyBy('key');
+        $this->assertCount(6, $rows);
+        $this->assertSame('modern', $rows['blast-pets']['gallery_collection']);
+        $this->assertSame(['pets'], $rows['blast-pets']['gallery_categories']);
+        $this->assertSame(3, $rows['blast-pets']['gallery_rank']);
+        $this->assertTrue($rows['blast-pets']['licensed']);
+        $this->assertFalse($rows['blast-pets']['installed']);
+        $this->assertSame(['hobbies', 'kids'], $rows['nature-kids']['gallery_categories']);
+        $this->assertSame('classic', $rows['minimal']['gallery_collection']);
+        $this->assertSame([], $rows['minimal']['gallery_categories']);
+        $this->assertSame(1000, $rows['minimal']['gallery_rank']);
+        $this->assertArrayHasKey('category', $rows['naseem']);
+        $this->assertFalse($rows->has('nature-pets')); // Metadata never creates a fictional package.
+        $this->assertSame($this->defaultThemeId, $response->json('active_theme_id'));
+        $this->assertSame($beforeInstalls, StoreTheme::count());
+        $this->assertSame($beforeHistory, StoreThemeActivation::count());
+        $this->assertSame($beforeA, $this->storeA->fresh()->getAttributes());
+        $this->assertSame($beforeB, $this->storeB->fresh()->getAttributes());
+    }
+
+    public function test_gallery_reports_the_effective_default_without_creating_an_install(): void
+    {
+        $this->storeA->storeThemes()->delete();
+        $this->storeA->update(['theme_id' => null, 'theme_settings' => null]);
+        $count = StoreTheme::count();
+        $this->asOwnerA()->getJson('/api/v1/my-store/themes')
+            ->assertOk()->assertJsonPath('active_theme_id', $this->defaultThemeId);
+        $this->assertSame('naseem', app(ThemeResolver::class)->resolve($this->storeA->fresh())['key']);
+        $this->assertSame($count, StoreTheme::count());
+        $this->assertNull($this->storeA->fresh()->theme_id);
+    }
+
+    public function test_catalog_preview_bootstrap_uses_the_selected_package_without_install_or_activation(): void
+    {
+        $version = ThemeVersion::where('theme_id', $this->minimalThemeId)->firstOrFail();
+        $version->update(['bundle_url' => '/api/v1/theme-assets/fixture-bundle.js', 'bundle_integrity' => 'sha384-'.base64_encode(str_repeat('x', 48))]);
+        $before = $this->storeA->fresh()->getAttributes();
+        $installs = StoreTheme::count();
+        $history = StoreThemeActivation::count();
+        $preview = $this->asOwnerA()->postJson('/api/v1/my-store/themes/preview', ['theme_id' => $this->minimalThemeId])->assertOk();
+        parse_str((string) parse_url($preview->json('preview_url'), PHP_URL_QUERY), $query);
+        $response = $this->getJson('http://nike.sellchase.com/api/v1/storefront?__preview='.urlencode($query['__preview']))
+            ->assertOk()->assertJsonPath('theme.key', 'minimal')->assertJsonPath('preview.valid', true)
+            ->assertJsonPath('theme.bundle_url', '/api/v1/theme-assets/fixture-bundle.js')
+            ->assertJsonPath('theme.bundle_integrity', $version->bundle_integrity)
+            ->assertHeader('X-Robots-Tag', 'noindex, nofollow');
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        $this->assertSame($before, $this->storeA->fresh()->getAttributes());
+        $this->assertSame($installs, StoreTheme::count());
+        $this->assertSame($history, StoreThemeActivation::count());
+        $this->getJson('http://nike.sellchase.com/api/v1/storefront')->assertOk()
+            ->assertJsonPath('theme.key', 'naseem')->assertJsonMissingPath('preview');
+    }
+
+    public function test_invalid_expired_or_foreign_catalog_tokens_keep_public_theme_data_and_report_unavailable_preview(): void
+    {
+        $versionId = (int) ThemeVersion::where('theme_id', $this->minimalThemeId)->value('id');
+        $tokens = app(ThemePreviewToken::class);
+        $valid = $tokens->makeCatalog($this->storeA->id, $versionId);
+        $forged = substr($valid, 0, -1).(substr($valid, -1) === 'a' ? 'b' : 'a');
+        foreach ([$forged, $tokens->makeCatalog($this->storeA->id, $versionId, -1), $tokens->makeCatalog($this->storeB->id, $versionId)] as $token) {
+            $response = $this->getJson('http://nike.sellchase.com/api/v1/storefront?__preview='.urlencode($token))
+                ->assertOk()->assertJsonPath('theme.key', 'naseem')->assertJsonPath('preview.valid', false)
+                ->assertHeader('X-Robots-Tag', 'noindex, nofollow');
+            $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        }
     }
 
     public function test_owner_nested_routes_keep_the_resolved_store_before_child_ids(): void
