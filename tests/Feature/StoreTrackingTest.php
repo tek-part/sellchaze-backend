@@ -201,6 +201,19 @@ class StoreTrackingTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_active_landing_checkout_enables_product_advertising_value_without_changing_the_invoice(): void
+    {
+        $this->conversion();
+        $this->product->update(['product_preferences' => ['pixel_price' => '40.00', 'is_one_page_checkout' => false]]);
+        $body = ['customer_name' => 'Landing buyer', 'customer_email' => 'landing@example.test', 'customer_phone' => '01001234567', 'advertising_allowed' => true, 'shipping_address' => ['line1' => 'Review address', 'city' => 'Cairo', 'country' => 'EG'], 'items' => [['product_id' => $this->product->id, 'quantity' => 2]], 'payment_method' => 'cod', 'cart_mode' => 'direct', 'checkout_surface' => 'product'];
+        foreach ([['standalone', 'checkout', '80.00'], ['below', 'checkout', '80.00'], ['standard', 'checkout', '500.00'], ['standalone', 'heading', '500.00']] as [$mode, $type, $value]) {
+            $this->product->update(['landing_page' => ['schema' => 1, 'mode' => $mode, 'sections' => [['id' => (string) Str::uuid(), 'type' => $type, 'settings' => []]]]]);
+            $this->postJson($this->public.'/tracking/events', $this->event(['event' => 'begin_checkout', 'surface' => 'product']))->assertStatus(202)->assertJsonPath('data.event.value', $value);
+            $this->postJson($this->public.'/checkout', $body, ['Idempotency-Key' => (string) Str::uuid()])->assertCreated()->assertJsonPath('data.grand_total', '525.00')->assertJsonPath('data.tracking.event.value', $value);
+        }
+        Http::assertNothingSent();
+    }
+
     public function test_all_three_fixed_provider_contracts_preserve_same_event_id_and_scheduler_never_sends_twice(): void
     {
         $this->conversion();

@@ -80,6 +80,7 @@ use Illuminate\Support\Facades\Storage;
  * @property int $display_priority
  * @property bool $catalog_hidden
  * @property array|null $product_preferences
+ * @property array|null $landing_page
  */
 class Product extends Model
 {
@@ -104,7 +105,7 @@ class Product extends Model
         // ownership / taxonomy / tenancy
         'user_id', 'category_id', 'store_id', 'store_brand_id',
         // structured content
-        'tags', 'specifications', 'content', 'dimensions', 'option_display', 'personalization_fields', 'digital_type', 'digital_url', 'quantity_offers', 'quantity_offers_version', 'product_preferences', 'display_priority', 'catalog_hidden',
+        'tags', 'specifications', 'content', 'dimensions', 'option_display', 'personalization_fields', 'digital_type', 'digital_url', 'quantity_offers', 'quantity_offers_version', 'product_preferences', 'display_priority', 'catalog_hidden', 'landing_page',
         // pricing
         'price', 'compare_price', 'cost', 'vat_rate', 'discount_percent', 'currency',
         // logistics
@@ -146,6 +147,7 @@ class Product extends Model
             'display_priority' => 'integer',
             'catalog_hidden' => 'boolean',
             'product_preferences' => 'array',
+            'landing_page' => 'array',
             'tags' => 'array',
             'specifications' => 'array',
             'content' => 'array',

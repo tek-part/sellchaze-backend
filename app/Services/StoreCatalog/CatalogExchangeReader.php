@@ -152,6 +152,12 @@ class CatalogExchangeReader
         $external = $sheet || array_key_exists('sale_price', $row) || array_key_exists('track_stock', $row);
         $fields = ['name', 'slug', 'sku', 'barcode', 'description', 'short_description', 'price', 'compare_price', 'cost', 'weight', 'seo_title', 'seo_description', 'is_active', 'is_featured', 'position', 'display_priority', 'catalog_hidden', 'product_preferences', 'translations', 'personalization_fields', 'digital_type', 'digital_url'];
         $data = Arr::only($row, $fields);
+        if (array_key_exists('landing_page', $row)) {
+            if ($row['landing_page'] !== null && ! is_array($row['landing_page'])) {
+                $this->fail('A product landing page must be an object.', $index);
+            }
+            $data['landing_page'] = $row['landing_page'];
+        }
         $warnings = [];
         if ($external) {
             $regular = $row['price'] ?? null;

@@ -72,6 +72,13 @@ class StorefrontProductService
                 if (isset($data['media_order']) && ($remaining->count() !== count($data['media_order']) || $remaining->whereIn('id', $data['media_order'])->count() !== $remaining->count())) {
                     throw ValidationException::withMessages(['media_order' => 'Refresh the product and order all its remaining media files.']);
                 }
+                if (ProductLandingPages::referencesMedia($current, array_map('intval', $data['remove_media_ids'] ?? []))) {
+                    throw ValidationException::withMessages(['remove_media_ids' => 'Remove these images from the product landing page before deleting them.']);
+                }
+                if ($product && array_key_exists('landing_mode', $data)) {
+                    abort_unless(isset($data['landing_version']), 409, 'Reload product landing page settings before saving.');
+                    ProductLandingPages::mode($current, $data['landing_mode'], $data['landing_version']);
+                }
                 $this->fill($current, $data);
                 if (array_key_exists('option_display', $data) && $product) {
                     ProductOptionDisplay::validate($current, $data['option_display'], $data['remove_media_ids'] ?? []);
@@ -221,6 +228,7 @@ class StorefrontProductService
             $publicUrl = Storage::disk('public')->url($path);
             $references = array_values(array_unique([$path, $publicUrl, url($publicUrl)]));
             if (Product::withoutGlobalScopes()->whereIn('image', $references)->exists()
+                || Product::withoutGlobalScopes()->whereNotNull('landing_page')->where('landing_page', 'like', '%'.basename($path).'%')->exists()
                 || ProductVariant::withoutGlobalScopes()->whereIn('image', $references)->exists()
                 || ProductMedia::withoutGlobalScopes()->where(fn ($q) => $q->whereIn('path', $references)->orWhereIn('webp_path', $references)->orWhereIn('thumbnail_path', $references))->exists()) {
                 return;

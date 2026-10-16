@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Models\Cart;
 use App\Models\Product;
+use App\Services\StoreCatalog\ProductLandingPages;
 use Illuminate\Validation\ValidationException;
 
 /** Per-product presentation overrides; prices, reservations and order totals remain authoritative. */
@@ -70,6 +71,11 @@ final class ProductPreferences
     public static function flag(Product $product, string $key): bool
     {
         return ($product->product_preferences[$key] ?? null) === true;
+    }
+
+    public static function onePage(Product $product): bool
+    {
+        return self::flag($product, 'is_one_page_checkout') || ProductLandingPages::hasCheckout($product);
     }
 
     public static function publicPayload(Product $product): array
