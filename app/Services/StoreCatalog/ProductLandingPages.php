@@ -66,7 +66,7 @@ final class ProductLandingPages
         $rules = ['schema' => ['required', 'integer', 'in:1'], 'mode' => ['required', 'in:standard,standalone,below'], 'sections' => ['present', 'array', 'list', 'max:60'],
             'sections.*' => ['array:id,type,settings'], 'sections.*.id' => ['required', 'uuid', 'distinct:ignore_case'], 'sections.*.type' => ['required', Rule::in(self::TYPES)],
             'sections.*.settings' => ['present', 'array:title,description,eyebrow,author,caption,html,image,secondary_image,background_image,images,video,button_text,button_target,background,foreground,eyebrow_color,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size,hover_background,hover_foreground,secondary_foreground,hover_secondary_foreground,icon_background,icon_color,motion'],
-            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9)), ...array_map(fn ($id) => 'features-'.$id, range(1, 45)), ...array_map(fn ($id) => 'faq-'.$id, range(1, 35)), ...array_map(fn ($id) => 'video-'.$id, range(1, 5)), ...array_map(fn ($id) => 'howto-'.$id, range(1, 6)), ...array_map(fn ($id) => 'content-'.$id, range(1, 5))])],
+            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9)), ...array_map(fn ($id) => 'features-'.$id, range(1, 45)), ...array_map(fn ($id) => 'faq-'.$id, range(1, 35)), ...array_map(fn ($id) => 'video-'.$id, range(1, 5)), ...array_map(fn ($id) => 'howto-'.$id, range(1, 6)), ...array_map(fn ($id) => 'content-'.$id, range(1, 5)), ...array_map(fn ($id) => 'buy-'.$id, range(1, 34))])],
             'sections.*.settings.motion' => ['sometimes', 'boolean'],
             'sections.*.settings.author' => ['sometimes', 'string', 'max:150'], 'sections.*.settings.caption' => ['sometimes', 'string', 'max:200'],
             'sections.*.settings.eyebrow' => ['sometimes', 'string', 'max:300'],
@@ -114,6 +114,7 @@ final class ProductLandingPages
                 str_starts_with($settings['variant'], 'video-') => 'video',
                 str_starts_with($settings['variant'], 'howto-') => 'how_to',
                 str_starts_with($settings['variant'], 'content-') => 'content',
+                str_starts_with($settings['variant'], 'buy-') => 'buy_button',
                 default => 'promo_banners',
             } : null;
             if ($family !== null && $section['type'] !== $family) {
