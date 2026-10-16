@@ -12,6 +12,7 @@ use App\Http\Resources\Storefront\StorefrontProductResource;
 use App\Models\Store;
 use App\Models\StoreContentPage;
 use App\Models\StoreMenu;
+use App\Models\StorePaymentGateway;
 use App\Services\Commerce\DownsellOffers;
 use App\Services\Commerce\GoogleMerchantSettings;
 use App\Services\Commerce\ShoppingPreferences;
@@ -23,6 +24,7 @@ use App\Services\Storefront\SimplePages;
 use App\Services\Storefront\StorefrontContextBuilder;
 use App\Services\Storefront\StorefrontService;
 use App\Services\Storefront\StoreSeoService;
+use App\Services\Storefront\VisitorCurrency;
 use App\Services\Themes\ThemeResolver;
 use App\Support\Localization\LocaleContext;
 use Illuminate\Http\JsonResponse;
@@ -54,7 +56,7 @@ class StorefrontController extends Controller
         $theme = $preview ?? $this->themes->resolve($store, $this->locale->current());
 
         return response()->json([
-            'store' => $this->storeSummary($store),
+            'store' => $this->storeSummary($store, $request),
             'head_code' => app(StoreHeadCode::class)->publication($store, $request),
             'locale' => $this->locale->toArray(),
             'seo' => $this->seo->forStore($store),
@@ -67,7 +69,7 @@ class StorefrontController extends Controller
             ],
             'homepage' => $this->storefront->homepage($store),
             'navigation' => $this->navigation($store),
-        ], 200, $preview !== null ? ['Cache-Control' => 'private, no-store', 'X-Robots-Tag' => 'noindex, nofollow'] : [], JSON_UNESCAPED_UNICODE);
+        ], 200, $preview !== null ? ['Cache-Control' => 'private, no-store', 'X-Robots-Tag' => 'noindex, nofollow'] : ($store->auto_currency_by_country ? ['Cache-Control' => 'private, no-store'] : []), JSON_UNESCAPED_UNICODE);
     }
 
     /** Header/footer menu trees for the current locale; empty arrays when the store has none. */
@@ -103,7 +105,7 @@ class StorefrontController extends Controller
         $context = $this->builder->build($store, $template, $params, $preview);
         abort_if($context === null, 404, 'Not found.');
 
-        return response()->json($context, 200, $preview !== null ? ['Cache-Control' => 'private, no-store'] : [], JSON_UNESCAPED_UNICODE);
+        return response()->json($context, 200, ($preview !== null || $store->auto_currency_by_country) ? ['Cache-Control' => 'private, no-store'] : [], JSON_UNESCAPED_UNICODE);
     }
 
     /**
@@ -158,7 +160,7 @@ class StorefrontController extends Controller
         return $out;
     }
 
-    private function storeSummary(Store $store): array
+    private function storeSummary(Store $store, Request $request): array
     {
         $baseCurrency = strtoupper((string) ($store->currency ?: 'USD'));
         $supported = collect($store->supported_currencies ?? [$baseCurrency])
@@ -169,13 +171,27 @@ class StorefrontController extends Controller
             return $rate === null ? [] : [$currency => $rate];
         })->all();
 
+        $visitorCurrency = app(VisitorCurrency::class);
+        if ($store->auto_currency_by_country) {
+            $rates = $visitorCurrency->rates();
+            foreach ($multipliers as $code => $unused) {
+                if (is_numeric($rates[$code] ?? null) && is_numeric($rates[$baseCurrency] ?? null) && $rates[$baseCurrency] > 0) {
+                    $multipliers[$code] = round($rates[$code] / $rates[$baseCurrency], 8);
+                }
+            }
+        }
+
         return [
+            'auto_currency_by_country' => (bool) $store->auto_currency_by_country,
+            'visitor_currency' => $store->auto_currency_by_country
+                ? $visitorCurrency->choose($visitorCurrency->country($request->ip()), array_keys($multipliers), $baseCurrency) : $baseCurrency,
             'id' => $store->id,
             'name' => $store->name,
             'description' => $store->description,
             'email' => $store->email,
             'phone' => $store->phone,
             'identity' => $store->identity(),
+            'payment_methods' => StorePaymentGateway::where('store_id', $store->id)->where('enabled', true)->orderBy('sort_order')->pluck('gateway')->all(),
             'slug' => $store->slug,
             'currency' => $baseCurrency,
             'auto_select_variants' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],

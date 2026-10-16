@@ -18,11 +18,12 @@ class ProductReview extends Model
     protected $fillable = [
         'store_id', 'store_customer_id', 'store_product_id',
         'rating', 'title', 'body', 'status',
-        'author_name', 'pros', 'cons', 'is_verified', 'helpful_count', 'reviewed_at',
+        'media', 'author_name', 'pros', 'cons', 'is_verified', 'helpful_count', 'reviewed_at',
     ];
 
     protected $casts = [
         'rating' => 'integer',
+        'media' => 'array',
         'pros' => 'array',
         'cons' => 'array',
         'is_verified' => 'boolean',

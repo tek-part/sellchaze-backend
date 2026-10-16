@@ -67,6 +67,20 @@ class ProductAbTestsTest extends TestCase
         return $this->postJson($this->admin, $this->payload($extra), $this->auth)->assertCreated()->json('data.id');
     }
 
+    public function test_post_compatibility_routes_keep_version_and_owner_checks(): void
+    {
+        $id = $this->create();
+        $this->postJson($this->admin.'/'.$id, $this->payload(['version' => 1, 'active' => false]), $this->auth)
+            ->assertOk()->assertJsonPath('data.version', 2);
+        $this->postJson($this->admin.'/'.$id.'/delete', ['version' => 1], $this->auth)->assertConflict();
+        $other = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
+        $other->assignRole('Merchant');
+        Store::create(['owner_user_id' => $other->id, 'owner_type' => 'merchant', 'name' => 'Other owner', 'slug' => 'other-owner', 'currency' => 'USD', 'status' => 'active']);
+        $otherAuth = ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($other)];
+        $this->postJson($this->admin.'/'.$id.'/delete', ['version' => 2], $otherAuth)->assertNotFound();
+        $this->postJson($this->admin.'/'.$id.'/delete', ['version' => 2], $this->auth)->assertNoContent();
+    }
+
     private function resolve(?string $visitor = null)
     {
         return $this->postJson($this->public.'/ab-tests/summer-sale/resolve', ['visitor' => $visitor ?? (string) Str::uuid()]);

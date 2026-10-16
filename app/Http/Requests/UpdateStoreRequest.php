@@ -76,6 +76,7 @@ class UpdateStoreRequest extends FormRequest
             'supported_locales.*' => [Rule::in(['ar', 'en'])],
             'supported_currencies' => ['sometimes', 'array', 'min:1', 'max:12'],
             'supported_currencies.*' => ['string', 'size:3', 'distinct', Rule::exists('currency_rates', 'currency_code')],
+            'auto_currency_by_country' => ['sometimes', 'boolean'],
             'timezone' => ['sometimes', 'timezone'],
             'tax_enabled' => ['sometimes', 'boolean'],
             'tax_rate' => ['sometimes', 'numeric', 'min:0', 'max:100'],

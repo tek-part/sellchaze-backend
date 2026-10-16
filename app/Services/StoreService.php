@@ -145,7 +145,7 @@ class StoreService
         if (! empty($data['currency'])) {
             $store->currency = strtoupper($data['currency']);
         }
-        foreach (['site_title', 'header_mode', 'header_text', 'primary_color', 'font_family', 'default_locale', 'timezone', 'tax_enabled', 'tax_rate', 'tax_prices_include', 'shipping_enabled', 'shipping_flat_rate', 'shipping_free_over'] as $field) {
+        foreach (['site_title', 'header_mode', 'header_text', 'primary_color', 'font_family', 'default_locale', 'auto_currency_by_country', 'timezone', 'tax_enabled', 'tax_rate', 'tax_prices_include', 'shipping_enabled', 'shipping_flat_rate', 'shipping_free_over'] as $field) {
             if (array_key_exists($field, $data)) {
                 $store->{$field} = $data[$field];
             }
