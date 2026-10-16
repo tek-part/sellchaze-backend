@@ -65,14 +65,16 @@ final class ProductLandingPages
         }
         $rules = ['schema' => ['required', 'integer', 'in:1'], 'mode' => ['required', 'in:standard,standalone,below'], 'sections' => ['present', 'array', 'list', 'max:60'],
             'sections.*' => ['array:id,type,settings'], 'sections.*.id' => ['required', 'uuid', 'distinct:ignore_case'], 'sections.*.type' => ['required', Rule::in(self::TYPES)],
-            'sections.*.settings' => ['present', 'array:title,description,eyebrow,author,caption,html,image,secondary_image,background_image,images,video,button_text,button_target,background,foreground,eyebrow_color,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size,hover_background,hover_foreground,secondary_foreground,hover_secondary_foreground,icon_background,icon_color,motion,description_mode,description_css_mode'],
-            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9)), ...array_map(fn ($id) => 'features-'.$id, range(1, 45)), ...array_map(fn ($id) => 'faq-'.$id, range(1, 35)), ...array_map(fn ($id) => 'video-'.$id, range(1, 5)), ...array_map(fn ($id) => 'howto-'.$id, range(1, 6)), ...array_map(fn ($id) => 'content-'.$id, range(1, 5)), ...array_map(fn ($id) => 'buy-'.$id, range(1, 34)), ...array_map(fn ($id) => 'product-features-'.$id, range(1, 44)), ...array_map(fn ($id) => 'reviews-'.$id, range(1, 47)), ...array_map(fn ($id) => 'description-'.$id, range(1, 25))])],
+            'sections.*.settings' => ['present', 'array:title,description,eyebrow,author,caption,html,image,secondary_image,background_image,images,video,button_text,button_target,background,foreground,eyebrow_color,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size,hover_background,hover_foreground,secondary_foreground,hover_secondary_foreground,icon_background,icon_color,motion,description_mode,description_css_mode,billboard_mode,billboard_css_mode'],
+            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9)), ...array_map(fn ($id) => 'features-'.$id, range(1, 45)), ...array_map(fn ($id) => 'faq-'.$id, range(1, 35)), ...array_map(fn ($id) => 'video-'.$id, range(1, 5)), ...array_map(fn ($id) => 'howto-'.$id, range(1, 6)), ...array_map(fn ($id) => 'content-'.$id, range(1, 5)), ...array_map(fn ($id) => 'buy-'.$id, range(1, 34)), ...array_map(fn ($id) => 'product-features-'.$id, range(1, 44)), ...array_map(fn ($id) => 'reviews-'.$id, range(1, 47)), ...array_map(fn ($id) => 'description-'.$id, range(1, 25)), ...array_map(fn ($id) => 'billboard-'.$id, range(1, 18))])],
             'sections.*.settings.motion' => ['sometimes', 'boolean'],
             'sections.*.settings.author' => ['sometimes', 'string', 'max:150'], 'sections.*.settings.caption' => ['sometimes', 'string', 'max:200'],
             'sections.*.settings.eyebrow' => ['sometimes', 'string', 'max:300'],
             'sections.*.settings.title' => ['sometimes', 'string', 'max:300'], 'sections.*.settings.description' => ['sometimes', 'string', 'max:2000'],
             'sections.*.settings.html' => ['sometimes', 'string', 'max:20000'], 'sections.*.settings.css' => ['sometimes', 'string', 'max:12000'],
             'sections.*.settings.button_text' => ['sometimes', 'string', 'max:120'], 'sections.*.settings.button_target' => ['sometimes', 'in:purchase,product'],
+            'sections.*.settings.billboard_mode' => ['sometimes', 'in:fields,formatted'],
+            'sections.*.settings.billboard_css_mode' => ['sometimes', 'in:template,custom'],
             'sections.*.settings.description_mode' => ['sometimes', 'in:fields,formatted'],
             'sections.*.settings.description_css_mode' => ['sometimes', 'in:template,custom'],
             'sections.*.settings.align' => ['sometimes', 'in:start,center,end'], 'sections.*.settings.layout' => ['sometimes', 'in:stack,split,reverse,tiles,columns,overlay,carousel,grid'],
@@ -119,11 +121,17 @@ final class ProductLandingPages
                 str_starts_with($settings['variant'], 'buy-') => 'buy_button',
                 str_starts_with($settings['variant'], 'product-features-') => 'product_features',
                 str_starts_with($settings['variant'], 'reviews-') => 'reviews',
+                str_starts_with($settings['variant'], 'billboard-') => 'billboard',
                 str_starts_with($settings['variant'], 'description-') => 'product_description',
                 default => 'promo_banners',
             } : null;
             if ($family !== null && $section['type'] !== $family) {
                 throw ValidationException::withMessages(['document.sections.'.$index.'.settings.variant' => 'Choose a design belonging to this section family.']);
+            }
+            foreach (['billboard_mode', 'billboard_css_mode'] as $modeKey) {
+                if (isset($settings[$modeKey]) && ($section['type'] !== 'billboard' || $family !== 'billboard')) {
+                    throw ValidationException::withMessages(['document.sections.'.$index.'.settings.'.$modeKey => 'Billboard modes belong to explicit billboard designs.']);
+                }
             }
             if (isset($settings['description_mode']) && ($section['type'] !== 'product_description' || $family !== 'product_description')) {
                 throw ValidationException::withMessages(['document.sections.'.$index.'.settings.description_mode' => 'Formatted description mode belongs to product description sections.']);
