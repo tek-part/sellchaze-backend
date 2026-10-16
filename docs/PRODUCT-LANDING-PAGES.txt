@@ -56,3 +56,13 @@ Native page/catalog exports replace references with portable URLs. Exported file
 duplication retains existing links
 and remaps image ownership. Unavailable destinations must be fixed before native
 page export. The existing landing migration is required; this phase adds no tables.
+
+Store-feature landing presets features-1 through features-45 use the existing
+store_features family and versioned document. Validate family boundaries, section
+and item color values, motion and owned image references. Canonicalize motion to
+a JSON boolean; clear optional editor text as usual. Public/native export removes
+owned numeric image identities; product copies remap them. Reordering and design
+changes retain merchant text, images, icons and links. The frontend implements
+cards, benefits, pills, split grid, logos, merchant-entered numbers, a statement
+and tickers without commercial sample promises or inferred counts. Native import
+is not competitor-format conversion. No new migration or production deployment.
