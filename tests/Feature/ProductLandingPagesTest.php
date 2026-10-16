@@ -376,6 +376,40 @@ class ProductLandingPagesTest extends TestCase
         $this->assertDatabaseCount('store_inventory_movements', 0);
     }
 
+    public function test_gallery_designs_preserve_extra_images_independent_caption_styles_and_exact_undo(): void
+    {
+        $media = ProductMedia::create(['store_id' => $this->store->id, 'store_product_id' => $this->product['id'], 'type' => 'gallery', 'disk' => 'public', 'path' => 'landing/own-gallery.png']);
+        $images = array_fill(0, 30, ['media_id' => $media->id, 'alt' => ' Owned gallery alternative ']);
+        $sections = array_map(fn ($id) => $this->block('gallery', ['variant' => 'gallery-'.$id, 'images' => $images, 'title' => ' Own gallery ', 'description' => ' Own description ', 'gallery_description_align' => 'end', 'align' => 'start', 'css' => '.lg-grid { gap: 7px }', 'items' => [['title' => 'Preserved extra', 'text' => 'Owned hidden body']], 'background_image' => ['media_id' => $media->id]]), range(1, 4));
+        $saved = $this->save($this->document($sections))->assertOk()->assertJsonCount(30, 'data.sections.0.settings.images')->assertJsonPath('data.sections.3.settings.variant', 'gallery-4')->assertJsonPath('data.sections.0.settings.gallery_description_align', 'end')->json();
+        $this->save($saved['data'], $saved['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        $portable = ProductLandingPages::portablePayload(Product::withoutGlobalScopes()->findOrFail($this->product['id']));
+        $this->assertCount(30, $portable['sections'][0]['settings']['images']);
+        $this->assertSame($media->url(), $portable['sections'][0]['settings']['images'][29]['url']);
+        $this->assertSame(' Own gallery ', $portable['sections'][0]['settings']['title']);
+        $changed = $saved['data'];
+        $changed['sections'][0]['settings']['variant'] = 'gallery-3';
+        $changed['sections'][0]['settings']['title'] = 'Edited owned gallery';
+        $changed['sections'][0]['settings']['images'][0]['alt'] = 'Edited own alternative';
+        $changed['sections'][0]['settings']['gallery_description_align'] = 'center';
+        $next = $this->save($changed, $saved['version'])->assertOk()->assertJsonPath('data.sections.0.settings.items.0.title', 'Preserved extra')->json();
+        $this->save($saved['data'], $next['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        foreach ([
+            $this->block('gallery', ['variant' => 'gallery-5']),
+            $this->block('slider', ['variant' => 'gallery-1']),
+            $this->block('gallery', ['variant' => 'billboard-1']),
+            $this->block('gallery', ['gallery_description_align' => 'end']),
+            $this->block('content', ['variant' => 'content-1', 'gallery_description_align' => 'end']),
+            $this->block('gallery', ['variant' => 'gallery-1', 'gallery_description_align' => 'left']),
+            $this->block('gallery', ['variant' => 'gallery-1', 'images' => [['media_id' => 999999]]]),
+        ] as $invalid) {
+            $this->save($this->document([$invalid]), $saved['version'])->assertUnprocessable();
+        }
+        $this->assertSame($saved['version'], ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id'])));
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('store_inventory_movements', 0);
+    }
+
     public function test_billboard_designs_preserve_all_fields_scoped_media_custom_css_and_exact_saved_undo(): void
     {
         $media = ProductMedia::create(['store_id' => $this->store->id, 'store_product_id' => $this->product['id'], 'type' => 'gallery', 'disk' => 'public', 'path' => 'landing/own-cart.png']);
