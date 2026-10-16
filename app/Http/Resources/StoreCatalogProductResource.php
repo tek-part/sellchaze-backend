@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Http\Resources\Storefront\StorefrontProductResource;
 use App\Services\Commerce\DigitalProducts;
+use App\Services\Commerce\ProductPreferences;
 use App\Support\CatalogProductVersion;
 use App\Support\CatalogTransferVersion;
 use Illuminate\Http\Request;
@@ -14,6 +15,10 @@ class StoreCatalogProductResource extends StorefrontProductResource
     public function toArray(Request $request): array
     {
         return array_merge(parent::toArray($request), [
+            'product_preferences' => $this->product_preferences,
+            'display_priority' => $this->display_priority,
+            'catalog_hidden' => $this->catalog_hidden,
+            'preferences_version' => ProductPreferences::version($this->resource),
             'edit_version' => CatalogProductVersion::for($this->resource),
             'transfer_version' => CatalogTransferVersion::for($this->resource),
             'name' => $this->name, 'description' => $this->long_description ?? $this->description, 'short_description' => $this->short_description,

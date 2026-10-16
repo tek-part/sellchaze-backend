@@ -5,6 +5,7 @@ namespace App\Http\Requests\Concerns;
 use App\Rules\ProductGalleryFile;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\ProductPersonalization;
+use App\Services\Commerce\ProductPreferences;
 use App\Support\Localization\TranslationRules;
 use App\Support\ProductOptionDisplay;
 use App\Support\Tenancy\CurrentStore;
@@ -15,6 +16,12 @@ trait StoreCatalogFields
     protected function prepareForValidation(): void
     {
         TranslationRules::decodeRequest($this);
+        if (is_string($this->input('product_preferences'))) {
+            $decoded = json_decode($this->input('product_preferences'), true);
+            if (is_array($decoded) || $this->input('product_preferences') === 'null') {
+                $this->merge(['product_preferences' => $decoded]);
+            }
+        }
         if (is_string($this->input('creation'))) {
             $decoded = json_decode($this->input('creation'), true);
             if (is_array($decoded)) {
@@ -57,6 +64,6 @@ trait StoreCatalogFields
             'media_order.*' => ['integer', 'distinct'],
             'remove_media_ids' => ['sometimes', 'array', 'max:100'],
             'remove_media_ids.*' => ['integer', 'distinct'],
-        ] + DigitalProducts::rules() + ProductOptionDisplay::rules() + ProductPersonalization::rules() + TranslationRules::for(['name', 'description', 'short_description'], null, ['name' => 255, 'description' => 20000, 'short_description' => 500]);
+        ] + ProductPreferences::rules() + DigitalProducts::rules() + ProductOptionDisplay::rules() + ProductPersonalization::rules() + TranslationRules::for(['name', 'description', 'short_description'], null, ['name' => 255, 'description' => 20000, 'short_description' => 500]);
     }
 }

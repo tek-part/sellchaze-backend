@@ -37,6 +37,7 @@ class CheckoutRequest extends FormRequest
             'bot_proof' => ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'cart_mode' => ['sometimes', 'in:cart,direct'],
+            'checkout_surface' => ['sometimes', 'in:product,storefront,funnel'],
             // The storefront cart is client-side; the order's line items are submitted here and
             // synced into the cart before placement (see CheckoutController@store).
             'items' => ['required_if:cart_mode,direct', 'array', 'min:1', 'max:100'],

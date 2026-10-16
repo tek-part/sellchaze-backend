@@ -31,6 +31,7 @@ use App\Services\Commerce\OrderReceipt;
 use App\Services\Commerce\PaymentRetryToken;
 use App\Services\Commerce\PricingCalculator;
 use App\Services\Commerce\ProductAbTests;
+use App\Services\Commerce\ProductPreferences;
 use App\Services\Commerce\QuantityOffers;
 use App\Services\Commerce\ReferralAttribution;
 use App\Services\Commerce\StorefrontEvents;
@@ -331,6 +332,7 @@ class CheckoutController extends Controller
 
         $subtotal = $cart->subtotal();
         $offerFreeShipping = app(QuantityOffers::class)->freeShippingForCart($cart);
+        $productFreeShipping = ProductPreferences::freeForCart($cart);
         $this->coupons->validate($coupon, $customer, $subtotal);
 
         $cart->update(['coupon_id' => $coupon->id]);
@@ -339,7 +341,7 @@ class CheckoutController extends Controller
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
             'coupon' => ['code' => $coupon->code, 'type' => $coupon->type, 'value' => $coupon->value],
-            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping),
+            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -356,11 +358,12 @@ class CheckoutController extends Controller
         $cart = $this->carts->resolve($request, $store, $customer);
 
         $offerFreeShipping = app(QuantityOffers::class)->freeShippingForCart($cart);
+        $productFreeShipping = ProductPreferences::freeForCart($cart);
         $cart->update(['coupon_id' => null]);
 
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
-            'totals' => $this->pricing->forStore($store, $cart->subtotal(), '0.00', $shippingSelection, $requiresShipping, $offerFreeShipping),
+            'totals' => $this->pricing->forStore($store, $cart->subtotal(), '0.00', $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 }

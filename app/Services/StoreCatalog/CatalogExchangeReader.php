@@ -150,7 +150,7 @@ class CatalogExchangeReader
             $this->fail($shape->errors()->first(), $index);
         }
         $external = $sheet || array_key_exists('sale_price', $row) || array_key_exists('track_stock', $row);
-        $fields = ['name', 'slug', 'sku', 'barcode', 'description', 'short_description', 'price', 'compare_price', 'cost', 'weight', 'seo_title', 'seo_description', 'is_active', 'is_featured', 'position', 'translations', 'personalization_fields', 'digital_type', 'digital_url'];
+        $fields = ['name', 'slug', 'sku', 'barcode', 'description', 'short_description', 'price', 'compare_price', 'cost', 'weight', 'seo_title', 'seo_description', 'is_active', 'is_featured', 'position', 'display_priority', 'catalog_hidden', 'product_preferences', 'translations', 'personalization_fields', 'digital_type', 'digital_url'];
         $data = Arr::only($row, $fields);
         $warnings = [];
         if ($external) {

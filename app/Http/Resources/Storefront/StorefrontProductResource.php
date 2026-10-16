@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\OrderLimits;
 use App\Services\Commerce\ProductPersonalization;
+use App\Services\Commerce\ProductPreferences;
 use App\Services\Commerce\QuantityOffers;
 use App\Services\Commerce\ShoppingPreferences;
 use App\Services\Storefront\ResponsiveImageUrl;
@@ -27,6 +28,8 @@ class StorefrontProductResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'product_preferences' => ProductPreferences::publicPayload($this->resource),
+            'catalog_hidden' => $this->catalog_hidden,
             'store_id' => $this->store_id,
             'auto_select_variant' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
             'name' => $this->translated('name'),
@@ -52,8 +55,8 @@ class StorefrontProductResource extends JsonResource
             'position' => $this->position,
             // Additive enrichment (backward-compatible: existing keys unchanged, new keys the frozen
             // frontend mapper already understands — rating, reviews_count, images gallery).
-            'rating' => $this->rating_avg !== null ? (float) $this->rating_avg : null,
-            'reviews_count' => (int) ($this->rating_count ?? 0),
+            'rating' => ($this->product_preferences['is_reviews_enabled'] ?? null) === false ? null : ($this->rating_avg !== null ? (float) $this->rating_avg : null),
+            'reviews_count' => ($this->product_preferences['is_reviews_enabled'] ?? null) === false ? 0 : (int) ($this->rating_count ?? 0),
             'is_bestseller' => (bool) ($this->is_bestseller ?? false),
             'is_new_arrival' => (bool) ($this->is_new_arrival ?? false),
             'is_trending' => (bool) ($this->is_trending ?? false),

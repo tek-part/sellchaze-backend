@@ -54,6 +54,8 @@ class CheckoutService
             $productCounts = [];
             $requiresShipping = false;
             $offerFreeShipping = false;
+            $allPhysicalFree = true;
+            $freeProductIds = [];
             $hasDigital = false;
             $requiresWhatsapp = false;
 
@@ -64,6 +66,13 @@ class CheckoutService
                 $productCounts[$product->id] = ($productCounts[$product->id] ?? 0) + $item->quantity;
                 app(OrderLimits::class)->assertQuantity($store, $productCounts[$product->id]);
                 $requiresShipping = $requiresShipping || $product->digital_type === 'physical';
+                if ($product->digital_type === 'physical') {
+                    $free = ProductPreferences::flag($product, 'is_free_shipping');
+                    $allPhysicalFree = $allPhysicalFree && $free;
+                    if ($free) {
+                        $freeProductIds[] = $product->id;
+                    }
+                }
                 $offerFreeShipping = $offerFreeShipping || ($product->digital_type === 'physical' && ($selection['offer']['free_shipping'] ?? false));
                 $hasDigital = $hasDigital || $product->digital_type !== 'physical';
                 $deliverySettings = app(DigitalDeliverySettings::class)->effective($store, (int) $product->id);
@@ -128,9 +137,13 @@ class CheckoutService
                 Validator::make(['shipping_address' => $shippingAddress], $addressRules)->validate();
             }
             app(OrderLimits::class)->assertMinimum($store, $subtotal, $discount);
-            $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping);
+            $productFreeShipping = $requiresShipping && $allPhysicalFree;
+            $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping);
             if ($requiresShipping) {
-                $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection, $offerFreeShipping);
+                $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection, $offerFreeShipping, $productFreeShipping);
+                if ($freeProductIds !== []) {
+                    $delivery['details']['free_shipping_product_ids'] = array_values(array_unique($freeProductIds));
+                }
                 if ($shippingAddress !== null || $delivery['address'] !== []) {
                     $shippingAddress = array_merge($shippingAddress ?? [], $delivery['address'], ['shipping_details' => $delivery['details']]);
                 }

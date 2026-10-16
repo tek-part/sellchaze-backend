@@ -184,7 +184,7 @@ class Category extends Model
     {
         return $query->addSelect(['products_count' => Product::query()->selectRaw('count(*)')
             ->whereColumn('products.store_id', 'categories.store_id')
-            ->when($active, fn ($products) => $products->where('products.is_active', true))
+            ->when($active, fn ($products) => $products->where('products.is_active', true)->listed())
             ->where(fn ($products) => $products->whereColumn('products.category_id', 'categories.id')
                 ->orWhereExists(fn ($pivot) => $pivot->selectRaw('1')->from('store_product_categories')
                     ->whereColumn('product_id', 'products.id')->whereColumn('store_product_categories.store_id', 'products.store_id')

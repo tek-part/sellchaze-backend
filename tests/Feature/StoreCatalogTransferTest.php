@@ -161,6 +161,27 @@ class StoreCatalogTransferTest extends TestCase
         $this->assertDatabaseCount('store_product_variants', 2);
     }
 
+    public function test_preferences_priority_and_catalog_visibility_survive_export_import_and_duplicate(): void
+    {
+        $settings = ['is_skip_cart' => true, 'is_fixed_bottom_buy' => false, 'is_one_page_checkout' => true, 'pixel_price' => '0.00'];
+        $id = $this->imported(['product_preferences' => $settings, 'display_priority' => 77, 'catalog_hidden' => true]);
+        $product = Product::withoutGlobalScopes()->findOrFail($id);
+        $this->assertEquals($settings, $product->product_preferences);
+        $target = $this->target($id);
+        $document = $this->postJson($this->base.'/export', ['products' => [$target]], $this->auth)->assertOk()->json();
+        $copy = $this->postJson($this->base.'/'.$id.'/duplicate', ['version' => $target['version'], 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertCreated()->json('meta.id');
+        $duplicate = Product::withoutGlobalScopes()->findOrFail($copy);
+        $this->assertEquals($settings, $duplicate->product_preferences);
+        $this->assertSame(77, $duplicate->display_priority);
+        $this->assertTrue($duplicate->catalog_hidden);
+        $this->assertFalse($duplicate->is_active);
+        unset($document['products'][0]['slug'], $document['products'][0]['sku']);
+        $imported = $this->post($this->base.'/import', ['file' => $this->file($document), 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertCreated()->json('meta.ids.0');
+        $this->assertEquals($settings, Product::withoutGlobalScopes()->findOrFail($imported)->product_preferences);
+        $this->post($this->base.'/import/preview', ['file' => $this->file([['name' => 'Bad counter range', 'price' => 10, 'product_preferences' => ['fake_visitors_min' => 90, 'fake_visitors_max' => 20]]])], $this->auth)->assertUnprocessable();
+        $this->assertDatabaseCount('products', 3);
+    }
+
     public function test_duplicate_is_an_inactive_zero_stock_copy_and_shared_media_survives_source_deletion(): void
     {
         $id = $this->imported(['stock_quantity' => 7, 'track_inventory' => true, 'images' => ['https://example.com/bag.jpg']]);

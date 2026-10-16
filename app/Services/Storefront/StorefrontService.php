@@ -9,6 +9,7 @@ use App\Models\Store;
 use App\Models\StoreBrand;
 use App\Models\StoreCollection;
 use App\Services\Commerce\OrderLimits;
+use App\Services\Commerce\ProductPreferences;
 use App\Services\Commerce\ShoppingPreferences;
 use App\Support\Localization\LocaleContext;
 use App\Support\Localization\LocalizedValue;
@@ -62,17 +63,19 @@ class StorefrontService
         return Cache::remember(self::homepageCacheKey($store->id, $locale), $ttl, function () use ($store, $locale) {
             $featured = Product::query()
                 ->where('is_active', true)
+                ->listed()
                 ->where('is_featured', true)
                 ->with(['category:id,name,name_en,name_ar,slug,translations', 'variants'])
-                ->orderBy('position')->orderByDesc('id')
+                ->orderByDesc('display_priority')->orderBy('position')->orderByDesc('id')
                 ->limit(8)->get();
 
             // Fall back to newest active products when nothing is featured yet.
             if ($featured->isEmpty()) {
                 $featured = Product::query()
                     ->where('is_active', true)
+                    ->listed()
                     ->with(['category:id,name,name_en,name_ar,slug,translations', 'variants'])
-                    ->orderByDesc('id')->limit(8)->get();
+                    ->orderByDesc('display_priority')->orderByDesc('id')->limit(8)->get();
             }
 
             $categories = Category::query()
@@ -126,6 +129,7 @@ class StorefrontService
     {
         $query = Product::query()
             ->where('is_active', true)
+            ->listed()
             ->when($categorySlug, function ($q) use ($categorySlug) {
                 $root = $this->category($categorySlug);
                 $q->inCategories($root ? $this->categoryTreeIds($root) : []);
@@ -160,7 +164,7 @@ class StorefrontService
                 'new_arrivals' => $query->orderByDesc('published_at')->orderByDesc('id'),
                 'trending' => $query->orderByDesc('views_count')->orderByDesc('id'),
                 'on_sale' => $query->orderByDesc('discount_percent')->orderByDesc('id'),
-                default => $query->orderBy('position')->orderByDesc('id'),
+                default => $query->orderByDesc('display_priority')->orderBy('position')->orderByDesc('id'),
             };
         }
 
@@ -189,6 +193,7 @@ class StorefrontService
     {
         return $collection->products()
             ->where('is_active', true)
+            ->listed()->reorder()->orderByDesc('display_priority')->orderBy('store_collection_product.position')
             ->with(['category:id,name,name_en,name_ar,slug,translations', 'variants'])
             ->paginate($perPage);
     }
@@ -275,6 +280,8 @@ class StorefrontService
 
         return [
             'id' => $p->id,
+            'product_preferences' => ProductPreferences::publicPayload($p),
+            'catalog_hidden' => $p->catalog_hidden,
             'auto_select_variant' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
             'order_quantity_limit' => $store && (int) $store->id === (int) $p->store_id ? app(OrderLimits::class)->productLimit($store) : null,
             'name' => $p->translated('name', $locale),

@@ -171,7 +171,7 @@ class StoreSeoService
         $base = $this->baseUrl($store);
         $urls = [$base.'/', $base.'/products'];
 
-        Product::query()->where('is_active', true)->orderBy('id')
+        Product::query()->where('is_active', true)->listed()->orderBy('id')
             ->get(['slug'])->each(function ($p) use (&$urls, $base) {
                 $urls[] = $base.'/products/'.$p->slug;
             });
