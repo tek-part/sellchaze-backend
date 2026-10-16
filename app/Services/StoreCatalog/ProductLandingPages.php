@@ -42,7 +42,7 @@ final class ProductLandingPages
                 if (! is_array($block) || ! is_array($block['settings'] ?? null)) {
                     continue;
                 }
-                foreach (['title', 'description', 'eyebrow', 'html', 'css', 'button_text', 'video'] as $field) {
+                foreach (['title', 'description', 'eyebrow', 'author', 'caption', 'html', 'css', 'button_text', 'video'] as $field) {
                     if (array_key_exists($field, $block['settings']) && $block['settings'][$field] === null) {
                         $block['settings'][$field] = '';
                     }
@@ -65,9 +65,10 @@ final class ProductLandingPages
         }
         $rules = ['schema' => ['required', 'integer', 'in:1'], 'mode' => ['required', 'in:standard,standalone,below'], 'sections' => ['present', 'array', 'list', 'max:60'],
             'sections.*' => ['array:id,type,settings'], 'sections.*.id' => ['required', 'uuid', 'distinct:ignore_case'], 'sections.*.type' => ['required', Rule::in(self::TYPES)],
-            'sections.*.settings' => ['present', 'array:title,description,eyebrow,html,image,background_image,images,video,button_text,button_target,background,foreground,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size,hover_background,hover_foreground,secondary_foreground,hover_secondary_foreground,icon_background,icon_color,motion'],
-            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9)), ...array_map(fn ($id) => 'features-'.$id, range(1, 45)), ...array_map(fn ($id) => 'faq-'.$id, range(1, 35)), ...array_map(fn ($id) => 'video-'.$id, range(1, 5)), ...array_map(fn ($id) => 'howto-'.$id, range(1, 6))])],
+            'sections.*.settings' => ['present', 'array:title,description,eyebrow,author,caption,html,image,secondary_image,background_image,images,video,button_text,button_target,background,foreground,eyebrow_color,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size,hover_background,hover_foreground,secondary_foreground,hover_secondary_foreground,icon_background,icon_color,motion'],
+            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9)), ...array_map(fn ($id) => 'features-'.$id, range(1, 45)), ...array_map(fn ($id) => 'faq-'.$id, range(1, 35)), ...array_map(fn ($id) => 'video-'.$id, range(1, 5)), ...array_map(fn ($id) => 'howto-'.$id, range(1, 6)), ...array_map(fn ($id) => 'content-'.$id, range(1, 5))])],
             'sections.*.settings.motion' => ['sometimes', 'boolean'],
+            'sections.*.settings.author' => ['sometimes', 'string', 'max:150'], 'sections.*.settings.caption' => ['sometimes', 'string', 'max:200'],
             'sections.*.settings.eyebrow' => ['sometimes', 'string', 'max:300'],
             'sections.*.settings.title' => ['sometimes', 'string', 'max:300'], 'sections.*.settings.description' => ['sometimes', 'string', 'max:2000'],
             'sections.*.settings.html' => ['sometimes', 'string', 'max:20000'], 'sections.*.settings.css' => ['sometimes', 'string', 'max:12000'],
@@ -83,17 +84,21 @@ final class ProductLandingPages
             'sections.*.settings.items.*.date' => ['sometimes', 'nullable', 'date_format:Y-m-d'], 'sections.*.settings.items.*.platform' => ['sometimes', 'string', 'max:40'],
             'sections.*.settings.items.*.text' => ['sometimes', 'string', 'max:6000'], 'sections.*.settings.items.*.html' => ['sometimes', 'string', 'max:6000'],
             'sections.*.settings.items.*.url' => ['sometimes', 'string', 'max:2000'], 'sections.*.settings.items.*.icon' => ['sometimes', 'string', 'max:40'], 'sections.*.settings.items.*.rating' => ['sometimes', 'numeric', 'between:0,5']];
-        foreach (['background', 'foreground', 'accent', 'card_background', 'question_background', 'hover_background', 'hover_foreground', 'secondary_foreground', 'hover_secondary_foreground', 'icon_background', 'icon_color'] as $field) {
+        foreach (['background', 'foreground', 'eyebrow_color', 'accent', 'card_background', 'question_background', 'hover_background', 'hover_foreground', 'secondary_foreground', 'hover_secondary_foreground', 'icon_background', 'icon_color'] as $field) {
             $rules['sections.*.settings.'.$field] = ['sometimes', 'string', 'regex:/^(#(?:[a-f0-9]{3}|[a-f0-9]{4}|[a-f0-9]{6}|[a-f0-9]{8})|transparent)$/i'];
         }
         foreach (['accent', 'background', 'foreground'] as $field) {
             $rules['sections.*.settings.items.*.'.$field] = ['sometimes', 'string', 'regex:/^(#(?:[a-f0-9]{3}|[a-f0-9]{4}|[a-f0-9]{6}|[a-f0-9]{8})|transparent)$/i'];
         }
-        foreach (['sections.*.settings.image', 'sections.*.settings.background_image', 'sections.*.settings.images.*', 'sections.*.settings.items.*.image'] as $path) {
-            $rules[$path] = ['sometimes', 'array:media_id,url,alt'];
+        foreach (['sections.*.settings.image', 'sections.*.settings.secondary_image', 'sections.*.settings.background_image', 'sections.*.settings.images.*', 'sections.*.settings.items.*.image'] as $path) {
+            $rules[$path] = ['sometimes', 'array:media_id,url,alt,link_url,destination'];
             $rules[$path.'.media_id'] = ['sometimes', 'integer', 'min:1'];
             $rules[$path.'.url'] = ['sometimes', 'string', 'max:2000'];
             $rules[$path.'.alt'] = ['sometimes', 'nullable', 'string', 'max:300'];
+            $rules[$path.'.link_url'] = ['sometimes', 'nullable', 'string', 'max:2000'];
+            $rules[$path.'.destination'] = ['sometimes', 'array:type,id', 'required_array_keys:type,id'];
+            $rules[$path.'.destination.type'] = ['required_with:'.$path.'.destination', 'in:product,category,page'];
+            $rules[$path.'.destination.id'] = ['required_with:'.$path.'.destination', 'integer', 'min:1'];
         }
         $data = Validator::make($document, $rules)->validate();
         if (array_diff(array_keys($document), ['schema', 'mode', 'sections']) !== [] || strlen(json_encode($data, JSON_THROW_ON_ERROR)) > 750000) {
@@ -108,6 +113,7 @@ final class ProductLandingPages
                 str_starts_with($settings['variant'], 'faq-') => 'faq',
                 str_starts_with($settings['variant'], 'video-') => 'video',
                 str_starts_with($settings['variant'], 'howto-') => 'how_to',
+                str_starts_with($settings['variant'], 'content-') => 'content',
                 default => 'promo_banners',
             } : null;
             if ($family !== null && $section['type'] !== $family) {
@@ -133,13 +139,19 @@ final class ProductLandingPages
                 throw ValidationException::withMessages(['document.sections.'.$index.'.settings.video' => 'Use an MP4 URL or a YouTube or Vimeo video link.']);
             }
             if (isset($settings['image'])) {
-                $settings['image'] = self::image($settings['image'], $product);
+                $settings['image'] = self::image($settings['image'], $product, $section['type'] === 'content');
+            }
+            if (isset($settings['secondary_image'])) {
+                if ($section['type'] !== 'content') {
+                    throw ValidationException::withMessages(['document' => 'Secondary images belong to content sections.']);
+                }
+                $settings['secondary_image'] = self::image($settings['secondary_image'], $product, true);
             }
             if (isset($settings['background_image'])) {
                 $settings['background_image'] = self::image($settings['background_image'], $product);
             }
             foreach ($settings['images'] ?? [] as $key => $image) {
-                $settings['images'][$key] = self::image($image, $product);
+                $settings['images'][$key] = self::image($image, $product, $section['type'] === 'content');
             }
             foreach ($settings['items'] ?? [] as $key => $item) {
                 if (isset($item['destination'])) {
@@ -153,7 +165,7 @@ final class ProductLandingPages
                     $item['rating'] = (float) $item['rating'];
                 }
                 if (isset($item['image'])) {
-                    $item['image'] = self::image($item['image'], $product);
+                    $item['image'] = self::image($item['image'], $product, $section['type'] === 'content');
                 }
                 if (isset($item['html'])) {
                     $item['html'] = ProductLandingHtml::clean($item['html']);
@@ -177,7 +189,7 @@ final class ProductLandingPages
         return ['schema' => 1, 'mode' => $data['mode'], 'sections' => $data['sections']];
     }
 
-    private static function image(array $image, ?Product $product): array
+    private static function image(array $image, ?Product $product, bool $allowLinks = false): array
     {
         if (array_key_exists('alt', $image) && $image['alt'] === null) {
             $image['alt'] = '';
@@ -186,9 +198,27 @@ final class ProductLandingPages
             if (! $product || ! ProductMedia::query()->where('store_id', $product->store_id)->where('store_product_id', $product->id)->whereKey($image['media_id'])->where('type', '!=', 'video')->exists()) {
                 throw ValidationException::withMessages(['document' => 'Every selected image must belong to this product.']);
             }
+            $image['media_id'] = (int) $image['media_id'];
             unset($image['url']);
         } elseif (! isset($image['url']) || str_starts_with($image['url'], '#') || ! self::url($image['url'])) {
             throw ValidationException::withMessages(['document' => 'Choose a product image or a valid image URL.']);
+        }
+        if (array_key_exists('link_url', $image) || isset($image['destination'])) {
+            if (! $allowLinks) {
+                throw ValidationException::withMessages(['document' => 'Image destinations belong to content images.']);
+            }
+            if (isset($image['destination'])) {
+                if (! $product) {
+                    throw ValidationException::withMessages(['document' => 'Choose an image destination in the current store.']);
+                }
+                $image['destination'] = ProductLandingDestinations::canonical($image['destination'], $product);
+                unset($image['link_url']);
+            } else {
+                $image['link_url'] ??= '';
+                if ($image['link_url'] !== '' && ! self::url($image['link_url'])) {
+                    throw ValidationException::withMessages(['document' => 'Use an HTTP(S) or relative image link.']);
+                }
+            }
         }
         ksort($image);
 
@@ -253,19 +283,33 @@ final class ProductLandingPages
         }
         $document = self::document($product);
         $media = $product->media()->where('store_id', $product->store_id)->get()->keyBy('id');
-        $resolve = function (array $image) use ($media): array {
+        $links = [];
+        $resolve = function (array $image) use ($media, &$links, $product): array {
             if (isset($image['media_id'])) {
                 $image['url'] = $media->get($image['media_id'])?->url() ?? '';
                 unset($image['media_id']);
             }
 
+            if (isset($image['destination'])) {
+                $key = $image['destination']['type'].':'.$image['destination']['id'];
+                if (! array_key_exists($key, $links)) {
+                    $links[$key] = ProductLandingDestinations::url((int) $product->store_id, $image['destination']);
+                }
+                unset($image['destination'], $image['link_url']);
+                if ($links[$key] !== null) {
+                    $image['link_url'] = $links[$key];
+                }
+            }
+
             return $image;
         };
-        $links = [];
         foreach ($document['sections'] as &$section) {
             $settings = &$section['settings'];
             if (isset($settings['image'])) {
                 $settings['image'] = $resolve($settings['image']);
+            }
+            if (isset($settings['secondary_image'])) {
+                $settings['secondary_image'] = $resolve($settings['secondary_image']);
             }
             if (isset($settings['background_image'])) {
                 $settings['background_image'] = $resolve($settings['background_image']);

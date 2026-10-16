@@ -38,7 +38,7 @@ final class ProductLandingDestinations
     public static function canonical(array $destination, Product $product): array
     {
         if (! self::query((int) $product->store_id, $destination['type'], false)->whereKey($destination['id'])->exists()) {
-            throw ValidationException::withMessages(['document' => 'Every banner destination must belong to this store.']);
+            throw ValidationException::withMessages(['document' => 'Every selected destination must belong to this store.']);
         }
 
         return ['type' => $destination['type'], 'id' => (int) $destination['id']];
@@ -63,16 +63,21 @@ final class ProductLandingDestinations
     public static function documentUrls(Product $product): array
     {
         $urls = [];
-        foreach (ProductLandingPages::document($product)['sections'] as $section) {
-            foreach ($section['settings']['items'] ?? [] as $item) {
-                if (isset($item['destination'])) {
-                    $key = $item['destination']['type'].':'.$item['destination']['id'];
-                    if (! array_key_exists($key, $urls)) {
-                        $urls[$key] = self::url((int) $product->store_id, $item['destination']);
-                    }
+        $walk = function (array $value) use (&$walk, &$urls, $product): void {
+            if (isset($value['destination'])) {
+                $destination = $value['destination'];
+                $key = $destination['type'].':'.$destination['id'];
+                if (! array_key_exists($key, $urls)) {
+                    $urls[$key] = self::url((int) $product->store_id, $destination);
                 }
             }
-        }
+            foreach ($value as $child) {
+                if (is_array($child)) {
+                    $walk($child);
+                }
+            }
+        };
+        $walk(ProductLandingPages::document($product));
 
         return $urls;
     }
