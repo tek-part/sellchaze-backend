@@ -152,6 +152,28 @@ class ProductLandingPagesTest extends TestCase
         $this->assertTrue(ProductLandingPages::referencesMedia(Product::withoutGlobalScopes()->findOrFail($this->product['id']), [$media->id]));
     }
 
+    public function test_all_testimonial_designs_and_backgrounds_round_trip_without_fabricating_review_data(): void
+    {
+        $media = ProductMedia::create(['store_id' => $this->store->id, 'store_product_id' => $this->product['id'], 'type' => 'gallery', 'disk' => 'public', 'path' => 'landing/review-background.png']);
+        $sections = array_map(fn ($id) => $this->block('custom_reviews', ['variant' => 'testimonials-'.$id, 'accent' => '#b8204c', 'card_background' => '#f4f3f8', 'background_image' => ['media_id' => $media->id], 'items' => [['author' => 'Own fixture reviewer', 'title' => 'Own review', 'text' => 'Own review content', 'caption' => 'Own city', 'date' => '2026-10-16', 'platform' => 'Own source']]]), range(1, 11));
+        $saved = $this->save($this->document($sections))->assertOk()->json('data.sections');
+        $this->assertCount(11, $saved);
+        $this->getJson($this->public.'/products/landing-bag')->assertOk()->assertJsonPath('data.landing_page.sections.10.settings.variant', 'testimonials-11')->assertJsonPath('data.landing_page.sections.0.settings.background_image.url', $media->url())->assertJsonMissingPath('data.landing_page.sections.0.settings.background_image.media_id')->assertJsonMissingPath('data.landing_page.sections.0.settings.items.0.rating')->assertJsonMissingPath('data.landing_page.sections.0.settings.items.0.verified');
+        $this->putJson($this->base.'/'.$this->product['id'], ['remove_media_ids' => [$media->id]], $this->auth)->assertUnprocessable();
+        $before = ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id']));
+        foreach ([$this->block('custom_reviews', ['variant' => 'testimonials-12']), $this->block('heading', ['variant' => 'testimonials-1']), $this->block('custom_reviews', ['background_image' => ['media_id' => 99999]]), $this->block('custom_reviews', ['items' => [['date' => '2026-99-99']]])] as $invalid) {
+            $this->save($this->document([$invalid]), $before)->assertUnprocessable();
+        }
+        $this->assertSame($before, ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id'])));
+        $this->assertDatabaseCount('store_orders', 0);
+    }
+
+    public function test_optional_editor_text_and_avatar_alt_can_be_cleared_through_json_requests(): void
+    {
+        $doc = $this->document([$this->block('custom_reviews', ['variant' => 'testimonials-1', 'description' => '', 'background_image' => ['url' => 'https://example.test/own.png', 'alt' => ''], 'items' => [['author' => '', 'title' => '', 'text' => '', 'caption' => '', 'platform' => '', 'date' => null]]])]);
+        $this->save($doc)->assertOk()->assertJsonPath('data.sections.0.settings.description', '')->assertJsonPath('data.sections.0.settings.items.0.author', '')->assertJsonPath('data.sections.0.settings.background_image.alt', '')->assertJsonPath('data.sections.0.settings.items.0.date', null);
+    }
+
     public function test_editor_is_tenant_and_permission_scoped(): void
     {
         $stranger = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
