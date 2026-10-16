@@ -77,10 +77,15 @@ use Illuminate\Support\Facades\Storage;
  * @property array|null $translations
  * @property Carbon|null $published_at
  * @property int $position
+ * @property int $display_priority
+ * @property bool $catalog_hidden
+ * @property array|null $product_preferences
  */
 class Product extends Model
 {
     protected $hidden = ['digital_url'];
+
+    protected $attributes = ['display_priority' => 0, 'catalog_hidden' => false];
 
     use HasImageUrl;
     use HasStoreTenancy;
@@ -99,7 +104,7 @@ class Product extends Model
         // ownership / taxonomy / tenancy
         'user_id', 'category_id', 'store_id', 'store_brand_id',
         // structured content
-        'tags', 'specifications', 'content', 'dimensions', 'option_display', 'personalization_fields', 'digital_type', 'digital_url', 'quantity_offers', 'quantity_offers_version',
+        'tags', 'specifications', 'content', 'dimensions', 'option_display', 'personalization_fields', 'digital_type', 'digital_url', 'quantity_offers', 'quantity_offers_version', 'product_preferences', 'display_priority', 'catalog_hidden',
         // pricing
         'price', 'compare_price', 'cost', 'vat_rate', 'discount_percent', 'currency',
         // logistics
@@ -138,6 +143,9 @@ class Product extends Model
             'reserved_quantity' => 'integer',
             'reorder_level' => 'integer',
             'position' => 'integer',
+            'display_priority' => 'integer',
+            'catalog_hidden' => 'boolean',
+            'product_preferences' => 'array',
             'tags' => 'array',
             'specifications' => 'array',
             'content' => 'array',
@@ -196,6 +204,11 @@ class Product extends Model
         return $query->where(fn ($q) => $q->whereIn('products.category_id', $ids)->orWhereExists(fn ($pivot) => $pivot
             ->selectRaw('1')->from('store_product_categories')->whereColumn('product_id', 'products.id')
             ->whereColumn('store_product_categories.store_id', 'products.store_id')->whereIn('store_product_categories.category_id', $ids)));
+    }
+
+    public function scopeListed(Builder $query): Builder
+    {
+        return $query->where('products.catalog_hidden', false);
     }
 
     /** @return BelongsTo<Category, $this> */

@@ -50,6 +50,9 @@ class StoreTrackingEvents
                 $price = $selection['price'];
             }
             $variantId = isset($selection) ? $selection['variant']?->id : null;
+            if ($data['event'] === 'add_to_cart' || ($data['event'] === 'begin_checkout' && ($data['surface'] ?? null) === 'product' && ProductPreferences::flag($product, 'is_one_page_checkout'))) {
+                $price = $product->product_preferences['pixel_price'] ?? $price;
+            }
             $items[] = ['item_id' => CatalogItemId::selection($product->id, $variantId), 'item_name' => $product->name, 'price' => $price, 'quantity' => (int) $line['quantity']];
             unset($selection);
             $value = bcadd($value, bcmul($price, (string) $line['quantity'], 2), 2);
@@ -70,8 +73,22 @@ class StoreTrackingEvents
             return;
         }
         try {
-            $items = $order->items()->get()->map(fn ($line) => ['item_id' => CatalogItemId::selection((int) $line->store_product_id, $line->variant_id), 'item_name' => $line->name,
-                'price' => $line->unit_price, 'quantity' => (int) $line->quantity])->all();
+            $lines = $order->items()->get();
+            $products = $request->input('checkout_surface') === 'product' ? Product::withoutGlobalScopes()->where('store_id', $store->id)->whereIn('id', $lines->pluck('store_product_id'))->get()->keyBy('id') : collect();
+            $customValue = '0.00';
+            $custom = false;
+            $items = [];
+            foreach ($lines as $line) {
+                $product = $products->get($line->store_product_id);
+                $override = $product && ProductPreferences::flag($product, 'is_one_page_checkout') ? $product->product_preferences['pixel_price'] ?? null : null;
+                $custom = $custom || $override !== null;
+                $price = $override ?? $line->unit_price;
+                $customValue = bcadd($customValue, bcmul((string) $price, (string) $line->quantity, 2), 2);
+                $items[] = ['item_id' => CatalogItemId::selection((int) $line->store_product_id, $line->variant_id), 'item_name' => $line->name, 'price' => $price, 'quantity' => (int) $line->quantity];
+            }
+            $advertised = $custom ? max('0.00', bcsub($customValue, (string) $order->discount_total, 2)) : bcsub((string) $order->subtotal, (string) $order->discount_total, 2);
+            // Inclusive tax is already inside unit prices. Use the accepted order's added charges.
+            $addedTax = bcsub(bcsub((string) $order->grand_total, bcsub((string) $order->subtotal, (string) $order->discount_total, 2), 2), (string) $order->shipping_total, 2);
             $user = $this->userData($request);
             if ($order->customer_email) {
                 $user['em'] = hash('sha256', strtolower(trim($order->customer_email)));
@@ -81,7 +98,7 @@ class StoreTrackingEvents
             }
             $payload = ['event' => 'purchase', 'event_id' => $this->key($store, 'order:'.$order->id), 'currency' => $order->currency,
                 // GA4 merchandise value excludes shipping and tax; other providers receive the accepted gross total.
-                'value' => bcsub((string) $order->subtotal, (string) $order->discount_total, 2), 'gross_value' => (string) $order->grand_total,
+                'value' => $advertised, 'gross_value' => $custom ? bcadd(bcadd($advertised, (string) $order->shipping_total, 2), $addedTax, 2) : (string) $order->grand_total,
                 'shipping' => (string) $order->shipping_total, 'tax' => (string) $order->tax_total, 'transaction_id' => $order->order_number,
                 'items' => $items, 'page_location' => $request->getSchemeAndHttpHost().'/checkout', 'user_data' => $user];
             $this->persist($store, $payload, $order->id);

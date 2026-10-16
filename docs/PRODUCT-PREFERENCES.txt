@@ -1,0 +1,32 @@
+Product preferences and catalog visibility
+
+Apply 2026_10_16_020000_add_product_preferences before deploying the paired frontend.
+Existing rows retain nullable theme overrides, zero display priority and catalog visibility.
+Configured preferences, priorities or hidden flags prevent a destructive migration rollback.
+
+Merchant saves accept only validated preference keys. Updates supplying preferences,
+display_priority or catalog_hidden require the current preferences_version. Stock and ordinary
+price updates do not invalidate this version. Portable JSON imports/exports and duplicates
+retain preferences; exported versions are never reused for another product identity.
+
+Higher display_priority sorts first in default product ordering. Existing position and ID ties
+remain intact; explicit customer sorts retain their own order. Catalog-hidden active products
+retain direct purchase links but leave public lists, active category counts, sitemap and feeds.
+Review visibility does not delete stored reviews. Disabling it also prevents new submissions.
+
+Product free shipping applies when every physical product in a checkout qualifies. Digital
+items do not incur shipping. A mixed physical basket retains its delivery fee. Existing quantity
+offer free shipping and order-wide thresholds continue to work. Accepted orders snapshot the
+delivery result and free product IDs; later preference changes cannot reprice an old replay.
+
+pixel_price is private configuration: add-to-cart and enabled product-surface checkout use it
+only for advertising values. Normal checkout, order lines, invoices, inventory and business
+metrics retain actual amounts. Consent, DNT/GPC, idempotency and delivery safeguards remain.
+Inclusive tax is not added twice to advertising gross values. No outbound provider call occurs
+within checkout acceptance. Simulated visitor/stock/countdown displays do not alter inventory.
+
+The paired storefront shares product purchase sections across native theme families. Direct
+selection is store/product-scoped, expires in thirty minutes and retains no client prices.
+Direct and same-page checkout preserve the ordinary basket and use existing payment recovery,
+delivery, minimum-order, phone verification and bot protection contracts. Dedicated product
+landing-page authoring is a separate workflow and remains under competitor review.

@@ -27,6 +27,9 @@ class ProductReviewController extends Controller
     {
         $product = $this->product($slug);
         $perPage = min(max((int) $request->get('per_page', 10), 1), 50);
+        if (($product->product_preferences['is_reviews_enabled'] ?? null) === false) {
+            return response()->json(['data' => [], 'meta' => ['current_page' => 1, 'last_page' => 1, 'per_page' => $perPage, 'total' => 0], 'summary' => ['count' => 0, 'average' => null]]);
+        }
 
         $reviews = ProductReview::query()
             ->where('store_product_id', $product->id)
@@ -62,6 +65,8 @@ class ProductReviewController extends Controller
     {
         $customer = $this->currentCustomer($request);
         $product = $this->product($slug);
+
+        abort_if(($product->product_preferences['is_reviews_enabled'] ?? null) === false, 403, 'Reviews are disabled for this product.');
 
         $exists = ProductReview::query()
             ->where('store_customer_id', $customer->id)

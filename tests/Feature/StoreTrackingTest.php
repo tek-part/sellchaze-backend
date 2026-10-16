@@ -179,6 +179,28 @@ class StoreTrackingTest extends TestCase
         $this->assertSame(3, StoreTrackingDelivery::where('status', 'cancelled')->count());
     }
 
+    public function test_product_pixel_override_changes_only_supported_advertising_events_and_never_order_totals(): void
+    {
+        $this->conversion();
+        $this->product->update(['product_preferences' => ['pixel_price' => '40.00', 'is_one_page_checkout' => true]]);
+        foreach ([['add_to_cart', null, '80.00'], ['view_item', null, '500.00'], ['begin_checkout', null, '500.00'], ['begin_checkout', 'product', '80.00']] as [$name, $surface, $amount]) {
+            $event = $this->event(['event' => $name] + ($surface ? ['surface' => $surface] : []));
+            $this->postJson($this->public.'/tracking/events', $event)->assertStatus(202)->assertJsonPath('data.event.value', $amount);
+        }
+        $body = ['customer_name' => 'Pixel buyer', 'customer_email' => 'pixel@example.test', 'customer_phone' => '01001234567', 'advertising_allowed' => true, 'shipping_address' => ['line1' => 'Review address', 'city' => 'Cairo', 'country' => 'EG'], 'items' => [['product_id' => $this->product->id, 'quantity' => 2]], 'payment_method' => 'cod', 'cart_mode' => 'direct'];
+        $this->store->update(['tax_enabled' => true, 'tax_rate' => 10, 'tax_prices_include' => true]);
+        $headers = ['Idempotency-Key' => (string) Str::uuid()];
+        $this->postJson($this->public.'/checkout', $body + ['checkout_surface' => 'product'], $headers)->assertCreated()->assertJsonPath('data.grand_total', '525.00')->assertJsonPath('data.tracking.event.value', '80.00')->assertJsonPath('data.tracking.event.gross_value', '105.00');
+        $this->product->update(['product_preferences' => ['pixel_price' => '1.00', 'is_one_page_checkout' => true]]);
+        $this->postJson($this->public.'/checkout', $body + ['checkout_surface' => 'product'], $headers)->assertCreated()->assertHeader('Idempotency-Replayed', 'true')->assertJsonPath('data.tracking.event.value', '80.00');
+        $this->postJson($this->public.'/checkout', $body, ['Idempotency-Key' => (string) Str::uuid()])->assertCreated()->assertJsonPath('data.tracking.event.value', '500.00')->assertJsonPath('data.tracking.event.gross_value', '525.00');
+        $this->store->update(['tax_prices_include' => false]);
+        $this->postJson($this->public.'/checkout', $body + ['checkout_surface' => 'product'], ['Idempotency-Key' => (string) Str::uuid()])->assertCreated()->assertJsonPath('data.grand_total', '575.00')->assertJsonPath('data.tracking.event.value', '2.00')->assertJsonPath('data.tracking.event.gross_value', '77.00');
+        $this->assertDatabaseCount('store_orders', 3);
+        $this->postJson($this->public.'/tracking/events', $this->event(), ['DNT' => '1'])->assertStatus(202)->assertJsonPath('data', null);
+        Http::assertNothingSent();
+    }
+
     public function test_all_three_fixed_provider_contracts_preserve_same_event_id_and_scheduler_never_sends_twice(): void
     {
         $this->conversion();

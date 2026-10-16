@@ -51,7 +51,7 @@ class ProductFeeds
 
     public function rows(Store $store, string $channel, string $locale): \Generator
     {
-        $query = Product::withoutGlobalScopes()->where('store_id', $store->id)->where('is_active', true)
+        $query = Product::withoutGlobalScopes()->where('store_id', $store->id)->where('is_active', true)->listed()
             ->whereNotNull('slug')->where(fn ($q) => $q->whereNull('published_at')->orWhere('published_at', '<=', now()))
             ->with(['variants' => fn ($q) => $q->where('store_id', $store->id), 'media' => fn ($q) => $q->where('store_id', $store->id),
                 'brand' => fn ($q) => $q->where('store_id', $store->id), 'category' => fn ($q) => $q->where('store_id', $store->id)]);

@@ -26,6 +26,7 @@ class TrackingEventsController extends Controller
     {
         $data = $request->validate(['advertising_allowed' => ['required', 'boolean'], 'event_id' => ['required', 'uuid'],
             'event' => ['required', Rule::in(['page_view', 'view_item', 'add_to_cart', 'begin_checkout'])],
+            'surface' => ['sometimes', 'in:product,storefront,funnel'],
             'page_path' => ['sometimes', 'string', 'max:512', 'regex:~^/(?!/)[A-Za-z0-9_/%.-]*$~D'],
             'items' => ['required_unless:event,page_view', 'array', 'min:1', 'max:100'],
             'items.*.product_id' => ['required', 'integer', 'min:1'], 'items.*.variant_id' => ['nullable', 'integer', 'min:1'],

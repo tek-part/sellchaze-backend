@@ -11,6 +11,7 @@ use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\StoreCatalogOperation;
 use App\Models\User;
+use App\Services\Commerce\ProductPreferences;
 use App\Services\Commerce\StoreInventory;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
@@ -68,6 +69,7 @@ class CatalogTransfer
                 Validator::make($plan['data'], ['price' => ['required', 'numeric', 'min:0', 'max:999999999.99', 'decimal:0,2'],
                     'digital_url' => ['required_if:digital_type,link', 'nullable', 'url:http,https', 'max:2000']]
                     + (new StorefrontProductStoreRequest)->rules())->validate();
+                ProductPreferences::canonical($plan['data']['product_preferences'] ?? null);
                 Validator::make($plan, [
                     'categories' => ['array', 'max:20'], 'categories.*.name' => ['required', 'string', 'max:255'],
                     'categories.*.slug' => ['nullable', 'string', 'max:255'], 'categories.*.description' => ['nullable', 'string', 'max:20000'],
@@ -246,6 +248,7 @@ class CatalogTransfer
         $data = Arr::only($product->getAttributes(), ['name', 'slug', 'sku', 'barcode', 'description', 'short_description', 'price', 'compare_price', 'cost', 'weight', 'seo_title', 'seo_description', 'position', 'digital_type']);
         $data['description'] = $product->long_description ?? $product->description;
         $data += ['is_active' => $product->is_active, 'is_featured' => $product->is_featured, 'translations' => $product->translationsPayload(),
+            'product_preferences' => $product->product_preferences, 'display_priority' => $product->display_priority, 'catalog_hidden' => $product->catalog_hidden,
             'personalization_fields' => $product->personalization_fields ?? [], 'image_url' => $this->absolute($product->imageUrl()),
             'images' => $product->media->whereIn('type', ['cover', 'gallery'])->map(fn ($media) => $this->absolute($media->url()))->filter()->values()->all(),
             'categories' => $product->additionalCategories->merge($product->category ? [$product->category] : [])->unique('id')->map(fn ($category) => ['name' => $category->name, 'slug' => $category->slug])->values()->all(),

@@ -14,11 +14,11 @@ use App\Models\Store;
 class PricingCalculator
 {
     /** @return array{subtotal:string, discount_total:string, shipping_total:string, tax_total:string, grand_total:string} */
-    public function forStore(Store $store, string $subtotal, string $discount = '0.00', array $selection = [], bool $requiresShipping = true, bool $offerFreeShipping = false): array
+    public function forStore(Store $store, string $subtotal, string $discount = '0.00', array $selection = [], bool $requiresShipping = true, bool $offerFreeShipping = false, bool $productFreeShipping = false): array
     {
         $discount = bccomp($discount, $subtotal, 2) > 0 ? $subtotal : $discount;
         $taxable = bcsub($subtotal, $discount, 2);
-        $shipping = $requiresShipping ? app(StoreShipping::class)->quote($store, $taxable, $selection, $offerFreeShipping)['amount'] : '0.00';
+        $shipping = $requiresShipping ? app(StoreShipping::class)->quote($store, $taxable, $selection, $offerFreeShipping, $productFreeShipping)['amount'] : '0.00';
 
         $tax = '0.00';
         $rate = (string) ($store->tax_rate ?: '0');

@@ -58,6 +58,9 @@ class StorefrontProductsApiController extends Controller
         $perPage = min(max((int) $request->get('per_page', 15), 1), 100);
         $sort = $request->input('sort_by') ?: 'position';
         $direction = $request->input('sort_direction') ?: 'asc';
+        if (! $request->filled('sort_by')) {
+            $query->orderByDesc('display_priority');
+        }
         $paginator = $query->orderBy($sort, $direction)->orderByDesc('id')->paginate($perPage);
 
         return response()->json([

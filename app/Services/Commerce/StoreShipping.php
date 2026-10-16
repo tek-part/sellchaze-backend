@@ -55,7 +55,7 @@ class StoreShipping
     }
 
     /** @return array{amount:string,address:array<string,mixed>,details:array<string,mixed>} */
-    public function quote(Store $store, string $discountedSubtotal, array $selection = [], bool $offerFreeShipping = false): array
+    public function quote(Store $store, string $discountedSubtotal, array $selection = [], bool $offerFreeShipping = false, bool $productFreeShipping = false): array
     {
         if (! $store->shipping_enabled) {
             return ['amount' => '0.00', 'address' => [], 'details' => ['mode' => 'free', 'base_rate' => '0.00', 'free_shipping_applied' => false]];
@@ -90,12 +90,15 @@ class StoreShipping
         } elseif (! empty($selection['shipping_option_id'])) {
             throw ValidationException::withMessages(['shipping_option_id' => __('Shipping options have changed. Please refresh the delivery options.')]);
         }
-        $free = $offerFreeShipping || ($store->shipping_free_over !== null && bccomp($discountedSubtotal, (string) $store->shipping_free_over, 2) >= 0);
+        $free = $offerFreeShipping || $productFreeShipping || ($store->shipping_free_over !== null && bccomp($discountedSubtotal, (string) $store->shipping_free_over, 2) >= 0);
         $details = ['mode' => $mode, 'base_rate' => bcadd($rate, '0', 2), 'free_shipping_applied' => $free,
             'region' => $region ? ['id' => $region['id'], 'name' => $region['name'], 'country' => $region['country']] : null,
             'option' => $option ? ['id' => $option['id'], 'name' => $option['name'], 'description' => $option['description']] : null];
         if ($offerFreeShipping) {
             $details['quantity_offer_free_shipping'] = true;
+        }
+        if ($productFreeShipping) {
+            $details['product_free_shipping'] = true;
         }
 
         return ['amount' => $free ? '0.00' : bcadd($rate, '0', 2), 'address' => $address, 'details' => $details];

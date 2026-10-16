@@ -8,6 +8,7 @@ use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\StoreCatalogOperation;
 use App\Services\Commerce\DigitalProducts;
+use App\Services\Commerce\ProductPreferences;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
 use App\Support\ProductDescription;
@@ -56,6 +57,10 @@ class StorefrontProductService
                     }
                 }
                 $current = $product ? Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail() : new Product;
+                $advanced = array_intersect(['product_preferences', 'display_priority', 'catalog_hidden'], array_keys($data));
+                if ($product && $advanced !== []) {
+                    abort_unless(isset($data['preferences_version']) && hash_equals(ProductPreferences::version($current), $data['preferences_version']), 409, 'Product settings changed. Reload the product before saving.');
+                }
                 $removed = $current->exists ? $current->media()->whereIn('id', $data['remove_media_ids'] ?? [])->get() : collect();
                 if ($removed->count() !== count($data['remove_media_ids'] ?? [])) {
                     throw ValidationException::withMessages(['remove_media_ids' => 'Every removed image must belong to this product.']);
@@ -164,6 +169,14 @@ class StorefrontProductService
 
     private function fill(Product $product, array $data): void
     {
+        if (array_key_exists('product_preferences', $data)) {
+            $product->product_preferences = ProductPreferences::canonical($data['product_preferences']);
+        }
+        foreach (['display_priority', 'catalog_hidden'] as $key) {
+            if (array_key_exists($key, $data)) {
+                $product->{$key} = $data[$key];
+            }
+        }
         app(DigitalProducts::class)->configure($product, $data);
         if (array_key_exists('personalization_fields', $data)) {
             $product->personalization_fields = $data['personalization_fields'];
