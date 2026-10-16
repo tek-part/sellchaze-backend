@@ -11,7 +11,13 @@ use Illuminate\Validation\ValidationException;
 
 final class ProductLandingPages
 {
-    public const TYPES = ['slider', 'image', 'banner', 'youtube', 'simple', 'advanced', 'heading', 'rich_text', 'html', 'checkout', 'faq', 'store_features', 'custom_reviews', 'promo_banners', 'countdown', 'video', 'gallery', 'how_to', 'content', 'buy_button', 'product_features', 'reviews', 'product_description', 'billboard'];
+    public const TYPES = ['slider', 'image', 'banner', 'youtube', 'simple', 'advanced', 'heading', 'rich_text', 'html', 'checkout', 'faq', 'store_features', 'custom_reviews', 'promo_banners', 'countdown', 'video', 'gallery', 'how_to', 'content', 'buy_button', 'product_features', 'reviews', 'product_description', 'billboard', 'product_preset'];
+
+    /** @return array<string, array{page:string, kind:string, pageStyle:bool}> */
+    private static function presetSections(): array
+    {
+        return json_decode(file_get_contents(config_path('product_page_presets.json')), true, 512, JSON_THROW_ON_ERROR);
+    }
 
     public static function empty(): array
     {
@@ -65,7 +71,10 @@ final class ProductLandingPages
         }
         $rules = ['schema' => ['required', 'integer', 'in:1'], 'mode' => ['required', 'in:standard,standalone,below'], 'sections' => ['present', 'array', 'list', 'max:60'],
             'sections.*' => ['array:id,type,settings'], 'sections.*.id' => ['required', 'uuid', 'distinct:ignore_case'], 'sections.*.type' => ['required', Rule::in(self::TYPES)],
-            'sections.*.settings' => ['present', 'array:title,description,eyebrow,author,caption,html,image,secondary_image,background_image,images,video,button_text,button_target,background,foreground,eyebrow_color,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size,hover_background,hover_foreground,secondary_foreground,hover_secondary_foreground,icon_background,icon_color,motion,description_mode,description_css_mode,billboard_mode,billboard_css_mode,gallery_description_align,countdown_css_mode,countdown_title_color,countdown_description_color,countdown_description_align'],
+            'sections.*.settings' => ['present', 'array:title,description,eyebrow,author,caption,html,image,secondary_image,background_image,images,video,button_text,button_target,background,foreground,eyebrow_color,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size,hover_background,hover_foreground,secondary_foreground,hover_secondary_foreground,icon_background,icon_color,motion,description_mode,description_css_mode,billboard_mode,billboard_css_mode,gallery_description_align,countdown_css_mode,countdown_title_color,countdown_description_color,countdown_description_align,preset_section,preset_css_mode,preset_description_align'],
+            'sections.*.settings.preset_section' => ['sometimes', 'string', Rule::in(array_keys(self::presetSections()))],
+            'sections.*.settings.preset_css_mode' => ['sometimes', 'in:template,custom'],
+            'sections.*.settings.preset_description_align' => ['sometimes', 'in:start,center,end'],
             'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9)), ...array_map(fn ($id) => 'features-'.$id, range(1, 45)), ...array_map(fn ($id) => 'faq-'.$id, range(1, 35)), ...array_map(fn ($id) => 'video-'.$id, range(1, 5)), ...array_map(fn ($id) => 'howto-'.$id, range(1, 6)), ...array_map(fn ($id) => 'content-'.$id, range(1, 5)), ...array_map(fn ($id) => 'buy-'.$id, range(1, 34)), ...array_map(fn ($id) => 'product-features-'.$id, range(1, 44)), ...array_map(fn ($id) => 'reviews-'.$id, range(1, 47)), ...array_map(fn ($id) => 'description-'.$id, range(1, 25)), ...array_map(fn ($id) => 'billboard-'.$id, range(1, 18)), ...array_map(fn ($id) => 'gallery-'.$id, range(1, 4)), ...array_map(fn ($id) => 'countdown-'.$id, range(1, 33))])],
             'sections.*.settings.motion' => ['sometimes', 'boolean'],
             'sections.*.settings.author' => ['sometimes', 'string', 'max:150'], 'sections.*.settings.caption' => ['sometimes', 'string', 'max:200'],
@@ -114,6 +123,14 @@ final class ProductLandingPages
         foreach ($data['sections'] as $index => &$section) {
             $section['id'] = strtolower($section['id']);
             $settings = &$section['settings'];
+            if ($section['type'] === 'product_preset' && ! isset($settings['preset_section'])) {
+                throw ValidationException::withMessages(['document.sections.'.$index.'.settings.preset_section' => 'Choose a product page section.']);
+            }
+            foreach (['preset_section', 'preset_css_mode', 'preset_description_align'] as $field) {
+                if (isset($settings[$field]) && $section['type'] !== 'product_preset') {
+                    throw ValidationException::withMessages(['document.sections.'.$index.'.settings.'.$field => 'Preset fields belong to product page presets.']);
+                }
+            }
             $family = isset($settings['variant']) ? match (true) {
                 str_starts_with($settings['variant'], 'testimonials-') => 'custom_reviews',
                 str_starts_with($settings['variant'], 'features-') => 'store_features',

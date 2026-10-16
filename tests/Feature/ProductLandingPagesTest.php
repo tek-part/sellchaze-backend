@@ -580,6 +580,39 @@ class ProductLandingPagesTest extends TestCase
         $this->assertDatabaseCount('store_inventory_movements', 0);
     }
 
+    public function test_all_product_page_presets_preserve_owned_content_and_media_with_versioned_undo(): void
+    {
+        $manifest = json_decode(file_get_contents(config_path('product_page_presets.json')), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertCount(297, $manifest);
+        $pages = [];
+        foreach ($manifest as $id => $entry) {
+            $pages[$entry['page']][] = $id;
+        }
+        $this->assertCount(22, $pages);
+        $media = ProductMedia::create(['store_id' => $this->store->id, 'store_product_id' => $this->product['id'], 'type' => 'gallery', 'disk' => 'public', 'path' => 'landing/own-preset.png']);
+        foreach ($pages as $ids) {
+            $sections = array_map(fn ($id) => $this->block('product_preset', ['preset_section' => $id, 'preset_css_mode' => 'template', 'preset_description_align' => 'end', 'image' => ['media_id' => $media->id], 'html' => '<p>Owned rich text</p><script>bad()</script>', 'items' => [['title' => 'Own heading', 'text' => 'Own body', 'image' => ['media_id' => $media->id]]]]), $ids);
+            $saved = $this->save($this->document($sections), ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id'])))->assertOk()->assertJsonCount(count($ids), 'data.sections')->assertJsonPath('data.sections.0.settings.preset_section', $ids[0])->assertJsonPath('data.sections.0.settings.html', '<p>Owned rich text</p>')->assertJsonPath('data.sections.0.settings.image.media_id', $media->id)->json();
+            $changed = $saved['data'];
+            $changed['sections'][0]['settings']['css'] = '';
+            $changed['sections'][0]['settings']['preset_css_mode'] = 'custom';
+            $changed['sections'][0]['settings']['title'] = null;
+            $next = $this->save($changed, $saved['version'])->assertOk()->assertJsonPath('data.sections.0.settings.css', '')->assertJsonPath('data.sections.0.settings.title', '')->assertJsonPath('data.sections.0.settings.items.0.text', 'Own body')->json();
+            $this->save($saved['data'], $next['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+            $portable = ProductLandingPages::portablePayload(Product::withoutGlobalScopes()->findOrFail($this->product['id']));
+            $this->assertSame($media->url(), $portable['sections'][0]['settings']['image']['url']);
+            $this->assertArrayNotHasKey('media_id', $portable['sections'][0]['settings']['image']);
+        }
+        $version = ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id']));
+        foreach ([$this->block('product_preset'), $this->block('product_preset', ['preset_section' => 'product-page-03-99']), $this->block('heading', ['preset_section' => 'product-page-03-01']), $this->block('product_preset', ['preset_section' => 'product-page-03-01', 'variant' => 'faq-1']), $this->block('product_preset', ['preset_section' => 'product-page-03-01', 'preset_css_mode' => 'unknown']), $this->block('product_preset', ['preset_section' => 'product-page-03-01', 'image' => ['media_id' => 999999]])] as $invalid) {
+            $this->save($this->document([$invalid]), $version)->assertUnprocessable();
+        }
+        $this->assertSame($version, ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id'])));
+        $this->assertDatabaseHas('products', ['id' => $this->product['id'], 'price' => 100, 'reserved_quantity' => 0]);
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('store_inventory_movements', 0);
+    }
+
     public function test_banner_destination_picker_is_scoped_bounded_and_never_returns_drafts_or_commerce_fields(): void
     {
         $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other banners', 'slug' => 'other-banners', 'status' => 'active']);
