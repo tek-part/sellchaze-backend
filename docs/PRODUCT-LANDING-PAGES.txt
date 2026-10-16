@@ -78,3 +78,7 @@ layouts; no new database migration or commerce mutation is introduced.
 Landing-page text, HTML/CSS and image alt fields bypass automatic trimming only
 within the landing document endpoint. Other API fields retain ordinary trimming.
 Versioned save/edit/restore tests retain leading/trailing whitespace and newlines.
+
+HOW-TO DESIGNS
+Canonical landing saves accept howto-1 through howto-6 only on how_to sections. The optional eyebrow is a300-character string; null becomes an explicitly cleared empty string. Existing owned media resolution, sanitation, portable export, duplicate handling and version conflicts apply unchanged. No SQL migration is required.
+Full landing-document saves preserve spacing in title, description, eyebrow, text, HTML, CSS, alt, caption, author, platform and button_text. Ordinary API fields retain normal trimming. Tests cover six layouts, seven owned steps, root/item media, null clearing, exact retry, edit/restore, invalid family/media and commerce preservation. Full competitor scope and production deployment remain incomplete.
