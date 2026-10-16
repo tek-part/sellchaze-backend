@@ -376,6 +376,38 @@ class ProductLandingPagesTest extends TestCase
         $this->assertDatabaseCount('store_inventory_movements', 0);
     }
 
+    public function test_countdown_designs_preserve_deadlines_styles_owned_content_and_exact_saved_undo(): void
+    {
+        $media = ProductMedia::create(['store_id' => $this->store->id, 'store_product_id' => $this->product['id'], 'type' => 'gallery', 'disk' => 'public', 'path' => 'landing/own-countdown.png']);
+        $sections = array_map(fn ($id) => $this->block('countdown', ['variant' => 'countdown-'.$id, 'hours' => 4, 'ends_at' => '2026-12-31T23:59:59Z', 'title' => ' Owned timer ', 'countdown_css_mode' => 'custom', 'countdown_title_color' => '#123456', 'countdown_description_color' => '#abcdef', 'countdown_description_align' => 'end', 'css' => '.counter { gap: 7px }', 'items' => [['title' => 'Preserved extra', 'text' => 'Owned hidden body']], 'background_image' => ['media_id' => $media->id]]), range(1, 33));
+        $sections[] = $this->block('countdown', ['hours' => 1, 'title' => 'Legacy']);
+        $saved = $this->save($this->document($sections))->assertOk()->assertJsonCount(34, 'data.sections')->assertJsonPath('data.sections.32.settings.variant', 'countdown-33')->assertJsonPath('data.sections.0.settings.countdown_description_align', 'end')->json();
+        $this->save($saved['data'], $saved['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        $portable = ProductLandingPages::portablePayload(Product::withoutGlobalScopes()->findOrFail($this->product['id']));
+        $this->assertSame($media->url(), $portable['sections'][0]['settings']['background_image']['url']);
+        $this->assertSame(' Owned timer ', $portable['sections'][0]['settings']['title']);
+        $changed = $saved['data'];
+        $changed['sections'][0]['settings']['variant'] = 'countdown-33';
+        $changed['sections'][0]['settings']['title'] = 'Edited own timer';
+        $changed['sections'][0]['settings']['countdown_css_mode'] = 'template';
+        $next = $this->save($changed, $saved['version'])->assertOk()->assertJsonPath('data.sections.0.settings.items.0.title', 'Preserved extra')->assertJsonPath('data.sections.0.settings.hours', 4)->assertJsonPath('data.sections.0.settings.ends_at', '2026-12-31T23:59:59Z')->json();
+        $this->save($saved['data'], $next['version'])->assertOk()->assertJsonPath('version', $saved['version']);
+        foreach ([
+            $this->block('countdown', ['variant' => 'countdown-34']),
+            $this->block('gallery', ['variant' => 'countdown-1']),
+            $this->block('countdown', ['countdown_css_mode' => 'custom']),
+            $this->block('countdown', ['variant' => 'countdown-1', 'countdown_css_mode' => 'invalid']),
+            $this->block('countdown', ['variant' => 'countdown-1', 'countdown_description_align' => 'left']),
+            $this->block('content', ['variant' => 'content-1', 'countdown_title_color' => '#123456']),
+            $this->block('countdown', ['variant' => 'countdown-1', 'background_image' => ['media_id' => 999999]]),
+        ] as $invalid) {
+            $this->save($this->document([$invalid]), $saved['version'])->assertUnprocessable();
+        }
+        $this->assertSame($saved['version'], ProductLandingPages::version(Product::withoutGlobalScopes()->findOrFail($this->product['id'])));
+        $this->assertDatabaseCount('store_orders', 0);
+        $this->assertDatabaseCount('store_inventory_movements', 0);
+    }
+
     public function test_gallery_designs_preserve_extra_images_independent_caption_styles_and_exact_undo(): void
     {
         $media = ProductMedia::create(['store_id' => $this->store->id, 'store_product_id' => $this->product['id'], 'type' => 'gallery', 'disk' => 'public', 'path' => 'landing/own-gallery.png']);

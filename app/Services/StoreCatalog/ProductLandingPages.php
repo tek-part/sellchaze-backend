@@ -65,14 +65,16 @@ final class ProductLandingPages
         }
         $rules = ['schema' => ['required', 'integer', 'in:1'], 'mode' => ['required', 'in:standard,standalone,below'], 'sections' => ['present', 'array', 'list', 'max:60'],
             'sections.*' => ['array:id,type,settings'], 'sections.*.id' => ['required', 'uuid', 'distinct:ignore_case'], 'sections.*.type' => ['required', Rule::in(self::TYPES)],
-            'sections.*.settings' => ['present', 'array:title,description,eyebrow,author,caption,html,image,secondary_image,background_image,images,video,button_text,button_target,background,foreground,eyebrow_color,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size,hover_background,hover_foreground,secondary_foreground,hover_secondary_foreground,icon_background,icon_color,motion,description_mode,description_css_mode,billboard_mode,billboard_css_mode,gallery_description_align'],
-            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9)), ...array_map(fn ($id) => 'features-'.$id, range(1, 45)), ...array_map(fn ($id) => 'faq-'.$id, range(1, 35)), ...array_map(fn ($id) => 'video-'.$id, range(1, 5)), ...array_map(fn ($id) => 'howto-'.$id, range(1, 6)), ...array_map(fn ($id) => 'content-'.$id, range(1, 5)), ...array_map(fn ($id) => 'buy-'.$id, range(1, 34)), ...array_map(fn ($id) => 'product-features-'.$id, range(1, 44)), ...array_map(fn ($id) => 'reviews-'.$id, range(1, 47)), ...array_map(fn ($id) => 'description-'.$id, range(1, 25)), ...array_map(fn ($id) => 'billboard-'.$id, range(1, 18)), ...array_map(fn ($id) => 'gallery-'.$id, range(1, 4))])],
+            'sections.*.settings' => ['present', 'array:title,description,eyebrow,author,caption,html,image,secondary_image,background_image,images,video,button_text,button_target,background,foreground,eyebrow_color,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size,hover_background,hover_foreground,secondary_foreground,hover_secondary_foreground,icon_background,icon_color,motion,description_mode,description_css_mode,billboard_mode,billboard_css_mode,gallery_description_align,countdown_css_mode,countdown_title_color,countdown_description_color,countdown_description_align'],
+            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9)), ...array_map(fn ($id) => 'features-'.$id, range(1, 45)), ...array_map(fn ($id) => 'faq-'.$id, range(1, 35)), ...array_map(fn ($id) => 'video-'.$id, range(1, 5)), ...array_map(fn ($id) => 'howto-'.$id, range(1, 6)), ...array_map(fn ($id) => 'content-'.$id, range(1, 5)), ...array_map(fn ($id) => 'buy-'.$id, range(1, 34)), ...array_map(fn ($id) => 'product-features-'.$id, range(1, 44)), ...array_map(fn ($id) => 'reviews-'.$id, range(1, 47)), ...array_map(fn ($id) => 'description-'.$id, range(1, 25)), ...array_map(fn ($id) => 'billboard-'.$id, range(1, 18)), ...array_map(fn ($id) => 'gallery-'.$id, range(1, 4)), ...array_map(fn ($id) => 'countdown-'.$id, range(1, 33))])],
             'sections.*.settings.motion' => ['sometimes', 'boolean'],
             'sections.*.settings.author' => ['sometimes', 'string', 'max:150'], 'sections.*.settings.caption' => ['sometimes', 'string', 'max:200'],
             'sections.*.settings.eyebrow' => ['sometimes', 'string', 'max:300'],
             'sections.*.settings.title' => ['sometimes', 'string', 'max:300'], 'sections.*.settings.description' => ['sometimes', 'string', 'max:2000'],
             'sections.*.settings.html' => ['sometimes', 'string', 'max:20000'], 'sections.*.settings.css' => ['sometimes', 'string', 'max:12000'],
             'sections.*.settings.button_text' => ['sometimes', 'string', 'max:120'], 'sections.*.settings.button_target' => ['sometimes', 'in:purchase,product'],
+            'sections.*.settings.countdown_css_mode' => ['sometimes', 'in:template,custom'],
+            'sections.*.settings.countdown_description_align' => ['sometimes', 'in:start,center,end'],
             'sections.*.settings.gallery_description_align' => ['sometimes', 'in:start,center,end'],
             'sections.*.settings.billboard_mode' => ['sometimes', 'in:fields,formatted'],
             'sections.*.settings.billboard_css_mode' => ['sometimes', 'in:template,custom'],
@@ -89,7 +91,7 @@ final class ProductLandingPages
             'sections.*.settings.items.*.date' => ['sometimes', 'nullable', 'date_format:Y-m-d'], 'sections.*.settings.items.*.platform' => ['sometimes', 'string', 'max:40'],
             'sections.*.settings.items.*.text' => ['sometimes', 'string', 'max:6000'], 'sections.*.settings.items.*.html' => ['sometimes', 'string', 'max:6000'],
             'sections.*.settings.items.*.url' => ['sometimes', 'string', 'max:2000'], 'sections.*.settings.items.*.icon' => ['sometimes', 'string', 'max:40'], 'sections.*.settings.items.*.rating' => ['sometimes', 'numeric', 'between:0,5']];
-        foreach (['background', 'foreground', 'eyebrow_color', 'accent', 'card_background', 'question_background', 'hover_background', 'hover_foreground', 'secondary_foreground', 'hover_secondary_foreground', 'icon_background', 'icon_color'] as $field) {
+        foreach (['background', 'foreground', 'eyebrow_color', 'accent', 'card_background', 'question_background', 'countdown_title_color', 'countdown_description_color', 'hover_background', 'hover_foreground', 'secondary_foreground', 'hover_secondary_foreground', 'icon_background', 'icon_color'] as $field) {
             $rules['sections.*.settings.'.$field] = ['sometimes', 'string', 'regex:/^(#(?:[a-f0-9]{3}|[a-f0-9]{4}|[a-f0-9]{6}|[a-f0-9]{8})|transparent)$/i'];
         }
         foreach (['accent', 'background', 'foreground'] as $field) {
@@ -122,6 +124,7 @@ final class ProductLandingPages
                 str_starts_with($settings['variant'], 'buy-') => 'buy_button',
                 str_starts_with($settings['variant'], 'product-features-') => 'product_features',
                 str_starts_with($settings['variant'], 'reviews-') => 'reviews',
+                str_starts_with($settings['variant'], 'countdown-') => 'countdown',
                 str_starts_with($settings['variant'], 'gallery-') => 'gallery',
                 str_starts_with($settings['variant'], 'billboard-') => 'billboard',
                 str_starts_with($settings['variant'], 'description-') => 'product_description',
@@ -129,6 +132,11 @@ final class ProductLandingPages
             } : null;
             if ($family !== null && $section['type'] !== $family) {
                 throw ValidationException::withMessages(['document.sections.'.$index.'.settings.variant' => 'Choose a design belonging to this section family.']);
+            }
+            foreach (['countdown_css_mode', 'countdown_title_color', 'countdown_description_color', 'countdown_description_align'] as $field) {
+                if (isset($settings[$field]) && ($section['type'] !== 'countdown' || $family !== 'countdown')) {
+                    throw ValidationException::withMessages(['document.sections.'.$index.'.settings.'.$field => 'Countdown fields belong to explicit countdown layouts.']);
+                }
             }
             if (isset($settings['gallery_description_align']) && ($section['type'] !== 'gallery' || $family !== 'gallery')) {
                 throw ValidationException::withMessages(['document.sections.'.$index.'.settings.gallery_description_align' => 'Gallery description alignment belongs to explicit gallery layouts.']);
