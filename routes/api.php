@@ -832,6 +832,7 @@ Route::prefix('v1')->group(function () {
                 Route::middleware('permission:products-delete')->post('bulk-delete', [StoreCatalogTransferController::class, 'delete']);
                 Route::middleware(['permission:products-create', 'permission:products-list'])->post('{product}/duplicate', [StoreCatalogTransferController::class, 'duplicate'])->whereNumber('product');
                 Route::middleware('permission:products-edit')->get('{product}/landing-page', [StoreProductLandingController::class, 'show'])->whereNumber('product');
+                Route::middleware('permission:products-edit')->get('{product}/landing-page/destinations', [StoreProductLandingController::class, 'destinations'])->whereNumber('product');
                 Route::middleware('permission:products-edit')->put('{product}/landing-page', [StoreProductLandingController::class, 'update'])->whereNumber('product');
                 Route::middleware('permission:products-edit')->post('{product}/landing-page/media', [StoreProductLandingController::class, 'upload'])->whereNumber('product');
                 Route::middleware('permission:products-list')->get('{product}/quantity-offers', [StoreQuantityOffersController::class, 'show'])->whereNumber('product');

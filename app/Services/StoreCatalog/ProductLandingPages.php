@@ -66,7 +66,7 @@ final class ProductLandingPages
         $rules = ['schema' => ['required', 'integer', 'in:1'], 'mode' => ['required', 'in:standard,standalone,below'], 'sections' => ['present', 'array', 'list', 'max:60'],
             'sections.*' => ['array:id,type,settings'], 'sections.*.id' => ['required', 'uuid', 'distinct:ignore_case'], 'sections.*.type' => ['required', Rule::in(self::TYPES)],
             'sections.*.settings' => ['present', 'array:title,description,html,image,background_image,images,video,button_text,button_target,background,foreground,accent,card_background,question_background,variant,align,layout,items,hours,ends_at,rating,css,padding,radius,font_size'],
-            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in(array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)))],
+            'sections.*.settings.variant' => ['sometimes', 'string', Rule::in([...array_map(fn ($id) => 'testimonials-'.$id, range(1, 11)), ...array_map(fn ($id) => 'banners-'.$id, range(1, 9))])],
             'sections.*.settings.title' => ['sometimes', 'string', 'max:300'], 'sections.*.settings.description' => ['sometimes', 'string', 'max:2000'],
             'sections.*.settings.html' => ['sometimes', 'string', 'max:20000'], 'sections.*.settings.css' => ['sometimes', 'string', 'max:12000'],
             'sections.*.settings.button_text' => ['sometimes', 'string', 'max:120'], 'sections.*.settings.button_target' => ['sometimes', 'in:purchase,product'],
@@ -75,7 +75,8 @@ final class ProductLandingPages
             'sections.*.settings.ends_at' => ['sometimes', 'nullable', 'date_format:Y-m-d\TH:i:s\Z'], 'sections.*.settings.rating' => ['sometimes', 'numeric', 'between:0,5'],
             'sections.*.settings.padding' => ['sometimes', 'integer', 'between:0,160'], 'sections.*.settings.radius' => ['sometimes', 'integer', 'between:0,48'], 'sections.*.settings.font_size' => ['sometimes', 'integer', 'between:12,96'],
             'sections.*.settings.images' => ['sometimes', 'array', 'list', 'max:30'], 'sections.*.settings.items' => ['sometimes', 'array', 'list', 'max:30'],
-            'sections.*.settings.items.*' => ['array:title,text,html,image,url,icon,rating,author,caption,date,platform'], 'sections.*.settings.items.*.title' => ['sometimes', 'string', 'max:300'],
+            'sections.*.settings.items.*' => ['array:title,text,html,image,url,icon,rating,author,caption,date,platform,destination'], 'sections.*.settings.items.*.title' => ['sometimes', 'string', 'max:300'],
+            'sections.*.settings.items.*.destination' => ['sometimes', 'array:type,id', 'required_array_keys:type,id'], 'sections.*.settings.items.*.destination.type' => ['required_with:sections.*.settings.items.*.destination', 'in:product,category,page'], 'sections.*.settings.items.*.destination.id' => ['required_with:sections.*.settings.items.*.destination', 'integer', 'min:1'],
             'sections.*.settings.items.*.author' => ['sometimes', 'string', 'max:150'], 'sections.*.settings.items.*.caption' => ['sometimes', 'string', 'max:200'],
             'sections.*.settings.items.*.date' => ['sometimes', 'nullable', 'date_format:Y-m-d'], 'sections.*.settings.items.*.platform' => ['sometimes', 'string', 'max:40'],
             'sections.*.settings.items.*.text' => ['sometimes', 'string', 'max:6000'], 'sections.*.settings.items.*.html' => ['sometimes', 'string', 'max:6000'],
@@ -96,8 +97,8 @@ final class ProductLandingPages
         foreach ($data['sections'] as $index => &$section) {
             $section['id'] = strtolower($section['id']);
             $settings = &$section['settings'];
-            if (isset($settings['variant']) && $section['type'] !== 'custom_reviews') {
-                throw ValidationException::withMessages(['document.sections.'.$index.'.settings.variant' => 'This design belongs to custom testimonials.']);
+            if (isset($settings['variant']) && $section['type'] !== (str_starts_with($settings['variant'], 'testimonials-') ? 'custom_reviews' : 'promo_banners')) {
+                throw ValidationException::withMessages(['document.sections.'.$index.'.settings.variant' => 'Choose a design belonging to this section family.']);
             }
             foreach (['hours', 'padding', 'radius', 'font_size'] as $field) {
                 if (isset($settings[$field])) {
@@ -125,6 +126,13 @@ final class ProductLandingPages
                 $settings['images'][$key] = self::image($image, $product);
             }
             foreach ($settings['items'] ?? [] as $key => $item) {
+                if (isset($item['destination'])) {
+                    if ($section['type'] !== 'promo_banners' || ! $product) {
+                        throw ValidationException::withMessages(['document' => 'Destinations belong to promotional banners.']);
+                    }
+                    $item['destination'] = ProductLandingDestinations::canonical($item['destination'], $product);
+                    unset($item['url']);
+                }
                 if (isset($item['rating'])) {
                     $item['rating'] = (float) $item['rating'];
                 }
@@ -237,6 +245,7 @@ final class ProductLandingPages
 
             return $image;
         };
+        $links = [];
         foreach ($document['sections'] as &$section) {
             $settings = &$section['settings'];
             if (isset($settings['image'])) {
@@ -249,6 +258,16 @@ final class ProductLandingPages
                 $settings['images'][$key] = $resolve($image);
             }
             foreach ($settings['items'] ?? [] as $key => $item) {
+                if (isset($item['destination'])) {
+                    $linkKey = $item['destination']['type'].':'.$item['destination']['id'];
+                    if (! array_key_exists($linkKey, $links)) {
+                        $links[$linkKey] = ProductLandingDestinations::url((int) $product->store_id, $item['destination']);
+                    }
+                    unset($settings['items'][$key]['destination'], $settings['items'][$key]['url']);
+                    if ($links[$linkKey] !== null) {
+                        $settings['items'][$key]['url'] = $links[$linkKey];
+                    }
+                }
                 if (isset($item['image'])) {
                     $settings['items'][$key]['image'] = $resolve($item['image']);
                 }

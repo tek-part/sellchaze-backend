@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Store;
 use App\Services\Commerce\ProductPreferences;
+use App\Services\StoreCatalog\ProductLandingDestinations;
 use App\Services\StoreCatalog\ProductLandingPages;
 use App\Services\StoreCatalog\StorefrontProductService;
 use App\Services\Storefront\StorefrontPageCache;
@@ -17,6 +18,14 @@ use Illuminate\Support\Facades\DB;
 
 class StoreProductLandingController extends Controller
 {
+    public function destinations(Request $request, Store $store, int $product): JsonResponse
+    {
+        Product::withoutGlobalScopes()->where('store_id', $store->id)->findOrFail($product);
+        $data = $request->validate(['type' => ['required', 'in:product,category,page'], 'search' => ['sometimes', 'nullable', 'string', 'max:150'], 'page' => ['sometimes', 'integer', 'between:1,10000'], 'selected' => ['sometimes', 'nullable', 'integer', 'min:1']]);
+
+        return response()->json(ProductLandingDestinations::options($store->id, $data['type'], $data['search'] ?? '', (int) ($data['page'] ?? 1), isset($data['selected']) ? (int) $data['selected'] : null), 200, ['Cache-Control' => 'private, no-store']);
+    }
+
     public function upload(Request $request, Store $store, int $product): JsonResponse
     {
         $request->validate(['file' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'extensions:jpg,jpeg,png,gif,webp', 'max:10240']]);
@@ -55,6 +64,7 @@ class StoreProductLandingController extends Controller
     private function response(Product $product): JsonResponse
     {
         return response()->json(['data' => ProductLandingPages::document($product), 'version' => ProductLandingPages::version($product), 'product_id' => $product->id,
+            'destination_urls' => (object) ProductLandingDestinations::documentUrls($product),
             'product' => ['id' => $product->id, 'name' => $product->name, 'slug' => $product->slug, 'price' => $product->price,
                 'description' => ProductDescription::clean($product->long_description ?? $product->description ?? ''), 'product_preferences' => ProductPreferences::publicPayload($product),
                 'media' => $product->media()->orderBy('position')->get()->map(fn ($media) => ['id' => $media->id, 'url' => $media->url(), 'type' => $media->type === 'video' ? 'video' : 'image', 'alt' => $media->alt])]], 200, ['Cache-Control' => 'private, no-store']);

@@ -39,3 +39,20 @@ Section background images use the same owned-media validation, portability and
 copy remapping as foreground images. FAQ question backgrounds are configurable.
 Cleared optional text fields remain empty after JSON middleware normalization.
 The storefront also accepts PHP's empty settings-map JSON representation ([]).
+
+Nine promotional image layouts are available through a native diagram gallery.
+Selecting a new layout preserves all merchant images and destinations, pads empty
+editor slots when needed, and keeps extra images in additional groups. Public
+rendering never substitutes demo photos. Image panels use cover fitting,28px
+corners,20px gaps, responsive columns and a reduced-motion-aware load animation.
+Clicking an image in the editor opens its item properties without following links.
+
+Banner images may target an own-store product, category or published page. The
+products-edit destination endpoint returns only bounded public-safe labels/URLs,
+with literal search, pagination and selected-item recovery. Stored references
+follow current public paths and become unlinked if unavailable; drafts/foreign
+entities are not exposed. Published page labels use publication snapshots.
+Native page/catalog exports replace references with portable URLs. Exported files carry URLs instead of numeric destination identities; ordinary
+duplication retains existing links
+and remaps image ownership. Unavailable destinations must be fixed before native
+page export. The existing landing migration is required; this phase adds no tables.
