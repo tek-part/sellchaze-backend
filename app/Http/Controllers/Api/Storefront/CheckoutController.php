@@ -319,7 +319,7 @@ class CheckoutController extends Controller
             ->map(fn (StorePaymentGateway $setting) => [
                 'slug' => $setting->gateway,
                 ...PaymentGatewayCatalog::presentation($setting),
-                'test_mode' => $setting->test_mode,
+                'test_mode' => $setting->gateway !== 'cod' && $setting->test_mode,
             ])->values();
 
         return response()->json(['data' => $methods]);

@@ -153,7 +153,7 @@ class StorefrontApiTest extends TestCase
         StorePaymentGateway::create(['store_id' => $store->id, 'gateway' => 'cod', 'enabled' => true, 'presentation' => ['name' => 'الدفع عند التسليم', 'description' => 'وصف الدفع']]);
         $id = Product::withoutGlobalScopes()->where('store_id', $store->id)->value('id');
         $this->getJson('http://nike.sellchase.com/api/v1/storefront/payment-methods?product_ids[]='.$id)->assertOk()->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.slug', 'cod')->assertJsonPath('data.0.name', 'الدفع عند التسليم')->assertJsonPath('data.0.description', 'وصف الدفع')->assertJsonPath('data.0.logo_url', '/payments/cod.png');
+            ->assertJsonPath('data.0.slug', 'cod')->assertJsonPath('data.0.name', 'الدفع عند التسليم')->assertJsonPath('data.0.description', 'وصف الدفع')->assertJsonPath('data.0.logo_url', '/payments/cod.png')->assertJsonPath('data.0.test_mode', false);
         config()->set('sellchase.storefront.spa_origin', 'https://static.example.test');
         $this->getJson('http://nike.sellchase.com/api/v1/storefront')->assertOk()->assertJsonPath('store.payment_methods', ['cod'])
             ->assertJsonPath('store.payment_marks.0.name', 'الدفع عند التسليم')->assertJsonPath('store.payment_marks.0.logo_url', 'https://static.example.test/payments/cod.png');

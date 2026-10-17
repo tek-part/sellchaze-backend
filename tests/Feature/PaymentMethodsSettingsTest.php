@@ -73,4 +73,18 @@ class PaymentMethodsSettingsTest extends TestCase
         $this->assertDatabaseMissing('store_payment_gateways', ['store_id' => $store->id]);
         $this->putJson('/api/v1/my-store/payments', ['gateways' => [['slug' => 'cod', 'enabled' => true, 'credentials' => ['unexpected_secret' => 'value']]]], $headers)->assertUnprocessable();
     }
+
+    public function test_legacy_secrets_and_an_omitted_existing_environment_survive_presentation_updates(): void
+    {
+        [$store, $headers] = $this->owner();
+        $store->update(['theme_settings' => ['payment_gateways' => [['slug' => 'stripe', 'enabled' => true, 'test_mode' => false,
+            'credentials' => ['secret_key' => 'legacy-synthetic', 'webhook_secret' => 'legacy-hook']]]]]);
+        $input = ['gateways' => [['slug' => 'stripe', 'enabled' => true, 'presentation' => ['name' => 'My cards']]]];
+        $this->putJson('/api/v1/my-store/payments', $input, $headers)->assertOk();
+        $setting = StorePaymentGateway::where('store_id', $store->id)->where('gateway', 'stripe')->firstOrFail();
+        $this->assertSame('legacy-synthetic', $setting->credentials['secret_key']);
+        $this->assertFalse($setting->test_mode);
+        $this->putJson('/api/v1/my-store/payments', $input, $headers)->assertOk();
+        $this->assertFalse($setting->fresh()->test_mode);
+    }
 }

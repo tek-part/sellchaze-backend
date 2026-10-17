@@ -76,7 +76,9 @@ class StorePaymentsApiController extends Controller
             Store::query()->whereKey($store->id)->lockForUpdate()->firstOrFail();
             foreach ($validated['gateways'] as $position => $input) {
                 $current = StorePaymentGateway::query()->where('store_id', $store->id)->where('gateway', $input['slug'])->first();
-                $credentials = $current?->credentials ?? [];
+                $legacy = collect(data_get($store->theme_settings, 'payment_gateways', []))->first(fn ($row) => in_array(data_get($row, 'slug'), [$input['slug'], str_replace('_', '-', $input['slug'])], true));
+                $credentials = $current?->credentials ?? data_get($legacy, 'credentials', []);
+                $testMode = $input['test_mode'] ?? $current?->test_mode ?? data_get($legacy, 'test_mode', true);
                 $provider = PaymentGatewayCatalog::all()[$input['slug']];
                 if ($input['enabled'] && ! $provider['available']) {
                     throw ValidationException::withMessages(['gateways.'.$position.'.enabled' => 'This provider connection is not available yet.']);
@@ -97,14 +99,14 @@ class StorePaymentsApiController extends Controller
                     throw ValidationException::withMessages(['gateways.'.$position.'.credentials' => 'Unknown payment credential fields.']);
                 }
                 if ($input['enabled'] && in_array($input['slug'], HostedPaymentGateways::PROVIDERS, true)) {
-                    app(RegionalHostedPayments::class)->validate((new StorePaymentGateway)->forceFill(['gateway' => $input['slug'], 'test_mode' => $input['test_mode'] ?? true, 'credentials' => $credentials]), $store->currency);
+                    app(RegionalHostedPayments::class)->validate((new StorePaymentGateway)->forceFill(['gateway' => $input['slug'], 'test_mode' => $testMode, 'credentials' => $credentials]), $store->currency);
                 }
                 if ($input['enabled'] && ! PaymentGatewayCatalog::configured($input['slug'], $credentials)) {
                     throw ValidationException::withMessages(['gateways.'.$position.'.credentials' => 'Complete the required connection fields before enabling this payment method.']);
                 }
                 StorePaymentGateway::query()->updateOrCreate(
                     ['store_id' => $store->id, 'gateway' => $input['slug']],
-                    ['enabled' => $input['enabled'], 'test_mode' => $input['test_mode'] ?? true, 'credentials' => $credentials,
+                    ['enabled' => $input['enabled'], 'test_mode' => $testMode, 'credentials' => $credentials,
                         'sort_order' => $input['order'] ?? $position, 'notes' => $input['notes'] ?? null,
                         'presentation' => $input['presentation'] ?? $current?->presentation]
                 );
