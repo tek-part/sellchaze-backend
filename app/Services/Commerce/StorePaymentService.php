@@ -40,11 +40,12 @@ class StorePaymentService
                 'status' => 'created',
                 'amount' => $order->grand_total,
                 'currency' => strtoupper($order->currency),
-                'metadata' => $setting->gateway === 'bank_transfer' ? ['bank_transfer' => BankTransferInstructions::snapshot($setting)] : [],
+                'metadata' => ['presentation' => PaymentGatewayCatalog::presentation($setting)]
+                    + (in_array($setting->gateway, ['bank_transfer', 'transfer_receipt'], true) ? ['bank_transfer' => BankTransferInstructions::snapshot($setting)] : []),
             ]);
         });
 
-        if (in_array($setting->gateway, ['cod', 'bank_transfer'], true)) {
+        if (in_array($setting->gateway, ['cod', 'bank_transfer', 'transfer_receipt'], true)) {
             StorePaymentTransaction::whereKey($transaction->id)->where('status', 'created')->update(['status' => 'pending']);
 
             return $this->result($transaction->fresh());
@@ -107,6 +108,7 @@ class StorePaymentService
     {
         try {
             $payload = match ($setting->gateway) {
+                'kashier', 'moyasar', 'paylink', 'ziina', 'myfatoorah', 'easykash', 'upayments', 'xpay' => app(HostedPaymentGateways::class)->start($store, $order, $setting, $transaction),
                 'stripe' => $this->stripe($store, $order, $setting, $transaction),
                 'paypal' => $this->paypal($store, $order, $setting, $transaction),
                 'tabby' => $this->tabby($store, $order, $setting, $transaction),

@@ -23,11 +23,11 @@ class BankTransferInstructions
 
     public static function forOrder(StoreOrder $order): ?array
     {
-        if ($order->payment_method !== 'bank_transfer' || $order->payment_status === 'paid' || $order->status === 'cancelled') {
+        if (! in_array($order->payment_method, ['bank_transfer', 'transfer_receipt'], true) || $order->payment_status === 'paid' || $order->status === 'cancelled') {
             return null;
         }
 
         return StorePaymentTransaction::query()->where('store_id', $order->store_id)->where('store_order_id', $order->id)
-            ->where('gateway', 'bank_transfer')->latest('id')->first()?->metadata['bank_transfer'] ?? null;
+            ->where('gateway', $order->payment_method)->latest('id')->first()?->metadata['bank_transfer'] ?? null;
     }
 }

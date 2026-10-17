@@ -5,11 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentWebhookEvent;
 use App\Models\Store;
-use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
-use App\Services\Commerce\DigitalDelivery;
-use App\Services\Commerce\StorefrontOrderBridge;
+use App\Services\Commerce\PaymentSettlement;
 use App\Services\Commerce\StorePaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -484,27 +482,6 @@ class PaymentWebhookController extends Controller
 
     private function transitionPayment(StorePaymentTransaction $transaction, string $status, ?string $reference = null): void
     {
-        DB::transaction(function () use ($transaction, $status, $reference) {
-            $locked = StorePaymentTransaction::query()->whereKey($transaction->id)->lockForUpdate()->firstOrFail();
-            if ($locked->status === 'paid') {
-                return;
-            }
-            // Webhooks run without a host-resolved CurrentStore. Bind explicitly.
-            $order = StoreOrder::forStore($locked->store_id)->whereKey($locked->store_order_id)->lockForUpdate()->firstOrFail();
-            $locked->update($status === 'paid'
-                ? ['status' => 'paid', 'provider_reference' => $reference, 'paid_at' => now(), 'failed_at' => null]
-                : ['status' => 'failed', 'failed_at' => now()]);
-            // A delayed failure from another attempt cannot undo a settled order.
-            if ($status === 'paid') {
-                $wasPaid = $order->payment_status === 'paid';
-                $order->update(['payment_status' => 'paid', 'payment_reference' => $reference]);
-                app(StorefrontOrderBridge::class)->syncPayment($order);
-                if (! $wasPaid) {
-                    app(DigitalDelivery::class)->record($order);
-                }
-            } elseif ($order->payment_status !== 'paid') {
-                $order->update(['payment_status' => 'failed']);
-            }
-        });
+        app(PaymentSettlement::class)->transition($transaction, $status, $reference);
     }
 }

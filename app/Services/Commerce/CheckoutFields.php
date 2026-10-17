@@ -56,7 +56,7 @@ class CheckoutFields
     /** @return list<array<string,mixed>> */
     public function effective(Store $store, ?string $paymentMethod, bool $requiresShipping = true, bool $hasDigital = false, bool $requiresWhatsapp = false): array
     {
-        $online = ! in_array($this->paymentMethod($store, $paymentMethod), ['cod', 'bank_transfer'], true);
+        $online = ! in_array($this->paymentMethod($store, $paymentMethod), ['cod', 'bank_transfer', 'transfer_receipt'], true);
 
         $regions = $requiresShipping && app(StoreShipping::class)->regionsEnabled($store);
         $phoneCountry = app(OrderLimits::class)->configured($store)['phone_country'];
