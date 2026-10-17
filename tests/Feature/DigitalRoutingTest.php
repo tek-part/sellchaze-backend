@@ -251,6 +251,7 @@ class DigitalRoutingTest extends TestCase
         $transaction->update(['gateway' => 'stripe', 'provider_reference' => 'cs_routing']);
         StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'stripe', 'enabled' => true, 'credentials' => ['webhook_secret' => 'whsec_routing']]);
         $json = json_encode(['id' => 'evt_routing', 'type' => 'checkout.session.completed', 'data' => ['object' => ['id' => 'cs_routing', 'payment_status' => 'paid', 'payment_intent' => 'pi_routing',
+            'amount_total' => (int) bcmul((string) $transaction->amount, '100', 0), 'currency' => strtolower($transaction->currency),
             'metadata' => ['transaction_id' => $transaction->id, 'store_order_id' => $id]]]], JSON_THROW_ON_ERROR);
         $time = time();
         $headers = ['CONTENT_TYPE' => 'application/json', 'HTTP_STRIPE_SIGNATURE' => 't='.$time.',v1='.hash_hmac('sha256', $time.'.'.$json, 'whsec_routing')];

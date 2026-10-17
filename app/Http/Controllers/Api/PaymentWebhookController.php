@@ -7,6 +7,7 @@ use App\Models\PaymentWebhookEvent;
 use App\Models\Store;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
+use App\Services\Commerce\PaymentAmounts;
 use App\Services\Commerce\PaymentSettlement;
 use App\Services\Commerce\StorePaymentService;
 use Illuminate\Http\JsonResponse;
@@ -306,6 +307,10 @@ class PaymentWebhookController extends Controller
             if (data_get($event, 'data.object.payment_status') !== 'paid') {
                 return;
             }
+            $amount = data_get($event, 'data.object.amount_total');
+            abort_unless(! is_bool($amount) && ctype_digit((string) $amount)
+                && (string) $amount === (string) PaymentAmounts::minor((string) $transaction->amount, $transaction->currency, true)
+                && strtoupper((string) data_get($event, 'data.object.currency')) === strtoupper($transaction->currency), 422, 'Stripe amount or currency does not match this payment.');
             $this->markPaid($transaction, (string) (data_get($event, 'data.object.payment_intent') ?? data_get($event, 'data.object.id')));
         } elseif (in_array($type, ['checkout.session.expired', 'checkout.session.async_payment_failed'], true)) {
             $this->markFailed($transaction);

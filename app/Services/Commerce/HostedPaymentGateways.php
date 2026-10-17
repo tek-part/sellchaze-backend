@@ -169,13 +169,12 @@ class HostedPaymentGateways
 
     private function decimals(string $currency): int
     {
-        return in_array(strtoupper($currency), ['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND'], true) ? 3
-            : (in_array(strtoupper($currency), ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'], true) ? 0 : 2);
+        return PaymentAmounts::decimals($currency);
     }
 
     private function minor(string $amount, string $currency): int
     {
-        return (int) bcmul($amount, (string) (10 ** $this->decimals($currency)), 0);
+        return PaymentAmounts::minor($amount, $currency);
     }
 
     private function major(mixed $amount, string $currency): string

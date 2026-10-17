@@ -25,6 +25,32 @@ class HostedPaymentsTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_stripe_three_decimal_charge_and_signed_settlement_require_exact_money(): void
+    {
+        [$store, $order, $setting] = $this->fixtures('stripe', 'KWD');
+        $setting->update(['credentials' => array_merge($setting->credentials, ['webhook_secret' => 'whsec_synthetic'])]);
+        Http::fake(['api.stripe.com/*' => Http::response(['id' => 'cs_native', 'url' => 'https://checkout.stripe.com/c/pay/cs_native'])]);
+        $first = app(StorePaymentService::class)->start($store, $order, $setting);
+        Http::assertSent(fn ($request) => $request['line_items'][0]['price_data']['unit_amount'] === 100250 && $request['line_items'][0]['price_data']['currency'] === 'kwd');
+        $send = function (int $amount, string $currency) use ($store, $order, $first) {
+            $json = json_encode(['id' => 'evt_native', 'type' => 'checkout.session.completed', 'data' => ['object' => [
+                'id' => 'cs_native', 'payment_status' => 'paid', 'payment_intent' => 'pi_native', 'amount_total' => $amount, 'currency' => $currency,
+                'metadata' => ['transaction_id' => $first['transaction_id'], 'store_order_id' => $order->id],
+            ]]], JSON_THROW_ON_ERROR);
+            $time = time();
+
+            return $this->call('POST', '/api/v1/payment-webhooks/'.$store->id.'/stripe', [], [], [], [
+                'CONTENT_TYPE' => 'application/json', 'HTTP_STRIPE_SIGNATURE' => 't='.$time.',v1='.hash_hmac('sha256', $time.'.'.$json, 'whsec_synthetic'),
+            ], $json);
+        };
+        $send(10025, 'kwd')->assertStatus(422);
+        $send(100250, 'egp')->assertStatus(422);
+        $this->assertSame('pending', $order->fresh()->payment_status);
+        $send(100250, 'kwd')->assertOk();
+        $this->assertSame('paid', $order->fresh()->payment_status);
+        $send(100250, 'kwd')->assertOk()->assertJsonPath('duplicate', true);
+    }
+
     public function test_provider_required_contact_fields_are_enforced_before_an_order_is_created(): void
     {
         [$store] = $this->fixtures('xpay');

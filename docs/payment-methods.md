@@ -49,3 +49,8 @@ applied by these settings.
 Verification uses `Http::fake` and disposable SQLite test databases. Actual merchant
 credentials, remote sandbox transactions and live payments are not exercised by
 the automated tests.
+
+Minor-unit requests use exact decimal arithmetic, including three-decimal
+currencies and Stripe's special whole-unit ISK/UGX representation. Unsupported
+fractions are rejected rather than silently rounded. A signed Stripe paid event
+must also match the stored transaction's exact amount and currency.

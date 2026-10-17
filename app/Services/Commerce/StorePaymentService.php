@@ -164,7 +164,7 @@ class StorePaymentService
                 'cancel_url' => $this->urls->publicUrl($store, '/checkout?payment=cancelled'),
                 'line_items' => [[
                     'price_data' => ['currency' => strtolower($order->currency),
-                        'unit_amount' => $this->minorAmount($order->grand_total, $order->currency),
+                        'unit_amount' => PaymentAmounts::minor($order->grand_total, $order->currency, true),
                         'product_data' => ['name' => 'Order '.$order->order_number]],
                     'quantity' => 1,
                 ]],
@@ -670,9 +670,7 @@ class StorePaymentService
 
     private function minorAmount(string $amount, string $currency): int
     {
-        $zeroDecimal = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];
-
-        return in_array(strtoupper($currency), $zeroDecimal, true) ? (int) round((float) $amount) : (int) round(((float) $amount) * 100);
+        return PaymentAmounts::minor($amount, $currency);
     }
 
     private function requireCredential(string $value, string $label): void

@@ -339,6 +339,7 @@ class DigitalFulfillmentTest extends TestCase
         $transaction->update(['gateway' => 'stripe', 'provider_reference' => 'cs_review']);
         StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'stripe', 'enabled' => true, 'credentials' => ['webhook_secret' => 'whsec_review']]);
         $json = json_encode(['id' => 'evt_review_paid', 'type' => 'checkout.session.completed', 'data' => ['object' => ['id' => 'cs_review', 'payment_status' => 'paid', 'payment_intent' => 'pi_review',
+            'amount_total' => (int) bcmul((string) $transaction->amount, '100', 0), 'currency' => strtolower($transaction->currency),
             'metadata' => ['transaction_id' => $transaction->id, 'store_order_id' => $data['data']['id']]]]], JSON_THROW_ON_ERROR);
         $signature = 't='.time().',v1='.hash_hmac('sha256', time().'.'.$json, 'whsec_review');
         app(CurrentStore::class)->forget();
