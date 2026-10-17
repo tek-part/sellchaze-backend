@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\FollowController;
 use App\Http\Controllers\Api\GatewaysApiController;
 use App\Http\Controllers\Api\GoogleMerchantController;
 use App\Http\Controllers\Api\GoogleSettingsApiController;
+use App\Http\Controllers\Api\HostedPaymentReturnController;
 use App\Http\Controllers\Api\ImpersonationApiController;
 use App\Http\Controllers\Api\InventoryApiController;
 use App\Http\Controllers\Api\InvestmentOpportunityController;
@@ -45,6 +46,7 @@ use App\Http\Controllers\Api\MerchantOrderActionsController;
 use App\Http\Controllers\Api\MerchantOrderController;
 use App\Http\Controllers\Api\MerchantOrderEditController;
 use App\Http\Controllers\Api\MerchantOrderPushController;
+use App\Http\Controllers\Api\MerchantPaymentProofController;
 use App\Http\Controllers\Api\MerchantReviewController;
 use App\Http\Controllers\Api\MerchantsApiController;
 use App\Http\Controllers\Api\MerchantSubscriptionsController;
@@ -98,6 +100,7 @@ use App\Http\Controllers\Api\Storefront\CheckoutLeadController;
 use App\Http\Controllers\Api\Storefront\CustomerAddressController;
 use App\Http\Controllers\Api\Storefront\CustomerAuthController;
 use App\Http\Controllers\Api\Storefront\DownsellController;
+use App\Http\Controllers\Api\Storefront\PaymentProofController;
 use App\Http\Controllers\Api\Storefront\PersonalizationUploadController;
 use App\Http\Controllers\Api\Storefront\PhoneVerificationController;
 use App\Http\Controllers\Api\Storefront\ProductFeedController;
@@ -182,6 +185,7 @@ use App\Http\Controllers\Api\Wavex\WavexSettingsApiController;
 use App\Http\Controllers\Api\Wavex\WavexTemplatesApiController;
 use App\Http\Controllers\Api\Wavex\WavexWebhookController;
 use App\Http\Controllers\Api\WigpleasureSyncApiController;
+use App\Http\Controllers\Api\XpayPaymentReturnController;
 use App\Http\Controllers\Storefront\ReferralLinkController;
 use App\Http\Middleware\AuthenticateStoreApiKey;
 use App\Http\Middleware\IdempotentCheckout;
@@ -342,6 +346,9 @@ Route::prefix('v1')->group(function () {
     Route::post('/payment-webhooks/{store}/fawaterak_json', [PaymentWebhookController::class, 'fawaterak'])
         ->whereNumber('store');
     Route::get('/payment-returns/hyperpay/{transaction}', [PaymentWebhookController::class, 'hyperpayReturn']);
+    Route::get('/payment-returns/hosted/{transaction}', HostedPaymentReturnController::class)->middleware('throttle:60,1')->name('payments.hosted.return');
+    Route::post('/payment-notifications/hosted/{transaction}', HostedPaymentReturnController::class)->middleware('throttle:60,1')->name('payments.hosted.notify');
+    Route::match(['get', 'post'], '/payment-returns/xpay/{store}', XpayPaymentReturnController::class)->whereNumber('store')->middleware('throttle:30,1')->name('payments.xpay.return');
     Route::get('/payment-sessions/hyperpay/{transaction}', [PaymentWebhookController::class, 'hyperpaySession'])->name('payments.hyperpay.session');
     Route::get('/payment-sessions/fawry/{transaction}', [PaymentWebhookController::class, 'fawrySession'])->name('payments.fawry.session');
     Route::match(['get', 'post'], '/payment-returns/fawry/{transaction}', [PaymentWebhookController::class, 'fawryReturn']);
@@ -409,6 +416,7 @@ Route::prefix('v1')->group(function () {
         Route::post('checkout/bot/verify', BotVerificationController::class)->middleware('throttle:10,1');
         Route::post('checkout/quote', [CheckoutController::class, 'quote']);
         Route::post('checkout/payment/retry', [CheckoutController::class, 'retryPayment']);
+        Route::post('checkout/receipt/upload', PaymentProofController::class)->middleware('throttle:6,1');
         Route::post('checkout/receipt', [CheckoutController::class, 'receipt'])->middleware('throttle:30,1');
 
         // ---- Phase 6D: coupon apply/remove on the current cart (guest-friendly) ----
@@ -921,6 +929,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('{order}', [MerchantOrderController::class, 'show'])->whereNumber('order');
                 Route::match(['patch', 'post'], '{order}/status', [MerchantOrderController::class, 'updateStatus'])->whereNumber('order');
                 Route::post('{order}/note', [MerchantOrderController::class, 'addNote'])->whereNumber('order')->middleware('permission:store.orders.manage');
+                Route::get('{order}/payment/proofs', [MerchantPaymentProofController::class, 'index'])->whereNumber('order')->middleware('permission:store.orders.manage');
+                Route::get('{order}/payment/proofs/{proof}', [MerchantPaymentProofController::class, 'download'])->whereNumber('order')->whereUuid('proof')->middleware('permission:store.orders.manage');
+                Route::post('{order}/payment/proofs/{proof}/reject', [MerchantPaymentProofController::class, 'reject'])->whereNumber('order')->whereUuid('proof')->middleware(['permission:store.orders.manage', 'throttle:20,1']);
                 Route::post('{order}/payment/confirm-bank', [MerchantOrderController::class, 'confirmBankPayment'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:20,1']);
                 Route::post('{order}/payment/confirm-cash', [MerchantOrderController::class, 'confirmCashPayment'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:20,1']);
                 Route::get('{order}/digital-email', [MerchantOrderController::class, 'digitalEmail'])->whereNumber('order')->middleware('permission:store.orders.manage');

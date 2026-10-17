@@ -27,13 +27,17 @@ use App\Services\Commerce\CheckoutQuote;
 use App\Services\Commerce\CheckoutService;
 use App\Services\Commerce\CouponService;
 use App\Services\Commerce\CustomerAuthService;
+use App\Services\Commerce\HostedPaymentGateways;
+use App\Services\Commerce\HostedPaymentReconciliation;
 use App\Services\Commerce\OrderReceipt;
+use App\Services\Commerce\PaymentGatewayCatalog;
 use App\Services\Commerce\PaymentRetryToken;
 use App\Services\Commerce\PricingCalculator;
 use App\Services\Commerce\ProductAbTests;
 use App\Services\Commerce\ProductPreferences;
 use App\Services\Commerce\QuantityOffers;
 use App\Services\Commerce\ReferralAttribution;
+use App\Services\Commerce\RegionalHostedPayments;
 use App\Services\Commerce\StorefrontEvents;
 use App\Services\Commerce\StorePaymentService;
 use App\Services\Commerce\StoreShipping;
@@ -100,7 +104,7 @@ class CheckoutController extends Controller
             ->when(! $requiresShipping, fn ($query) => $query->where('gateway', '!=', 'cod'))
             ->when($request->filled('payment_method'), fn ($query) => $query->where('gateway', $request->string('payment_method')->toString()))
             ->orderBy('sort_order')
-            ->first();
+            ->get()->first(fn (StorePaymentGateway $setting) => PaymentGatewayCatalog::offered($setting, $store->currency));
 
         if ($payment === null && ! $request->filled('payment_method') && $requiresShipping) {
             $payment = (new StorePaymentGateway)->forceFill([
@@ -117,6 +121,9 @@ class CheckoutController extends Controller
             throw ValidationException::withMessages([
                 'payment_method' => 'The selected payment method is not available for this store.',
             ]);
+        }
+        if (in_array($payment->gateway, HostedPaymentGateways::PROVIDERS, true)) {
+            app(RegionalHostedPayments::class)->validate($payment, strtoupper($store->currency));
         }
 
         $customer = $this->auth->resolve($request);
@@ -224,7 +231,18 @@ class CheckoutController extends Controller
         abort_unless($id, 404, 'This private receipt is invalid or expired.');
         $order = StoreOrder::query()->where('store_id', $store->id)->whereKey($id)->with('items')->firstOrFail();
 
-        return response()->json(['data' => new StoreOrderResource($order), 'bank_transfer' => BankTransferInstructions::forOrder($order)], 200,
+        $transaction = StorePaymentTransaction::query()->where('store_id', $store->id)->where('store_order_id', $order->id)->latest('id')->first();
+        if ($transaction && in_array($transaction->gateway, HostedPaymentGateways::PROVIDERS, true)) {
+            try {
+                app(HostedPaymentReconciliation::class)->refresh($transaction);
+                $order->refresh()->load('items');
+            } catch (\Throwable) { /* A provider outage must not hide a private receipt. */
+            }
+        }
+
+        return response()->json(['data' => new StoreOrderResource($order), 'bank_transfer' => BankTransferInstructions::forOrder($order),
+            'payment_method' => $transaction?->metadata['presentation'] ?? null,
+            'transfer_proofs' => $order->payment_method === 'transfer_receipt' ? DB::table('store_payment_proofs')->where('store_id', $store->id)->where('store_order_id', $order->id)->orderByDesc('created_at')->get(['id', 'status', 'reference', 'review_note', 'created_at']) : []], 200,
             ['Cache-Control' => 'private, no-store', 'Referrer-Policy' => 'no-referrer']);
     }
 
@@ -291,24 +309,18 @@ class CheckoutController extends Controller
         $store = $this->currentStore($request);
         $data = $request->validate(['product_ids' => ['sometimes', 'array', 'max:100'], 'product_ids.*' => ['required', 'integer', 'min:1']]);
         $basket = isset($data['product_ids']) ? app(CheckoutBasket::class)->fromIds($store, $data['product_ids'], true) : app(CheckoutBasket::class)->forRequest($store, $request);
-        $names = [
-            'cod' => 'Cash on delivery', 'bank_transfer' => 'Bank transfer', 'stripe' => 'Stripe',
-            'paypal' => 'PayPal', 'tabby' => 'Tabby', 'tamara' => 'Tamara', 'paymob' => 'Paymob',
-            'fawry' => 'Fawry', 'fawaterak' => 'Fawaterak', 'tap' => 'Tap Payments',
-            'paytabs' => 'PayTabs', 'hyperpay' => 'HyperPay',
-        ];
-
         $methods = StorePaymentGateway::query()
             ->where('store_id', $store->id)
             ->where('enabled', true)
             ->when(! $basket['requires_shipping'], fn ($query) => $query->where('gateway', '!=', 'cod'))
             ->orderBy('sort_order')
-            ->get(['gateway', 'test_mode'])
+            ->get()
+            ->filter(fn (StorePaymentGateway $setting) => PaymentGatewayCatalog::offered($setting, $store->currency))
             ->map(fn (StorePaymentGateway $setting) => [
                 'slug' => $setting->gateway,
-                'name' => $names[$setting->gateway] ?? str($setting->gateway)->headline()->toString(),
-                'test_mode' => $setting->test_mode,
-            ]);
+                ...PaymentGatewayCatalog::presentation($setting),
+                'test_mode' => $setting->gateway !== 'cod' && $setting->test_mode,
+            ])->values();
 
         return response()->json(['data' => $methods]);
     }

@@ -13,9 +13,9 @@ class ManualBankPayment
     {
         return DB::transaction(function () use ($order, $reference, $actorId, $note) {
             $transaction = StorePaymentTransaction::query()->where('store_id', $order->store_id)->where('store_order_id', $order->id)
-                ->where('gateway', 'bank_transfer')->latest('id')->lockForUpdate()->first();
+                ->where('gateway', $order->payment_method)->latest('id')->lockForUpdate()->first();
             $current = StoreOrder::forStore($order->store_id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
-            if ($current->status === 'cancelled' || $current->payment_method !== 'bank_transfer' || $transaction === null
+            if ($current->status === 'cancelled' || ! in_array($current->payment_method, ['bank_transfer', 'transfer_receipt'], true) || $transaction === null
                 || bccomp((string) $transaction->amount, (string) $current->grand_total, 2) !== 0 || strtoupper($transaction->currency) !== strtoupper($current->currency)) {
                 throw ValidationException::withMessages(['payment' => 'This bank payment cannot be confirmed.']);
             }
@@ -28,6 +28,13 @@ class ManualBankPayment
             }
             if ($transaction->status !== 'pending') {
                 throw ValidationException::withMessages(['payment' => 'This bank payment is not awaiting confirmation.']);
+            }
+            if ($current->payment_method === 'transfer_receipt') {
+                $proof = DB::table('store_payment_proofs')->where('store_id', $current->store_id)->where('store_order_id', $current->id)->where('status', 'pending')->orderByDesc('created_at')->first();
+                if (! $proof) {
+                    throw ValidationException::withMessages(['payment' => 'Review an uploaded receipt before confirming this transfer.']);
+                }
+                DB::table('store_payment_proofs')->where('id', $proof->id)->update(['status' => 'accepted', 'reviewed_by' => $actorId, 'review_note' => null, 'reviewed_at' => now(), 'updated_at' => now()]);
             }
             $transaction->update(['status' => 'paid', 'provider_reference' => $reference, 'paid_at' => now(), 'failed_at' => null]);
             $current->update(['payment_status' => 'paid', 'payment_reference' => $reference]);

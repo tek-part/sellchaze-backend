@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
+        $schedule->command('payments:reconcile-hosted --limit=50')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
         $schedule->command('checkout-otp:prune')->daily()->withoutOverlapping();
         $schedule->command('checkout-bot:prune')->daily()->withoutOverlapping();
         $schedule->command('store-sheets:dispatch --limit=50')->everyMinute()->withoutOverlapping();

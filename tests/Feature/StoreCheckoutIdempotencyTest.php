@@ -202,7 +202,7 @@ class StoreCheckoutIdempotencyTest extends TestCase
     public function test_nested_payment_start_calls_only_one_provider_and_preserves_early_paid_callback(): void
     {
         app(CurrentStore::class)->set($this->store);
-        $setting = StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'stripe', 'enabled' => true, 'credentials' => ['secret_key' => 'synthetic-test-key']]);
+        $setting = StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'stripe', 'enabled' => true, 'credentials' => ['secret_key' => 'synthetic-test-key', 'webhook_secret' => 'synthetic-webhook-key']]);
         Http::fake(function () use ($setting) {
             $transaction = StorePaymentTransaction::firstOrFail();
             $order = StoreOrder::withoutGlobalScopes()->firstOrFail();
@@ -225,7 +225,7 @@ class StoreCheckoutIdempotencyTest extends TestCase
 
     public function test_failed_provider_can_resume_same_transaction_after_recovering_order(): void
     {
-        StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'stripe', 'enabled' => true, 'credentials' => ['secret_key' => 'synthetic-test-key']]);
+        StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'stripe', 'enabled' => true, 'credentials' => ['secret_key' => 'synthetic-test-key', 'webhook_secret' => 'synthetic-webhook-key']]);
         Http::fake(['api.stripe.com/*' => Http::sequence()->push([], 500)->push(['id' => 'cs_recovered', 'url' => 'https://checkout.stripe.com/recovered'])]);
         $payload = $this->payload() + ['payment_method' => 'stripe'];
         $this->postJson($this->url, $payload, $this->headers)->assertUnprocessable()->assertJsonMissingPath('checkout_rejected');
@@ -247,7 +247,7 @@ class StoreCheckoutIdempotencyTest extends TestCase
         $order->update(['payment_method' => 'stripe']);
         $transaction = StorePaymentTransaction::firstOrFail();
         $transaction->update(['gateway' => 'stripe', 'status' => 'created']);
-        $setting = StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'stripe', 'enabled' => true, 'credentials' => ['secret_key' => 'synthetic-test-key']]);
+        $setting = StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'stripe', 'enabled' => true, 'credentials' => ['secret_key' => 'synthetic-test-key', 'webhook_secret' => 'synthetic-webhook-key']]);
         Http::fake(function () use ($transaction) {
             $transaction->update(['status' => 'paid', 'paid_at' => now()]);
 

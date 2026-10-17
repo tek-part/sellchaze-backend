@@ -56,7 +56,9 @@ class CheckoutFields
     /** @return list<array<string,mixed>> */
     public function effective(Store $store, ?string $paymentMethod, bool $requiresShipping = true, bool $hasDigital = false, bool $requiresWhatsapp = false): array
     {
-        $online = ! in_array($this->paymentMethod($store, $paymentMethod), ['cod', 'bank_transfer'], true);
+        $method = $this->paymentMethod($store, $paymentMethod);
+        $online = ! in_array($method, ['cod', 'bank_transfer', 'transfer_receipt'], true);
+        $providerPhone = in_array($method, ['paylink', 'easykash', 'xpay'], true);
 
         $regions = $requiresShipping && app(StoreShipping::class)->regionsEnabled($store);
         $phoneCountry = app(OrderLimits::class)->configured($store)['phone_country'];
@@ -64,8 +66,8 @@ class CheckoutFields
         $otpRequired = app(CheckoutPhoneVerification::class)->configuration($store)['enabled'];
         $blockPhoneRequired = app(PhoneBlocking::class)->hasActive($store);
 
-        return collect($this->configured($store))->map(function (array $field) use ($online, $regions, $requiresShipping, $hasDigital, $requiresWhatsapp, $phoneRequired, $phoneCountry, $blockPhoneRequired, $otpRequired) {
-            $field['payment_required'] = $online && in_array($field['key'], ['name', 'email'], true);
+        return collect($this->configured($store))->map(function (array $field) use ($online, $providerPhone, $regions, $requiresShipping, $hasDigital, $requiresWhatsapp, $phoneRequired, $phoneCountry, $blockPhoneRequired, $otpRequired) {
+            $field['payment_required'] = ($online && in_array($field['key'], ['name', 'email'], true)) || ($providerPhone && $field['key'] === 'phone');
             $field['digital_required'] = ($hasDigital && $field['key'] === 'email') || ($requiresWhatsapp && $field['key'] === 'phone');
             $field['order_limit_required'] = $phoneRequired && $field['key'] === 'phone';
             $field['phone_block_required'] = $blockPhoneRequired && $field['key'] === 'phone';
@@ -125,7 +127,10 @@ class CheckoutFields
                 }
             };
         }
-        if (app(OrderLimits::class)->configured($store)['max_orders_per_phone_24h'] > 0 || app(PhoneBlocking::class)->hasActive($store) || app(CheckoutPhoneVerification::class)->configuration($store)['enabled']) {
+        if ($this->paymentMethod($store, $paymentMethod) === 'xpay') {
+            $rules['customer_name'][] = 'regex:/^\S+(?:\s+\S+)+$/u';
+        }
+        if (in_array($this->paymentMethod($store, $paymentMethod), ['paylink', 'easykash', 'xpay'], true) || app(OrderLimits::class)->configured($store)['max_orders_per_phone_24h'] > 0 || app(PhoneBlocking::class)->hasActive($store) || app(CheckoutPhoneVerification::class)->configuration($store)['enabled']) {
             $rules['customer_phone'][] = function (string $attribute, mixed $value, \Closure $fail) use ($store): void {
                 $limits = app(OrderLimits::class);
                 if (! is_string($value) || $limits->normalizePhone($value, $limits->configured($store)['phone_country']) === null) {
