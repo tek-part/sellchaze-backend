@@ -20,7 +20,7 @@ class RegionalHostedPayments
                 'community_id' => $creds['community_id'], 'variable_amount_id' => (int) $creds['variable_amount_id'],
                 'amount' => (float) $transaction->amount, 'original_amount' => (float) $transaction->amount, 'currency' => $transaction->currency,
                 'pay_using' => 'card', 'language' => 'ar', 'membership_id' => $reference,
-                'billing_data' => ['name' => $order->customer_name, 'email' => $order->customer_email, 'phone_number' => $order->customer_phone],
+                'billing_data' => ['name' => $order->customer_name, 'email' => $order->customer_email, 'phone_number' => $order->customer_phone_normalized ?: $order->customer_phone],
             ])->throw()->json('data') ?? [],
             'myfatoorah' => $this->request()->withToken($creds['api_key'])->post($this->myfatoorahBase($setting).'/v2/SendPayment', [
                 'CustomerName' => $order->customer_name, 'NotificationOption' => 'LNK', 'CustomerEmail' => $order->customer_email,

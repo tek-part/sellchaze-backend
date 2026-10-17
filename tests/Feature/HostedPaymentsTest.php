@@ -8,6 +8,7 @@ use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Models\User;
+use App\Services\Commerce\CheckoutFields;
 use App\Services\Commerce\HostedPaymentGateways;
 use App\Services\Commerce\HostedPaymentReconciliation;
 use App\Services\Commerce\StorePaymentService;
@@ -16,12 +17,30 @@ use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class HostedPaymentsTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_provider_required_contact_fields_are_enforced_before_an_order_is_created(): void
+    {
+        [$store] = $this->fixtures('xpay');
+        foreach (['xpay', 'paylink', 'easykash'] as $slug) {
+            $fields = collect(app(CheckoutFields::class)->effective($store, $slug, false))->keyBy('key');
+            $this->assertTrue($fields['phone']['required']);
+            $rules = app(CheckoutFields::class)->rules($store, $slug, false);
+            $validator = Validator::make(['customer_name' => 'Only', 'customer_email' => 'buyer@example.test', 'customer_phone' => 'invalid'], $rules);
+            $this->assertTrue($validator->fails());
+            $this->assertTrue($validator->errors()->has('customer_phone'));
+            if ($slug === 'xpay') {
+                $this->assertTrue($validator->errors()->has('customer_name'));
+            }
+        }
+        Http::assertNothingSent();
+    }
 
     private function fixtures(string $slug, string $currency = 'EGP'): array
     {
