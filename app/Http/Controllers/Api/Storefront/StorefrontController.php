@@ -15,12 +15,14 @@ use App\Models\StoreMenu;
 use App\Models\StorePaymentGateway;
 use App\Services\Commerce\DownsellOffers;
 use App\Services\Commerce\GoogleMerchantSettings;
+use App\Services\Commerce\PaymentGatewayCatalog;
 use App\Services\Commerce\ShoppingPreferences;
 use App\Services\Commerce\StoreHeadCode;
 use App\Services\Commerce\StoreTrackingSettings;
 use App\Services\CurrencyRateService;
 use App\Services\PageBuilder\StoreMenuService;
 use App\Services\Storefront\SimplePages;
+use App\Services\Storefront\SpaShell;
 use App\Services\Storefront\StorefrontContextBuilder;
 use App\Services\Storefront\StorefrontService;
 use App\Services\Storefront\StoreSeoService;
@@ -188,6 +190,14 @@ class StorefrontController extends Controller
             }
         }
 
+        $payments = StorePaymentGateway::where('store_id', $store->id)->where('enabled', true)->orderBy('sort_order')->get()->filter(fn (StorePaymentGateway $setting) => PaymentGatewayCatalog::offered($setting, $baseCurrency));
+        $paymentMarks = $payments->map(function (StorePaymentGateway $setting) {
+            $presentation = PaymentGatewayCatalog::presentation($setting);
+            $path = $presentation['logo_url'];
+
+            return ['name' => $presentation['name'], 'logo_url' => is_string($path) && str_starts_with($path, '/') ? app(SpaShell::class)->assetOrigin().$path : $path];
+        })->values()->all();
+
         return [
             'auto_currency_by_country' => (bool) $store->auto_currency_by_country,
             'visitor_currency' => $store->auto_currency_by_country
@@ -198,7 +208,8 @@ class StorefrontController extends Controller
             'email' => $store->email,
             'phone' => $store->phone,
             'identity' => $store->identity(),
-            'payment_methods' => StorePaymentGateway::where('store_id', $store->id)->where('enabled', true)->orderBy('sort_order')->pluck('gateway')->all(),
+            'payment_methods' => $payments->pluck('gateway')->values()->all(),
+            'payment_marks' => $paymentMarks,
             'slug' => $store->slug,
             'currency' => $baseCurrency,
             'auto_select_variants' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
