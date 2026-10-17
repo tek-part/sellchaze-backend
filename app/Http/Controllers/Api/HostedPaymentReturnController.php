@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\HostedPaymentGateways;
 use App\Services\Commerce\HostedPaymentReconciliation;
+use App\Services\Commerce\OrderReceipt;
 use App\Services\Commerce\StorePaymentService;
 use Illuminate\Http\Request;
 
@@ -15,7 +16,7 @@ class HostedPaymentReturnController extends Controller
     {
         // Provider-added query parameters are ignored; the stored session is re-fetched.
         abort_unless(hash_equals(app(HostedPaymentGateways::class)->returnKey($transaction), (string) $request->query('payment_key'))
-            && $transaction->created_at->greaterThan(now()->subDays(2)), 403);
+            && $transaction->created_at->greaterThan(now()->subSeconds(OrderReceipt::TTL)), 403);
         abort_unless(in_array($transaction->gateway, HostedPaymentGateways::PROVIDERS, true), 404);
         $state = $reconciliation->refresh($transaction);
         if ($request->isMethod('post')) {

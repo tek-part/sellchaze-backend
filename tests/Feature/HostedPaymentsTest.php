@@ -174,6 +174,8 @@ class HostedPaymentsTest extends TestCase
         $first = app(StorePaymentService::class)->start($store, $order, $setting);
         $transaction = StorePaymentTransaction::findOrFail($first['transaction_id']);
         $key = app(HostedPaymentGateways::class)->returnKey($transaction);
+        // Asynchronous collection and delayed provider delivery must not stop at 48 hours.
+        $this->travel(3)->days();
         $this->get('/api/v1/payment-returns/hosted/'.$transaction->id.'?payment_key='.$key.'&status=completed&amount=1')->assertRedirect();
         $this->assertSame('pending', $order->fresh()->payment_status);
     }

@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\HostedPaymentGateways;
 use App\Services\Commerce\HostedPaymentReconciliation;
+use App\Services\Commerce\OrderReceipt;
 use Illuminate\Console\Command;
 use Throwable;
 
@@ -18,7 +19,7 @@ class ReconcileHostedPayments extends Command
     {
         $rows = StorePaymentTransaction::query()->whereIn('gateway', HostedPaymentGateways::PROVIDERS)
             ->whereIn('status', ['redirect_pending', 'pending'])->whereNotNull('provider_reference')
-            ->where('created_at', '>=', now()->subDays(2))->orderBy('updated_at')->limit(max(1, min(100, (int) $this->option('limit'))))->get();
+            ->where('created_at', '>=', now()->subSeconds(OrderReceipt::TTL))->orderBy('updated_at')->limit(max(1, min(100, (int) $this->option('limit'))))->get();
         foreach ($rows as $transaction) {
             try {
                 $reconciliation->refresh($transaction);
