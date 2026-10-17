@@ -122,11 +122,13 @@ class MerchantOrderEditing
                 $discount = bccomp($order->discount_total, $subtotal, 2) > 0 ? $subtotal : $order->discount_total;
                 app(OrderLimits::class)->assertMinimum($store, $subtotal, $discount);
                 $totals = app(PricingCalculator::class)->forStore($store, $subtotal, $discount, [], false);
-                $normal = bcadd($totals['grand_total'], $data['shipping_total'], 2);
+                $totals['grand_total'] = bcadd($totals['grand_total'], $data['shipping_total'], 2);
+                $totals = app(PaymentPriceAdjustment::class)->apply($totals, $order->currency, $order->payment_method, $order->payment_adjustment['rule'] ?? null);
+                $normal = $totals['grand_total'];
                 $total = $data['grand_total'] ?? bcadd($normal, $order->manual_adjustment_total ?? '0.00', 2);
                 abort_unless(bccomp($total, '0', 2) >= 0 && bccomp($total, ManualStoreOrders::MAX_MONEY, 2) <= 0 && bccomp($normal, ManualStoreOrders::MAX_MONEY, 2) <= 0, 422, 'The edited total is outside the supported amount.');
                 $order->fill(['subtotal' => $subtotal, 'discount_total' => $discount, 'shipping_total' => $data['shipping_total'], 'tax_total' => $totals['tax_total'],
-                    'grand_total' => $total, 'manual_adjustment_total' => bcsub($total, $normal, 2), 'manual_tax_included' => (bool) $store->tax_prices_include]);
+                    'grand_total' => $total, 'payment_adjustment' => $totals['payment_adjustment'], 'manual_adjustment_total' => bcsub($total, $normal, 2), 'manual_tax_included' => (bool) $store->tax_prices_include]);
                 StorePaymentTransaction::where('store_id', $store->id)->where('store_order_id', $order->id)->whereIn('status', ['created', 'pending'])->update(['amount' => $total, 'updated_at' => now()]);
             }
             if ($order->physicalItems()->exists()) {

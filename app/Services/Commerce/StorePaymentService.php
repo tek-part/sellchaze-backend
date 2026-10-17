@@ -216,13 +216,15 @@ class StorePaymentService
                 'shipping_address' => ['city' => data_get($shipping, 'city', ''), 'address' => data_get($shipping, 'line1', ''), 'zip' => data_get($shipping, 'postal_code', '')],
                 'order' => [
                     'reference_id' => $order->order_number,
-                    'items' => $order->items->map(fn ($item) => [
+                    'items' => $order->items()->forStore($order->store_id)->get()->map(fn ($item) => [
                         'title' => $item->name, 'quantity' => $item->quantity, 'unit_price' => (string) $item->unit_price,
                         'category' => 'General', 'reference_id' => (string) $item->store_product_id,
-                    ])->values()->all(),
+                    ])->when(bccomp($order->payment_adjustment['amount'] ?? '0.00', '0', 2) > 0, fn ($items) => $items->push([
+                        'title' => 'Payment method fee', 'quantity' => 1, 'unit_price' => $order->payment_adjustment['amount'], 'category' => 'Fees', 'reference_id' => 'payment-adjustment',
+                    ]))->values()->all(),
                     'tax_amount' => (string) $order->tax_total,
                     'shipping_amount' => (string) $order->shipping_total,
-                    'discount_amount' => (string) $order->discount_total,
+                    'discount_amount' => bcsub($order->discount_total, bccomp($order->payment_adjustment['amount'] ?? '0.00', '0', 2) < 0 ? $order->payment_adjustment['amount'] : '0', 2),
                 ],
                 'meta' => ['transaction_id' => (string) $transaction->id, 'order_id' => (string) $order->id],
             ],
@@ -257,13 +259,16 @@ class StorePaymentService
             'tax_amount' => $money($order->tax_total),
             'order_reference_id' => (string) $transaction->id,
             'order_number' => $order->order_number,
-            'discount' => ['name' => 'Store discount', 'amount' => $money($order->discount_total)],
-            'items' => $order->items->map(fn ($item) => [
+            'discount' => ['name' => 'Store discount', 'amount' => $money(bcsub($order->discount_total, bccomp($order->payment_adjustment['amount'] ?? '0.00', '0', 2) < 0 ? $order->payment_adjustment['amount'] : '0', 2))],
+            'items' => $order->items()->forStore($order->store_id)->get()->map(fn ($item) => [
                 'name' => $item->name, 'quantity' => $item->quantity, 'reference_id' => (string) $item->store_product_id,
                 'type' => 'Physical', 'sku' => (string) $item->store_product_id,
                 'unit_price' => $money($item->unit_price), 'tax_amount' => $money(0), 'discount_amount' => $money(0),
                 'total_amount' => $money($item->line_total),
-            ])->values()->all(),
+            ])->when(bccomp($order->payment_adjustment['amount'] ?? '0.00', '0', 2) > 0, fn ($items) => $items->push([
+                'name' => 'Payment method fee', 'quantity' => 1, 'reference_id' => 'payment-adjustment', 'type' => 'Digital', 'sku' => 'payment-adjustment',
+                'unit_price' => $money($order->payment_adjustment['amount']), 'tax_amount' => $money(0), 'discount_amount' => $money(0), 'total_amount' => $money($order->payment_adjustment['amount']),
+            ]))->values()->all(),
             'consumer' => ['first_name' => $name[0] ?? $order->customer_name, 'last_name' => $name[1] ?? '-',
                 'phone_number' => $order->customer_phone, 'email' => $order->customer_email],
             'country_code' => $country,
@@ -592,7 +597,9 @@ class StorePaymentService
                 'pendingUrl' => $this->urls->publicUrl($store, '/order/success?number='.rawurlencode($order->order_number).'&payment=pending'),
                 'webhookUrl' => $this->webhookUrl($store, 'fawaterak').'_json',
             ],
-            'cartItems' => $order->items->map(fn ($item) => ['name' => $item->name, 'price' => (string) $item->unit_price, 'quantity' => (string) $item->quantity])->values()->all(),
+            'cartItems' => $order->payment_adjustment !== null
+                ? [['name' => 'Order '.$order->order_number, 'price' => (string) $order->grand_total, 'quantity' => '1']]
+                : $order->items()->forStore($order->store_id)->get()->map(fn ($item) => ['name' => $item->name, 'price' => (string) $item->unit_price, 'quantity' => (string) $item->quantity])->values()->all(),
             'payLoad' => ['transaction_id' => (string) $transaction->id, 'order_id' => (string) $order->id],
             'sendEmail' => true,
             'sendSMS' => false,

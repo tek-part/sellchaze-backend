@@ -42,9 +42,10 @@ gateway rows, migrations enable no gateways, and deployment changes no merchant
 keys, active settings or pricing. Logos can be customized using an owned image
 asset. Existing transactions retain their presentation snapshot.
 
-Optional per-method surcharges/discounts from the reference UI are not implemented
-in this phase. No new charge, discount, currency conversion or commission is
-applied by these settings.
+Optional per-method surcharges and discounts are described in
+[payment-method-price-adjustments.md](payment-method-price-adjustments.md).
+They remain off unless the merchant explicitly saves an enabled rule. Existing
+orders, currency conversion and platform commissions are unchanged.
 
 Verification uses `Http::fake` and disposable SQLite test databases. Actual merchant
 credentials, remote sandbox transactions and live payments are not exercised by

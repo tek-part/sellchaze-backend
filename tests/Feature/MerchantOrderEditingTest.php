@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderEdit;
+use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Models\User;
 use App\Services\Commerce\DigitalProducts;
@@ -25,6 +26,17 @@ use Tests\TestCase;
 class MerchantOrderEditingTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_edit_recalculates_the_original_payment_rule_and_never_uses_changed_gateway_pricing(): void
+    {
+        $rule = ['enabled' => true, 'type' => 'percentage', 'direction' => 'add', 'value' => '10.00'];
+        $this->order->update(['payment_adjustment' => ['version' => 1, 'gateway' => 'cod', 'currency' => 'USD', 'rule' => $rule, 'base_total' => '47.00', 'amount' => '4.70'], 'grand_total' => '51.70']);
+        StorePaymentTransaction::where('store_order_id', $this->order->id)->update(['amount' => '51.70']);
+        StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'cod', 'enabled' => true, 'presentation' => ['price_adjustment' => array_replace($rule, ['value' => '50.00'])]]);
+        $this->postJson($this->endpoint(), $this->body(['shipping_total' => '10.00']))->assertOk()->assertJsonPath('data.grand_total', '57.20')->assertJsonPath('data.payment_adjustment_total', '5.20');
+        $this->assertSame('10.00', $this->order->fresh()->payment_adjustment['rule']['value']);
+        $this->assertSame('57.20', StorePaymentTransaction::where('store_order_id', $this->order->id)->firstOrFail()->amount);
+    }
 
     private User $owner;
 

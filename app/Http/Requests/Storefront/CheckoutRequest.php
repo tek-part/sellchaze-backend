@@ -29,6 +29,7 @@ class CheckoutRequest extends FormRequest
 
         return app(CheckoutFields::class)->rules($store, is_string($this->input('payment_method')) ? $this->input('payment_method') : null, $basket['requires_shipping'], $basket['has_digital'], $basket['requires_whatsapp']) + StoreShipping::SELECTION_RULES + ProductPersonalization::inputRules('items.*.personalization') + QuantityOffers::inputRules('items.*.') + [
             'payment_method' => ['nullable', 'string', 'max:80'],
+            'payment_adjustment_token' => ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'lead_token' => ['nullable', 'uuid'],
             'ab_token' => ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'analytics_session' => ['nullable', 'uuid', 'required_with:marketing_attribution,referral_attribution'],
