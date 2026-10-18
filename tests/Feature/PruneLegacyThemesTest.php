@@ -86,7 +86,7 @@ class PruneLegacyThemesTest extends TestCase
 
     public function test_allowed_keys_cover_every_shipped_theme_including_sphinx(): void
     {
-        $this->assertSame(['naseem', 'bazaar', 'sahra', 'fresh', 'techno', 'sphinx-v3', 'elite-furniture', 'pure-furniture', 'nature-kids', 'blast-pets'], PruneLegacyThemes::ALLOWED_KEYS);
+        $this->assertSame(['naseem', 'bazaar', 'sahra', 'fresh', 'techno', 'sphinx-v3', 'elite-furniture', 'pure-furniture', 'nature-kids', 'blast-pets', 'nature-pets'], PruneLegacyThemes::ALLOWED_KEYS);
         $shipped = array_map(fn (string $p) => basename($p, '.json'), ThemeRegistry::manifestPaths());
         sort($shipped);
         $allowed = PruneLegacyThemes::ALLOWED_KEYS;
