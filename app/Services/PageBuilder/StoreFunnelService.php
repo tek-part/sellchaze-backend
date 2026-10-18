@@ -88,12 +88,17 @@ class StoreFunnelService
         });
     }
 
-    public function duplicate(Store $store, StoreFunnel $source, ?int $actor): StoreFunnel
+    public function duplicate(Store $store, StoreFunnel $source, ?int $actor, array $data = []): StoreFunnel
     {
-        return DB::transaction(function () use ($store, $source, $actor) {
-            $page = $source->page;
-            $copy = $this->pages->create($store, ['title' => $page->title.' (copy)', 'slug' => $page->slug.'-copy', 'template' => 'landing', 'locale' => $page->locale, 'seo' => $page->seo]);
-            $funnel = StoreFunnel::create(['store_id' => $store->id, 'store_page_id' => $copy->id, 'product_id' => $source->product_id, 'template_key' => $source->template_key]);
+        return DB::transaction(function () use ($store, $source, $actor, $data) {
+            $source = StoreFunnel::query()->where('store_id', $store->id)->lockForUpdate()->findOrFail($source->id);
+            $page = $source->page()->where('store_id', $store->id)->lockForUpdate()->firstOrFail();
+            $productId = $source->product_id;
+            if (isset($data['product_id'])) {
+                $productId = $this->validateProduct($store, ['template_key' => $source->template_key] + $data)->id;
+            }
+            $copy = $this->pages->create($store, ['title' => $data['title'] ?? $page->title.' (copy)', 'slug' => $data['slug'] ?? $page->slug.'-copy', 'template' => 'landing', 'locale' => $data['locale'] ?? $page->locale, 'seo' => $page->seo]);
+            $funnel = StoreFunnel::create(['store_id' => $store->id, 'store_page_id' => $copy->id, 'product_id' => $productId, 'template_key' => $source->template_key]);
             // Resolve reusable sections into independent values so edits to the copy cannot
             // unexpectedly change the source funnel through a shared section reference.
             $sections = array_map(function (array $section): array {
@@ -104,6 +109,19 @@ class StoreFunnelService
             $this->pages->syncSections($copy, $sections, $actor);
 
             return $funnel;
+        });
+    }
+
+    /** Reject the entire selection before deleting any tenant-owned page. */
+    public function delete(Store $store, array $ids): void
+    {
+        DB::transaction(function () use ($store, $ids) {
+            $funnels = StoreFunnel::query()->where('store_id', $store->id)->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
+            abort_unless($funnels->count() === count($ids), 404);
+            $pages = $funnels->map(fn (StoreFunnel $funnel) => $funnel->page()->where('store_id', $store->id)->lockForUpdate()->firstOrFail());
+            foreach ($pages as $page) {
+                $this->pages->delete($page);
+            }
         });
     }
 }

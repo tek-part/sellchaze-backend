@@ -803,9 +803,11 @@ Route::prefix('v1')->group(function () {
             Route::middleware('permission:store.orders.manage')->get('newsletter', [StoreNewsletterController::class, 'index']);
             Route::get('funnels/templates', [StoreFunnelsApiController::class, 'templates']);
             Route::get('funnels/products', [StoreFunnelsApiController::class, 'products']);
+            Route::get('funnels/by-code/{code}', [StoreFunnelsApiController::class, 'byCode'])->whereUuid('code');
             Route::get('funnels', [StoreFunnelsApiController::class, 'index']);
             Route::post('funnels/generate', [StoreFunnelsApiController::class, 'generate'])->middleware('throttle:3,1');
             Route::post('funnels', [StoreFunnelsApiController::class, 'store']);
+            Route::post('funnels/bulk-delete', [StoreFunnelsApiController::class, 'bulkDelete']);
             Route::post('funnels/{funnel}/duplicate', [StoreFunnelsApiController::class, 'duplicate'])->whereNumber('funnel');
             // ---- Custom domains: connect / verify / promote / disconnect ----
             // Identical surface for Supplier and Merchant storefronts.

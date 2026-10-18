@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreFunnel;
+use App\Models\StorePage;
 use App\Services\PageBuilder\FunnelContentGenerator;
 use App\Services\PageBuilder\StoreFunnelService;
+use App\Services\Storefront\StorefrontUrlGenerator;
 use App\Support\Localization\LocaleContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +19,7 @@ use Illuminate\Validation\Rule;
 
 class StoreFunnelsApiController extends Controller
 {
-    public function __construct(private readonly StoreFunnelService $funnels, private readonly FunnelContentGenerator $generator) {}
+    public function __construct(private readonly StoreFunnelService $funnels, private readonly FunnelContentGenerator $generator, private readonly StorefrontUrlGenerator $urls) {}
 
     private function guard(Request $request, Store $store): void
     {
@@ -28,18 +30,37 @@ class StoreFunnelsApiController extends Controller
     public function index(Request $request, Store $store): JsonResponse
     {
         $this->guard($request, $store);
-        $data = $request->validate(['search' => ['nullable', 'string', 'max:150'], 'status' => ['nullable', 'in:draft,published,scheduled'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
-        $rows = StoreFunnel::query()->with(['page', 'product'])
+        $data = $request->validate([
+            'search' => ['nullable', 'string', 'max:150'], 'status' => ['nullable', 'in:draft,published,scheduled'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'], 'page' => ['nullable', 'integer', 'min:1'],
+            'sort' => ['nullable', Rule::in(['title', 'slug', 'public_id', 'status', 'created_at'])],
+            'direction' => ['nullable', Rule::in(['asc', 'desc'])],
+        ]);
+        $query = StoreFunnel::query()->where('store_id', $store->id)->with(['page', 'product'])
             ->whereHas('page', function ($query) use ($data) {
                 if (! empty($data['search'])) {
-                    $query->where('title', 'like', '%'.$data['search'].'%');
+                    $query->where(function ($search) use ($data) {
+                        $search->where('title', 'like', '%'.$data['search'].'%')
+                            ->orWhere('slug', 'like', '%'.$data['search'].'%')
+                            ->orWhere('store_funnels.public_id', 'like', '%'.$data['search'].'%');
+                    });
                 }
                 if (! empty($data['status'])) {
                     $query->where('status', $data['status']);
                 }
-            })->latest('id')->paginate($data['per_page'] ?? 20);
+            });
+        $sort = $data['sort'] ?? 'created_at';
+        $direction = $data['direction'] ?? 'desc';
+        if (in_array($sort, ['title', 'slug', 'status'], true)) {
+            $query->orderBy(StorePage::withoutGlobalScopes()->select($sort)
+                ->whereColumn('store_pages.id', 'store_funnels.store_page_id')
+                ->whereColumn('store_pages.store_id', 'store_funnels.store_id')->limit(1), $direction);
+        } else {
+            $query->orderBy('store_funnels.'.$sort, $direction);
+        }
+        $rows = $query->orderBy('store_funnels.id', $direction)->paginate($data['per_page'] ?? 25);
 
-        return response()->json(['data' => $rows->getCollection()->map(fn ($funnel) => $this->payload($funnel)), 'meta' => ['current_page' => $rows->currentPage(), 'last_page' => $rows->lastPage(), 'total' => $rows->total()]]);
+        return response()->json(['data' => $rows->getCollection()->map(fn ($funnel) => $this->payload($funnel, $store)), 'meta' => ['current_page' => $rows->currentPage(), 'last_page' => $rows->lastPage(), 'per_page' => $rows->perPage(), 'from' => $rows->firstItem(), 'to' => $rows->lastItem(), 'total' => $rows->total()]], 200, ['Cache-Control' => 'private, no-store']);
     }
 
     public function products(Request $request, Store $store): JsonResponse
@@ -57,16 +78,22 @@ class StoreFunnelsApiController extends Controller
     {
         $this->guard($request, $store);
 
-        return response()->json(['data' => collect(StoreFunnelService::TEMPLATES)->map(fn ($template, $key) => ['key' => $key] + $template + (isset($template['native_layout']) ? ['preview_url' => '/funnel-templates/'.$key.'?preview=1&lang='.$template['locale']] : []))->values(), 'ai' => ['available' => $this->generator->available()]]);
+        return response()->json(['data' => collect(StoreFunnelService::TEMPLATES)->map(fn ($template, $key) => ['key' => $key] + $template + (isset($template['native_layout']) ? ['preview_url' => '/funnel-templates/'.$key.'?preview=1&lang='.$template['locale'], 'preview_desktop_image' => '/media/funnel-previews/'.$key.'-desktop.png', 'preview_mobile_image' => '/media/funnel-previews/'.$key.'-phone.png'] : []))->values(), 'ai' => ['available' => $this->generator->available()], 'funnel_base_url' => $this->urls->publicUrl($store, '/funnels/')]);
     }
 
     public function store(Request $request, Store $store): JsonResponse
     {
         $this->guard($request, $store);
         $data = $this->validateInput($request, $store);
-        $funnel = $this->funnels->create($store, $data, $request->user()->id);
+        if (! empty($data['clone_code'])) {
+            $source = StoreFunnel::query()->where('store_id', $store->id)->where('public_id', strtolower($data['clone_code']))->firstOrFail();
+            abort_unless($source->template_key === $data['template_key'], 422, 'The selected template must match the source funnel.');
+            $funnel = $this->funnels->duplicate($store, $source, $request->user()->id, $data);
+        } else {
+            $funnel = $this->funnels->create($store, $data, $request->user()->id);
+        }
 
-        return response()->json(['data' => $this->payload($funnel->load(['page', 'product']))], 201);
+        return response()->json(['data' => $this->payload($funnel->load(['page', 'product']), $store)], 201);
     }
 
     private function validateInput(Request $request, Store $store, bool $ai = false): array
@@ -77,6 +104,7 @@ class StoreFunnelsApiController extends Controller
             'product_id' => ['required', 'integer'],
             'template_key' => ['required', Rule::in(array_keys(StoreFunnelService::TEMPLATES))],
             'locale' => ['required', Rule::in(LocaleContext::storeSupported($store))],
+            'clone_code' => $ai ? ['prohibited'] : ['nullable', 'uuid'],
         ] + ($ai ? [
             'generation' => ['required', 'array:language,dialect,product_name,description'],
             'generation.language' => ['required', 'string', 'max:80'],
@@ -106,7 +134,7 @@ class StoreFunnelsApiController extends Controller
             $copy = $this->generator->generate($data['generation']);
             $funnel = $this->funnels->create($store, $data, $request->user()->id, $copy);
 
-            return response()->json(['data' => $this->payload($funnel->load(['page', 'product']))], 201);
+            return response()->json(['data' => $this->payload($funnel->load(['page', 'product']), $store)], 201);
         } finally {
             $lock->release();
         }
@@ -118,16 +146,36 @@ class StoreFunnelsApiController extends Controller
         $source = StoreFunnel::query()->with('page')->findOrFail($funnel);
         $copy = $this->funnels->duplicate($store, $source, $request->user()->id);
 
-        return response()->json(['data' => $this->payload($copy->load(['page', 'product']))], 201);
+        return response()->json(['data' => $this->payload($copy->load(['page', 'product']), $store)], 201);
     }
 
-    private function payload(StoreFunnel $funnel): array
+    public function byCode(Request $request, Store $store, string $code): JsonResponse
+    {
+        $this->guard($request, $store);
+        $funnel = StoreFunnel::query()->with(['page', 'product'])->where('store_id', $store->id)->where('public_id', strtolower($code))->firstOrFail();
+
+        return response()->json(['data' => $this->payload($funnel, $store)], 200, ['Cache-Control' => 'private, no-store']);
+    }
+
+    public function bulkDelete(Request $request, Store $store): JsonResponse
+    {
+        $this->guard($request, $store);
+        $data = $request->validate(['ids' => ['required', 'array', 'min:1', 'max:100'], 'ids.*' => ['required', 'integer', 'min:1', 'distinct']]);
+        $ids = array_map('intval', $data['ids']);
+        $this->funnels->delete($store, $ids);
+
+        return response()->json(['deleted_ids' => $ids, 'deleted' => count($ids)]);
+    }
+
+    private function payload(StoreFunnel $funnel, Store $store): array
     {
         return [
-            'id' => $funnel->id, 'page_id' => $funnel->store_page_id, 'template_key' => $funnel->template_key,
+            'id' => $funnel->id, 'code' => $funnel->public_id, 'page_id' => $funnel->store_page_id, 'template_key' => $funnel->template_key,
             'title' => $funnel->page->title, 'slug' => $funnel->page->slug, 'status' => $funnel->page->status,
             'locale' => $funnel->page->locale, 'product' => $funnel->product?->only(['id', 'name', 'slug']),
             'public_path' => '/funnels/'.($funnel->page->published_slug ?: $funnel->page->slug),
+            'public_url' => $this->urls->publicUrl($store, $funnel->page->publicPath()),
+            'is_public' => $funnel->page->isPubliclyVisible(),
             'created_at' => $funnel->created_at,
         ];
     }
