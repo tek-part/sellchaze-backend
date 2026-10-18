@@ -63,9 +63,13 @@ class CheckoutQuote
         }
 
         $productFreeShipping = $requiresShipping && $allPhysicalFree;
+        $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping);
+        $adjustments = app(PaymentPriceAdjustment::class);
+        $totals = $adjustments->forMethod($store, $shippingSelection['payment_method'] ?? '', $totals);
 
         return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'requires_shipping' => $requiresShipping, 'offer_free_shipping' => $offerFreeShipping, 'product_free_shipping' => $productFreeShipping,
+            'payment_adjustment_token' => $adjustments->token($store, $totals['payment_adjustment']),
             'order_minimum' => app(OrderLimits::class)->minimum($store, $subtotal, $discount),
-            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping)];
+            'totals' => $totals];
     }
 }

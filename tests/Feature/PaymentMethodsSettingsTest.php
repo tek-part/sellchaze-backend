@@ -17,6 +17,22 @@ class PaymentMethodsSettingsTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_price_adjustments_validate_boundaries_and_survive_partial_presentation_saves(): void
+    {
+        [$store, $headers] = $this->owner();
+        $rule = ['enabled' => true, 'type' => 'percentage', 'direction' => 'subtract', 'value' => '12.50'];
+        $body = ['gateways' => [['slug' => 'cod', 'enabled' => true, 'presentation' => ['price_adjustment' => $rule]]]];
+        $this->putJson('/api/v1/my-store/payments', $body, $headers)->assertOk();
+        $this->putJson('/api/v1/my-store/payments', ['gateways' => [['slug' => 'cod', 'enabled' => true, 'presentation' => ['name' => 'Pay on arrival']]]], $headers)->assertOk();
+        $row = StorePaymentGateway::where('store_id', $store->id)->where('gateway', 'cod')->firstOrFail();
+        $this->assertSame($rule, $row->presentation['price_adjustment']);
+        foreach (['0', '100', '-1', '1e1', '100.00000000001'] as $invalid) {
+            $body['gateways'][0]['presentation']['price_adjustment']['value'] = $invalid;
+            $this->putJson('/api/v1/my-store/payments', $body, $headers)->assertUnprocessable();
+            $this->assertSame($rule, $row->fresh()->presentation['price_adjustment']);
+        }
+    }
+
     private function owner(): array
     {
         $this->seed([PermissionTableSeeder::class, RolesTableSeeder::class, StorePermissionsSeeder::class]);

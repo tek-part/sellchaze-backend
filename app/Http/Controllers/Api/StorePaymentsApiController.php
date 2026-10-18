@@ -8,6 +8,7 @@ use App\Models\StoreMediaAsset;
 use App\Models\StorePaymentGateway;
 use App\Services\Commerce\HostedPaymentGateways;
 use App\Services\Commerce\PaymentGatewayCatalog;
+use App\Services\Commerce\PaymentPriceAdjustment;
 use App\Services\Commerce\RegionalHostedPayments;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -66,7 +67,8 @@ class StorePaymentsApiController extends Controller
             'gateways.*.credentials.*' => ['nullable', 'string', 'max:5000'],
             'gateways.*.order' => ['nullable', 'integer', 'min:0'],
             'gateways.*.notes' => ['nullable', 'string', 'max:2000'],
-            'gateways.*.presentation' => ['sometimes', 'array:name,description,logo_asset_id'],
+            'gateways.*.presentation' => ['sometimes', 'array:name,description,logo_asset_id,price_adjustment'],
+            'gateways.*.presentation.price_adjustment' => ['sometimes', 'array:enabled,type,direction,value'],
             'gateways.*.presentation.name' => ['nullable', 'string', 'max:120'],
             'gateways.*.presentation.description' => ['nullable', 'string', 'max:2000'],
             'gateways.*.presentation.logo_asset_id' => ['nullable', 'integer', Rule::exists('store_media_assets', 'id')->where(fn ($q) => $q->where('store_id', $store->id)->whereNull('deleted_at'))],
@@ -80,6 +82,14 @@ class StorePaymentsApiController extends Controller
                 $credentials = $current?->credentials ?? data_get($legacy, 'credentials', []);
                 $testMode = $input['test_mode'] ?? $current?->test_mode ?? data_get($legacy, 'test_mode', true);
                 $provider = PaymentGatewayCatalog::all()[$input['slug']];
+                $presentation = array_replace($current?->presentation ?? [], $input['presentation'] ?? []);
+                if (array_key_exists('price_adjustment', $input['presentation'] ?? [])) {
+                    try {
+                        $presentation['price_adjustment'] = PaymentPriceAdjustment::configuration($input['presentation']['price_adjustment']);
+                    } catch (ValidationException $exception) {
+                        throw ValidationException::withMessages(['gateways.'.$position.'.presentation.price_adjustment' => $exception->validator->errors()->first()]);
+                    }
+                }
                 if ($input['enabled'] && ! $provider['available']) {
                     throw ValidationException::withMessages(['gateways.'.$position.'.enabled' => 'This provider connection is not available yet.']);
                 }
@@ -108,7 +118,7 @@ class StorePaymentsApiController extends Controller
                     ['store_id' => $store->id, 'gateway' => $input['slug']],
                     ['enabled' => $input['enabled'], 'test_mode' => $testMode, 'credentials' => $credentials,
                         'sort_order' => $input['order'] ?? $position, 'notes' => $input['notes'] ?? null,
-                        'presentation' => $input['presentation'] ?? $current?->presentation]
+                        'presentation' => $presentation ?: null]
                 );
             }
         });

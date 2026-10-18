@@ -35,7 +35,8 @@ class StoreOrderWebhooks
         $address = $order->shipping_address ?? [];
         $payload = ['id' => $order->id, 'store_id' => $order->store_id, 'created_at' => $order->created_at?->toIso8601String(),
             'updated_at' => $order->updated_at?->toIso8601String(), 'cost' => (float) $order->subtotal, 'shipping_cost' => (float) $order->shipping_total,
-            'total_cost' => (float) $order->grand_total, 'currency' => $order->currency, 'status' => $order->status, 'full_name' => $order->customer_name,
+            'total_cost' => (float) $order->grand_total, 'payment_adjustment_total' => $order->payment_adjustment['amount'] ?? '0.00',
+            'currency' => $order->currency, 'status' => $order->status, 'full_name' => $order->customer_name,
             'phone' => $order->customer_phone, 'email' => $order->customer_email, 'government' => $address['region'] ?? $address['governorate'] ?? '',
             'address' => implode(', ', array_filter([$address['line1'] ?? '', $address['line2'] ?? '', $address['city'] ?? '', $address['country'] ?? ''], fn ($part) => is_string($part) && $part !== '')),
             'shipping_address' => $address, 'payment_method' => $order->payment_method,

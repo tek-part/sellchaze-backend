@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property string $discount_total
  * @property string $tax_total
  * @property string $grand_total
+ * @property array{version:int,gateway:string,currency:string,rule:array,base_total:string,amount:string}|null $payment_adjustment
  * @property array{source:string,campaign:string}|null $marketing_attribution
  * @property array{code:string,product_id:int}|null $referral_attribution
  * @property Carbon|null $deleted_at
@@ -34,6 +35,7 @@ class StoreOrder extends Model
         'customer_name', 'customer_email', 'customer_phone', 'shipping_address',
         'customer_phone_normalized',
         'payment_method', 'payment_status', 'payment_reference',
+        'payment_adjustment',
         'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'notes',
         'placed_at', 'cancelled_at', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'coupon_code',
         'manual_actor_id', 'manual_owner_id', 'manual_request_key', 'manual_request_hash', 'manual_adjustment_total', 'manual_tax_included',
@@ -43,6 +45,7 @@ class StoreOrder extends Model
 
     protected $casts = [
         'shipping_address' => 'array',
+        'payment_adjustment' => 'array',
         'marketing_attribution' => 'array',
         'referral_attribution' => 'array',
         'subtotal' => 'decimal:2',

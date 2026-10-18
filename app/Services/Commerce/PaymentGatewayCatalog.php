@@ -116,6 +116,7 @@ class PaymentGatewayCatalog
 
         return ['name' => trim((string) ($presentation['name'] ?? '')) ?: $provider['name'],
             'description' => (string) ($presentation['description'] ?? $setting->notes ?? ''),
-            'logo_url' => $logo, 'logo_asset_id' => $presentation['logo_asset_id'] ?? null];
+            'logo_url' => $logo, 'logo_asset_id' => $presentation['logo_asset_id'] ?? null,
+            'price_adjustment' => PaymentPriceAdjustment::configuration($presentation['price_adjustment'] ?? null)];
     }
 }

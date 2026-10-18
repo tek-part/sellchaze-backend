@@ -177,6 +177,7 @@ class CheckoutController extends Controller
                     'bot_proof' => ($validated['bot_proof'] ?? null),
                     'bot_ip' => ($request->ip() ?? ''),
                     'notes' => ($validated['notes'] ?? null),
+                    'payment_adjustment_token' => ($validated['payment_adjustment_token'] ?? null),
                 ],
                 ($validated['shipping_address'] ?? null),
                 $payment->gateway,

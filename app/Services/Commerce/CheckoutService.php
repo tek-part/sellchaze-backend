@@ -139,6 +139,9 @@ class CheckoutService
             app(OrderLimits::class)->assertMinimum($store, $subtotal, $discount);
             $productFreeShipping = $requiresShipping && $allPhysicalFree;
             $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping);
+            $adjustments = app(PaymentPriceAdjustment::class);
+            $totals = $adjustments->forMethod($store, $paymentMethod, $totals);
+            $adjustments->assertQuoted($store, $totals['payment_adjustment'], $contact['payment_adjustment_token'] ?? null);
             if ($requiresShipping) {
                 $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection, $offerFreeShipping, $productFreeShipping);
                 if ($freeProductIds !== []) {
@@ -169,6 +172,7 @@ class CheckoutService
                 'coupon_code' => $coupon?->code,
                 'tax_total' => $totals['tax_total'],
                 'grand_total' => $totals['grand_total'],
+                'payment_adjustment' => $totals['payment_adjustment'],
                 'notes' => $contact['notes'] ?? null,
                 'placed_at' => now(),
             ]);

@@ -22,6 +22,7 @@ class CheckoutQuoteRequest extends FormRequest
             'items.*.variant_id' => ['nullable', 'integer', 'min:1'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
+            'payment_method' => ['nullable', 'string', 'max:80'],
         ];
     }
 }
