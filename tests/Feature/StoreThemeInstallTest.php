@@ -201,6 +201,28 @@ class StoreThemeInstallTest extends TestCase
         $this->assertSame($before, $other->fresh()->only(['theme_id', 'theme_settings']));
     }
 
+    public function test_fashion_registration_is_inert_until_install_and_preserves_other_store(): void
+    {
+        $store = $this->makeStore();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other', 'slug' => 'other-hype-fashion', 'currency' => 'USD', 'status' => 'active']);
+        $this->installer->installAndActivateDefault($other);
+        $before = $other->fresh()->only(['theme_id', 'theme_settings']);
+        $initial = $store->fresh()->only(['theme_id', 'theme_settings']);
+        $theme = $this->registry->registerFromFile(resource_path('themes/storefront/hype-fashion.json'));
+        $version = $this->registry->resolveThemeVersion($theme);
+        $this->assertSame($initial, $store->fresh()->only(['theme_id', 'theme_settings']));
+        $this->assertSame('builtin:hype-fashion@1.0.0', $version->bundle_url);
+        $this->assertArrayHasKey('fashion-linked-look', $version->sections_schema);
+        $this->assertArrayHasKey('fashion-features', $version->sections_schema);
+        $this->assertCount(13, $version->templates['home']['sections']);
+        $this->assertSame(['fashion'], config('theme_gallery.hype-fashion.categories'));
+        $installed = $this->installer->install($store, $theme, $version);
+        $this->installer->activate($store, $installed);
+        $this->assertSame('hype-fashion', $this->registry->resolveActiveTheme($store->fresh())->theme->key);
+        $this->assertSame('#000000', $store->fresh()->theme_settings['primary_color']);
+        $this->assertSame($before, $other->fresh()->only(['theme_id', 'theme_settings']));
+    }
+
     public function test_store_created_via_service_gets_default_theme(): void
     {
         // StoreService::create resolves the owner from the authenticated user.

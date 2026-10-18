@@ -3,6 +3,7 @@
 // Display metadata for real, independently registered storefront packages.
 // Unknown/custom packages remain available in the classic collection.
 return [
+    'hype-fashion' => ['collection' => 'modern', 'categories' => ['fashion'], 'rank' => 10],
     'hype-perfumes' => ['collection' => 'modern', 'categories' => ['perfumes'], 'rank' => 1],
     'nature-pets' => ['collection' => 'modern', 'categories' => ['pets'], 'rank' => 0],
     'blast-pets' => ['collection' => 'modern', 'categories' => ['pets'], 'rank' => 3],
