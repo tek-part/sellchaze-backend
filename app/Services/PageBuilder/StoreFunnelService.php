@@ -5,6 +5,7 @@ namespace App\Services\PageBuilder;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreFunnel;
+use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Themes\ThemeResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -110,6 +111,39 @@ class StoreFunnelService
 
             return $funnel;
         });
+    }
+
+    /** Version only the fields this form edits and the publication state it explains. */
+    public function version(StoreFunnel $funnel): string
+    {
+        return hash('sha256', json_encode([
+            $funnel->id, $funnel->product_id, $funnel->page->only(['title', 'slug', 'locale', 'status', 'published_slug', 'published_at']),
+        ], JSON_THROW_ON_ERROR));
+    }
+
+    public function update(Store $store, int $id, array $data, ?int $actor): StoreFunnel
+    {
+        $funnel = DB::transaction(function () use ($store, $id, $data, $actor) {
+            $funnel = StoreFunnel::query()->where('store_id', $store->id)->lockForUpdate()->findOrFail($id);
+            $page = $funnel->page()->where('store_id', $store->id)->lockForUpdate()->firstOrFail();
+            $funnel->setRelation('page', $page);
+            abort_unless(hash_equals($this->version($funnel), $data['version']), 409, 'This funnel changed. Reload its details before saving again.');
+            $product = $this->validateProduct($store, ['product_id' => $data['product_id'], 'template_key' => $funnel->template_key]);
+            if ($page->title !== $data['title'] || $page->slug !== $data['slug']) {
+                $this->pages->update($page, ['title' => $data['title'], 'slug' => $data['slug']], $actor);
+            }
+            // Public funnels already resolve the live catalog binding; changing it does
+            // not publish draft section/slug edits or alter historical orders.
+            if ((int) $funnel->product_id !== (int) $product->id) {
+                $funnel->product_id = $product->id;
+                $funnel->save();
+            }
+
+            return $funnel->load(['page', 'product']);
+        });
+        app(StorefrontPageCache::class)->flushStore($store->id);
+
+        return $funnel;
     }
 
     /** Reject the entire selection before deleting any tenant-owned page. */

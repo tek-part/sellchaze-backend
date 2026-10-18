@@ -68,7 +68,13 @@ class StoreFunnelsApiController extends Controller
         $this->guard($request, $store);
         $data = $request->validate(['search' => ['nullable', 'string', 'max:150']]);
         $rows = Product::query()->where('store_id', $store->id)->whereNotNull('slug')->where('slug', '!=', '')
-            ->when(trim($data['search'] ?? '') !== '', fn ($query) => $query->where('name', 'like', '%'.trim($data['search']).'%'))
+            ->when(trim($data['search'] ?? '') !== '', fn ($query) => $query->where(function ($match) use ($data, $store) {
+                $term = '%'.trim($data['search']).'%';
+                $match->where('name', 'like', $term);
+                foreach (LocaleContext::storeSupported($store) as $locale) {
+                    $match->orWhere('translations->name->'.$locale, 'like', $term);
+                }
+            }))
             ->latest('id')->limit(50)->get(['id', 'name', 'slug']);
 
         return response()->json(['data' => $rows], 200, ['Cache-Control' => 'private, no-store']);
@@ -165,6 +171,29 @@ class StoreFunnelsApiController extends Controller
         $this->funnels->delete($store, $ids);
 
         return response()->json(['deleted_ids' => $ids, 'deleted' => count($ids)]);
+    }
+
+    public function show(Request $request, Store $store, int $funnel): JsonResponse
+    {
+        $this->guard($request, $store);
+        $row = StoreFunnel::query()->where('store_id', $store->id)->with(['page', 'product'])->findOrFail($funnel);
+
+        return response()->json(['data' => $this->payload($row, $store), 'version' => $this->funnels->version($row),
+            'funnel_base_url' => $this->urls->publicUrl($store, '/funnels/')], 200, ['Cache-Control' => 'private, no-store']);
+    }
+
+    public function update(Request $request, Store $store, int $funnel): JsonResponse
+    {
+        $this->guard($request, $store);
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'slug' => ['required', 'string', 'max:180', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/'],
+            'product_id' => ['required', 'integer'], 'version' => ['required', 'string', 'size:64'],
+        ]);
+        $row = $this->funnels->update($store, $funnel, $data, $request->user()->id);
+
+        return response()->json(['data' => $this->payload($row, $store), 'version' => $this->funnels->version($row),
+            'funnel_base_url' => $this->urls->publicUrl($store, '/funnels/')], 200, ['Cache-Control' => 'private, no-store']);
     }
 
     private function payload(StoreFunnel $funnel, Store $store): array
