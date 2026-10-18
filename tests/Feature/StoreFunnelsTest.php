@@ -242,6 +242,57 @@ class StoreFunnelsTest extends TestCase
         }
     }
 
+    public function test_hair_revive_is_an_independent_editable_family_with_localized_publications(): void
+    {
+        foreach (['ar', 'en'] as $locale) {
+            $funnel = $this->createFunnel(['template_key' => 'hair-revive-'.$locale, 'locale' => $locale, 'slug' => 'hair-'.$locale])->assertCreated()->json('data');
+            $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+            $page = $this->getJson($path)->assertOk()->assertJsonPath('data.native_funnel_template', 'hair-revive-'.$locale)->json('data');
+            $this->assertCount(15, $page['sections']);
+            $this->assertSame('hair-hero', $page['sections'][0]['type']);
+            $this->assertSame('', $page['sections'][0]['settings']['expires_at']);
+            $this->assertSame([], $page['sections'][9]['settings']['items']);
+            $schema = $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertOk()->json('sections_schema');
+            $this->assertCount(11, $schema);
+            $this->assertArrayNotHasKey('glasses-hero', $schema);
+            $sections = array_map(fn ($section) => Arr::only($section, ['type', 'settings', 'is_visible']), $page['sections']);
+            $sections[0]['settings']['heading'] = 'Own hair campaign';
+            $sections[7]['is_visible'] = true;
+            $sections[7]['settings']['items'] = [['heading' => 'Own details', 'text' => 'Our product photographs', 'before_image' => 'https://example.test/one.png', 'after_image' => 'https://example.test/two.png', 'before_label' => 'Packaging', 'after_label' => 'Details']];
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk()->assertJsonCount(15, 'data.sections')->assertJsonPath('data.sections.7.settings.items.0.before_label', 'Packaging');
+            $this->postJson($path.'/publish')->assertOk();
+            $url = 'http://funnel.sellchase.com/api/v1/storefront/funnels/hair-'.$locale.'?lang='.$locale;
+            $this->getJson($url)->assertOk()->assertJsonPath('data.native_funnel_template', 'hair-revive-'.$locale)->assertJsonPath('data.funnel_product_slug', 'canvas-bag')->assertJsonPath('data.sections.0.settings.heading', 'Own hair campaign');
+            $sections[0]['settings']['heading'] = 'Draft change';
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk();
+            $this->getJson($url)->assertOk()->assertJsonPath('data.sections.0.settings.heading', 'Own hair campaign');
+            $copy = $this->postJson('/api/v1/my-store/funnels/'.$funnel['id'].'/duplicate')->assertCreated()->json('data');
+            $this->getJson('/api/v1/my-store/pages/'.$copy['page_id'])->assertOk()->assertJsonCount(15, 'data.sections')->assertJsonPath('data.native_funnel_template', 'hair-revive-'.$locale)->assertJsonPath('data.sections.0.settings.heading', 'Draft change');
+            $this->assertDatabaseMissing('store_page_publications', ['store_page_id' => $copy['page_id']]);
+        }
+    }
+
+    public function test_hair_revive_schema_survives_theme_changes_and_cannot_be_spoofed_or_duplicate_checkout(): void
+    {
+        $this->getJson('/api/v1/my-store/pages/schema?template_key=hair-revive-en')->assertOk()->assertJsonMissingPath('sections_schema.hair-purchase');
+        $funnel = $this->createFunnel(['template_key' => 'hair-revive-en'])->assertCreated()->json('data');
+        $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+        $version = StoreTheme::where('store_id', $this->store->id)->where('status', 'active')->value('theme_version_id');
+        ThemeVersion::whereKey($version)->update(['sections_schema' => []]);
+        Cache::flush();
+        $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertOk()->assertJsonStructure(['sections_schema' => ['hair-hero', 'hair-faq']]);
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'hair-purchase'], ['type' => 'hair-purchase']]])->assertUnprocessable();
+        $this->getJson($path)->assertOk()->assertJsonCount(15, 'data.sections');
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'hair-statement', 'settings' => ['heading' => 'Changed']]]])->assertOk();
+        $revisions = $this->getJson($path.'/revisions')->assertOk()->json('data');
+        $revision = collect($revisions)->firstWhere('sections_count', 15);
+        $this->postJson($path.'/revisions/'.$revision['id'].'/restore')->assertOk()->assertJsonCount(15, 'data.sections');
+        $other = $this->makeStore('hair-foreign');
+        $this->asOwner($other);
+        $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertNotFound();
+        $this->assertDatabaseCount('store_order_items', 0);
+    }
+
     private function enableAi(): void
     {
         config(['services.funnel_ai.api_key' => 'test-key', 'services.funnel_ai.model' => 'configured-model']);
