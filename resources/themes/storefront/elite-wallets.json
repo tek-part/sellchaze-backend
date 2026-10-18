@@ -6702,7 +6702,8 @@
           "type": "category-header",
           "settings": {
             "banner_mode": "none",
-            "show_breadcrumbs": false
+            "show_breadcrumbs": false,
+            "show_description": false
           }
         },
         {
