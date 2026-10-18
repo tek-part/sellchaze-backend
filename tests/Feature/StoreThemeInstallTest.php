@@ -159,6 +159,25 @@ class StoreThemeInstallTest extends TestCase
         $this->assertSame('naseem', $this->registry->resolveActiveTheme($other->fresh())->theme->key);
     }
 
+    public function test_nature_pets_installs_its_own_editable_composition_without_changing_another_store(): void
+    {
+        $store = $this->makeStore();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other', 'slug' => 'other-nature-pets', 'currency' => 'USD', 'status' => 'active']);
+        $this->installer->installAndActivateDefault($other);
+        $before = $other->fresh()->only(['theme_id', 'theme_settings']);
+        $theme = $this->registry->registerFromFile(resource_path('themes/storefront/nature-pets.json'));
+        $version = $this->registry->resolveThemeVersion($theme);
+        $this->assertSame('builtin:nature-pets@1.0.0', $version->bundle_url);
+        $this->assertArrayHasKey('nature-pets-faq', $version->sections_schema);
+        $this->assertArrayHasKey('nature-pets-shelf', $version->sections_schema);
+        $this->assertCount(9, $version->templates['home']['sections']);
+        $installed = $this->installer->install($store, $theme, $version);
+        $this->installer->activate($store, $installed);
+        $this->assertSame('nature-pets', $this->registry->resolveActiveTheme($store->fresh())->theme->key);
+        $this->assertSame('#A67500', $store->fresh()->theme_settings['primary_color']);
+        $this->assertSame($before, $other->fresh()->only(['theme_id', 'theme_settings']));
+    }
+
     public function test_store_created_via_service_gets_default_theme(): void
     {
         // StoreService::create resolves the owner from the authenticated user.
