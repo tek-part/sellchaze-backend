@@ -24,6 +24,7 @@ use App\Http\Middleware\ScopeOrganizationRoute;
 use App\Http\Middleware\ScopeToStore;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\StoreCatalogPermission;
 use App\Http\Middleware\TrimStrings;
 use App\Http\Middleware\TrustHosts;
 use App\Http\Middleware\TrustProxies;
@@ -140,6 +141,7 @@ class Kernel extends HttpKernel
         'idempotent' => EnsureIdempotentRequest::class,
         'resolve.store' => ResolveStoreFromHost::class,
         'store.scope' => ScopeToStore::class,
+        'store.catalog.permission' => StoreCatalogPermission::class,
         'store.own' => ResolveOwnStore::class,
         'store.customer' => AuthenticateStoreCustomer::class,
         'storefront.locale' => ResolveStorefrontLocale::class,

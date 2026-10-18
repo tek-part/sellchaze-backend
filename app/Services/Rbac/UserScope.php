@@ -3,6 +3,7 @@
 namespace App\Services\Rbac;
 
 use App\Models\User;
+use App\Services\Stores\StoreManagers;
 
 /**
  * Central place for admin vs merchant scoping (replaces hardcoded user id checks).
@@ -46,6 +47,10 @@ class UserScope
     {
         if (self::isAdmin($user)) {
             return (int) $user->id;
+        }
+
+        if ($user->hasRole(StoreManagers::ROLE)) {
+            return (int) (StoreManagers::parentOwner($user)?->id ?? 0);
         }
 
         return b2bListingsUserId();
