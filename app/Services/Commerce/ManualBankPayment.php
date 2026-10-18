@@ -9,9 +9,9 @@ use Illuminate\Validation\ValidationException;
 
 class ManualBankPayment
 {
-    public function confirm(StoreOrder $order, string $reference, int $actorId, ?string $note = null): StoreOrder
+    public function confirm(StoreOrder $order, string $reference, int $actorId, ?string $note = null, ?string $reviewedProofId = null): StoreOrder
     {
-        return DB::transaction(function () use ($order, $reference, $actorId, $note) {
+        return DB::transaction(function () use ($order, $reference, $actorId, $note, $reviewedProofId) {
             $transaction = StorePaymentTransaction::query()->where('store_id', $order->store_id)->where('store_order_id', $order->id)
                 ->where('gateway', $order->payment_method)->latest('id')->lockForUpdate()->first();
             $current = StoreOrder::forStore($order->store_id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
@@ -30,7 +30,8 @@ class ManualBankPayment
                 throw ValidationException::withMessages(['payment' => 'This bank payment is not awaiting confirmation.']);
             }
             if ($current->payment_method === 'transfer_receipt') {
-                $proof = DB::table('store_payment_proofs')->where('store_id', $current->store_id)->where('store_order_id', $current->id)->where('status', 'pending')->orderByDesc('created_at')->first();
+                $proof = DB::table('store_payment_proofs')->where('store_id', $current->store_id)->where('store_order_id', $current->id)->where('status', 'pending')
+                    ->when($reviewedProofId !== null, fn ($query) => $query->where('id', $reviewedProofId))->orderByDesc('created_at')->first();
                 if (! $proof) {
                     throw ValidationException::withMessages(['payment' => 'Review an uploaded receipt before confirming this transfer.']);
                 }
