@@ -14,7 +14,7 @@ class MarketplaceThemesTest extends TestCase
     use RefreshDatabase;
 
     /** Every first-party storefront theme, as shipped in resources/themes/storefront. */
-    private const KEYS = ['bazaar', 'blast-pets', 'elite-furniture', 'fresh', 'hype-fashion', 'hype-perfumes', 'naseem', 'nature-kids', 'nature-pets', 'pure-furniture', 'sahra', 'sphinx-v3', 'techno'];
+    private const KEYS = ['bazaar', 'blast-pets', 'elite-furniture', 'elite-wallets', 'fresh', 'hype-fashion', 'hype-perfumes', 'naseem', 'nature-kids', 'nature-pets', 'pure-furniture', 'sahra', 'sphinx-v3', 'techno'];
 
     protected function setUp(): void
     {

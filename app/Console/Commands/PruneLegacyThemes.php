@@ -33,7 +33,7 @@ use Throwable;
 class PruneLegacyThemes extends Command
 {
     /** The only theme keys allowed to survive. */
-    public const ALLOWED_KEYS = ['naseem', 'bazaar', 'sahra', 'fresh', 'techno', 'sphinx-v3', 'elite-furniture', 'pure-furniture', 'nature-kids', 'blast-pets', 'nature-pets', 'hype-perfumes', 'hype-fashion'];
+    public const ALLOWED_KEYS = ['naseem', 'bazaar', 'sahra', 'fresh', 'techno', 'sphinx-v3', 'elite-furniture', 'pure-furniture', 'nature-kids', 'blast-pets', 'nature-pets', 'hype-perfumes', 'hype-fashion', 'elite-wallets'];
 
     protected $signature = 'themes:prune-legacy
         {--dry-run : Report what would be removed without changing anything}';
