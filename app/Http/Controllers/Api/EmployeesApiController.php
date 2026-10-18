@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Stores\StoreManagers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -17,11 +18,11 @@ class EmployeesApiController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $owner = $request->user();
+        $owner = $this->owner($request);
         if ($owner->hasRole('Admin')) {
             $rows = User::query()->role('Employee')->orderBy('name')->get();
         } else {
-            $rows = User::query()->where('parent_user_id', $owner->id)->orderBy('name')->get();
+            $rows = User::query()->role('Employee')->where('parent_user_id', $owner->id)->orderBy('name')->get();
         }
 
         return response()->json([
@@ -31,7 +32,7 @@ class EmployeesApiController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $owner = $request->user();
+        $owner = $this->owner($request);
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:191'],
             'email' => ['required', 'email', 'max:191', 'unique:users,email'],
@@ -52,7 +53,7 @@ class EmployeesApiController extends Controller
 
     public function update(Request $request, int $id): JsonResponse
     {
-        $owner = $request->user();
+        $owner = $this->owner($request);
         $employee = User::query()->findOrFail($id);
         $this->authorizeOwnership($owner, $employee);
 
@@ -63,10 +64,18 @@ class EmployeesApiController extends Controller
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
-        if (array_key_exists('name', $validated)) $employee->name = $validated['name'];
-        if (array_key_exists('email', $validated)) $employee->email = $validated['email'];
-        if (! empty($validated['password'])) $employee->password = Hash::make($validated['password']);
-        if (array_key_exists('is_active', $validated)) $employee->is_active = (bool) $validated['is_active'];
+        if (array_key_exists('name', $validated)) {
+            $employee->name = $validated['name'];
+        }
+        if (array_key_exists('email', $validated)) {
+            $employee->email = $validated['email'];
+        }
+        if (! empty($validated['password'])) {
+            $employee->password = Hash::make($validated['password']);
+        }
+        if (array_key_exists('is_active', $validated)) {
+            $employee->is_active = (bool) $validated['is_active'];
+        }
         $employee->save();
 
         return response()->json(['data' => $this->serialize($employee)]);
@@ -74,7 +83,7 @@ class EmployeesApiController extends Controller
 
     public function destroy(Request $request, int $id): JsonResponse
     {
-        $owner = $request->user();
+        $owner = $this->owner($request);
         $employee = User::query()->findOrFail($id);
         $this->authorizeOwnership($owner, $employee);
         $employee->delete();
@@ -82,9 +91,20 @@ class EmployeesApiController extends Controller
         return response()->json(['data' => ['deleted' => true]]);
     }
 
+    private function owner(Request $request): User
+    {
+        $user = $request->user();
+        abort_unless($user && ($user->hasRole('Admin') || (! $user->parent_user_id && $user->hasAnyRole(['Merchant', 'Supplier']))), 403);
+
+        return $user;
+    }
+
     private function authorizeOwnership(User $owner, User $employee): void
     {
-        if ($owner->hasRole('Admin')) return;
+        abort_unless($employee->hasRole('Employee') && ! $employee->hasRole(StoreManagers::ROLE), 404);
+        if ($owner->hasRole('Admin')) {
+            return;
+        }
         if ((int) $employee->parent_user_id !== (int) $owner->id) {
             abort(403, 'Not your employee.');
         }

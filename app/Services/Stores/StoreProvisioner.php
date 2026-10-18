@@ -61,6 +61,10 @@ class StoreProvisioner
      */
     private function resolveOwner(User $user): ?User
     {
+        if ($user->hasRole(StoreManagers::ROLE)) {
+            return StoreManagers::parentOwner($user);
+        }
+
         if ($user->hasRole('Employee') && $user->parent_user_id) {
             $parent = $user->parent()->first();
 

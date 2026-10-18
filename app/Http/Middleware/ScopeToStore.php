@@ -44,6 +44,6 @@ class ScopeToStore
         $this->currentStore->set($store);
         $request->attributes->set('store', $store);
 
-        return $next($request);
+        return app(StoreManagerPermissions::class)->handle($request, $next);
     }
 }

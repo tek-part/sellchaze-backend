@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Services\Stores\StoreManagers;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -194,6 +195,8 @@ class RolesTableSeeder extends Seeder
             ['name' => 'Employee', 'guard_name' => $guard],
             ['guard_name' => $guard]
         );
+        Role::firstOrCreate(['name' => StoreManagers::ROLE, 'guard_name' => $guard])->syncPermissions([]);
+
         // Employee inherits contextual scope via parent_user_id; default limited permissions.
         $employeeRole->syncPermissions([
             'orders-in',

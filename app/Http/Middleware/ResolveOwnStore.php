@@ -52,6 +52,6 @@ class ResolveOwnStore
             })->call($route, $store);
         }
 
-        return $next($request);
+        return app(StoreManagerPermissions::class)->handle($request, $next);
     }
 }

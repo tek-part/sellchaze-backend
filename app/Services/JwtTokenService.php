@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AuthSession;
 use App\Models\User;
+use App\Services\Stores\StoreManagers;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -167,7 +168,12 @@ class JwtTokenService
             return null;
         }
 
-        return Cache::remember('jwt_access_user:'.$id, now()->addSeconds(30), fn () => User::query()->find($id));
+        $user = Cache::remember('jwt_access_user:'.$id, now()->addSeconds(30), fn () => User::query()->find($id));
+        if ($user?->hasRole(StoreManagers::ROLE) && $sid === '') {
+            return null;
+        }
+
+        return $user;
     }
 
     public function accessSessionId(string $token): ?string

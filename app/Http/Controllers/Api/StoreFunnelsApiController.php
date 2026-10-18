@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreFunnel;
 use App\Services\PageBuilder\FunnelContentGenerator;
@@ -39,6 +40,17 @@ class StoreFunnelsApiController extends Controller
             })->latest('id')->paginate($data['per_page'] ?? 20);
 
         return response()->json(['data' => $rows->getCollection()->map(fn ($funnel) => $this->payload($funnel)), 'meta' => ['current_page' => $rows->currentPage(), 'last_page' => $rows->lastPage(), 'total' => $rows->total()]]);
+    }
+
+    public function products(Request $request, Store $store): JsonResponse
+    {
+        $this->guard($request, $store);
+        $data = $request->validate(['search' => ['nullable', 'string', 'max:150']]);
+        $rows = Product::query()->where('store_id', $store->id)->whereNotNull('slug')->where('slug', '!=', '')
+            ->when(trim($data['search'] ?? '') !== '', fn ($query) => $query->where('name', 'like', '%'.trim($data['search']).'%'))
+            ->latest('id')->limit(50)->get(['id', 'name', 'slug']);
+
+        return response()->json(['data' => $rows], 200, ['Cache-Control' => 'private, no-store']);
     }
 
     public function templates(Request $request, Store $store): JsonResponse
