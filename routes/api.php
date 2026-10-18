@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\InvoicesApiController;
 use App\Http\Controllers\Api\LedgerApiController;
 use App\Http\Controllers\Api\ManualStoreOrderController;
 use App\Http\Controllers\Api\MarketplaceThemesController;
+use App\Http\Controllers\Api\MerchantBulkPaymentController;
 use App\Http\Controllers\Api\MerchantOrderActionsController;
 use App\Http\Controllers\Api\MerchantOrderController;
 use App\Http\Controllers\Api\MerchantOrderEditController;
@@ -910,6 +911,8 @@ Route::prefix('v1')->group(function () {
                     Route::post('/', [ManualStoreOrderController::class, 'store'])->middleware('throttle:20,1');
                 });
                 Route::post('bulk-status', [MerchantOrderController::class, 'bulkStatus'])->middleware(['permission:store.orders.manage', 'throttle:20,1']);
+                Route::post('bulk-payment-review', [MerchantBulkPaymentController::class, 'preview'])->middleware(['permission:store.orders.manage', 'throttle:40,1']);
+                Route::post('bulk-payment-status', [MerchantBulkPaymentController::class, 'apply'])->middleware(['permission:store.orders.manage', 'throttle:20,1']);
                 Route::middleware('permission:store.orders.manage')->group(function () {
                     Route::get('{order}/detail', [MerchantOrderActionsController::class, 'show'])->whereNumber('order');
                     Route::get('{order}/edit', [MerchantOrderEditController::class, 'show'])->whereNumber('order');
