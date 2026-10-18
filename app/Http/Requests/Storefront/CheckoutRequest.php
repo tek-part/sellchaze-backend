@@ -39,6 +39,7 @@ class CheckoutRequest extends FormRequest
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'cart_mode' => ['sometimes', 'in:cart,direct'],
             'checkout_surface' => ['sometimes', 'in:product,storefront,funnel'],
+            'funnel_path' => ['sometimes', 'string', 'max:512', 'regex:~^/(?:funnels|pages)/[a-z0-9]+(?:-[a-z0-9]+)*/?$~D'],
             // The storefront cart is client-side; the order's line items are submitted here and
             // synced into the cart before placement (see CheckoutController@store).
             'items' => ['required_if:cart_mode,direct', 'array', 'min:1', 'max:100'],

@@ -62,6 +62,11 @@ class StoreTrackingEvents
         if ($groupView) {
             $payload['content_type'] = 'product_group';
         }
+        $pixels = app(FunnelPixelSettings::class);
+        $payload += $pixels->snapshot($pixels->forPath($store, $data['page_path'] ?? null, array_column($data['items'] ?? [], 'product_id')));
+        if (! isset($payload['funnel_pixels']) && ! $this->settings->storeEnabled($store)) {
+            return null;
+        }
 
         return $this->browser($store, $this->persist($store, $payload));
     }
@@ -101,6 +106,14 @@ class StoreTrackingEvents
                 'value' => $advertised, 'gross_value' => $custom ? bcadd(bcadd($advertised, (string) $order->shipping_total, 2), $addedTax, 2) : (string) $order->grand_total,
                 'shipping' => (string) $order->shipping_total, 'tax' => (string) $order->tax_total, 'transaction_id' => $order->order_number,
                 'items' => $items, 'page_location' => $request->getSchemeAndHttpHost().'/checkout', 'user_data' => $user];
+            if ($request->input('checkout_surface') === 'funnel' && $request->input('cart_mode') === 'direct') {
+                $pixels = app(FunnelPixelSettings::class);
+                $funnel = $pixels->forPath($store, $request->input('funnel_path'), $lines->pluck('store_product_id')->all());
+                $payload += $pixels->snapshot($funnel);
+            }
+            if (! isset($payload['funnel_pixels']) && ! $this->settings->storeEnabled($store)) {
+                return;
+            }
             $this->persist($store, $payload, $order->id);
         } catch (\Throwable) { /* No raw token/contact/provider logging; checkout succeeds independently. */
         }
@@ -162,8 +175,9 @@ class StoreTrackingEvents
             return null;
         }
         $payload = $event->payload;
-        unset($payload['user_data']);
+        $configuration = app(FunnelPixelSettings::class)->forEvent($store, $payload);
+        unset($payload['user_data'], $payload['funnel_id'], $payload['funnel_pixels']);
 
-        return ['configuration' => $this->settings->publicConfiguration($store), 'event' => $payload];
+        return ['configuration' => $configuration, 'event' => $payload];
     }
 }
