@@ -8,7 +8,7 @@
   "is_marketplace": true,
   "is_featured": true,
   "min_platform_version": "1.0.0",
-  "preview_image": "/media/theme-campaigns/hype-fashion-hero-v1.png",
+  "preview_image": "/media/theme-previews/hype-fashion.png",
   "supported_features": [
     "rtl",
     "cart-drawer",
