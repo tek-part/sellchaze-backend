@@ -304,6 +304,11 @@ class StoreFunnelsTest extends TestCase
             $this->assertSame('Canvas bag', $page['sections'][0]['settings']['heading']);
             $this->assertSame('', $page['sections'][0]['settings']['offer_value']);
             $this->assertSame('', $page['sections'][0]['settings']['expires_at']);
+            $this->assertArrayHasKey('image', $page['sections'][11]['settings']);
+            $schema = $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertOk()->json('sections_schema.litter-feature-rows.settings');
+            $this->assertSame(['image', 'image_alt', 'items'], array_column($schema, 'id'));
+            $this->assertSame(3, $schema[2]['max']);
+            $this->assertSame(['heading', 'text'], array_column($schema[2]['item'], 'id'));
             $this->assertFalse($page['sections'][12]['is_visible']);
             $this->assertFalse($page['sections'][13]['is_visible']);
             $sections = $page['sections'];
