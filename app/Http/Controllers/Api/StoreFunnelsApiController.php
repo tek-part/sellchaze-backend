@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreFunnel;
 use App\Models\StorePage;
+use App\Services\Commerce\FunnelPixelSettings;
 use App\Services\PageBuilder\FunnelContentGenerator;
 use App\Services\PageBuilder\StoreFunnelService;
 use App\Services\Storefront\StorefrontUrlGenerator;
@@ -189,7 +190,7 @@ class StoreFunnelsApiController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:180', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/'],
             'product_id' => ['required', 'integer'], 'version' => ['required', 'string', 'size:64'],
-        ]);
+        ] + FunnelPixelSettings::rules());
         $row = $this->funnels->update($store, $funnel, $data, $request->user()->id);
 
         return response()->json(['data' => $this->payload($row, $store), 'version' => $this->funnels->version($row),
@@ -202,6 +203,7 @@ class StoreFunnelsApiController extends Controller
             'id' => $funnel->id, 'code' => $funnel->public_id, 'page_id' => $funnel->store_page_id, 'template_key' => $funnel->template_key,
             'title' => $funnel->page->title, 'slug' => $funnel->page->slug, 'status' => $funnel->page->status,
             'locale' => $funnel->page->locale, 'product' => $funnel->product?->only(['id', 'name', 'slug']),
+            'browser_pixels' => $funnel->browser_pixels,
             'public_path' => '/funnels/'.($funnel->page->published_slug ?: $funnel->page->slug),
             'public_url' => $this->urls->publicUrl($store, $funnel->page->publicPath()),
             'is_public' => $funnel->page->isPubliclyVisible(),

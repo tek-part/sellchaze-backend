@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
  * @property int|null $product_id
  * @property string $template_key
  * @property string|null $public_id
+ * @property array|null $browser_pixels
  * @property-read StorePage $page
  * @property-read Product|null $product
  */
@@ -21,7 +22,9 @@ class StoreFunnel extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'store_page_id', 'product_id', 'template_key'];
+    protected $fillable = ['store_id', 'store_page_id', 'product_id', 'template_key', 'browser_pixels'];
+
+    protected $casts = ['browser_pixels' => 'array'];
 
     protected static function booted(): void
     {

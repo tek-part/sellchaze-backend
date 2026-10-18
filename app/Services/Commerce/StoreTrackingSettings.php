@@ -3,6 +3,7 @@
 namespace App\Services\Commerce;
 
 use App\Models\Store;
+use App\Models\StoreFunnel;
 use App\Models\StoreTrackingDelivery;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -25,6 +26,12 @@ class StoreTrackingSettings
     }
 
     public function enabled(Store $store): bool
+    {
+        return $this->storeEnabled($store)
+            || StoreFunnel::withoutGlobalScopes()->where('store_id', $store->id)->whereNotNull('browser_pixels')->exists();
+    }
+
+    public function storeEnabled(Store $store): bool
     {
         $config = $this->configuration($store);
 

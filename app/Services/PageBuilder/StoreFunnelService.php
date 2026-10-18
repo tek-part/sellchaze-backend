@@ -5,6 +5,7 @@ namespace App\Services\PageBuilder;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreFunnel;
+use App\Services\Commerce\FunnelPixelSettings;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Themes\ThemeResolver;
 use Illuminate\Support\Facades\DB;
@@ -99,7 +100,7 @@ class StoreFunnelService
                 $productId = $this->validateProduct($store, ['template_key' => $source->template_key] + $data)->id;
             }
             $copy = $this->pages->create($store, ['title' => $data['title'] ?? $page->title.' (copy)', 'slug' => $data['slug'] ?? $page->slug.'-copy', 'template' => 'landing', 'locale' => $data['locale'] ?? $page->locale, 'seo' => $page->seo]);
-            $funnel = StoreFunnel::create(['store_id' => $store->id, 'store_page_id' => $copy->id, 'product_id' => $productId, 'template_key' => $source->template_key]);
+            $funnel = StoreFunnel::create(['store_id' => $store->id, 'store_page_id' => $copy->id, 'product_id' => $productId, 'template_key' => $source->template_key, 'browser_pixels' => $source->browser_pixels]);
             // Resolve reusable sections into independent values so edits to the copy cannot
             // unexpectedly change the source funnel through a shared section reference.
             $sections = array_map(function (array $section): array {
@@ -117,7 +118,7 @@ class StoreFunnelService
     public function version(StoreFunnel $funnel): string
     {
         return hash('sha256', json_encode([
-            $funnel->id, $funnel->product_id, $funnel->page->only(['title', 'slug', 'locale', 'status', 'published_slug', 'published_at']),
+            $funnel->id, $funnel->product_id, $funnel->browser_pixels, $funnel->page->only(['title', 'slug', 'locale', 'status', 'published_slug', 'published_at']),
         ], JSON_THROW_ON_ERROR));
     }
 
@@ -134,10 +135,11 @@ class StoreFunnelService
             }
             // Public funnels already resolve the live catalog binding; changing it does
             // not publish draft section/slug edits or alter historical orders.
-            if ((int) $funnel->product_id !== (int) $product->id) {
-                $funnel->product_id = $product->id;
-                $funnel->save();
+            $funnel->product_id = $product->id;
+            if (array_key_exists('browser_pixels', $data)) {
+                $funnel->browser_pixels = app(FunnelPixelSettings::class)->normalize($data['browser_pixels'] ?? []);
             }
+            $funnel->save();
 
             return $funnel->load(['page', 'product']);
         });

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreDomain;
+use App\Models\StoreFunnel;
 use App\Models\StorePage;
 use App\Models\User;
 use App\Services\JwtTokenService;
@@ -51,6 +52,44 @@ class StoreFunnelWorkspaceTest extends TestCase
     private function createFunnel(string $title = 'Bag campaign', string $slug = 'bag-campaign', array $extra = []): array
     {
         return $this->postJson('/api/v1/my-store/funnels', array_merge(['title' => $title, 'slug' => $slug, 'locale' => 'en', 'product_id' => $this->product->id, 'template_key' => 'spotlight'], $extra))->assertCreated()->json('data');
+    }
+
+    public function test_custom_pixels_are_validated_versioned_copied_independently_and_explicitly_cleared(): void
+    {
+        $funnel = $this->createFunnel();
+        $url = '/api/v1/my-store/funnels/'.$funnel['id'];
+        $details = $this->getJson($url)->assertOk()->json();
+        $input = ['title' => $funnel['title'], 'slug' => $funnel['slug'], 'product_id' => $this->product->id, 'version' => $details['version']];
+        foreach ([['facebook' => ['<script>bad</script>']], ['tiktok' => ['bad']], ['snapchat' => ['bad']], ['google' => ['G-ABCDEF']], ['facebook' => array_fill(0, 11, '1234567890')]] as $pixels) {
+            $this->putJson($url, $input + ['browser_pixels' => $pixels])->assertUnprocessable();
+        }
+        $this->assertNull(StoreFunnel::findOrFail($funnel['id'])->browser_pixels);
+        $saved = $this->putJson($url, $input + ['browser_pixels' => ['facebook' => [' 1234567890 ', '1234567890'], 'snapchat' => ['12345678-1234-4234-8234-123456789ABC']]])->assertOk()
+            ->assertJsonPath('data.browser_pixels.facebook', ['1234567890'])->assertJsonPath('data.browser_pixels.snapchat.0', '12345678-1234-4234-8234-123456789abc')->json();
+        $this->assertNotSame($input['version'], $saved['version']);
+        $this->putJson($url, $input + ['browser_pixels' => null])->assertConflict();
+        $copy = $this->postJson($url.'/duplicate')->assertCreated()->json('data');
+        $this->assertSame($saved['data']['browser_pixels'], $copy['browser_pixels']);
+        $input['version'] = $saved['version'];
+        $this->putJson($url, $input + ['browser_pixels' => null])->assertOk()->assertJsonPath('data.browser_pixels', null);
+        $this->assertSame(['1234567890'], StoreFunnel::findOrFail($copy['id'])->browser_pixels['facebook']);
+        $this->assertDatabaseMissing('store_page_publications', ['store_page_id' => $funnel['page_id']]);
+        $other = $this->makeStore('pixel-other');
+        $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($other->owner));
+        $this->putJson($url, $input + ['browser_pixels' => null])->assertNotFound();
+    }
+
+    public function test_pixel_migration_preserves_legacy_rows_and_protects_configured_rollback(): void
+    {
+        $funnel = $this->createFunnel();
+        $before = (array) DB::table('store_funnels')->where('id', $funnel['id'])->first();
+        $migration = require database_path('migrations/2026_10_18_080000_add_browser_pixels_to_store_funnels.php');
+        $migration->down();
+        $migration->up();
+        $this->assertSame($before, (array) DB::table('store_funnels')->where('id', $funnel['id'])->first());
+        DB::table('store_funnels')->where('id', $funnel['id'])->update(['browser_pixels' => json_encode(['facebook' => ['1234567890']])]);
+        $this->expectException(\RuntimeException::class);
+        $migration->down();
     }
 
     public function test_list_sorts_and_paginates_with_stable_codes_and_canonical_public_links(): void
