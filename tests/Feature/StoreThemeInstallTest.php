@@ -178,6 +178,29 @@ class StoreThemeInstallTest extends TestCase
         $this->assertSame($before, $other->fresh()->only(['theme_id', 'theme_settings']));
     }
 
+    public function test_hype_perfumes_installs_editable_sections_and_preserves_another_store(): void
+    {
+        $store = $this->makeStore();
+        $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other', 'slug' => 'other-hype-perfumes', 'currency' => 'USD', 'status' => 'active']);
+        $this->installer->installAndActivateDefault($other);
+        $before = $other->fresh()->only(['theme_id', 'theme_settings']);
+        $initial = $store->fresh()->only(['theme_id', 'theme_settings']);
+        $theme = $this->registry->registerFromFile(resource_path('themes/storefront/hype-perfumes.json'));
+        $version = $this->registry->resolveThemeVersion($theme);
+        $this->assertSame($initial, $store->fresh()->only(['theme_id', 'theme_settings']));
+        $this->assertSame('builtin:hype-perfumes@1.0.0', $version->bundle_url);
+        $this->assertArrayHasKey('hype-image-compare', $version->sections_schema);
+        $this->assertArrayHasKey('hype-review-photos', $version->sections_schema);
+        $this->assertCount(12, $version->templates['home']['sections']);
+        $this->assertSame('modern', config('theme_gallery.hype-perfumes.collection'));
+        $this->assertSame(['perfumes'], config('theme_gallery.hype-perfumes.categories'));
+        $installed = $this->installer->install($store, $theme, $version);
+        $this->installer->activate($store, $installed);
+        $this->assertSame('hype-perfumes', $this->registry->resolveActiveTheme($store->fresh())->theme->key);
+        $this->assertSame('#35161F', $store->fresh()->theme_settings['primary_color']);
+        $this->assertSame($before, $other->fresh()->only(['theme_id', 'theme_settings']));
+    }
+
     public function test_store_created_via_service_gets_default_theme(): void
     {
         // StoreService::create resolves the owner from the authenticated user.

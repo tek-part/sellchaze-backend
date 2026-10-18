@@ -113,7 +113,7 @@ class ThemeRegistryTest extends TestCase
             ThemeRegistry::manifestPaths(),
         );
 
-        $this->assertSame(['bazaar', 'blast-pets', 'elite-furniture', 'fresh', 'naseem', 'nature-kids', 'nature-pets', 'pure-furniture', 'sahra', 'sphinx-v3', 'techno'], $keys);
+        $this->assertSame(['bazaar', 'blast-pets', 'elite-furniture', 'fresh', 'hype-perfumes', 'naseem', 'nature-kids', 'nature-pets', 'pure-furniture', 'sahra', 'sphinx-v3', 'techno'], $keys);
         foreach (ThemeRegistry::manifestPaths() as $path) {
             $this->assertStringStartsWith(realpath(resource_path('themes/storefront')).DIRECTORY_SEPARATOR, realpath($path));
         }
