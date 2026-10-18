@@ -204,6 +204,20 @@ class CashCollectionTest extends TestCase
         $this->assertSame(1, OutboxMessage::where('event_type', 'StorefrontDigitalPaid')->count());
     }
 
+    public function test_return_workflows_cannot_create_a_new_cash_or_bank_payment_confirmation(): void
+    {
+        $cash = $this->place(false);
+        $bank = $this->place(false, 'bank_transfer');
+        foreach (StoreOrder::RETURN_STATUSES as $status) {
+            StoreOrder::forStore($this->store)->whereKey($cash['data']['id'])->update(['status' => $status]);
+            StoreOrder::forStore($this->store)->whereKey($bank['data']['id'])->update(['status' => $status]);
+            $this->confirm($cash)->assertUnprocessable();
+            $this->postJson('/api/v1/my-store/orders/'.$bank['data']['id'].'/payment/confirm-bank', ['reference' => 'RETURN-FIXTURE'], $this->headers())->assertUnprocessable();
+        }
+        $this->assertSame(0, StorePaymentTransaction::where('status', 'paid')->count());
+        $this->assertDatabaseCount('store_order_status_changes', 0);
+    }
+
     public function test_only_permitted_store_staff_can_confirm_and_foreign_order_ids_remain_hidden(): void
     {
         $data = $this->place();

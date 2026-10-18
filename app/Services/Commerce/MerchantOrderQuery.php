@@ -20,6 +20,7 @@ class MerchantOrderQuery
         return $request->validate([
             'status' => ['nullable', Rule::in(StoreOrder::STATUSES)],
             'payment_status' => ['nullable', 'in:pending,paid,failed'],
+            'classification' => ['nullable', Rule::in(['high_risk', 'moderate_risk', 'spam'])],
             'order_id' => ['nullable', 'integer', 'min:1'],
             'order_number' => ['nullable', 'string', 'max:200'],
             'customer' => ['nullable', 'string', 'max:200'],
@@ -50,6 +51,9 @@ class MerchantOrderQuery
             if (isset($filters[$key]) && $filters[$key] !== '') {
                 $query->where($key === 'order_id' ? 'store_orders.id' : $key, $filters[$key]);
             }
+        }
+        if (isset($filters['classification']) && $filters['classification'] !== '') {
+            $query->whereHas('merchantReview', fn (Builder $review) => $review->where('store_id', $store->id)->where('classification', $filters['classification']));
         }
         if (isset($filters['order_number']) && $filters['order_number'] !== '') {
             $query->where('order_number', 'like', '%'.$filters['order_number'].'%');

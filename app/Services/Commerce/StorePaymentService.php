@@ -24,7 +24,7 @@ class StorePaymentService
     {
         $transaction = DB::transaction(function () use ($store, $order, $setting) {
             $current = StoreOrder::withoutGlobalScopes()->where('store_id', $store->id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
-            if ($current->status === 'cancelled' || $current->payment_method !== $setting->gateway) {
+            if (in_array($current->status, ['cancelled', ...StoreOrder::RETURN_STATUSES], true) || $current->payment_method !== $setting->gateway) {
                 throw ValidationException::withMessages(['payment' => 'This order cannot start this payment.']);
             }
             $existing = StorePaymentTransaction::where('store_id', $store->id)->where('store_order_id', $order->id)->where('gateway', $setting->gateway)->latest('id')->first();
@@ -431,7 +431,7 @@ class StorePaymentService
         $config = data_get($transaction->metadata, 'hyperpay');
         abort_unless(is_array($config) && filled($config['checkout_id'] ?? null) && array_key_exists('test_mode', $config), 422, 'This payment session must be restarted.');
         $order = StoreOrder::forStore($transaction->store_id)->findOrFail($transaction->store_order_id);
-        abort_if($order->status === 'cancelled' || $order->payment_status === 'paid', 404);
+        abort_if(in_array($order->status, ['cancelled', ...StoreOrder::RETURN_STATUSES], true) || $order->payment_status === 'paid', 404);
 
         return [
             'store_id' => (int) $transaction->store_id,

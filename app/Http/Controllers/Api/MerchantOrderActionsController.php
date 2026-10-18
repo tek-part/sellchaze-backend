@@ -9,6 +9,7 @@ use App\Models\StoreOrder;
 use App\Models\StoreOrderWebhookDelivery;
 use App\Models\User;
 use App\Services\Commerce\ManualStoreOrders;
+use App\Services\Commerce\MerchantOrderReviews;
 use App\Services\Commerce\OrderLimits;
 use App\Services\Commerce\PhoneBlocking;
 use App\Services\Commerce\StoreOrderWebhooks;
@@ -43,7 +44,7 @@ class MerchantOrderActionsController extends Controller
                 return $row;
             }
             abort_unless($row->updated_at->equalTo($data['expected_updated_at']), 409, 'Order changed. Reload before archiving or restoring it.');
-            abort_unless(in_array($row->status, ['cancelled', 'delivered'], true), 422, 'Only completed or cancelled orders can be archived.');
+            abort_unless(in_array($row->status, ['cancelled', 'delivered', 'refunded'], true), 422, 'Only completed, returned or cancelled orders can be archived.');
             if ($data['archived']) {
                 $row->delete();
                 StoreOrderWebhookDelivery::where('store_id', $store->id)->where('store_order_id', $row->id)->whereIn('status', ['queued', 'retry', 'blocked'])
@@ -61,22 +62,13 @@ class MerchantOrderActionsController extends Controller
 
     public function review(Request $request, Store $store, int $order): JsonResponse
     {
-        $data = $request->validate(['classification' => ['nullable', Rule::in(['moderate_risk', 'high_risk', 'spam'])],
+        $data = $request->validate(['classification' => ['nullable', Rule::in(MerchantOrderReviews::CLASSIFICATIONS)],
             'version' => ['required', 'integer', 'min:0'], 'note' => ['nullable', 'string', 'max:2000']]);
         $row = DB::transaction(function () use ($store, $request, $order, $data) {
             $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $this->authorizeActor($store, $request);
             $row = $this->find($store, $order);
-            $review = DB::table('store_order_reviews')->where('store_id', $store->id)->where('store_order_id', $row->id)->lockForUpdate()->first();
-            abort_unless(($review->version ?? 0) === $data['version'], 409, 'Review changed. Reload before updating it.');
-            $classification = $data['classification'] ?? null;
-            if ($review && $review->classification === $classification) {
-                return $row;
-            }
-            DB::table('store_order_reviews')->updateOrInsert(['store_order_id' => $row->id], ['store_id' => $store->id,
-                'classification' => $classification, 'version' => ($review->version ?? 0) + 1, 'actor_id' => $request->user()->id,
-                'created_at' => $review->created_at ?? now(), 'updated_at' => now()]);
-            $this->record($row, $request, 'merchant_review_'.($classification ?? 'clear'), $data['note'] ?? null);
+            app(MerchantOrderReviews::class)->classify($row, $data['classification'] ?? null, $data['version'], (int) $request->user()->id, $data['note'] ?? null);
 
             return $row;
         });

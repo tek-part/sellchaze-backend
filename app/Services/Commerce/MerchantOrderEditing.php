@@ -26,7 +26,7 @@ class MerchantOrderEditing
         $bridge = Order::where('store_id', $store->id)->where('store_order_id', $order->id)->first();
         $emptyBridge = $bridge && $bridge->status === 'cancelled' && (int) $bridge->quantity === 0 && empty($bridge->storefront_items) && ! $order->physicalItems()->exists();
         $supplierLocked = $bridge && (($bridge->status !== 'pending' && ! $emptyBridge) || DB::table('order_quotations')->where('order_id', $bridge->id)->exists());
-        $contact = ! $order->trashed() && ! in_array($order->status, ['cancelled', 'delivered'], true) && ! $shipment && ! $supplierLocked;
+        $contact = ! $order->trashed() && ! in_array($order->status, ['cancelled', 'delivered', ...StoreOrder::RETURN_STATUSES], true) && ! $shipment && ! $supplierLocked;
         $financial = $contact && in_array($order->status, ['pending', 'confirmed'], true) && $order->payment_status === 'pending'
             && in_array($order->payment_method, ['cod', 'bank_transfer'], true) && strtoupper($order->currency) === strtoupper($store->currency ?: 'USD')
             && ! StorePaymentTransaction::where('store_id', $store->id)->where('store_order_id', $order->id)

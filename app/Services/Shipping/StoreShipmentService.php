@@ -35,7 +35,7 @@ class StoreShipmentService
             if (! $connection || ! $connection->enabled || ! $connection->verified_at || ! $connection->api_key || ! $connection->pickup_location_id) {
                 throw ValidationException::withMessages(['carrier' => 'Enable a verified Bosta connection in shipping settings first.']);
             }
-            if (! in_array($order->status, ['confirmed', 'processing'], true)) {
+            if (! in_array($order->status, ['confirmed', 'processing', 'waiting_for_pickup'], true)) {
                 throw ValidationException::withMessages(['order' => 'Confirm the order before requesting shipping. Only confirmed or processing orders can be sent.']);
             }
             if ($order->currency !== 'EGP' || ($order->shipping_address['country'] ?? '') !== 'EG') {
