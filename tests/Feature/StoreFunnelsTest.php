@@ -293,6 +293,57 @@ class StoreFunnelsTest extends TestCase
         $this->assertDatabaseCount('store_order_items', 0);
     }
 
+    public function test_litter_robot_preserves_nested_specifications_and_independent_publication_in_both_locales(): void
+    {
+        $byKey = collect($this->getJson('/api/v1/my-store/funnels/templates')->assertOk()->json('data'))->keyBy('key');
+        foreach (['ar', 'en'] as $locale) {
+            $this->assertSame('/funnel-templates/litter-robot-'.$locale.'?preview=1&lang='.$locale, $byKey['litter-robot-'.$locale]['preview_url']);
+            $funnel = $this->createFunnel(['template_key' => 'litter-robot-'.$locale, 'locale' => $locale, 'slug' => 'litter-'.$locale])->assertCreated()->json('data');
+            $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+            $page = $this->getJson($path)->assertOk()->assertJsonPath('data.native_funnel_template', 'litter-robot-'.$locale)->assertJsonCount(16, 'data.sections')->json('data');
+            $this->assertSame('Canvas bag', $page['sections'][0]['settings']['heading']);
+            $this->assertSame('', $page['sections'][0]['settings']['offer_value']);
+            $this->assertSame('', $page['sections'][0]['settings']['expires_at']);
+            $this->assertFalse($page['sections'][12]['is_visible']);
+            $this->assertFalse($page['sections'][13]['is_visible']);
+            $sections = $page['sections'];
+            $sections[0]['settings']['heading'] = 'Own pet campaign';
+            $sections[3]['is_visible'] = true;
+            $sections[3]['settings']['items'] = [['image' => '/owned-product.png', 'image_alt' => 'Own product', 'labels' => array_merge([['label' => 'Width', 'value' => '30 cm']], array_fill(0, 6, ['label' => 'Detail', 'value' => 'Own specification']))]];
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk()->assertJsonPath('data.sections.3.settings.items.0.labels.0.value', '30 cm')->assertJsonCount(6, 'data.sections.3.settings.items.0.labels');
+            $this->postJson($path.'/publish')->assertOk();
+            $url = 'http://funnel.sellchase.com/api/v1/storefront/funnels/litter-'.$locale.'?lang='.$locale;
+            $this->getJson($url)->assertOk()->assertJsonPath('data.native_funnel_template', 'litter-robot-'.$locale)->assertJsonPath('data.funnel_product_slug', 'canvas-bag')->assertJsonPath('data.sections.0.settings.heading', 'Own pet campaign');
+            $sections[0]['settings']['heading'] = 'Draft change';
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk();
+            $this->getJson($url)->assertOk()->assertJsonPath('data.sections.0.settings.heading', 'Own pet campaign');
+            $copy = $this->postJson('/api/v1/my-store/funnels/'.$funnel['id'].'/duplicate')->assertCreated()->json('data');
+            $this->getJson('/api/v1/my-store/pages/'.$copy['page_id'])->assertOk()->assertJsonCount(16, 'data.sections')->assertJsonPath('data.native_funnel_template', 'litter-robot-'.$locale)->assertJsonPath('data.sections.0.settings.heading', 'Draft change')->assertJsonPath('data.sections.3.settings.items.0.labels.0.label', 'Width');
+            $this->assertDatabaseMissing('store_page_publications', ['store_page_id' => $copy['page_id']]);
+        }
+    }
+
+    public function test_litter_robot_cannot_spoof_schema_cross_tenants_or_duplicate_checkout_and_restores_revisions(): void
+    {
+        $this->getJson('/api/v1/my-store/pages/schema?template_key=litter-robot-en')->assertOk()->assertJsonMissingPath('sections_schema.litter-purchase');
+        $funnel = $this->createFunnel(['template_key' => 'litter-robot-en'])->assertCreated()->json('data');
+        $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+        $version = StoreTheme::where('store_id', $this->store->id)->where('status', 'active')->value('theme_version_id');
+        ThemeVersion::whereKey($version)->update(['sections_schema' => []]);
+        Cache::flush();
+        $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertOk()->assertJsonStructure(['sections_schema' => ['litter-hero', 'litter-specifications', 'litter-feature-orbit', 'litter-faq']]);
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'litter-purchase'], ['type' => 'litter-purchase']]])->assertUnprocessable();
+        $this->getJson($path)->assertOk()->assertJsonCount(16, 'data.sections');
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'litter-editorial', 'settings' => ['heading' => 'Changed']]]])->assertOk();
+        $revisions = $this->getJson($path.'/revisions')->assertOk()->json('data');
+        $revision = collect($revisions)->firstWhere('sections_count', 16);
+        $this->postJson($path.'/revisions/'.$revision['id'].'/restore')->assertOk()->assertJsonCount(16, 'data.sections');
+        $other = $this->makeStore('litter-foreign');
+        $this->asOwner($other);
+        $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertNotFound();
+        $this->assertDatabaseCount('store_order_items', 0);
+    }
+
     private function enableAi(): void
     {
         config(['services.funnel_ai.api_key' => 'test-key', 'services.funnel_ai.model' => 'configured-model']);
