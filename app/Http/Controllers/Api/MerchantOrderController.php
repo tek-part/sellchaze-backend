@@ -13,6 +13,7 @@ use App\Services\Commerce\DigitalOrderEmail;
 use App\Services\Commerce\ManualBankPayment;
 use App\Services\Commerce\ManualCashPayment;
 use App\Services\Commerce\MerchantOrderQuery;
+use App\Services\Commerce\MerchantOrderReviews;
 use App\Services\Commerce\StoreOrderService;
 use App\Services\PlatformWallet;
 use Illuminate\Http\JsonResponse;
@@ -89,34 +90,47 @@ class MerchantOrderController extends Controller
 
     public function bulkStatus(Request $request, Store $store): JsonResponse
     {
-        $data = $request->validate(['status' => ['required', Rule::in(StoreOrder::STATUSES)],
+        $risk = in_array($request->input('status'), ['high_risk', 'moderate_risk'], true);
+        $data = $request->validate(['status' => ['required', Rule::in([...StoreOrder::STATUSES, 'high_risk', 'moderate_risk'])],
+            'eligible_only' => ['sometimes', 'boolean'],
             'orders' => ['required', 'array', 'min:1', 'max:100'], 'orders.*.id' => ['required', 'integer', 'min:1', 'distinct'],
-            'orders.*.status' => ['required', Rule::in(StoreOrder::STATUSES)]]);
-        $updated = DB::transaction(function () use ($request, $store, $data) {
+            'orders.*.status' => ['required', Rule::in(StoreOrder::STATUSES)],
+            'orders.*.review_version' => [Rule::requiredIf($risk), 'integer', 'min:0']]);
+        $result = DB::transaction(function () use ($request, $store, $data, $risk) {
+            Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $expected = collect($data['orders'])->keyBy('id');
             $rows = StoreOrder::forStore($store)->whereIn('id', $expected->keys())->orderBy('id')->lockForUpdate()->get();
             abort_unless($rows->count() === $expected->count(), 404);
             foreach ($rows as $row) {
                 app(PlatformWallet::class)->assertOrderVisible($row);
-                if ($row->status !== $data['status']) {
+                if ($risk || $row->status !== $data['status']) {
                     abort_unless($row->status === $expected[$row->id]['status'], 409, 'Order changed. Reload before changing its status.');
-                    if (! $this->orders->canTransition($row, $data['status'])) {
+                    if (! $risk && ! ($data['eligible_only'] ?? false) && ! $this->orders->canTransition($row, $data['status'])) {
                         throw ValidationException::withMessages(['status' => 'One or more selected orders cannot make this transition.']);
                     }
                 }
             }
             $changed = 0;
+            $skipped = 0;
+            $unchanged = 0;
             foreach ($rows as $row) {
-                if ($row->status !== $data['status']) {
+                if ($risk) {
+                    $updated = app(MerchantOrderReviews::class)->classify($row, $data['status'], $expected[$row->id]['review_version'], (int) $request->user()->id);
+                    $updated ? $changed++ : $unchanged++;
+                } elseif ($row->status === $data['status']) {
+                    $unchanged++;
+                } elseif (! $this->orders->canTransition($row, $data['status'])) {
+                    $skipped++;
+                } else {
                     $this->orders->transition($row, $data['status'], (int) $request->user()->id);
                     $changed++;
                 }
             }
 
-            return $changed;
+            return ['updated' => $changed, 'skipped' => $skipped, 'unchanged' => $unchanged];
         });
 
-        return response()->json(['updated' => $updated]);
+        return response()->json($result);
     }
 
     /** PATCH /stores/{store}/orders/{order}/status */

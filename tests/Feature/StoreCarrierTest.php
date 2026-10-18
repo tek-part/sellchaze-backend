@@ -248,6 +248,20 @@ class StoreCarrierTest extends TestCase
         return StoreShipment::firstOrFail();
     }
 
+    public function test_pickup_waiting_orders_can_dispatch_and_carrier_progress_preserves_return_workflows(): void
+    {
+        $this->order->update(['status' => 'waiting_for_pickup']);
+        $shipment = $this->dispatchWithWebhook();
+        $this->webhook($shipment, ['state' => 21, 'timeStamp' => now()->getTimestampMs() - 2000])->assertOk();
+        $this->assertSame('shipped', $this->order->fresh()->status);
+        $this->assertDatabaseHas('store_order_status_changes', ['from_status' => 'waiting_for_pickup', 'to_status' => 'shipped', 'source' => 'carrier']);
+        $this->order->update(['status' => 'returning_from_delivery']);
+        $this->webhook($shipment)->assertOk();
+        $this->assertSame('returning_from_delivery', $this->order->fresh()->status);
+        $this->assertSame('pending', $this->order->fresh()->payment_status);
+        $this->assertDatabaseCount('store_order_status_changes', 1);
+    }
+
     public function test_authenticated_webhooks_advance_fulfillment_without_marking_cod_paid(): void
     {
         $shipment = $this->dispatchWithWebhook();

@@ -28,7 +28,11 @@ class StoreOrder extends Model
 {
     use BelongsToStore, SoftDeletes;
 
-    public const STATUSES = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+    public const STATUSES = ['pending', 'confirmed', 'processing', 'waiting_for_pickup', 'shipped', 'delivered', 'cancelled',
+        'returning_from_delivery', 'request_refund', 'refund_in_progress', 'refunded'];
+
+    /** Physical return tracking; payment refunds and stock reconciliation are separate operations. */
+    public const RETURN_STATUSES = ['returning_from_delivery', 'request_refund', 'refund_in_progress', 'refunded'];
 
     protected $fillable = [
         'store_id', 'store_customer_id', 'order_number', 'status', 'currency',

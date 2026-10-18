@@ -19,10 +19,15 @@ class StoreOrderService
     public const TRANSITIONS = [
         'pending' => ['confirmed', 'cancelled'],
         'confirmed' => ['processing', 'cancelled'],
-        'processing' => ['shipped', 'cancelled'],
-        'shipped' => ['delivered'],
-        'delivered' => [],
+        'processing' => ['waiting_for_pickup', 'shipped', 'cancelled'],
+        'waiting_for_pickup' => ['shipped', 'cancelled'],
+        'shipped' => ['delivered', 'returning_from_delivery'],
+        'delivered' => ['request_refund'],
         'cancelled' => [],
+        'returning_from_delivery' => ['refunded'],
+        'request_refund' => ['refund_in_progress'],
+        'refund_in_progress' => ['refunded'],
+        'refunded' => [],
     ];
 
     /** A customer may cancel only while the order is still cancellable. */

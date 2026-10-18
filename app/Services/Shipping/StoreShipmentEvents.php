@@ -75,14 +75,14 @@ class StoreShipmentEvents
         // Only SEND states with unambiguous physical progress advance fulfillment.
         // Payment settlement, exceptions and returns are separate workflows.
         $target = $state === 45 ? 'delivered' : (in_array($state, [21, 24, 30, 41], true) ? 'shipped' : null);
-        if ($target === null || ! in_array($order->status, ['confirmed', 'processing', 'shipped'], true)) {
+        if ($target === null || ! in_array($order->status, ['confirmed', 'processing', 'waiting_for_pickup', 'shipped'], true)) {
             return;
         }
         $tenant = app(CurrentStore::class);
         $previous = $tenant->get();
         $tenant->set(Store::findOrFail($order->store_id));
         try {
-            $sequence = ['confirmed', 'processing', 'shipped', 'delivered'];
+            $sequence = $order->status === 'waiting_for_pickup' ? ['waiting_for_pickup', 'shipped', 'delivered'] : ['confirmed', 'processing', 'shipped', 'delivered'];
             $orders = app(StoreOrderService::class);
             while (array_search($order->status, $sequence, true) < array_search($target, $sequence, true)) {
                 $next = $sequence[array_search($order->status, $sequence, true) + 1];

@@ -19,7 +19,7 @@ class ManualCashPayment
             $transaction = StorePaymentTransaction::query()->where('store_id', $order->store_id)->where('store_order_id', $order->id)
                 ->where('gateway', 'cod')->latest('id')->lockForUpdate()->first();
             $current = StoreOrder::forStore($order->store_id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
-            if ($reference === '' || $current->status === 'cancelled' || $current->payment_method !== 'cod' || $transaction === null
+            if ($reference === '' || in_array($current->status, ['cancelled', ...StoreOrder::RETURN_STATUSES], true) || $current->payment_method !== 'cod' || $transaction === null
                 || bccomp((string) $transaction->amount, (string) $current->grand_total, 2) !== 0 || strtoupper($transaction->currency) !== strtoupper($current->currency)
                 || bccomp($amount, (string) $current->grand_total, 2) !== 0 || strtoupper($currency) !== strtoupper($current->currency)) {
                 throw ValidationException::withMessages(['payment' => 'Confirm the full collected amount and currency for this cash-on-delivery order.']);
