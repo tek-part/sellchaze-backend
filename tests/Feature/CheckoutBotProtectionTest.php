@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreBotChallenge;
 use App\Models\StoreDomain;
+use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\User;
 use App\Services\Commerce\CartService;
@@ -207,6 +208,8 @@ class CheckoutBotProtectionTest extends TestCase
         $order = app(CheckoutService::class)->place($this->store, $cart, null, $contact, null, 'cod');
         $this->assertSame('used', StoreBotChallenge::first()->state);
         $this->assertSame($order->id, StoreBotChallenge::first()->store_order_id);
+        $this->assertTrue($order->fresh()->checkout_bot_verified);
+        $this->getJson('/api/v1/my-store/orders/'.$order->id, $this->auth)->assertOk()->assertJsonPath('data.bot_verified', true);
         $this->postJson($this->base.'/checkout', $this->payload($nonce))->assertUnprocessable();
         $this->assertDatabaseCount('store_orders', 1);
         $this->assertSame(5, $this->product->fresh()->stock_quantity);
@@ -250,6 +253,71 @@ class CheckoutBotProtectionTest extends TestCase
         $this->postJson($this->base.'/checkout/payment/retry', ['order_id' => $first->json('data.id'), 'token' => $retry])->assertOk();
         $this->assertDatabaseCount('store_orders', 1);
         $this->assertDatabaseCount('store_payment_transactions', 1);
+        $this->assertTrue(StoreOrder::first()->checkout_bot_verified);
+    }
+
+    public function test_disabled_checkout_records_unperformed_check_and_cannot_be_spoofed_or_rewritten_by_settings(): void
+    {
+        $response = $this->postJson($this->base.'/checkout', $this->payload() + ['checkout_bot_verified' => true, 'bot_verified' => true])->assertCreated();
+        $order = StoreOrder::findOrFail($response->json('data.id'));
+        $this->assertFalse($order->checkout_bot_verified);
+        $this->assertFalse($order->isFillable('checkout_bot_verified'));
+        $this->enable();
+        $this->assertFalse($order->fresh()->checkout_bot_verified);
+        $this->getJson('/api/v1/my-store/orders/'.$order->id, $this->auth)->assertOk()->assertJsonPath('data.bot_verified', false);
+        $receipt = $this->postJson($this->base.'/checkout/receipt', ['token' => $response->json('receipt.token')])->assertOk();
+        foreach (['checkout_bot_verified', 'bot_verified', 'retained_bot_verified', 'nonce_hash', 'ip_hash', 'provider_token_hash'] as $privateField) {
+            $this->assertStringNotContainsString('"'.$privateField.'"', $response->getContent());
+            $this->assertStringNotContainsString('"'.$privateField.'"', $receipt->getContent());
+            $this->assertArrayNotHasKey($privateField, $order->toArray());
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_legacy_results_use_only_consumed_same_store_proof_and_list_projection_avoids_per_order_queries(): void
+    {
+        $this->enable();
+        $nonce = $this->proof();
+        $created = $this->postJson($this->base.'/checkout', $this->payload($nonce))->assertCreated();
+        $order = StoreOrder::findOrFail($created->json('data.id'));
+        $order->forceFill(['checkout_bot_verified' => null])->save();
+        $proof = StoreBotChallenge::where('store_order_id', $order->id)->firstOrFail();
+        $this->getJson('/api/v1/my-store/orders/'.$order->id, $this->auth)->assertOk()->assertJsonPath('data.bot_verified', true);
+        $this->getJson('/api/v1/my-store/orders', $this->auth)->assertOk()->assertJsonPath('data.0.bot_verified', true);
+        $rows = StoreOrder::forStore($this->store)->withBotVerification()->get();
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->assertTrue($rows->first()->merchantBotVerified());
+        $this->assertCount(0, DB::getQueryLog());
+        DB::disableQueryLog();
+        $this->assertArrayNotHasKey('retained_bot_verified', $rows->first()->toArray());
+
+        $proof->update(['state' => 'verified']);
+        $this->getJson('/api/v1/my-store/orders/'.$order->id, $this->auth)->assertOk()->assertJsonPath('data.bot_verified', null);
+        $other = Store::create(['owner_user_id' => $this->store->owner_user_id, 'name' => 'Other audit', 'owner_type' => 'merchant', 'slug' => 'other-audit', 'status' => 'active']);
+        $proof->update(['state' => 'used', 'store_id' => $other->id]);
+        $this->getJson('/api/v1/my-store/orders/'.$order->id, $this->auth)->assertOk()->assertJsonPath('data.bot_verified', null);
+        $this->getJson('/api/v1/my-store/orders', $this->auth)->assertOk()->assertJsonPath('data.0.bot_verified', null);
+        $proof->delete();
+        $this->assertNull($order->fresh()->merchantBotVerified());
+    }
+
+    public function test_snapshot_migration_keeps_unknown_history_and_refuses_to_discard_recorded_results(): void
+    {
+        $created = $this->postJson($this->base.'/checkout', $this->payload())->assertCreated();
+        $order = StoreOrder::findOrFail($created->json('data.id'));
+        $migration = require database_path('migrations/2026_10_18_060000_add_checkout_bot_verification_to_store_orders.php');
+        try {
+            $migration->down();
+            $this->fail('Recorded result was discarded');
+        } catch (\RuntimeException $failure) {
+            $this->assertSame('Checkout bot verification snapshots must be retained.', $failure->getMessage());
+        }
+        $order->forceFill(['checkout_bot_verified' => null])->save();
+        $migration->down();
+        $migration->up();
+        $this->assertNull($order->fresh()->checkout_bot_verified);
+        $this->getJson('/api/v1/my-store/orders/'.$order->id, $this->auth)->assertOk()->assertJsonPath('data.bot_verified', null);
     }
 
     public function test_ip_budget_is_durable_and_default_disabled_preserves_old_flows(): void
