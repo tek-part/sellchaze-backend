@@ -349,6 +349,58 @@ class StoreFunnelsTest extends TestCase
         $this->assertDatabaseCount('store_order_items', 0);
     }
 
+    public function test_electric_biker_preserves_all_panels_and_publication_in_both_locales(): void
+    {
+        $byKey = collect($this->getJson('/api/v1/my-store/funnels/templates')->assertOk()->json('data'))->keyBy('key');
+        foreach (['ar', 'en'] as $locale) {
+            $this->assertSame('/funnel-templates/electric-biker-'.$locale.'?preview=1&lang='.$locale, $byKey['electric-biker-'.$locale]['preview_url']);
+            $funnel = $this->createFunnel(['template_key' => 'electric-biker-'.$locale, 'locale' => $locale, 'slug' => 'electric-'.$locale])->assertCreated()->json('data');
+            $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+            $page = $this->getJson($path)->assertOk()->assertJsonPath('data.native_funnel_template', 'electric-biker-'.$locale)->assertJsonCount(11, 'data.sections')->json('data');
+            $this->assertSame('Canvas bag', $page['sections'][0]['settings']['heading']);
+            $this->assertSame('', $page['sections'][0]['settings']['expires_at']);
+            $this->assertStringNotContainsString('electric-biker-hero', json_encode($page));
+            $this->assertFalse($page['sections'][2]['is_visible']);
+            $this->assertFalse($page['sections'][7]['is_visible']);
+            $this->assertFalse($page['sections'][8]['is_visible']);
+            $sections = $page['sections'];
+            $sections[0]['settings']['heading'] = 'Own cycling campaign';
+            $sections[8]['is_visible'] = true;
+            $sections[8]['settings']['items'] = array_fill(0, 8, ['image' => '/owned-product.png', 'image_alt' => 'Own photograph', 'caption' => 'Owned caption']);
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk()->assertJsonCount(6, 'data.sections.8.settings.items')->assertJsonPath('data.sections.8.settings.items.0.caption', 'Owned caption');
+            $this->postJson($path.'/publish')->assertOk();
+            $url = 'http://funnel.sellchase.com/api/v1/storefront/funnels/electric-'.$locale.'?lang='.$locale;
+            $this->getJson($url)->assertOk()->assertJsonPath('data.native_funnel_template', 'electric-biker-'.$locale)->assertJsonPath('data.funnel_product_slug', 'canvas-bag')->assertJsonPath('data.sections.0.settings.heading', 'Own cycling campaign');
+            $sections[0]['settings']['heading'] = 'Draft change';
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk();
+            $this->getJson($url)->assertOk()->assertJsonPath('data.sections.0.settings.heading', 'Own cycling campaign');
+            $copy = $this->postJson('/api/v1/my-store/funnels/'.$funnel['id'].'/duplicate')->assertCreated()->json('data');
+            $this->getJson('/api/v1/my-store/pages/'.$copy['page_id'])->assertOk()->assertJsonCount(11, 'data.sections')->assertJsonPath('data.native_funnel_template', 'electric-biker-'.$locale)->assertJsonPath('data.sections.0.settings.heading', 'Draft change')->assertJsonCount(6, 'data.sections.8.settings.items');
+            $this->assertDatabaseMissing('store_page_publications', ['store_page_id' => $copy['page_id']]);
+        }
+    }
+
+    public function test_electric_biker_schema_survives_theme_changes_and_rejects_spoofing_and_duplicate_checkout(): void
+    {
+        $this->getJson('/api/v1/my-store/pages/schema?template_key=electric-biker-en')->assertOk()->assertJsonMissingPath('sections_schema.electric-purchase');
+        $funnel = $this->createFunnel(['template_key' => 'electric-biker-en'])->assertCreated()->json('data');
+        $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+        $version = StoreTheme::where('store_id', $this->store->id)->where('status', 'active')->value('theme_version_id');
+        ThemeVersion::whereKey($version)->update(['sections_schema' => []]);
+        Cache::flush();
+        $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertOk()->assertJsonStructure(['sections_schema' => ['electric-hero', 'electric-stories', 'electric-mosaic', 'electric-faq']]);
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'electric-purchase'], ['type' => 'electric-purchase']]])->assertUnprocessable();
+        $this->getJson($path)->assertOk()->assertJsonCount(11, 'data.sections');
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'electric-closing', 'settings' => ['heading' => 'Changed']]]])->assertOk();
+        $revisions = $this->getJson($path.'/revisions')->assertOk()->json('data');
+        $revision = collect($revisions)->firstWhere('sections_count', 11);
+        $this->postJson($path.'/revisions/'.$revision['id'].'/restore')->assertOk()->assertJsonCount(11, 'data.sections');
+        $other = $this->makeStore('electric-foreign');
+        $this->asOwner($other);
+        $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertNotFound();
+        $this->assertDatabaseCount('store_order_items', 0);
+    }
+
     private function enableAi(): void
     {
         config(['services.funnel_ai.api_key' => 'test-key', 'services.funnel_ai.model' => 'configured-model']);
