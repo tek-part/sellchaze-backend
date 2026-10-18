@@ -10,6 +10,7 @@ use App\Models\StorePaymentGateway;
 use App\Models\User;
 use App\Services\Commerce\ManualBankPayment;
 use App\Services\Commerce\OrderReceipt;
+use App\Services\Commerce\PaymentRetryToken;
 use App\Services\Commerce\StorePaymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -56,6 +57,24 @@ class TransferReceiptPaymentTest extends TestCase
         $this->assertStringNotContainsString('Internal review note', $receipt->getContent());
         $this->assertStringNotContainsString('payment-proofs/', $receipt->getContent());
         $this->post('http://proof.sellchase.com/api/v1/storefront/checkout/receipt/upload', ['token' => $token, 'file' => UploadedFile::fake()->image('again.png')], ['Accept' => 'application/json'])->assertUnprocessable();
+    }
+
+    public function test_physical_return_workflows_keep_private_receipts_but_close_transfer_instructions_uploads_and_payment_retry(): void
+    {
+        [$store, $order, , $token] = $this->fixtures();
+        $retry = app(PaymentRetryToken::class)->make($store->id, $order->id);
+        foreach (StoreOrder::RETURN_STATUSES as $status) {
+            $this->travel(61)->seconds();
+            $order->update(['status' => $status]);
+            $this->postJson('http://proof.sellchase.com/api/v1/storefront/checkout/receipt', ['token' => $token])->assertOk()
+                ->assertJsonPath('data.status', $status)->assertJsonPath('data.payment_status', 'pending')->assertJsonPath('bank_transfer', null);
+            $this->post('http://proof.sellchase.com/api/v1/storefront/checkout/receipt/upload', ['token' => $token, 'file' => UploadedFile::fake()->image('returned.png')], ['Accept' => 'application/json'])->assertUnprocessable();
+            $this->postJson('http://proof.sellchase.com/api/v1/storefront/checkout/payment/retry', ['token' => $retry])->assertUnprocessable();
+        }
+        Storage::disk('local')->assertDirectoryEmpty('payment-proofs');
+        $this->assertDatabaseCount('store_payment_proofs', 0);
+        $this->assertSame('pending', $order->fresh()->payment_status);
+        Http::assertNothingSent();
     }
 
     public function test_forged_token_and_wrong_store_cannot_upload_a_receipt(): void
