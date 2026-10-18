@@ -29,6 +29,7 @@ class MerchantOrderResource extends JsonResource
             'id' => $this->id,
             'order_number' => $this->order_number,
             'status' => $this->status,
+            'bot_verified' => $this->resource->merchantBotVerified(),
             'archived_at' => $this->deleted_at,
             'review' => ['classification' => $review?->classification, 'version' => $review?->version ?? 0,
                 'actor_id' => $review?->actor_id, 'updated_at' => $review?->updated_at],

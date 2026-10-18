@@ -154,7 +154,7 @@ class CheckoutService
                 $shippingAddress = null;
             }
 
-            $order = StoreOrder::create([
+            $order = new StoreOrder([
                 'store_customer_id' => $customer?->id,
                 'order_number' => $this->orders->generateNumber(),
                 'status' => 'pending',
@@ -176,6 +176,7 @@ class CheckoutService
                 'notes' => $contact['notes'] ?? null,
                 'placed_at' => now(),
             ]);
+            $order->forceFill(['checkout_bot_verified' => $botProof !== null])->save();
 
             foreach ($lines as $index => $line) {
                 $item = $order->items()->create($line);

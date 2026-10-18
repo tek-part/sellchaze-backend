@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property array{version:int,gateway:string,currency:string,rule:array,base_total:string,amount:string}|null $payment_adjustment
  * @property array{source:string,campaign:string}|null $marketing_attribution
  * @property array{code:string,product_id:int}|null $referral_attribution
+ * @property bool|null $checkout_bot_verified
  * @property Carbon|null $deleted_at
  */
 class StoreOrder extends Model
@@ -45,7 +46,7 @@ class StoreOrder extends Model
         'manual_actor_id', 'manual_owner_id', 'manual_request_key', 'manual_request_hash', 'manual_adjustment_total', 'manual_tax_included',
     ];
 
-    protected $hidden = ['customer_phone_normalized', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'manual_request_key', 'manual_request_hash', 'manual_owner_id'];
+    protected $hidden = ['customer_phone_normalized', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'manual_request_key', 'manual_request_hash', 'manual_owner_id', 'checkout_bot_verified', 'retained_bot_verified'];
 
     protected $casts = [
         'shipping_address' => 'array',
@@ -59,6 +60,7 @@ class StoreOrder extends Model
         'grand_total' => 'decimal:2',
         'manual_adjustment_total' => 'decimal:2',
         'manual_tax_included' => 'boolean',
+        'checkout_bot_verified' => 'boolean',
         'placed_at' => 'datetime',
         'cancelled_at' => 'datetime',
     ];
@@ -103,6 +105,32 @@ class StoreOrder extends Model
     public function merchantReview(): HasOne
     {
         return $this->hasOne(StoreOrderReview::class);
+    }
+
+    /** @return HasMany<StoreBotChallenge, $this> */
+    public function botChallenges(): HasMany
+    {
+        return $this->hasMany(StoreBotChallenge::class);
+    }
+
+    /** Project retained proof on merchant rows without loading challenge secrets or adding per-row queries. */
+    public function scopeWithBotVerification(Builder $query): Builder
+    {
+        return $query->withExists(['botChallenges as retained_bot_verified' => fn (Builder $proof) => $proof
+            ->where('state', 'used')->whereColumn('store_bot_challenges.store_id', 'store_orders.store_id')]);
+    }
+
+    public function merchantBotVerified(): ?bool
+    {
+        if ($this->checkout_bot_verified !== null) {
+            return $this->checkout_bot_verified;
+        }
+        $retained = array_key_exists('retained_bot_verified', $this->attributes)
+            ? (bool) $this->attributes['retained_bot_verified']
+            : $this->botChallenges()->where('store_id', $this->store_id)->where('state', 'used')->exists();
+
+        // Legacy/manual orders without proof have no recorded result, rather than a failed check.
+        return $retained ? true : null;
     }
 
     /** @return BelongsTo<StoreCustomer, $this> */

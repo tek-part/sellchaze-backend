@@ -47,7 +47,7 @@ class MerchantOrderController extends Controller
         $locked = $store->owner && app(PlatformWallet::class)->ordersLocked($store->owner);
         $charged = DB::table('platform_wallet_entries')->where('type', 'order_fee')->whereNotNull('store_order_id')->select('store_order_id');
         $lockedCount = $locked ? StoreOrder::forStore($store)->whereIn('id', $charged)->count() : 0;
-        $paginator = $query->build($store, $filters)->withCount('items')->with(['b2bOrder', 'merchantReview'])->orderBy($sort, $dir)->orderBy('id', $dir)->paginate($perPage);
+        $paginator = $query->build($store, $filters)->withCount('items')->withBotVerification()->with(['b2bOrder', 'merchantReview'])->orderBy($sort, $dir)->orderBy('id', $dir)->paginate($perPage);
 
         return response()->json([
             'data' => MerchantOrderResource::collection($paginator->getCollection()),
@@ -68,7 +68,7 @@ class MerchantOrderController extends Controller
     public function printData(Request $request, Store $store): JsonResponse
     {
         $data = $request->validate(['ids' => ['required', 'array', 'min:1', 'max:100'], 'ids.*' => ['required', 'integer', 'min:1', 'distinct']]);
-        $rows = StoreOrder::forStore($store)->whereIn('id', $data['ids'])->with(['items', 'b2bOrder'])->orderBy('id')->get();
+        $rows = StoreOrder::forStore($store)->whereIn('id', $data['ids'])->withBotVerification()->with(['items', 'b2bOrder', 'merchantReview'])->orderBy('id')->get();
         abort_unless($rows->count() === count($data['ids']), 404);
         foreach ($rows as $row) {
             app(PlatformWallet::class)->assertOrderVisible($row);
