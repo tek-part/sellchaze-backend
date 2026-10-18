@@ -23,7 +23,8 @@ class BankTransferInstructions
 
     public static function forOrder(StoreOrder $order): ?array
     {
-        if (! in_array($order->payment_method, ['bank_transfer', 'transfer_receipt'], true) || $order->payment_status === 'paid' || $order->status === 'cancelled') {
+        if (! in_array($order->payment_method, ['bank_transfer', 'transfer_receipt'], true) || $order->payment_status === 'paid'
+            || in_array($order->status, ['cancelled', ...StoreOrder::RETURN_STATUSES], true)) {
             return null;
         }
 

@@ -268,8 +268,8 @@ class CheckoutController extends Controller
             ->whereKey($orderId)
             ->with('items')
             ->firstOrFail();
-        if ($order->status === 'cancelled') {
-            throw ValidationException::withMessages(['payment' => 'This order was cancelled and cannot be paid.']);
+        if (in_array($order->status, ['cancelled', ...StoreOrder::RETURN_STATUSES], true)) {
+            throw ValidationException::withMessages(['payment' => 'This order is cancelled or in a return workflow and cannot accept a new payment.']);
         }
 
         $setting = StorePaymentGateway::query()
