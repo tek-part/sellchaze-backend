@@ -844,44 +844,44 @@ Route::prefix('v1')->group(function () {
 
             // Storefront catalog remains tenant-scoped and separate from the B2B catalog.
             Route::prefix('catalog/products')->group(function () {
-                Route::middleware('permission:store.products.manage|products-create')->get('import-template', [StoreCatalogTransferController::class, 'template']);
-                Route::middleware('permission:store.products.manage|products-create')->post('import/preview', [StoreCatalogTransferController::class, 'preview']);
-                Route::middleware('permission:store.products.manage|products-create')->post('import', [StoreCatalogTransferController::class, 'import']);
-                Route::middleware('permission:store.products.manage|products-list')->post('export', [StoreCatalogTransferController::class, 'export']);
-                Route::middleware('permission:store.products.manage|products-delete')->post('bulk-delete', [StoreCatalogTransferController::class, 'delete']);
-                Route::middleware(['permission:store.products.manage|products-create', 'permission:store.products.manage|products-list'])->post('{product}/duplicate', [StoreCatalogTransferController::class, 'duplicate'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-edit')->get('{product}/landing-page', [StoreProductLandingController::class, 'show'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-edit')->get('{product}/landing-page/destinations', [StoreProductLandingController::class, 'destinations'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-edit')->put('{product}/landing-page', [StoreProductLandingController::class, 'update'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-edit')->post('{product}/landing-page/media', [StoreProductLandingController::class, 'upload'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-list')->get('{product}/quantity-offers', [StoreQuantityOffersController::class, 'show'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-edit')->put('{product}/quantity-offers', [StoreQuantityOffersController::class, 'update'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-list')->get('/', [StorefrontProductsApiController::class, 'index']);
-                Route::middleware('permission:store.products.manage|products-create')->post('/', [StorefrontProductsApiController::class, 'store']);
-                Route::middleware('permission:store.products.manage|products-edit')->put('bulk', [StorefrontProductsApiController::class, 'bulkUpdate']);
-                Route::middleware('permission:store.products.manage|products-list')->get('{product}', [StorefrontProductsApiController::class, 'show'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-edit')->match(['put', 'post'], '{product}', [StorefrontProductsApiController::class, 'update'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-delete')->delete('{product}', [StorefrontProductsApiController::class, 'destroy'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-list')->get('{product}/variants', [StorefrontProductVariantsApiController::class, 'index'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-edit')->post('{product}/variants', [StorefrontProductVariantsApiController::class, 'store'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-edit')->post('{product}/variants/generate', [StorefrontProductVariantsApiController::class, 'generate'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-edit')->put('{product}/variants/bulk', [StorefrontProductVariantsApiController::class, 'bulkUpdate'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-edit')->put('{product}/variants/bulk/inventory', [StorefrontProductVariantsApiController::class, 'bulkInventory'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-delete')->delete('{product}/variants/bulk', [StorefrontProductVariantsApiController::class, 'bulkDelete'])->whereNumber('product');
-                Route::middleware('permission:store.products.manage|products-edit')->put('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'update'])->whereNumber(['product', 'variant']);
-                Route::middleware('permission:store.products.manage|products-delete')->delete('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'destroy'])->whereNumber(['product', 'variant']);
+                Route::middleware('store.catalog.permission:products-create')->get('import-template', [StoreCatalogTransferController::class, 'template']);
+                Route::middleware('store.catalog.permission:products-create')->post('import/preview', [StoreCatalogTransferController::class, 'preview']);
+                Route::middleware('store.catalog.permission:products-create')->post('import', [StoreCatalogTransferController::class, 'import']);
+                Route::middleware('store.catalog.permission:products-list')->post('export', [StoreCatalogTransferController::class, 'export']);
+                Route::middleware('store.catalog.permission:products-delete')->post('bulk-delete', [StoreCatalogTransferController::class, 'delete']);
+                Route::middleware(['store.catalog.permission:products-create', 'store.catalog.permission:products-list'])->post('{product}/duplicate', [StoreCatalogTransferController::class, 'duplicate'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->get('{product}/landing-page', [StoreProductLandingController::class, 'show'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->get('{product}/landing-page/destinations', [StoreProductLandingController::class, 'destinations'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->put('{product}/landing-page', [StoreProductLandingController::class, 'update'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->post('{product}/landing-page/media', [StoreProductLandingController::class, 'upload'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-list')->get('{product}/quantity-offers', [StoreQuantityOffersController::class, 'show'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->put('{product}/quantity-offers', [StoreQuantityOffersController::class, 'update'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-list')->get('/', [StorefrontProductsApiController::class, 'index']);
+                Route::middleware('store.catalog.permission:products-create')->post('/', [StorefrontProductsApiController::class, 'store']);
+                Route::middleware('store.catalog.permission:products-edit')->put('bulk', [StorefrontProductsApiController::class, 'bulkUpdate']);
+                Route::middleware('store.catalog.permission:products-list')->get('{product}', [StorefrontProductsApiController::class, 'show'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->match(['put', 'post'], '{product}', [StorefrontProductsApiController::class, 'update'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-delete')->delete('{product}', [StorefrontProductsApiController::class, 'destroy'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-list')->get('{product}/variants', [StorefrontProductVariantsApiController::class, 'index'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->post('{product}/variants', [StorefrontProductVariantsApiController::class, 'store'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->post('{product}/variants/generate', [StorefrontProductVariantsApiController::class, 'generate'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->put('{product}/variants/bulk', [StorefrontProductVariantsApiController::class, 'bulkUpdate'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->put('{product}/variants/bulk/inventory', [StorefrontProductVariantsApiController::class, 'bulkInventory'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-delete')->delete('{product}/variants/bulk', [StorefrontProductVariantsApiController::class, 'bulkDelete'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->put('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'update'])->whereNumber(['product', 'variant']);
+                Route::middleware('store.catalog.permission:products-delete')->delete('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'destroy'])->whereNumber(['product', 'variant']);
             });
-            Route::middleware('permission:store.products.manage|products-list')->get('catalog/inventory', [StoreInventoryController::class, 'index']);
-            Route::middleware('permission:store.products.manage|products-list')->get('catalog/inventory/{product}/history', [StoreInventoryController::class, 'history'])->whereNumber('product');
-            Route::middleware('permission:store.products.manage|products-edit')->put('catalog/inventory/{product}', [StoreInventoryController::class, 'update'])->whereNumber('product');
+            Route::middleware('store.catalog.permission:products-list')->get('catalog/inventory', [StoreInventoryController::class, 'index']);
+            Route::middleware('store.catalog.permission:products-list')->get('catalog/inventory/{product}/history', [StoreInventoryController::class, 'history'])->whereNumber('product');
+            Route::middleware('store.catalog.permission:products-edit')->put('catalog/inventory/{product}', [StoreInventoryController::class, 'update'])->whereNumber('product');
 
             Route::prefix('catalog/categories')->group(function () {
-                Route::middleware('permission:store.categories.manage|categories-delete')->post('bulk-delete', [StoreCategoriesApiController::class, 'bulkDestroy']);
-                Route::middleware('permission:store.categories.manage|categories-delete')->delete('{category}', [StoreCategoriesApiController::class, 'destroy'])->whereNumber('category');
-                Route::middleware('permission:store.categories.manage|store.products.manage|categories-list')->get('/', [StoreCategoriesApiController::class, 'index']);
-                Route::middleware('permission:store.categories.manage|categories-create')->post('/', [StoreCategoriesApiController::class, 'store']);
-                Route::middleware('permission:store.categories.manage|store.products.manage|categories-list')->get('{category}', [StoreCategoriesApiController::class, 'show'])->whereNumber('category');
-                Route::middleware('permission:store.categories.manage|categories-edit')->match(['put', 'post'], '{category}', [StoreCategoriesApiController::class, 'update'])->whereNumber('category');
+                Route::middleware('store.catalog.permission:categories-delete')->post('bulk-delete', [StoreCategoriesApiController::class, 'bulkDestroy']);
+                Route::middleware('store.catalog.permission:categories-delete')->delete('{category}', [StoreCategoriesApiController::class, 'destroy'])->whereNumber('category');
+                Route::middleware('store.catalog.permission:categories-list')->get('/', [StoreCategoriesApiController::class, 'index']);
+                Route::middleware('store.catalog.permission:categories-create')->post('/', [StoreCategoriesApiController::class, 'store']);
+                Route::middleware('store.catalog.permission:categories-list')->get('{category}', [StoreCategoriesApiController::class, 'show'])->whereNumber('category');
+                Route::middleware('store.catalog.permission:categories-edit')->match(['put', 'post'], '{category}', [StoreCategoriesApiController::class, 'update'])->whereNumber('category');
             });
 
             // ---- Coupons (Phase 6D) ----

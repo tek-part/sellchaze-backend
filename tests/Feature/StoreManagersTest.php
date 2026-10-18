@@ -269,8 +269,8 @@ class StoreManagersTest extends TestCase
     {
         $theme = Theme::create(['key' => 'manager-paid-fixture', 'name' => 'Paid fixture', 'status' => 'published', 'is_marketplace' => true, 'price' => 100, 'currency' => 'USD']);
         $row = $this->createManager(['store.themes.manage']);
-        $this->login($row);
-        foreach (['/api/v1/my-store', '/api/v1/stores/'.$this->store->id] as $prefix) {
+        $this->actingAs(User::findOrFail($row['id']), 'sanctum');
+        foreach (['/api/my-store', '/api/stores/'.$this->store->id] as $prefix) {
             $this->postJson($prefix.'/themes/'.$theme->id.'/purchase')->assertForbidden();
         }
         Http::assertNothingSent();
