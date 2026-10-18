@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class StoreManagersTest extends TestCase
@@ -283,5 +284,16 @@ class StoreManagersTest extends TestCase
         $this->getJson($this->base)->assertOk()->assertJsonCount(0, 'data');
         $this->deleteJson($this->base.'/'.$row['id'], ['version' => $row['version']])->assertNotFound();
         $this->assertDatabaseHas('users', ['id' => $row['id'], 'deleted_at' => null]);
+    }
+
+    public function test_role_level_grants_cannot_be_changed_through_owner_account_management(): void
+    {
+        $row = $this->createManager();
+        Role::findByName(StoreManagers::ROLE, 'web')->givePermissionTo('users-edit');
+        $this->getJson($this->base)->assertOk()->assertJsonCount(0, 'data');
+        $this->deleteJson($this->base.'/'.$row['id'], ['version' => $row['version']])->assertNotFound();
+        $this->assertDatabaseHas('users', ['id' => $row['id'], 'deleted_at' => null]);
+        $this->postJson($this->base, ['name' => 'No inherited access', 'email' => 'no-inherited@example.test', 'password' => 'PrivateFixture123!', 'permissions' => []])->assertConflict();
+        $this->assertDatabaseMissing('users', ['email' => 'no-inherited@example.test']);
     }
 }

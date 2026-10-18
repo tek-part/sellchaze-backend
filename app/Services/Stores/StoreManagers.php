@@ -46,6 +46,7 @@ class StoreManagers
         $query = User::query()->where('parent_user_id', $store->owner_user_id)
             ->whereHas('roles', fn (Builder $q) => $q->where('name', self::ROLE))
             ->whereDoesntHave('roles', fn (Builder $q) => $q->where('name', '!=', self::ROLE))
+            ->whereDoesntHave('roles.permissions')
             ->whereDoesntHave('permissions', fn (Builder $q) => $q->whereNotIn('name', array_keys(self::PERMISSIONS)));
 
         return $trashed ? $query->onlyTrashed() : $query;
