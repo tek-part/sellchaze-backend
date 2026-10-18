@@ -45,7 +45,7 @@ class StoreFunnelsApiController extends Controller
     {
         $this->guard($request, $store);
 
-        return response()->json(['data' => collect(StoreFunnelService::TEMPLATES)->map(fn ($template, $key) => ['key' => $key] + $template)->values(), 'ai' => ['available' => $this->generator->available()]]);
+        return response()->json(['data' => collect(StoreFunnelService::TEMPLATES)->map(fn ($template, $key) => ['key' => $key] + $template + (isset($template['native_layout']) ? ['preview_url' => '/funnel-templates/'.$key.'?preview=1&lang='.$template['locale']] : []))->values(), 'ai' => ['available' => $this->generator->available()]]);
     }
 
     public function store(Request $request, Store $store): JsonResponse

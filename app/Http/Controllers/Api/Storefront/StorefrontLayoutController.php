@@ -7,11 +7,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StorePage;
+use App\Services\PageBuilder\NativeFunnelTemplates;
+use App\Services\PageBuilder\StorePageService;
 use App\Services\Storefront\PublishedPageResolver;
 use App\Services\Storefront\SimplePages;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StoreSeoService;
 use App\Services\Themes\SectionRegistry;
+use App\Services\Themes\ThemePreviewToken;
 use App\Services\Themes\ThemeResolver;
 use App\Support\Localization\LocaleContext;
 use Illuminate\Http\JsonResponse;
@@ -97,16 +100,21 @@ class StorefrontLayoutController extends Controller
     private function pageResponse(Request $request, string $slug, bool $funnelOnly = false): JsonResponse
     {
         $store = $this->currentStore($request);
-        $page = $this->pages->forSlug($store, $slug, $funnelOnly);
-        if ($page === null || ! $page->isPubliclyVisible()) {
+        $data = $request->validate(['__preview' => ['nullable', 'string', 'max:512']]);
+        $previewId = app(ThemePreviewToken::class)->verifyPage($data['__preview'] ?? null, $store->id);
+        $page = $previewId !== null
+            ? StorePage::forStore($store)->where('slug', $slug)->find($previewId)
+            : $this->pages->forSlug($store, $slug, $funnelOnly);
+        $preview = $page !== null && $previewId !== null;
+        if ($page === null || (! $preview && ! $page->isPubliclyVisible()) || ($funnelOnly && (! $page->funnel || (int) $page->funnel->store_id !== (int) $store->id))) {
             return response()->json(['message' => 'Page not found.'], 404);
         }
 
         $locale = $this->locale->current();
         $theme = $this->themes->resolve($store, $locale) ?? [];
         $key = $this->key($store, 'page', $slug, $locale, $theme, $page);
-        $payload = Cache::remember($key, $this->ttl(), function () use ($store, $theme, $page, $locale) {
-            $publication = $this->pages->latestPublication($page);
+        $build = function () use ($store, $theme, $page, $locale, $preview) {
+            $publication = $preview ? app(StorePageService::class)->snapshot($page) : $this->pages->latestPublication($page);
             $snapshot = new StorePage($publication['page'] ?? []);
             $snapshot->forceFill(['id' => $page->id, 'store_id' => $page->store_id, 'status' => $page->status, 'publish_at' => $page->publish_at]);
             $title = $publication['page']['title'] ?? $page->title;
@@ -119,15 +127,17 @@ class StorefrontLayoutController extends Controller
             return [
                 'id' => $page->id,
                 'title' => $title,
-                'slug' => $page->published_slug ?? $page->slug,
-                'public_path' => $page->publicPath(),
+                'slug' => $preview ? $page->slug : ($page->published_slug ?? $page->slug),
+                'public_path' => $page->publicPath(! $preview),
                 'template' => $publication['page']['template'] ?? $page->template,
                 'locale' => $page->locale,
                 'seo' => $this->seo->forPage($store, $publication ? $snapshot : $page),
-                'sections' => $this->sections->resolveSections($theme['sections_schema'] ?? [], $this->pages->publicSections($page, $publication)),
+                'sections' => $this->sections->resolveSections(NativeFunnelTemplates::schemaFor($page, $theme['sections_schema'] ?? []), $this->pages->publicSections($page, $publication)),
+                'native_funnel_template' => NativeFunnelTemplates::key($page),
                 ...($simple !== null ? ['content_html' => $simple['content_html']] : []),
             ];
-        });
+        };
+        $payload = $preview ? $build() : Cache::remember($key, $this->ttl(), $build);
 
         // Product availability and its current slug are live commerce data, not part
         // of the cached publication. Never expose another store's imported relation.
@@ -137,7 +147,7 @@ class StorefrontLayoutController extends Controller
                 ->where('is_active', true)->whereKey($funnel->product_id)->value('slug');
         }
 
-        return response()->json(['data' => $payload], 200, [], JSON_UNESCAPED_UNICODE);
+        return response()->json(['data' => $payload], 200, $preview ? ['Cache-Control' => 'private, no-store', 'X-Robots-Tag' => 'noindex, nofollow'] : [], JSON_UNESCAPED_UNICODE);
     }
 
     /** Key = store + page-cache generation + theme version + locale + subject + publication version. */

@@ -155,7 +155,13 @@ class StorePageService
     {
         $this->saveRevision($page, $actorId);
 
-        $schema = ($this->resolver->resolve($page->store))['sections_schema'] ?? [];
+        $schema = NativeFunnelTemplates::schemaFor($page, ($this->resolver->resolve($page->store))['sections_schema'] ?? []);
+        $counts = array_count_values(array_filter(array_column($sections, 'type'), 'is_string'));
+        foreach ($schema as $type => $definition) {
+            if (isset($definition['max_instances']) && ($counts[$type] ?? 0) > $definition['max_instances']) {
+                throw ValidationException::withMessages(['sections' => ['This layout permits at most '.$definition['max_instances'].' instance(s) of '.$type.'.']]);
+            }
+        }
 
         DB::transaction(function () use ($page, $sections, $schema) {
             $page->sections()->delete();

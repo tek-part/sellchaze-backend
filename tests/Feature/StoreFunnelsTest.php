@@ -7,6 +7,8 @@ use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\StoreFunnel;
 use App\Models\StorePage;
+use App\Models\StoreTheme;
+use App\Models\ThemeVersion;
 use App\Models\User;
 use App\Services\JwtTokenService;
 use App\Services\Themes\StoreThemeService;
@@ -16,6 +18,7 @@ use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -151,6 +154,92 @@ class StoreFunnelsTest extends TestCase
     private function aiInput(array $extra = []): array
     {
         return array_merge(['title' => 'Bag campaign', 'slug' => 'bag-ai', 'locale' => 'ar', 'product_id' => $this->product->id, 'template_key' => 'spotlight', 'generation' => ['language' => 'Arabic', 'dialect' => 'Egyptian', 'product_name' => 'Canvas bag', 'description' => 'A washable cotton bag with reinforced handles for everyday shopping.']], $extra);
+    }
+
+    public function test_native_glasses_sections_survive_edit_publish_and_independent_duplicate(): void
+    {
+        foreach (['ar', 'en'] as $locale) {
+            $funnel = $this->createFunnel(['template_key' => 'glasses-'.$locale, 'locale' => $locale, 'slug' => 'glasses-'.$locale])->assertCreated()->json('data');
+            $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+            $page = $this->getJson($path)->assertOk()->assertJsonPath('data.native_funnel_template', 'glasses-'.$locale)->json('data');
+            $this->assertCount(10, $page['sections']);
+            $this->assertSame('glasses-hero', $page['sections'][0]['type']);
+            $this->assertSame('Canvas bag', $page['sections'][0]['settings']['heading']);
+            $this->assertSame('', $page['sections'][0]['settings']['expires_at']);
+            $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertOk()->assertJsonStructure(['sections_schema' => ['glasses-purchase', 'glasses-faq']]);
+            $sections = array_map(fn ($section) => Arr::only($section, ['type', 'settings', 'is_visible']), $page['sections']);
+            $sections[0]['settings']['heading'] = 'Published campaign';
+            $sections[8]['settings']['items'] = [['question' => 'Own question', 'answer' => 'Own answer']];
+            $sections[8]['is_visible'] = true;
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk()->assertJsonCount(10, 'data.sections');
+            $this->postJson($path.'/publish')->assertOk();
+            $url = 'http://funnel.sellchase.com/api/v1/storefront/funnels/glasses-'.$locale.'?lang='.$locale;
+            $this->getJson($url)->assertOk()->assertJsonPath('data.native_funnel_template', 'glasses-'.$locale)->assertJsonPath('data.sections.0.settings.heading', 'Published campaign');
+            $sections[0]['settings']['heading'] = 'Unpublished change';
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk();
+            $this->getJson($url)->assertOk()->assertJsonPath('data.sections.0.settings.heading', 'Published campaign');
+            $copy = $this->postJson('/api/v1/my-store/funnels/'.$funnel['id'].'/duplicate')->assertCreated()->json('data');
+            $this->getJson('/api/v1/my-store/pages/'.$copy['page_id'])->assertOk()->assertJsonCount(10, 'data.sections')->assertJsonPath('data.native_funnel_template', 'glasses-'.$locale)->assertJsonPath('data.sections.0.settings.heading', 'Unpublished change');
+            $this->assertDatabaseMissing('store_page_publications', ['store_page_id' => $copy['page_id']]);
+        }
+    }
+
+    public function test_signed_native_draft_read_is_bound_to_store_page_and_slug_and_is_not_cached(): void
+    {
+        $funnel = $this->createFunnel(['template_key' => 'glasses-en'])->assertCreated()->json('data');
+        $preview = $this->postJson('/api/v1/my-store/pages/'.$funnel['page_id'].'/preview')->assertOk()->json('preview_url');
+        parse_str(parse_url($preview, PHP_URL_QUERY), $query);
+        $url = 'http://funnel.sellchase.com/api/v1/storefront/funnels/bag-campaign';
+        $this->getJson($url)->assertNotFound();
+        $this->getJson($url.'?__preview='.urlencode($query['__preview']))->assertOk()->assertHeader('X-Robots-Tag', 'noindex, nofollow')->assertJsonPath('data.native_funnel_template', 'glasses-en')->assertJsonPath('data.funnel_product_slug', 'canvas-bag');
+        $this->getJson(str_replace('bag-campaign', 'wrong-slug', $url).'?__preview='.urlencode($query['__preview']))->assertNotFound();
+        $this->getJson($url.'?__preview='.urlencode($query['__preview'].'x'))->assertNotFound();
+        $other = $this->makeStore('other-native');
+        $this->getJson(str_replace('funnel.sellchase.com', 'other-native.sellchase.com', $url).'?__preview='.urlencode($query['__preview']))->assertNotFound();
+        $this->asOwner($other);
+        $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertNotFound();
+    }
+
+    public function test_native_schema_cannot_be_selected_by_ordinary_page_or_untrusted_template_parameter(): void
+    {
+        $this->getJson('/api/v1/my-store/pages/schema?template_key=glasses-en')->assertOk()->assertJsonMissingPath('sections_schema.glasses-purchase');
+        $page = $this->postJson('/api/v1/my-store/pages', ['title' => 'Ordinary', 'slug' => 'ordinary', 'template' => 'landing', 'locale' => 'en'])->assertCreated()->json('data');
+        $this->putJson('/api/v1/my-store/pages/'.$page['id'].'/sections', ['sections' => [['type' => 'glasses-purchase', 'settings' => []]]])->assertOk()->assertJsonCount(0, 'data.sections');
+    }
+
+    public function test_native_sections_and_revisions_are_independent_of_active_theme_library(): void
+    {
+        $funnel = $this->createFunnel(['template_key' => 'glasses-en'])->assertCreated()->json('data');
+        $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+        $version = StoreTheme::where('store_id', $this->store->id)->where('status', 'active')->value('theme_version_id');
+        ThemeVersion::whereKey($version)->update(['sections_schema' => []]);
+        Cache::flush();
+        $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertOk()->assertJsonStructure(['sections_schema' => ['glasses-hero', 'glasses-faq']]);
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'glasses-faq', 'settings' => ['items' => [['question' => 'Own question', 'answer' => 'Own answer']]]]]])->assertOk()->assertJsonCount(1, 'data.sections');
+        $revisions = $this->getJson($path.'/revisions')->assertOk()->json('data');
+        $revision = collect($revisions)->firstWhere('sections_count', 10);
+        $this->postJson($path.'/revisions/'.$revision['id'].'/restore')->assertOk()->assertJsonCount(10, 'data.sections')->assertJsonPath('data.sections.0.type', 'glasses-hero');
+        $this->createFunnel(['template_key' => 'glasses-ar', 'slug' => 'independent-theme', 'locale' => 'ar'])->assertCreated();
+        $this->assertDatabaseCount('store_order_items', 0);
+    }
+
+    public function test_native_layout_rejects_duplicate_checkout_without_discarding_the_saved_layout(): void
+    {
+        $funnel = $this->createFunnel(['template_key' => 'glasses-en'])->assertCreated()->json('data');
+        $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'glasses-purchase'], ['type' => 'glasses-purchase']]])->assertUnprocessable()->assertJsonValidationErrors('sections');
+        $this->getJson($path)->assertOk()->assertJsonCount(10, 'data.sections');
+    }
+
+    public function test_native_template_catalog_links_to_read_only_localized_previews(): void
+    {
+        $templates = $this->getJson('/api/v1/my-store/funnels/templates')->assertOk()->json('data');
+        $byKey = collect($templates)->keyBy('key');
+        $this->assertSame('/funnel-templates/glasses-ar?preview=1&lang=ar', $byKey['glasses-ar']['preview_url']);
+        $this->assertSame('/funnel-templates/glasses-en?preview=1&lang=en', $byKey['glasses-en']['preview_url']);
+        foreach (['spotlight', 'story', 'minimal'] as $key) {
+            $this->assertArrayNotHasKey('preview_url', $byKey[$key]);
+        }
     }
 
     private function enableAi(): void
