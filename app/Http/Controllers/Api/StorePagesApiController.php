@@ -8,6 +8,7 @@ use App\Models\StorePage;
 use App\Models\StorePageRevision;
 use App\Models\ThemeVersion;
 use App\Services\PageBuilder\CustomizerPublicationService;
+use App\Services\PageBuilder\NativeFunnelTemplates;
 use App\Services\PageBuilder\StorePageService;
 use App\Services\Storefront\StorefrontUrlGenerator;
 use App\Services\Themes\ThemePreviewToken;
@@ -59,11 +60,13 @@ class StorePagesApiController extends Controller
      */
     public function schema(Request $request, Store $store): JsonResponse
     {
+        $data = $request->validate(['page_id' => ['nullable', 'integer', 'min:1']]);
+        $page = isset($data['page_id']) ? StorePage::forStore($store)->findOrFail($data['page_id']) : null;
         $theme = $this->resolver->resolve($store);
         $version = $theme['theme_version_id'] ? ThemeVersion::query()->find($theme['theme_version_id']) : null;
 
         return response()->json([
-            'sections_schema' => $theme['sections_schema'] ?? [],
+            'sections_schema' => $page ? NativeFunnelTemplates::schemaFor($page, $theme['sections_schema'] ?? []) : ($theme['sections_schema'] ?? []),
             'theme' => ['key' => $theme['key'], 'version' => $theme['version']],
             'settings_schema' => $version?->settings_schema ?? [],
         ], 200, [], JSON_UNESCAPED_UNICODE);
@@ -241,6 +244,7 @@ class StorePagesApiController extends Controller
             'publish_at' => $page->publish_at,
             'published_at' => $page->published_at,
             'is_public' => $page->isPubliclyVisible(),
+            'native_funnel_template' => NativeFunnelTemplates::key($page),
         ];
         if ($withSections) {
             $out['sections'] = $page->sections->map(fn ($s) => [

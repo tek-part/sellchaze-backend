@@ -11,7 +11,7 @@ use Illuminate\Validation\ValidationException;
 
 class StoreFunnelService
 {
-    public const TEMPLATES = [
+    public const TEMPLATES = NativeFunnelTemplates::TEMPLATES + [
         'spotlight' => ['name' => ['ar' => 'واجهة المنتج', 'en' => 'Product spotlight'], 'description' => ['ar' => 'عرض بصري للمنتج وزر شراء واضح', 'en' => 'A focused product hero and purchase action'], 'color' => '#146c43'],
         'story' => ['name' => ['ar' => 'قصة المنتج', 'en' => 'Product story'], 'description' => ['ar' => 'عرض المنتج وتفاصيله في أقسام قابلة للتحرير', 'en' => 'Product presentation followed by editable details'], 'color' => '#7c3aed'],
         'minimal' => ['name' => ['ar' => 'عرض مختصر', 'en' => 'Minimal offer'], 'description' => ['ar' => 'صفحة بسيطة تركز على العرض والطلب', 'en' => 'A concise offer focused on the purchase action'], 'color' => '#0369a1'],
@@ -26,7 +26,7 @@ class StoreFunnelService
             throw ValidationException::withMessages(['product_id' => ['Select a product with a public slug from this store.']]);
         }
         $schema = $this->themes->resolve($store)['sections_schema'] ?? [];
-        if (! isset($schema['hero-banner'], $schema['rich-text'])) {
+        if (! isset(NativeFunnelTemplates::TEMPLATES[$data['template_key']]) && ! isset($schema['hero-banner'], $schema['rich-text'])) {
             throw ValidationException::withMessages(['template_key' => ['The active theme must support hero-banner and rich-text sections.']]);
         }
 
@@ -41,6 +41,12 @@ class StoreFunnelService
             $page = $this->pages->create($store, [
                 'title' => $data['title'], 'slug' => $data['slug'], 'template' => 'landing', 'locale' => $data['locale'],
             ]);
+            $funnel = StoreFunnel::create(['store_id' => $store->id, 'store_page_id' => $page->id, 'product_id' => $product->id, 'template_key' => $data['template_key']]);
+            if (isset(NativeFunnelTemplates::TEMPLATES[$data['template_key']])) {
+                $this->pages->syncSections($page, NativeFunnelTemplates::sections($store, $product, $data['locale'], $copy), $actor);
+
+                return $funnel;
+            }
             $arabic = $data['locale'] === 'ar';
             $hero = ['type' => 'hero-banner', 'settings' => [
                 'heading' => $product->translated('name', $data['locale']),
@@ -78,7 +84,7 @@ class StoreFunnelService
             }
             $this->pages->syncSections($page, $sections, $actor);
 
-            return StoreFunnel::create(['store_id' => $store->id, 'store_page_id' => $page->id, 'product_id' => $product->id, 'template_key' => $data['template_key']]);
+            return $funnel;
         });
     }
 
@@ -87,6 +93,7 @@ class StoreFunnelService
         return DB::transaction(function () use ($store, $source, $actor) {
             $page = $source->page;
             $copy = $this->pages->create($store, ['title' => $page->title.' (copy)', 'slug' => $page->slug.'-copy', 'template' => 'landing', 'locale' => $page->locale, 'seo' => $page->seo]);
+            $funnel = StoreFunnel::create(['store_id' => $store->id, 'store_page_id' => $copy->id, 'product_id' => $source->product_id, 'template_key' => $source->template_key]);
             // Resolve reusable sections into independent values so edits to the copy cannot
             // unexpectedly change the source funnel through a shared section reference.
             $sections = array_map(function (array $section): array {
@@ -96,7 +103,7 @@ class StoreFunnelService
             }, $this->pages->snapshot($page)['sections']);
             $this->pages->syncSections($copy, $sections, $actor);
 
-            return StoreFunnel::create(['store_id' => $store->id, 'store_page_id' => $copy->id, 'product_id' => $source->product_id, 'template_key' => $source->template_key]);
+            return $funnel;
         });
     }
 }

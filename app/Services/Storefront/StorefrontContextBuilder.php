@@ -8,6 +8,7 @@ use App\Models\StorePage;
 use App\Models\StorePageSection;
 use App\Services\Commerce\DownsellOffers;
 use App\Services\Commerce\GoogleMerchantSettings;
+use App\Services\PageBuilder\NativeFunnelTemplates;
 use App\Services\PageBuilder\StoreMenuService;
 use App\Services\Themes\SectionRegistry;
 use App\Services\Themes\ThemeResolver;
@@ -73,8 +74,9 @@ class StorefrontContextBuilder
             $page->loadMissing('sections.reusable');
             $rawSections = $page->sections->where('is_visible', true)->map(fn (StorePageSection $s) => $this->expandSection($s))->all();
         }
-        $pageSections = $this->sections->resolveSections($theme['sections_schema'], $rawSections);
-        $responsiveCss = $this->sections->responsiveCss($theme['sections_schema'], $pageSections);
+        $schema = NativeFunnelTemplates::schemaFor($page, $theme['sections_schema']);
+        $pageSections = $this->sections->resolveSections($schema, $rawSections);
+        $responsiveCss = $this->sections->responsiveCss($schema, $pageSections);
 
         return [
             'store' => $this->storeSummary($store),
@@ -85,6 +87,7 @@ class StorefrontContextBuilder
                 'template' => $page->template,
                 'slug' => $page->slug,
                 'sections' => $pageSections,
+                'native_funnel_template' => NativeFunnelTemplates::key($page),
                 ...($page->template === 'simple' ? app(SimplePages::class)->publicData($store, $page, $this->currentLocale($store), $publication) : []),
             ],
             'data' => $this->commonData($store),
