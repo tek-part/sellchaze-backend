@@ -43,7 +43,7 @@ class StoreFunnelService
             ]);
             $funnel = StoreFunnel::create(['store_id' => $store->id, 'store_page_id' => $page->id, 'product_id' => $product->id, 'template_key' => $data['template_key']]);
             if (isset(NativeFunnelTemplates::TEMPLATES[$data['template_key']])) {
-                $this->pages->syncSections($page, NativeFunnelTemplates::sections($store, $product, $data['locale'], $copy), $actor);
+                $this->pages->syncSections($page, NativeFunnelTemplates::sectionsFor($data['template_key'], $store, $product, $data['locale'], $copy), $actor);
 
                 return $funnel;
             }
