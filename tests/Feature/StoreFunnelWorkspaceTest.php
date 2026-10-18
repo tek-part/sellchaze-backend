@@ -177,4 +177,85 @@ class StoreFunnelWorkspaceTest extends TestCase
         $this->assertTrue(Schema::hasColumn('store_funnels', 'public_id'));
         $this->assertDatabaseHas('store_funnels', ['id' => $source['id']]);
     }
+
+    public function test_details_update_live_binding_without_publishing_draft_or_replacing_sections(): void
+    {
+        $source = $this->createFunnel('Original', 'original', ['template_key' => 'glasses-en']);
+        $url = '/api/v1/my-store/funnels/'.$source['id'];
+        $this->postJson('/api/v1/my-store/pages/'.$source['page_id'].'/publish')->assertOk();
+        $sections = DB::table('store_page_sections')->where('store_page_id', $source['page_id'])->get()->toArray();
+        $publications = DB::table('store_page_publications')->where('store_page_id', $source['page_id'])->get()->toArray();
+        $public = 'http://workspace.sellchase.com/api/v1/storefront/funnels/original';
+        $this->getJson($public)->assertOk()->assertJsonPath('data.funnel_product_slug', 'own-bag');
+        $details = $this->getJson($url)->assertOk()->assertHeader('Cache-Control', 'max-age=0, must-revalidate, no-cache, no-store, private')
+            ->assertJsonPath('funnel_base_url', 'https://workspace.sellchase.com/funnels/')->json();
+        $replacement = Product::create(['store_id' => $this->store->id, 'user_id' => $this->store->owner_user_id, 'name' => 'Replacement', 'slug' => 'replacement', 'price' => 45, 'is_active' => true]);
+        $changed = $this->putJson($url, ['title' => 'Draft title', 'slug' => 'draft-url', 'product_id' => $replacement->id, 'version' => $details['version'], 'template_key' => 'minimal', 'public_id' => (string) Str::uuid()])
+            ->assertOk()->assertJsonPath('data.code', $source['code'])->assertJsonPath('data.template_key', 'glasses-en')
+            ->assertJsonPath('data.public_url', 'https://workspace.sellchase.com/funnels/original')->json();
+        $this->assertNotSame($details['version'], $changed['version']);
+        $this->getJson($public)->assertOk()->assertJsonPath('data.title', 'Original')->assertJsonPath('data.slug', 'original')->assertJsonPath('data.funnel_product_slug', 'replacement');
+        $this->getJson('http://workspace.sellchase.com/api/v1/storefront/funnels/draft-url')->assertNotFound();
+        $this->assertEquals($sections, DB::table('store_page_sections')->where('store_page_id', $source['page_id'])->get()->toArray());
+        $this->assertEquals($publications, DB::table('store_page_publications')->where('store_page_id', $source['page_id'])->get()->toArray());
+        $revisions = DB::table('store_page_revisions')->where('store_page_id', $source['page_id'])->count();
+        $this->putJson($url, ['title' => 'Draft title', 'slug' => 'draft-url', 'product_id' => $replacement->id, 'version' => $changed['version']])->assertOk()->assertJsonPath('version', $changed['version']);
+        $this->assertSame($revisions, DB::table('store_page_revisions')->where('store_page_id', $source['page_id'])->count());
+    }
+
+    public function test_stale_or_invalid_details_are_rejected_atomically_and_current_version_can_retry(): void
+    {
+        $source = $this->createFunnel();
+        $url = '/api/v1/my-store/funnels/'.$source['id'];
+        $details = $this->getJson($url)->assertOk()->json();
+        $payload = ['title' => 'Attempt', 'slug' => 'attempt', 'product_id' => $this->product->id, 'version' => $details['version']];
+        $this->putJson('/api/v1/my-store/pages/'.$source['page_id'], ['title' => 'Other session'])->assertOk();
+        $revisions = DB::table('store_page_revisions')->count();
+        $this->putJson($url, $payload)->assertConflict();
+        $this->assertDatabaseHas('store_pages', ['id' => $source['page_id'], 'title' => 'Other session', 'slug' => 'bag-campaign']);
+        $this->assertSame($revisions, DB::table('store_page_revisions')->count());
+        $payload['version'] = $this->getJson($url)->assertOk()->json('version');
+        $this->putJson($url, array_merge($payload, ['product_id' => 999999]))->assertUnprocessable();
+        $this->putJson($url, array_merge($payload, ['slug' => '../invalid']))->assertUnprocessable();
+        $this->putJson($url, array_merge($payload, ['version' => '']))->assertUnprocessable();
+        $this->assertSame($revisions, DB::table('store_page_revisions')->count());
+        $this->putJson($url, $payload)->assertOk()->assertJsonPath('data.title', 'Attempt');
+        $this->assertDatabaseMissing('store_page_publications', ['store_page_id' => $source['page_id']]);
+    }
+
+    public function test_details_require_permission_and_reject_foreign_funnels_and_products(): void
+    {
+        $source = $this->createFunnel();
+        $url = '/api/v1/my-store/funnels/'.$source['id'];
+        $details = $this->getJson($url)->assertOk()->json();
+        $other = $this->makeStore('other-details');
+        $foreign = Product::create(['store_id' => $other->id, 'user_id' => $other->owner_user_id, 'name' => 'Foreign', 'slug' => 'foreign', 'price' => 10]);
+        $payload = ['title' => 'Attempt', 'slug' => 'attempt', 'product_id' => $foreign->id, 'version' => $details['version']];
+        $this->putJson($url, $payload)->assertUnprocessable();
+        $this->assertDatabaseHas('store_pages', ['id' => $source['page_id'], 'title' => 'Bag campaign']);
+        $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($other->owner));
+        $this->getJson($url)->assertNotFound();
+        $this->putJson($url, $payload)->assertNotFound();
+        $employee = User::factory()->create(['parent_user_id' => $this->store->owner_user_id, 'is_active' => true, 'pending_approval' => false]);
+        $employee->assignRole('Employee');
+        $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($employee));
+        $this->getJson($url)->assertForbidden();
+        $this->putJson($url, $payload)->assertForbidden();
+        $employee->givePermissionTo('store.pages.manage');
+        Cache::flush();
+        $this->getJson($url)->assertOk();
+        $this->putJson($url, array_merge($payload, ['product_id' => $this->product->id]))->assertOk();
+    }
+
+    public function test_product_lookup_searches_enabled_translations_without_leaking_foreign_or_slugless_products(): void
+    {
+        $this->product->setTranslations('name', ['en' => 'Everyday bag', 'ar' => 'حقيبة يومية'])->save();
+        $other = $this->makeStore('other-search');
+        Product::create(['store_id' => $other->id, 'user_id' => $other->owner_user_id, 'name' => 'Everyday foreign', 'slug' => 'foreign', 'price' => 10]);
+        Product::create(['store_id' => $this->store->id, 'user_id' => $this->store->owner_user_id, 'name' => 'Everyday without link', 'price' => 10]);
+        foreach (['Everyday', 'حقيبة', ''] as $term) {
+            $this->getJson('/api/v1/my-store/funnels/products?'.http_build_query(['search' => $term]))->assertOk()
+                ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $this->product->id);
+        }
+    }
 }
