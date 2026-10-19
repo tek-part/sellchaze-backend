@@ -573,6 +573,71 @@ class StoreFunnelsTest extends TestCase
         $this->assertDatabaseCount('store_order_items', 0);
     }
 
+    public function test_habit_preserves_localized_compositions_and_merchant_publication(): void
+    {
+        $byKey = collect($this->getJson('/api/v1/my-store/funnels/templates')->assertOk()->json('data'))->keyBy('key');
+        foreach (['ar', 'en'] as $locale) {
+            $this->assertSame('/funnel-templates/habit-'.$locale.'?preview=1&lang='.$locale, $byKey['habit-'.$locale]['preview_url']);
+            $count = $locale === 'ar' ? 12 : 10;
+            $funnel = $this->createFunnel(['template_key' => 'habit-'.$locale, 'locale' => $locale, 'slug' => 'habit-'.$locale])->assertCreated()->json('data');
+            $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+            $page = $this->getJson($path)->assertOk()->assertJsonPath('data.native_funnel_template', 'habit-'.$locale)->assertJsonCount($count, 'data.sections')->json('data');
+            $this->assertSame('Canvas bag', $page['sections'][0]['settings']['heading']);
+            $this->assertSame('', $page['sections'][0]['settings']['expires_at']);
+            $this->assertStringNotContainsString('/media/funnel-campaigns/habit-', json_encode($page));
+            $sections = $page['sections'];
+            foreach ($sections as &$section) {
+                if ($section['type'] === 'habit-numbers' || $section['type'] === 'habit-results') {
+                    $this->assertSame([], $section['settings']['items']);
+                    $this->assertFalse($section['is_visible']);
+                }
+                if ($section['type'] === 'habit-numbers') {
+                    $section['is_visible'] = true;
+                    $section['settings']['items'] = [['value' => '3', 'label' => 'Actual product sizes']];
+                }
+                if ($section['type'] === 'habit-features') {
+                    $section['settings']['items'] = array_fill(0, 7, ['heading' => 'Owned feature', 'text' => 'Actual description']);
+                }
+            }
+            unset($section);
+            $sections[0]['settings']['heading'] = 'Owned violet campaign';
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk()->assertJsonCount(4, 'data.sections.3.settings.items');
+            $this->postJson($path.'/publish')->assertOk();
+            $url = 'http://funnel.sellchase.com/api/v1/storefront/funnels/habit-'.$locale.'?lang='.$locale;
+            $published = $this->getJson($url)->assertOk()->assertJsonPath('data.native_funnel_template', 'habit-'.$locale)->assertJsonPath('data.funnel_product_slug', 'canvas-bag')->assertJsonPath('data.sections.0.settings.heading', 'Owned violet campaign')->json('data');
+            $numbers = collect($published['sections'])->firstWhere('type', 'habit-numbers');
+            $this->assertSame('Actual product sizes', $numbers['settings']['items'][0]['label']);
+            $sections[0]['settings']['heading'] = 'Unpublished violet change';
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk();
+            $this->getJson($url)->assertOk()->assertJsonPath('data.sections.0.settings.heading', 'Owned violet campaign');
+            $copy = $this->postJson('/api/v1/my-store/funnels/'.$funnel['id'].'/duplicate')->assertCreated()->json('data');
+            $this->getJson('/api/v1/my-store/pages/'.$copy['page_id'])->assertOk()->assertJsonCount($count, 'data.sections')->assertJsonPath('data.native_funnel_template', 'habit-'.$locale)->assertJsonPath('data.sections.0.settings.heading', 'Unpublished violet change');
+            $this->assertDatabaseMissing('store_page_publications', ['store_page_id' => $copy['page_id']]);
+        }
+        $this->assertDatabaseCount('store_order_items', 0);
+    }
+
+    public function test_habit_schema_is_scoped_restorable_and_independent_of_store_theme(): void
+    {
+        $this->getJson('/api/v1/my-store/pages/schema?template_key=habit-ar')->assertOk()->assertJsonMissingPath('sections_schema.habit-purchase');
+        $funnel = $this->createFunnel(['template_key' => 'habit-ar', 'locale' => 'ar'])->assertCreated()->json('data');
+        $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+        $version = StoreTheme::where('store_id', $this->store->id)->where('status', 'active')->value('theme_version_id');
+        ThemeVersion::whereKey($version)->update(['sections_schema' => []]);
+        Cache::flush();
+        $schema = $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertOk()->assertJsonStructure(['sections_schema' => ['habit-hero', 'habit-story', 'habit-features', 'habit-numbers', 'habit-results', 'habit-statement', 'habit-faq']])->json('sections_schema');
+        $this->assertCount(10, $schema);
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'habit-purchase'], ['type' => 'habit-purchase']]])->assertUnprocessable();
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'habit-story', 'settings' => ['heading' => 'Own story']]]])->assertOk();
+        $revisions = $this->getJson($path.'/revisions')->assertOk()->json('data');
+        $revision = collect($revisions)->firstWhere('sections_count', 12);
+        $this->postJson($path.'/revisions/'.$revision['id'].'/restore')->assertOk()->assertJsonCount(12, 'data.sections');
+        $other = $this->makeStore('habit-foreign');
+        $this->asOwner($other);
+        $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertNotFound();
+        $this->assertDatabaseCount('store_order_items', 0);
+    }
+
     private function enableAi(): void
     {
         config(['services.funnel_ai.api_key' => 'test-key', 'services.funnel_ai.model' => 'configured-model']);
