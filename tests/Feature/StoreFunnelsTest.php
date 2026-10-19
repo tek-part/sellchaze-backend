@@ -516,6 +516,63 @@ class StoreFunnelsTest extends TestCase
         $this->assertDatabaseCount('store_order_items', 0);
     }
 
+    public function test_writing_board_has_independent_localized_sections_and_publication(): void
+    {
+        $byKey = collect($this->getJson('/api/v1/my-store/funnels/templates')->assertOk()->json('data'))->keyBy('key');
+        foreach (['ar', 'en'] as $locale) {
+            $this->assertSame('/funnel-templates/writing-board-'.$locale.'?preview=1&lang='.$locale, $byKey['writing-board-'.$locale]['preview_url']);
+            $funnel = $this->createFunnel(['template_key' => 'writing-board-'.$locale, 'locale' => $locale, 'slug' => 'writing-'.$locale])->assertCreated()->json('data');
+            $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+            $page = $this->getJson($path)->assertOk()->assertJsonPath('data.native_funnel_template', 'writing-board-'.$locale)->assertJsonCount(11, 'data.sections')->json('data');
+            $this->assertSame('Canvas bag', $page['sections'][0]['settings']['heading']);
+            $this->assertSame('', $page['sections'][0]['settings']['expires_at']);
+            $this->assertSame([], $page['sections'][5]['settings']['items']);
+            $this->assertFalse($page['sections'][4]['is_visible']);
+            $this->assertFalse($page['sections'][8]['is_visible']);
+            $this->assertCount(6, $page['sections'][10]['settings']['items']);
+            $this->assertStringNotContainsString('/media/funnel-campaigns/writing-board-', json_encode($page));
+            $sections = $page['sections'];
+            $sections[0]['settings']['heading'] = 'Own writing campaign';
+            $sections[4]['is_visible'] = true;
+            $sections[4]['settings']['items'] = array_fill(0, 10, ['label' => 'Owned phrase']);
+            $sections[5]['settings']['items'] = array_fill(0, 7, ['image' => '', 'image_alt' => 'Owned detail']);
+            $sections[7]['settings']['text'] = 'Actual product statement';
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk()->assertJsonCount(8, 'data.sections.4.settings.items')->assertJsonCount(4, 'data.sections.5.settings.items')->assertJsonPath('data.sections.8.is_visible', false)->assertJsonPath('data.sections.8.settings.items', []);
+            $this->postJson($path.'/publish')->assertOk();
+            $url = 'http://funnel.sellchase.com/api/v1/storefront/funnels/writing-'.$locale.'?lang='.$locale;
+            $this->getJson($url)->assertOk()->assertJsonPath('data.native_funnel_template', 'writing-board-'.$locale)->assertJsonPath('data.funnel_product_slug', 'canvas-bag')->assertJsonPath('data.sections.0.settings.heading', 'Own writing campaign')->assertJsonPath('data.sections.7.settings.text', 'Actual product statement');
+            $sections[0]['settings']['heading'] = 'Unpublished writing change';
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk();
+            $this->getJson($url)->assertOk()->assertJsonPath('data.sections.0.settings.heading', 'Own writing campaign');
+            $copy = $this->postJson('/api/v1/my-store/funnels/'.$funnel['id'].'/duplicate')->assertCreated()->json('data');
+            $this->getJson('/api/v1/my-store/pages/'.$copy['page_id'])->assertOk()->assertJsonCount(11, 'data.sections')->assertJsonPath('data.native_funnel_template', 'writing-board-'.$locale)->assertJsonPath('data.sections.0.settings.heading', 'Unpublished writing change');
+            $this->assertDatabaseMissing('store_page_publications', ['store_page_id' => $copy['page_id']]);
+        }
+        $this->assertDatabaseCount('store_order_items', 0);
+    }
+
+    public function test_writing_board_schema_is_scoped_and_survives_theme_changes(): void
+    {
+        $this->getJson('/api/v1/my-store/pages/schema?template_key=writing-board-en')->assertOk()->assertJsonMissingPath('sections_schema.writingboard-purchase');
+        $funnel = $this->createFunnel(['template_key' => 'writing-board-en'])->assertCreated()->json('data');
+        $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+        $version = StoreTheme::where('store_id', $this->store->id)->where('status', 'active')->value('theme_version_id');
+        ThemeVersion::whereKey($version)->update(['sections_schema' => []]);
+        Cache::flush();
+        $schema = $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertOk()->assertJsonStructure(['sections_schema' => ['writingboard-hero', 'writingboard-story', 'writingboard-features', 'writingboard-heritage', 'writingboard-statement', 'writingboard-faq']])->json('sections_schema');
+        $this->assertCount(10, $schema);
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'writingboard-purchase'], ['type' => 'writingboard-purchase']]])->assertUnprocessable();
+        $this->getJson($path)->assertOk()->assertJsonCount(11, 'data.sections');
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'writingboard-story', 'settings' => ['heading' => 'Changed writing story']]]])->assertOk();
+        $revisions = $this->getJson($path.'/revisions')->assertOk()->json('data');
+        $revision = collect($revisions)->firstWhere('sections_count', 11);
+        $this->postJson($path.'/revisions/'.$revision['id'].'/restore')->assertOk()->assertJsonCount(11, 'data.sections');
+        $other = $this->makeStore('writing-foreign');
+        $this->asOwner($other);
+        $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertNotFound();
+        $this->assertDatabaseCount('store_order_items', 0);
+    }
+
     private function enableAi(): void
     {
         config(['services.funnel_ai.api_key' => 'test-key', 'services.funnel_ai.model' => 'configured-model']);
