@@ -16,7 +16,7 @@ final class ProductPreferences
 
     public static function rules(): array
     {
-        $keys = array_merge(self::FLAGS, ['buy_now_text', 'fake_visitors_min', 'fake_visitors_max', 'fake_stock_count', 'fake_timer_hours', 'pixel_price']);
+        $keys = array_merge(self::FLAGS, ['buy_now_text', 'fake_visitors_min', 'fake_visitors_max', 'fake_stock_count', 'fake_timer_hours', 'pixel_price', 'browser_pixels']);
         $rules = ['product_preferences' => ['sometimes', 'nullable', 'array:'.implode(',', $keys)],
             'preferences_version' => ['sometimes', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'display_priority' => ['sometimes', 'integer', 'min:0', 'max:2147483647'],
@@ -30,7 +30,7 @@ final class ProductPreferences
             $rules['product_preferences.'.$key] = ['sometimes', 'nullable', 'integer', 'min:'.($key === 'fake_timer_hours' ? '1' : '0'), 'max:'.($key === 'fake_timer_hours' ? '720' : '1000000')];
         }
 
-        return $rules;
+        return $rules + ProductPixelSettings::rules();
     }
 
     public static function canonical(?array $input): ?array
@@ -48,6 +48,12 @@ final class ProductPreferences
         }
         if (isset($data['pixel_price'])) {
             $data['pixel_price'] = bcadd((string) $data['pixel_price'], '0', 2);
+        }
+        if (isset($data['browser_pixels'])) {
+            $data['browser_pixels'] = app(ProductPixelSettings::class)->normalize($data['browser_pixels']);
+            if (! $data['browser_pixels']) {
+                unset($data['browser_pixels']);
+            }
         }
         if (($data['fake_visitors_min'] ?? 20) > ($data['fake_visitors_max'] ?? 70)) {
             throw ValidationException::withMessages(['product_preferences.fake_visitors_max' => 'The maximum visitor count must not be lower than the minimum.']);
@@ -81,7 +87,7 @@ final class ProductPreferences
     public static function publicPayload(Product $product): array
     {
         $data = $product->product_preferences ?? [];
-        unset($data['pixel_price']);
+        unset($data['pixel_price'], $data['browser_pixels']);
 
         return $data;
     }

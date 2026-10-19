@@ -79,6 +79,101 @@ class StoreTrackingTest extends TestCase
         return StoreFunnel::create(['store_id' => $this->store->id, 'store_page_id' => $page->id, 'product_id' => $this->product->id, 'template_key' => 'spotlight', 'browser_pixels' => ['facebook' => ['2345678901'], 'tiktok' => [self::TIKTOK], 'snapchat' => []]]);
     }
 
+    public function test_product_only_pixels_cover_page_views_and_selections_with_tenant_and_privacy_isolation(): void
+    {
+        $this->product->update(['product_preferences' => ['browser_pixels' => [['provider' => 'facebook', 'id' => '2345678901'], ['provider' => 'tiktok', 'id' => self::TIKTOK], ['provider' => 'snapchat', 'id' => self::SNAP]]]]);
+        $this->getJson($this->public.'/tracking')->assertOk()->assertJsonPath('data.enabled', true)->assertJsonPath('data.facebook', []);
+        $other = Product::create(['store_id' => $this->store->id, 'name' => 'Other', 'slug' => 'other', 'price' => 20, 'is_active' => true]);
+        $this->postJson($this->public.'/tracking/events', $this->event(['items' => [['product_id' => $other->id, 'quantity' => 1]]]))->assertStatus(202)->assertJsonPath('data', null);
+        foreach (['/', '/products/missing'] as $path) {
+            $this->postJson($this->public.'/tracking/events', $this->event(['event' => 'page_view', 'page_path' => $path]))->assertStatus(202)->assertJsonPath('data', null);
+        }
+        foreach ([['DNT' => '1'], ['Sec-GPC' => '1']] as $headers) {
+            $this->postJson($this->public.'/tracking/events', $this->event(), $headers)->assertStatus(202)->assertJsonPath('data', null);
+        }
+        $this->postJson($this->public.'/tracking/events', $this->event(['advertising_allowed' => false]))->assertStatus(202)->assertJsonPath('data', null);
+        $this->assertDatabaseCount('store_tracking_events', 0);
+        foreach (['page_view', 'view_item', 'add_to_cart', 'begin_checkout'] as $event) {
+            $response = $this->postJson($this->public.'/tracking/events', $this->event(['event' => $event]))->assertStatus(202)
+                ->assertJsonPath('data.configuration.facebook', ['2345678901'])->assertJsonPath('data.configuration.tiktok', [self::TIKTOK])->assertJsonPath('data.configuration.snapchat', [self::SNAP]);
+            $this->assertArrayNotHasKey('product_pixels', $response->json('data.event'));
+            $this->assertArrayNotHasKey('user_data', $response->json('data.event'));
+        }
+        $foreignStore = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Foreign', 'slug' => 'foreign-pixel-store', 'status' => 'active', 'currency' => 'EGP']);
+        $foreign = Product::create(['store_id' => $foreignStore->id, 'name' => 'Foreign', 'slug' => 'foreign', 'price' => 1, 'is_active' => true]);
+        $this->postJson($this->public.'/tracking/events', $this->event(['items' => [['product_id' => $foreign->id, 'quantity' => 1]]]))->assertUnprocessable();
+        $this->assertDatabaseCount('store_tracking_events', 4);
+        $this->assertDatabaseCount('store_tracking_deliveries', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_product_funnel_and_store_destinations_merge_once_and_mixed_purchases_replay_only_captured_current_product_ids(): void
+    {
+        $this->product->update(['product_preferences' => ['browser_pixels' => [['provider' => 'facebook', 'id' => '2345678901'], ['provider' => 'tiktok', 'id' => self::TIKTOK]]]]);
+        $this->store->update(['tracking_configuration' => ['facebook' => ['1234567890']]]);
+        $this->pixelFunnel();
+        $funnelView = $this->postJson($this->public.'/tracking/events', $this->event(['page_path' => '/funnels/pixel-funnel']))->assertStatus(202)
+            ->assertJsonPath('data.configuration.facebook', ['1234567890', '2345678901'])->assertJsonPath('data.configuration.tiktok', [self::TIKTOK]);
+        $other = Product::create(['store_id' => $this->store->id, 'name' => 'Second bag', 'slug' => 'second-bag', 'price' => 20, 'is_active' => true,
+            'product_preferences' => ['browser_pixels' => [['provider' => 'facebook', 'id' => '3456789012']]]]);
+        $this->conversion();
+        $body = ['customer_name' => 'Synthetic product buyer', 'customer_phone' => '01001234567', 'customer_email' => 'product@example.test', 'advertising_allowed' => true, 'shipping_address' => ['line1' => 'Synthetic address', 'city' => 'Cairo', 'country' => 'EG'], 'items' => [['product_id' => $this->product->id, 'quantity' => 2], ['product_id' => $other->id, 'quantity' => 1]], 'payment_method' => 'cod', 'cart_mode' => 'direct'];
+        $headers = ['Idempotency-Key' => (string) Str::uuid()];
+        $first = $this->postJson($this->public.'/checkout', $body, $headers)->assertCreated()->assertJsonPath('data.grand_total', '545.00')
+            ->assertJsonPath('data.tracking.event.value', '520.00')->assertJsonPath('data.tracking.event.gross_value', '545.00')->assertJsonCount(2, 'data.tracking.event.items')
+            ->assertJsonPath('data.tracking.configuration.facebook', ['1234567890', '2345678901', '3456789012']);
+        $id = $first->json('data.tracking.event.event_id');
+        $this->postJson($this->public.'/checkout', $body, $headers)->assertCreated()->assertJsonPath('data.tracking.event.event_id', $id);
+        $this->product->update(['product_preferences' => ['browser_pixels' => [['provider' => 'facebook', 'id' => '4567890123']]]]);
+        $this->postJson($this->public.'/checkout/receipt', ['token' => $first->json('receipt.token'), 'advertising_allowed' => true])->assertOk()
+            ->assertJsonPath('data.tracking.event.event_id', $id)->assertJsonPath('data.tracking.configuration.facebook', ['1234567890', '3456789012'])->assertJsonPath('data.tracking.configuration.tiktok', []);
+        $other->update(['is_active' => false]);
+        $this->postJson($this->public.'/checkout/receipt', ['token' => $first->json('receipt.token'), 'advertising_allowed' => true])->assertOk()->assertJsonPath('data.tracking.configuration.facebook', ['1234567890']);
+        $this->assertDatabaseCount('store_orders', 1);
+        $this->assertDatabaseCount('store_tracking_events', 2);
+        $this->assertDatabaseCount('store_tracking_deliveries', 1);
+        $this->assertNotSame($id, $funnelView->json('data.event.event_id'));
+        Http::assertNothingSent();
+    }
+
+    public function test_a_full_hundred_product_event_keeps_all_relevant_browser_destinations(): void
+    {
+        $ids = [];
+        for ($i = 0; $i < 100; $i++) {
+            $rows = array_map(fn ($n) => ['provider' => 'facebook', 'id' => (string) (1500000000 + $i * 10 + $n)], range(0, 9));
+            $p = Product::create(['store_id' => $this->store->id, 'name' => 'Own product '.$i, 'slug' => 'own-'.$i, 'price' => 1, 'is_active' => true, 'product_preferences' => ['browser_pixels' => $rows]]);
+            $ids[] = ['product_id' => $p->id, 'quantity' => 1];
+        }
+        $this->store->update(['tracking_configuration' => ['facebook' => array_map(fn ($n) => (string) (1900000000 + $n), range(0, 9))]]);
+        $response = $this->postJson($this->public.'/tracking/events', $this->event(['items' => $ids]))->assertStatus(202)
+            ->assertJsonCount(1010, 'data.configuration.facebook')->assertJsonCount(100, 'data.event.items')->assertJsonPath('data.event.value', '100.00');
+        $this->assertSame(1010, count(array_unique($response->json('data.configuration.facebook'))));
+        $this->assertDatabaseCount('store_tracking_events', 1);
+        Http::assertNothingSent();
+    }
+
+    public function test_product_only_pixels_work_for_server_cart_checkout_and_no_consent_stays_silent(): void
+    {
+        $this->product->update(['product_preferences' => ['browser_pixels' => [['provider' => 'facebook', 'id' => '2345678901']]]]);
+        foreach ([false, true] as $consent) {
+            $cart = $this->postJson($this->public.'/cart/items', ['store_product_id' => $this->product->id, 'quantity' => 2])->assertCreated()->json('data.token');
+            $this->assertIsString($cart);
+            $body = ['customer_name' => 'Synthetic cart buyer', 'customer_phone' => '01001234567', 'customer_email' => 'cart@example.test', 'advertising_allowed' => $consent, 'shipping_address' => ['line1' => 'Synthetic address', 'city' => 'Cairo', 'country' => 'EG'], 'payment_method' => 'cod'];
+            $headers = ['X-Cart-Token' => $cart, 'Idempotency-Key' => (string) Str::uuid()];
+            $result = $this->postJson($this->public.'/checkout', $body, $headers)->assertCreated()->assertJsonPath('data.grand_total', '525.00');
+            if ($consent) {
+                $result->assertJsonPath('data.tracking.configuration.facebook', ['2345678901'])->assertJsonPath('data.tracking.event.gross_value', '525.00');
+                $this->postJson($this->public.'/checkout', $body, $headers)->assertCreated()->assertJsonPath('data.tracking.event.event_id', $result->json('data.tracking.event.event_id'));
+            } else {
+                $result->assertJsonPath('data.tracking', null);
+            }
+        }
+        $this->assertDatabaseCount('store_orders', 2);
+        $this->assertDatabaseCount('store_tracking_events', 1);
+        $this->assertDatabaseCount('store_tracking_deliveries', 0);
+        Http::assertNothingSent();
+    }
+
     public function test_funnel_only_pixels_resolve_published_paths_and_products_without_leaking_to_other_surfaces(): void
     {
         $funnel = $this->pixelFunnel();

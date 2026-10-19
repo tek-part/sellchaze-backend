@@ -2,6 +2,7 @@
 
 namespace App\Services\Commerce;
 
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreFunnel;
 use App\Models\StoreTrackingDelivery;
@@ -28,7 +29,8 @@ class StoreTrackingSettings
     public function enabled(Store $store): bool
     {
         return $this->storeEnabled($store)
-            || StoreFunnel::withoutGlobalScopes()->where('store_id', $store->id)->whereNotNull('browser_pixels')->exists();
+            || StoreFunnel::withoutGlobalScopes()->where('store_id', $store->id)->whereNotNull('browser_pixels')->exists()
+            || Product::withoutGlobalScopes()->where('store_id', $store->id)->where('is_active', true)->whereJsonLength('product_preferences->browser_pixels', '>', 0)->exists();
     }
 
     public function storeEnabled(Store $store): bool

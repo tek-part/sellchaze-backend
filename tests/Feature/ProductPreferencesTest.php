@@ -56,6 +56,34 @@ class ProductPreferencesTest extends TestCase
         return $this->postJson($this->base, $extra + ['name' => 'Preference product', 'price' => 100, 'is_active' => true], $this->auth)->assertCreated()->json('data');
     }
 
+    public function test_product_pixel_rows_are_validated_canonical_versioned_private_and_clearable(): void
+    {
+        $rows = [['provider' => 'snapchat', 'id' => '12345678-1234-4234-8234-123456789ABC'], ['provider' => 'facebook', 'id' => ' 2345678901 '], ['provider' => 'facebook', 'id' => '2345678901']];
+        $p = $this->create(['product_preferences' => ['is_skip_cart' => true, 'browser_pixels' => $rows]]);
+        $expected = [['provider' => 'snapchat', 'id' => '12345678-1234-4234-8234-123456789abc'], ['provider' => 'facebook', 'id' => '2345678901']];
+        $this->assertSame($expected, $p['product_preferences']['browser_pixels']);
+        $this->getJson($this->base.'/'.$p['id'], $this->auth)->assertOk()->assertJsonPath('data.product_preferences.browser_pixels', $expected);
+        $this->getJson($this->public.'/products/'.$p['slug'])->assertOk()->assertJsonMissingPath('data.product_preferences.browser_pixels')->assertJsonPath('data.product_preferences.is_skip_cart', true);
+        $this->putJson($this->base.'/'.$p['id'], ['product_preferences' => ['browser_pixels' => []]], $this->auth)->assertConflict();
+        $bad = [
+            [['provider' => 'facebook', 'id' => '<script>alert(1)</script>']],
+            [['provider' => 'google', 'id' => 'G-Y1F28T2SY8']],
+            [['provider' => 'facebook', 'id' => '2345678901', 'script' => 'bad']],
+            [['provider' => 'snapchat', 'id' => 'https://example.test/script.js']],
+            ['named' => ['provider' => 'facebook', 'id' => '2345678901']],
+            array_map(fn ($n) => ['provider' => 'facebook', 'id' => (string) (1234567890 + $n)], range(1, 11)),
+        ];
+        foreach ($bad as $value) {
+            $this->putJson($this->base.'/'.$p['id'], ['preferences_version' => $p['preferences_version'], 'name' => 'Must not change', 'product_preferences' => ['browser_pixels' => $value]], $this->auth)->assertUnprocessable();
+        }
+        $this->getJson($this->base.'/'.$p['id'], $this->auth)->assertOk()->assertJsonPath('data.name', 'Preference product')->assertJsonPath('data.preferences_version', $p['preferences_version']);
+        $changed = $this->post($this->base.'/'.$p['id'], ['_method' => 'PUT', 'preferences_version' => $p['preferences_version'], 'product_preferences' => json_encode(['is_skip_cart' => true, 'browser_pixels' => [['provider' => 'tiktok', 'id' => 'C7TEST0123456789ABCDE0']]])], $this->auth)
+            ->assertOk()->assertJsonPath('data.product_preferences.browser_pixels.0.provider', 'tiktok')->json('data');
+        $this->assertNotSame($p['preferences_version'], $changed['preferences_version']);
+        $this->putJson($this->base.'/'.$p['id'], ['preferences_version' => $changed['preferences_version'], 'product_preferences' => ['is_skip_cart' => true, 'browser_pixels' => []]], $this->auth)
+            ->assertOk()->assertJsonMissingPath('data.product_preferences.browser_pixels')->assertJsonPath('data.product_preferences.is_skip_cart', true)->assertJsonPath('data.price', '100.00');
+    }
+
     public function test_preferences_are_validated_versioned_and_reset_without_touching_stock_or_other_fields(): void
     {
         $p = $this->create(['product_preferences' => ['is_skip_cart' => true, 'is_fixed_bottom_buy' => false, 'pixel_price' => 0, 'fake_visitors_min' => 10, 'fake_visitors_max' => 30], 'display_priority' => 9]);
