@@ -1105,9 +1105,9 @@ Route::prefix('v1')->group(function () {
             Route::get('pages', [$pages, 'index']);
             Route::post('pages', [$pages, 'store']);
             Route::get('pages/{page}', [$pages, 'show'])->whereNumber('page');
-            Route::put('pages/{page}', [$pages, 'update'])->whereNumber('page');
+            Route::match(['put', 'post'], 'pages/{page}', [$pages, 'update'])->whereNumber('page');
             Route::delete('pages/{page}', [$pages, 'destroy'])->whereNumber('page');
-            Route::put('pages/{page}/sections', [$pages, 'syncSections'])->whereNumber('page');
+            Route::match(['put', 'post'], 'pages/{page}/sections', [$pages, 'syncSections'])->whereNumber('page');
             Route::post('pages/{page}/publish', [$pages, 'publish'])->whereNumber('page');
             Route::post('pages/{page}/unpublish', [$pages, 'unpublish'])->whereNumber('page');
             Route::post('pages/{page}/schedule', [$pages, 'schedule'])->whereNumber('page');
