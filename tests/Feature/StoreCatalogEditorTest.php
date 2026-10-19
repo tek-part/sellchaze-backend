@@ -51,6 +51,28 @@ class StoreCatalogEditorTest extends TestCase
         return $this->postJson($this->base, array_merge(['name' => 'حقيبة', 'slug' => 'bag', 'price' => 125, 'is_active' => true], $extra), $this->auth)->assertCreated()->json('data.id');
     }
 
+    public function test_product_colors_and_alignment_survive_create_edit_locales_public_read_and_landing_read(): void
+    {
+        $ar = '<h2 style="text-align:right">وصف</h2><p><span style="color:#123456;background-color:#abcdef;position:fixed" onclick="bad()">عربي</span></p>';
+        $en = '<p style="text-align:center"><span style="color:rgb(17,34,51);background-image:url(https://untrusted.test)">English</span></p>';
+        $id = $this->create(['description' => $ar, 'translations' => ['description' => ['ar' => $ar, 'en' => $en]]]);
+        $read = $this->getJson($this->base.'/'.$id, $this->auth)->assertOk()->json('data');
+        $this->assertStringContainsString('color:#123456', $read['description']);
+        $this->assertStringContainsString('text-align:center', $read['translations']['description']['en']);
+        $this->assertDoesNotMatchRegularExpression('/position|onclick|background-image|untrusted/', json_encode($read['translations']['description']));
+        $this->putJson($this->base.'/'.$id, ['description' => $ar, 'translations' => ['description' => ['ar' => $ar, 'en' => $en]]], $this->auth)->assertOk();
+        foreach (['ar' => ['text-align:right', 'background-color:#abcdef'], 'en' => ['text-align:center', 'color:#112233']] as $locale => $styles) {
+            $public = $this->getJson($this->public.'/products/bag?lang='.$locale)->assertOk()->json('data.description');
+            foreach ($styles as $style) {
+                $this->assertStringContainsString($style, $public);
+            }
+        }
+        $landing = $this->getJson($this->base.'/'.$id.'/landing-page', $this->auth)->assertOk()->json('product.description');
+        $this->assertStringContainsString('color:#123456', $landing);
+        $this->assertStringContainsString('text-align:right', $landing);
+        $this->assertStringNotContainsString('position', $landing);
+    }
+
     public function test_initial_editor_options_stock_and_display_commit_together_and_retry_does_not_allocate_twice(): void
     {
         $input = ['name' => 'Draft options', 'sku' => 'NEW-ROOT', 'price' => 40, 'creation_key' => (string) Str::uuid(),

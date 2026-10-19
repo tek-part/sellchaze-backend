@@ -7,6 +7,18 @@ use PHPUnit\Framework\TestCase;
 
 class ProductDescriptionTest extends TestCase
 {
+    public function test_explicit_formatting_preserves_only_colors_and_alignment_and_is_idempotent(): void
+    {
+        $html = '<h2 style="text-align:right;position:fixed">عنوان</h2><p><span style="color:rgb(17,34,51);background-color:#abc;background-image:url(https://untrusted.test);z-index:9999" onclick="bad()">Own text</span><a href="javascript:bad()">link</a></p>';
+        $clean = ProductDescription::clean($html, true);
+        foreach (['text-align:right', 'color:#112233', 'background-color:#aabbcc', 'عنوان', 'Own text'] as $expected) {
+            $this->assertStringContainsString($expected, $clean);
+        }
+        $this->assertDoesNotMatchRegularExpression('/position|background-image|z-index|onclick|javascript:|untrusted/', $clean);
+        $this->assertSame($clean, ProductDescription::clean($clean, true));
+        $this->assertStringNotContainsString('style=', ProductDescription::clean($html));
+    }
+
     public function test_formatting_unicode_and_media_survive_without_executable_content(): void
     {
         $html = '<h2>تفاصيل المنتج ✨</h2><p><strong>متين</strong> <u>وأنيق</u></p><ul><li>قطن</li></ul>'

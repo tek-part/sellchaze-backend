@@ -189,12 +189,12 @@ class StorefrontProductService
             $product->personalization_fields = $data['personalization_fields'];
         }
         if (array_key_exists('description', $data)) {
-            $data['description'] = ProductDescription::clean($data['description']);
+            $data['description'] = ProductDescription::clean($data['description'], true);
             // The editor hydrates the legacy long copy first; an explicit edit becomes canonical.
             $product->long_description = null;
         }
         foreach ($data['translations']['description'] ?? [] as $locale => $html) {
-            $data['translations']['description'][$locale] = ProductDescription::clean($html);
+            $data['translations']['description'][$locale] = ProductDescription::clean($html, true);
         }
         foreach (['name', 'sku', 'barcode', 'description', 'short_description', 'price', 'compare_price', 'cost', 'weight', 'seo_title', 'seo_description', 'category_id', 'is_active', 'is_featured', 'position'] as $key) {
             if (array_key_exists($key, $data)) {
