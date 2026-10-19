@@ -63,8 +63,11 @@ class StoreTrackingEvents
             $payload['content_type'] = 'product_group';
         }
         $pixels = app(FunnelPixelSettings::class);
-        $payload += $pixels->snapshot($pixels->forPath($store, $data['page_path'] ?? null, array_column($data['items'] ?? [], 'product_id')));
-        if (! isset($payload['funnel_pixels']) && ! $this->settings->storeEnabled($store)) {
+        $productIds = array_column($data['items'] ?? [], 'product_id');
+        $funnel = $pixels->forPath($store, $data['page_path'] ?? null, $productIds);
+        $payload += $pixels->snapshot($funnel);
+        $payload += app(ProductPixelSettings::class)->snapshot($store, $productIds ?: ($funnel ? [$funnel->product_id] : []), $data['page_path'] ?? null);
+        if (! isset($payload['funnel_pixels']) && ! isset($payload['product_pixels']) && ! $this->settings->storeEnabled($store)) {
             return null;
         }
 
@@ -111,7 +114,8 @@ class StoreTrackingEvents
                 $funnel = $pixels->forPath($store, $request->input('funnel_path'), $lines->pluck('store_product_id')->all());
                 $payload += $pixels->snapshot($funnel);
             }
-            if (! isset($payload['funnel_pixels']) && ! $this->settings->storeEnabled($store)) {
+            $payload += app(ProductPixelSettings::class)->snapshot($store, $lines->pluck('store_product_id')->all());
+            if (! isset($payload['funnel_pixels']) && ! isset($payload['product_pixels']) && ! $this->settings->storeEnabled($store)) {
                 return;
             }
             $this->persist($store, $payload, $order->id);
@@ -176,7 +180,8 @@ class StoreTrackingEvents
         }
         $payload = $event->payload;
         $configuration = app(FunnelPixelSettings::class)->forEvent($store, $payload);
-        unset($payload['user_data'], $payload['funnel_id'], $payload['funnel_pixels']);
+        $configuration = app(ProductPixelSettings::class)->forEvent($store, $payload, $configuration);
+        unset($payload['user_data'], $payload['funnel_id'], $payload['funnel_pixels'], $payload['product_pixels']);
 
         return ['configuration' => $configuration, 'event' => $payload];
     }
