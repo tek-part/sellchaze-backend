@@ -66,7 +66,7 @@ class StoreProductLandingController extends Controller
         return response()->json(['data' => ProductLandingPages::document($product), 'version' => ProductLandingPages::version($product), 'product_id' => $product->id,
             'destination_urls' => (object) ProductLandingDestinations::documentUrls($product),
             'product' => ['id' => $product->id, 'name' => $product->name, 'slug' => $product->slug, 'price' => $product->price,
-                'description' => ProductDescription::clean($product->long_description ?? $product->description ?? ''), 'product_preferences' => ProductPreferences::publicPayload($product),
+                'description' => ProductDescription::clean($product->long_description ?? $product->description ?? '', true), 'product_preferences' => ProductPreferences::publicPayload($product),
                 'media' => $product->media()->orderBy('position')->get()->map(fn ($media) => ['id' => $media->id, 'url' => $media->url(), 'type' => $media->type === 'video' ? 'video' : 'image', 'alt' => $media->alt])]], 200, ['Cache-Control' => 'private, no-store']);
     }
 }
