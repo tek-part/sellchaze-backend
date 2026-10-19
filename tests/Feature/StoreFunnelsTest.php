@@ -453,6 +453,69 @@ class StoreFunnelsTest extends TestCase
         $this->assertDatabaseCount('store_order_items', 0);
     }
 
+    public function test_skin_care_preserves_localized_compositions_and_independent_publication(): void
+    {
+        $byKey = collect($this->getJson('/api/v1/my-store/funnels/templates')->assertOk()->json('data'))->keyBy('key');
+        foreach (['ar', 'en'] as $locale) {
+            $count = $locale === 'en' ? 14 : 12;
+            $this->assertSame('/funnel-templates/skin-care-'.$locale.'?preview=1&lang='.$locale, $byKey['skin-care-'.$locale]['preview_url']);
+            $funnel = $this->createFunnel(['template_key' => 'skin-care-'.$locale, 'locale' => $locale, 'slug' => 'skincare-'.$locale])->assertCreated()->json('data');
+            $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+            $page = $this->getJson($path)->assertOk()->assertJsonPath('data.native_funnel_template', 'skin-care-'.$locale)->assertJsonCount($count, 'data.sections')->json('data');
+            $this->assertSame('Canvas bag', $page['sections'][0]['settings']['heading']);
+            $this->assertSame('', $page['sections'][0]['settings']['expires_at']);
+            $this->assertSame([], $page['sections'][3]['settings']['policies']);
+            $this->assertSame([], $page['sections'][7]['settings']['logos']);
+            $this->assertFalse($page['sections'][7]['is_visible']);
+            $this->assertStringNotContainsString('/media/funnel-campaigns/skin-care-', json_encode($page));
+            $this->assertCount($locale === 'en' ? 2 : 1, array_filter($page['sections'], fn ($section) => $section['type'] === 'skincare-features'));
+            $sections = $page['sections'];
+            $sections[0]['settings']['heading'] = 'Own skin campaign';
+            $sections[3]['settings']['policies'] = array_fill(0, 5, ['question' => 'Own policy', 'answer' => 'Actual terms']);
+            $sections[5]['is_visible'] = true;
+            $sections[5]['settings']['items'] = array_fill(0, 10, ['label' => 'Owned phrase']);
+            $sections[6]['settings']['items'] = array_fill(0, 7, ['label' => 'First feature only']);
+            $sections[7]['is_visible'] = true;
+            $sections[7]['settings']['text'] = 'Own statement';
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk()->assertJsonCount(3, 'data.sections.3.settings.policies')->assertJsonCount(8, 'data.sections.5.settings.items')->assertJsonCount(5, 'data.sections.6.settings.items');
+            if ($locale === 'en') {
+                $this->getJson($path)->assertOk()->assertJsonPath('data.sections.8.settings.items.0.label', 'Canvas bag')->assertJsonPath('data.sections.7.settings.text', 'Own statement')->assertJsonPath('data.sections.9.settings.text', null)->assertJsonPath('data.sections.9.is_visible', false);
+            }
+            $this->postJson($path.'/publish')->assertOk();
+            $url = 'http://funnel.sellchase.com/api/v1/storefront/funnels/skincare-'.$locale.'?lang='.$locale;
+            $this->getJson($url)->assertOk()->assertJsonPath('data.native_funnel_template', 'skin-care-'.$locale)->assertJsonPath('data.funnel_product_slug', 'canvas-bag')->assertJsonPath('data.sections.0.settings.heading', 'Own skin campaign');
+            $sections[0]['settings']['heading'] = 'Unpublished skin change';
+            $this->putJson($path.'/sections', ['sections' => $sections])->assertOk();
+            $this->getJson($url)->assertOk()->assertJsonPath('data.sections.0.settings.heading', 'Own skin campaign');
+            $copy = $this->postJson('/api/v1/my-store/funnels/'.$funnel['id'].'/duplicate')->assertCreated()->json('data');
+            $this->getJson('/api/v1/my-store/pages/'.$copy['page_id'])->assertOk()->assertJsonCount($count, 'data.sections')->assertJsonPath('data.native_funnel_template', 'skin-care-'.$locale)->assertJsonPath('data.sections.0.settings.heading', 'Unpublished skin change');
+            $this->assertDatabaseMissing('store_page_publications', ['store_page_id' => $copy['page_id']]);
+        }
+        $this->assertDatabaseCount('store_order_items', 0);
+    }
+
+    public function test_skin_care_schema_is_scoped_and_independent_of_the_active_theme(): void
+    {
+        $this->getJson('/api/v1/my-store/pages/schema?template_key=skin-care-en')->assertOk()->assertJsonMissingPath('sections_schema.skincare-purchase');
+        $funnel = $this->createFunnel(['template_key' => 'skin-care-en'])->assertCreated()->json('data');
+        $path = '/api/v1/my-store/pages/'.$funnel['page_id'];
+        $version = StoreTheme::where('store_id', $this->store->id)->where('status', 'active')->value('theme_version_id');
+        ThemeVersion::whereKey($version)->update(['sections_schema' => []]);
+        Cache::flush();
+        $schema = $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertOk()->assertJsonStructure(['sections_schema' => ['skincare-hero', 'skincare-specs', 'skincare-story', 'skincare-quote', 'skincare-experiences', 'skincare-faq']])->json('sections_schema');
+        $this->assertCount(11, $schema);
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'skincare-purchase'], ['type' => 'skincare-purchase']]])->assertUnprocessable();
+        $this->getJson($path)->assertOk()->assertJsonCount(14, 'data.sections');
+        $this->putJson($path.'/sections', ['sections' => [['type' => 'skincare-story', 'settings' => ['heading' => 'Changed story']]]])->assertOk();
+        $revisions = $this->getJson($path.'/revisions')->assertOk()->json('data');
+        $revision = collect($revisions)->firstWhere('sections_count', 14);
+        $this->postJson($path.'/revisions/'.$revision['id'].'/restore')->assertOk()->assertJsonCount(14, 'data.sections');
+        $other = $this->makeStore('skincare-foreign');
+        $this->asOwner($other);
+        $this->getJson('/api/v1/my-store/pages/schema?page_id='.$funnel['page_id'])->assertNotFound();
+        $this->assertDatabaseCount('store_order_items', 0);
+    }
+
     private function enableAi(): void
     {
         config(['services.funnel_ai.api_key' => 'test-key', 'services.funnel_ai.model' => 'configured-model']);

@@ -12,7 +12,7 @@ class NativeFunnelTemplates
     public const TEMPLATES = [
         'glasses-ar' => ['name' => ['ar' => 'النظارات — عربي', 'en' => 'Glasses — Arabic'], 'description' => ['ar' => 'غلاف ومعرض منتج وأقسام تحرير ونموذج طلب وشريط شراء ثابت', 'en' => 'Campaign, product gallery, editable sections, checkout and purchase dock'], 'color' => '#c6a75e', 'locale' => 'ar', 'native_layout' => 'glasses', 'preview_image' => '/media/funnel-previews/glasses-ar.png'],
         'glasses-en' => ['name' => ['ar' => 'النظارات — إنجليزي', 'en' => 'Glasses — English'], 'description' => ['ar' => 'تخطيط النظارات باللغة الإنجليزية واتجاه من اليسار لليمين', 'en' => 'The glasses composition with English content and left-to-right direction'], 'color' => '#c6a75e', 'locale' => 'en', 'native_layout' => 'glasses', 'preview_image' => '/media/funnel-previews/glasses-en.png'],
-    ] + HairReviveFunnelTemplate::TEMPLATES + LitterRobotFunnelTemplate::TEMPLATES + ElectricBikerFunnelTemplate::TEMPLATES + HairCareFunnelTemplate::TEMPLATES;
+    ] + HairReviveFunnelTemplate::TEMPLATES + LitterRobotFunnelTemplate::TEMPLATES + ElectricBikerFunnelTemplate::TEMPLATES + HairCareFunnelTemplate::TEMPLATES + SkinCareFunnelTemplate::TEMPLATES;
 
     public static function key(StorePage $page): ?string
     {
@@ -33,6 +33,7 @@ class NativeFunnelTemplates
             'litter-robot' => LitterRobotFunnelTemplate::schema(),
             'electric-biker' => ElectricBikerFunnelTemplate::schema(),
             'hair-care' => HairCareFunnelTemplate::schema(),
+            'skin-care' => SkinCareFunnelTemplate::schema(),
             default => self::schema(),
         };
     }
@@ -44,6 +45,7 @@ class NativeFunnelTemplates
             'litter-robot' => LitterRobotFunnelTemplate::sections($store, $product, $locale, $copy),
             'electric-biker' => ElectricBikerFunnelTemplate::sections($store, $product, $locale, $copy),
             'hair-care' => HairCareFunnelTemplate::sections($store, $product, $locale, $copy),
+            'skin-care' => SkinCareFunnelTemplate::sections($store, $product, $locale, $copy),
             default => self::sections($store, $product, $locale, $copy),
         };
     }
