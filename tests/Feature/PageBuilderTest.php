@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\StorePage;
+use App\Models\StorePageRevision;
 use App\Models\StorePageSection;
 use App\Models\User;
 use App\Services\JwtTokenService;
@@ -77,6 +78,66 @@ class PageBuilderTest extends TestCase
 
         $this->ownerA()->deleteJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}")->assertOk();
         $this->assertDatabaseMissing('store_pages', ['id' => $id]);
+    }
+
+    public function test_hosting_compatible_post_metadata_and_layout_writes_publish_on_both_tenant_prefixes(): void
+    {
+        $id = $this->createPage(['slug' => 'post-writes']);
+        foreach (["/api/v1/stores/{$this->storeA->id}", '/api/v1/my-store'] as $index => $prefix) {
+            $this->ownerA()->postJson("{$prefix}/pages/{$id}", ['title' => 'Saved through POST '.$index])
+                ->assertOk()->assertJsonPath('data.title', 'Saved through POST '.$index);
+            $this->ownerA()->postJson("{$prefix}/pages/{$id}/sections", ['sections' => [['type' => 'hero-banner', 'settings' => ['heading' => 'Own heading']]]])
+                ->assertOk()->assertJsonPath('data.sections.0.type', 'hero-banner');
+            $this->ownerA()->postJson("{$prefix}/pages/{$id}/publish")->assertOk()->assertJsonPath('data.status', 'published');
+        }
+        $this->assertDatabaseHas('store_pages', ['id' => $id, 'title' => 'Saved through POST 1', 'status' => 'published']);
+        $context = app(StorefrontContextBuilder::class)->buildPage($this->storeA, StorePage::findOrFail($id));
+        $this->assertSame('hero-banner', $context['page']['sections'][0]['type']);
+    }
+
+    public function test_post_writes_keep_validation_and_revision_conflict_checks_before_mutation(): void
+    {
+        $id = $this->createPage(['title' => 'Preserved title']);
+        $base = "/api/v1/my-store/pages/{$id}";
+        $this->ownerA()->postJson($base.'/sections', ['sections' => [['type' => 'hero-banner']]])->assertOk();
+        $revisions = StorePageRevision::where('store_page_id', $id)->count();
+        $this->ownerA()->postJson($base, ['title' => ''])->assertUnprocessable()->assertJsonValidationErrors('title');
+        $this->ownerA()->postJson($base.'/sections', ['sections' => 'invalid'])->assertUnprocessable()->assertJsonValidationErrors('sections');
+        $this->ownerA()->postJson($base.'/sections', ['expected_checksum' => str_repeat('0', 64), 'sections' => []])->assertConflict();
+        $this->assertSame($revisions, StorePageRevision::where('store_page_id', $id)->count());
+        $this->assertSame(1, StorePageSection::where('store_page_id', $id)->count());
+        $this->assertDatabaseHas('store_pages', ['id' => $id, 'title' => 'Preserved title']);
+    }
+
+    public function test_post_aliases_do_not_grant_another_owner_or_anonymous_caller_access(): void
+    {
+        $id = $this->createPage(['title' => 'Private title']);
+        foreach (['' => ['title' => 'Unauthorized'], '/sections' => ['sections' => []]] as $suffix => $body) {
+            $this->ownerB()->postJson("/api/v1/stores/{$this->storeA->id}/pages/{$id}{$suffix}", $body)->assertForbidden();
+            $this->ownerB()->postJson("/api/v1/my-store/pages/{$id}{$suffix}", $body)->assertNotFound();
+            $this->withToken('invalid')->postJson("/api/v1/my-store/pages/{$id}{$suffix}", $body)->assertUnauthorized();
+        }
+        $this->assertDatabaseHas('store_pages', ['id' => $id, 'title' => 'Private title']);
+    }
+
+    public function test_post_writes_require_the_same_explicit_page_permission_for_store_managers(): void
+    {
+        $id = $this->createPage();
+        $manager = $this->ownerA()->postJson('/api/v1/my-store/managers', [
+            'name' => 'Page manager fixture', 'email' => 'page-manager@example.test', 'password' => 'PrivateFixture123!', 'permissions' => [],
+        ])->assertCreated()->json('data');
+        $token = $this->postJson('/api/v1/auth/login', ['email' => $manager['email'], 'password' => 'PrivateFixture123!'])
+            ->assertOk()->json('access_token');
+        $base = "/api/v1/my-store/pages/{$id}";
+        $this->withToken($token)->postJson($base, ['title' => 'Blocked'])->assertForbidden();
+        $this->withToken($token)->postJson($base.'/sections', ['sections' => []])->assertForbidden();
+        $editor = $this->ownerA()->postJson('/api/v1/my-store/managers', [
+            'name' => 'Authorized page editor', 'email' => 'page-editor@example.test', 'password' => 'PrivateFixture123!', 'permissions' => ['store.pages.manage'],
+        ])->assertCreated()->json('data');
+        $token = $this->postJson('/api/v1/auth/login', ['email' => $editor['email'], 'password' => 'PrivateFixture123!'])
+            ->assertOk()->json('access_token');
+        $this->withToken($token)->postJson($base, ['title' => 'Authorized page editor'])->assertOk()->assertJsonPath('data.title', 'Authorized page editor');
+        $this->withToken($token)->postJson($base.'/sections', ['sections' => [['type' => 'hero-banner']]])->assertOk();
     }
 
     public function test_slugs_are_unique_per_store_and_locale(): void
