@@ -14,6 +14,12 @@ return [
     |
     */
 
+    'product_ai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_PRODUCT_MODEL') ?: env('OPENAI_FUNNEL_MODEL'),
+        'per_day' => (int) env('PRODUCT_AI_PER_STORE_PER_DAY', 20),
+    ],
+
     'funnel_ai' => [
         'api_key' => env('OPENAI_API_KEY'),
         'model' => env('OPENAI_FUNNEL_MODEL'),
