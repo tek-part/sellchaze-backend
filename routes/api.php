@@ -138,6 +138,7 @@ use App\Http\Controllers\Api\StorePagesApiController;
 use App\Http\Controllers\Api\StorePaymentsApiController;
 use App\Http\Controllers\Api\StorePhoneBlockController;
 use App\Http\Controllers\Api\StorePhoneVerificationController;
+use App\Http\Controllers\Api\StoreProductAiController;
 use App\Http\Controllers\Api\StoreProductLandingController;
 use App\Http\Controllers\Api\StorePublishingApiController;
 use App\Http\Controllers\Api\StoreQuantityOffersController;
@@ -848,6 +849,10 @@ Route::prefix('v1')->group(function () {
 
             // Storefront catalog remains tenant-scoped and separate from the B2B catalog.
             Route::prefix('catalog/products')->group(function () {
+                Route::middleware('store.catalog.permission:products-create')->get('ai-draft', [StoreProductAiController::class, 'status']);
+                Route::middleware('store.catalog.permission:products-create')->post('ai-draft', [StoreProductAiController::class, 'generate']);
+                Route::middleware('store.catalog.permission:products-edit')->get('{product}/ai-draft', [StoreProductAiController::class, 'status'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-edit')->post('{product}/ai-draft', [StoreProductAiController::class, 'generate'])->whereNumber('product');
                 Route::middleware('store.catalog.permission:products-create')->get('import-template', [StoreCatalogTransferController::class, 'template']);
                 Route::middleware('store.catalog.permission:products-create')->post('import/preview', [StoreCatalogTransferController::class, 'preview']);
                 Route::middleware('store.catalog.permission:products-create')->post('import', [StoreCatalogTransferController::class, 'import']);
