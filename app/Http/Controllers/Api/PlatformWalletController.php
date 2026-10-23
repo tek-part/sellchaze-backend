@@ -75,7 +75,7 @@ class PlatformWalletController extends Controller
         $parts = parse_url($base);
         abort_unless(filter_var($base, FILTER_VALIDATE_URL) && $parts && in_array($parts['scheme'] ?? '', ['http', 'https'], true) && isset($parts['host']) && ! isset($parts['user']) && ! isset($parts['pass']) && ! isset($parts['query']) && ! isset($parts['fragment']), 503, 'Platform public URL needs configuration.');
 
-        return response()->json(['currency' => 'USD', 'commission_milli' => $profile ? (int) DB::table('platform_commission_entries')->where('profile_id', $profile->id)->sum('amount_milli') : 0, 'commission_basis_points' => $wallet->rate(), 'commissions_enabled' => (bool) config('platform_wallet.commissions_enabled'), 'referred_stores' => $profile ? $wallet->referredStores($profile->id) : 0, 'minimum_referred_stores' => (int) config('platform_wallet.minimum_referred_stores'), 'link' => $profile ? $base.'/?view='.$profile->code : null]);
+        return response()->json(['currency' => 'USD', 'commission_milli' => $profile ? (int) DB::table('platform_commission_entries')->where('profile_id', $profile->id)->sum('amount_milli') : 0, 'commission_basis_points' => $wallet->rate(), 'commissions_enabled' => (bool) config('platform_wallet.commissions_enabled'), 'referred_stores' => $profile ? $wallet->referredStores($profile->id) : 0, 'minimum_referred_stores' => (int) config('platform_wallet.minimum_referred_stores'), 'link' => $profile ? $base.'/register?view='.$profile->code : null]);
     }
 
     public function createReferral(Request $request, PlatformWallet $wallet): JsonResponse

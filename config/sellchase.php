@@ -8,6 +8,12 @@ return [
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
 
     /**
+     * Public marketing site (separate repo, tek-part/sellchaze-website): home page, directory,
+     * supplier profiles and blog. The dashboard (frontend_url) is app.sellchaze.com.
+     */
+    'marketing_url' => env('MARKETING_URL', 'https://sellchaze.com'),
+
+    /**
      * Absolute path of the public sitemap.xml the SPA serves. The backend
      * regenerates it from live directory data so suppliers who register after
      * the last frontend build still get indexed. Unset = generation disabled.

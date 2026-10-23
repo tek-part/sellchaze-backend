@@ -39,7 +39,7 @@ return [
             'CORS_ALLOWED_ORIGINS',
             env(
                 'FRONTEND_URL',
-                'http://sellchaze.com,https://sellchaze.com,http://www.sellchaze.com,https://www.sellchaze.com,http://localhost:5173',
+                'https://app.sellchaze.com,https://sellchaze.com,https://www.sellchaze.com,http://localhost:5173',
             ),
         )),
     ))),

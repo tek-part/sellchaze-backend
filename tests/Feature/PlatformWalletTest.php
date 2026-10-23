@@ -346,7 +346,8 @@ class PlatformWalletTest extends TestCase
         $a = $this->postJson('/api/v1/me/platform-referral', [], $this->auth($this->referrer))->assertOk()->json('link');
         $b = $this->postJson('/api/v1/me/platform-referral', [], $this->auth($this->referrer))->assertOk()->json('link');
         $this->assertSame($a, $b);
-        $this->assertStringStartsWith('https://sellchaze.test/?view=', $a);
+        // Referral links open sign-up in the dashboard, where ?view= is captured.
+        $this->assertStringStartsWith('https://sellchaze.test/register?view=', $a);
         $migration = require database_path('migrations/2026_10_12_090000_create_platform_wallet_and_referrals.php');
         $this->expectException(\RuntimeException::class);
         $migration->down();
