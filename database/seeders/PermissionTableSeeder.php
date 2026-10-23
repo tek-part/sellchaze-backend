@@ -51,54 +51,9 @@ class PermissionTableSeeder extends Seeder
             'attributes-create',
             'attributes-edit',
             'attributes-delete',
-            // Orders
-            'orders-out',
-            'orders-in',
-            'orders-create',
-            // Quotations
-            'quotations-in',
-            'quotations-out',
-            // Deals
-            'deals-in',
-            'deals-out',
-            // Balance
-            'balance-in',
-            'balance-out',
-            // Notifications
-            'notifications-orders',
-            'notifications-quotations',
-            // Invitations
-            'invitations-list',
-            'invitations-send-request',
-            'invitations-delete',
-            // Store category → supplier routing (Wigpleasure category id)
-            'supplier-routings-manage',
             // Settings
             'settings-view',
             'settings-edit',
-            // Gateways
-            'gateways-list',
-            'gateways-create',
-            'gateways-edit',
-            'gateways-delete',
-            'gateways-manage',
-            // Supplier accounts (API scopes list by role; SPA sidebar)
-            'suppliers-list',
-            // Deliveries
-            'deliveries-list',
-            'deliveries-update',
-            // Shipping companies (carriers)
-            'shipping-companies-list',
-            'shipping-companies-create',
-            'shipping-companies-edit',
-            'shipping-companies-delete',
-            // Tickets
-            'tickets-list',
-            'tickets-create',
-            'tickets-manage',
-            // Supplier Payments
-            'suppliers-payments-list',
-            'suppliers-payments-manage',
             // Website (external site management)
             'website-settings-view',
             'website-settings-edit',
@@ -117,8 +72,11 @@ class PermissionTableSeeder extends Seeder
             'verifications-request',
             'verifications-review',
 
+            // Merchant support inbox (platform staff)
+            'support-tickets-manage',
+
             // ---- Storefront (single-store) feature permissions ----------------
-            // Feature-based (not entity-CRUD) permissions for a Merchant/Supplier
+            // Feature-based (not entity-CRUD) permissions for a Merchant
             // working inside THEIR OWN store. The store itself is resolved by
             // ownership (store.own middleware); these gate the dashboard surface.
             'store.view',              // My Store overview / dashboard

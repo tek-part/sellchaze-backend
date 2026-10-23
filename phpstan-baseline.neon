@@ -1,34 +1,10 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:role\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Console/Commands/SellchaseRepairOrderSuppliersCommand.php
-
-		-
-			message: '#^Cannot access property \$name on int\<0, max\>\.$#'
-			identifier: property.nonObject
-			count: 1
-			path: app/Console/Commands/SellchaseRepairOrderSuppliersCommand.php
-
-		-
 			message: '#^Function str_replace invoked with 2 parameters, 3\-4 required\.$#'
 			identifier: arguments.count
 			count: 1
 			path: app/Core/Theme.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Order\:\:\$count\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Events/DashboardStatsUpdated.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Order\:\:\$date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Events/DashboardStatsUpdated.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Message\:\:\$user\.$#'
@@ -39,7 +15,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$id\.$#'
 			identifier: property.notFound
-			count: 6
+			count: 2
 			path: app/Helpers/Helpers.php
 
 		-
@@ -65,12 +41,6 @@ parameters:
 			identifier: return.type
 			count: 1
 			path: app/Helpers/Helpers.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Order\:\:\$c\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/AdminReportsApiController.php
 
 		-
 			message: '#^Call to an undefined method Laravel\\Socialite\\Contracts\\Provider\:\:stateless\(\)\.$#'
@@ -145,82 +115,10 @@ parameters:
 			path: app/Http/Controllers/Api/MerchantsApiController.php
 
 		-
-			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 2
-			path: app/Http/Controllers/Api/PartnersApiController.php
-
-		-
 			message: '#^Call to static method create\(\) on an unknown class App\\Models\\Ticket\.$#'
 			identifier: class.notFound
 			count: 1
 			path: app/Http/Controllers/Api/PublicContactApiController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$phone\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/SuppliersApiController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$pivot\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/SuppliersApiController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Relations\\Pivot\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/SuppliersApiController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$city\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Api/SuppliersDirectoryController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$slug\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/SuppliersDirectoryController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:nameLocalized\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/Api/SuppliersDirectoryController.php
-
-		-
-			message: '#^PHPDoc tag @param references unknown parameter\: \$extra$#'
-			identifier: parameter.notFound
-			count: 1
-			path: app/Http/Controllers/Api/SuppliersDirectoryController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TicketAction\:\:\$performer\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/TicketsApiController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TicketMessage\:\:\$user\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Api/TicketsApiController.php
-
-		-
-			message: '#^Cannot access property \$email on int\<0, max\>\.$#'
-			identifier: property.nonObject
-			count: 1
-			path: app/Http/Controllers/Api/TicketsApiController.php
-
-		-
-			message: '#^Cannot access property \$name on int\<0, max\>\.$#'
-			identifier: property.nonObject
-			count: 1
-			path: app/Http/Controllers/Api/TicketsApiController.php
 
 		-
 			message: '#^Cannot call method toIso8601String\(\) on string\.$#'
@@ -261,86 +159,14 @@ parameters:
 		-
 			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$id\.$#'
 			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/BalanceController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Order\:\:\$count\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/DashboardController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Order\:\:\$date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/DashboardController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/NotificationController.php
-
-		-
-			message: '#^Property App\\Models\\OrderSuppliers\:\:\$seen \(bool\) does not accept int\.$#'
-			identifier: assign.propertyType
-			count: 1
-			path: app/Http/Controllers/OrderController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$id\.$#'
-			identifier: property.notFound
 			count: 2
 			path: app/Http/Controllers/ProductController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/ProfileController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\User\>\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ProfileController.php
-
-		-
-			message: '#^Property App\\Models\\Profile\:\:\$active \(bool\) does not accept int\.$#'
-			identifier: assign.propertyType
-			count: 2
-			path: app/Http/Controllers/ProfileController.php
-
-		-
-			message: '#^Property App\\Models\\Profile\:\:\$online \(bool\) does not accept int\.$#'
-			identifier: assign.propertyType
-			count: 1
-			path: app/Http/Controllers/ProfileController.php
-
-		-
-			message: '#^Property App\\Models\\Profile\:\:\$private \(bool\) does not accept int\.$#'
-			identifier: assign.propertyType
-			count: 2
-			path: app/Http/Controllers/ProfileController.php
 
 		-
 			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
 			identifier: larastan.noEnvCallsOutsideOfConfig
 			count: 5
 			path: app/Http/Controllers/SettingsController.php
-
-		-
-			message: '#^Call to static method where\(\) on an unknown class App\\Models\\ProductAtttributes\.$#'
-			identifier: class.notFound
-			count: 2
-			path: app/Http/Controllers/UserController.php
-
-		-
-			message: '#^Property App\\Models\\Profile\:\:\$active \(bool\) does not accept int\.$#'
-			identifier: assign.propertyType
-			count: 2
-			path: app/Http/Controllers/UserController.php
 
 		-
 			message: '#^Method App\\Http\\Middleware\\Authenticate\:\:redirectTo\(\) should return string\|null but return statement is missing\.$#'
@@ -379,18 +205,6 @@ parameters:
 			path: app/Models/Conversation.php
 
 		-
-			message: '#^Cannot call method isPast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Models/Invitation.php
-
-		-
-			message: '#^Unsafe usage of new static\(\)\.$#'
-			identifier: new.static
-			count: 1
-			path: app/Models/Invitation.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Message\:\:\$user\.$#'
 			identifier: property.notFound
 			count: 1
@@ -405,12 +219,6 @@ parameters:
 		-
 			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
 			identifier: larastan.noEnvCallsOutsideOfConfig
-			count: 1
-			path: app/Notifications/UserCreated.php
-
-		-
-			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
-			identifier: larastan.noEnvCallsOutsideOfConfig
 			count: 2
 			path: app/Providers/AppServiceProvider.php
 
@@ -419,30 +227,6 @@ parameters:
 			identifier: class.notFound
 			count: 1
 			path: app/Providers/ViewServiceProvider.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Order\:\:\$count\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/DashboardStatsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Order\:\:\$date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/DashboardStatsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TicketMessage\:\:\$user\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/EmailTemplateService.php
-
-		-
-			message: '#^Variable \$payload on left side of \?\? is never defined\.$#'
-			identifier: nullCoalesce.variable
-			count: 1
-			path: app/Services/OrderSyncService.php
 
 		-
 			message: '#^Property App\\Models\\StorePage\:\:\$publish_at \(Carbon\\Carbon\|null\) does not accept DateTimeInterface\.$#'

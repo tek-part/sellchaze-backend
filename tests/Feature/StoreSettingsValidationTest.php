@@ -31,7 +31,7 @@ class StoreSettingsValidationTest extends TestCase
         $this->seed(CurrencyRatesSeeder::class);
     }
 
-    private function owner(string $role = 'Supplier'): User
+    private function owner(string $role = 'Merchant'): User
     {
         $user = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $user->assignRole($role);

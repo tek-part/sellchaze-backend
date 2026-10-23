@@ -30,7 +30,7 @@ class AuthenticateStoreApiKey
         abort_unless($key, 401, 'Invalid API key.');
         $store = Store::whereKey($key->store_id)->where('owner_user_id', $key->user_id)->where('status', 'active')->first();
         $owner = User::whereKey($key->user_id)->where('is_active', true)->where('pending_approval', false)->first();
-        abort_unless($store && $owner && $owner->hasAnyRole(['Merchant', 'Supplier']), 401, 'Invalid API key.');
+        abort_unless($store && $owner && $owner->hasAnyRole(['Merchant']), 401, 'Invalid API key.');
         $bucket = 'store-external-api:'.$key->id;
         if (RateLimiter::tooManyAttempts($bucket, 40)) {
             return response()->json(['message' => 'Too many requests.'], 429, ['Retry-After' => RateLimiter::availableIn($bucket), 'Cache-Control' => 'private, no-store']);

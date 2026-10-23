@@ -11,7 +11,6 @@ use App\Models\StorePaymentTransaction;
 use App\Models\User;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\ManualBankPayment;
-use App\Services\Commerce\StorefrontOrderBridge;
 use App\Services\JwtTokenService;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
@@ -77,9 +76,8 @@ class MerchantOrderEditingTest extends TestCase
             'items' => array_map(fn ($item) => ['item_id' => $item['id'], 'quantity' => $item['quantity'], 'unit_price' => $item['unit_price']], $state['data']['items'])], $changes);
     }
 
-    public function test_edit_updates_reservation_payment_and_bridge_atomically_and_keeps_encrypted_history_and_replay(): void
+    public function test_edit_updates_reservation_and_payment_atomically_and_keeps_encrypted_history_and_replay(): void
     {
-        $bridge = app(StorefrontOrderBridge::class)->bridge($this->order, $this->store);
         $body = $this->body(['customer_name' => 'Edited fixture customer', 'shipping_total' => '10.00', 'note' => 'Private edit reason']);
         $body['items'][0]['quantity'] = 3;
         $body['items'][0]['unit_price'] = '19.00';
@@ -87,8 +85,6 @@ class MerchantOrderEditingTest extends TestCase
         $this->assertSame(3, $this->product->fresh()->reserved_quantity);
         $this->assertSame('25.00', $this->product->fresh()->price);
         $this->assertSame('69.85', StorePaymentTransaction::firstOrFail()->amount);
-        $this->assertSame(3, (int) $bridge->fresh()->quantity);
-        $this->assertSame('19.00', $bridge->fresh()->storefront_items[0]['unit_price']);
         $edit = StoreOrderEdit::firstOrFail();
         $this->assertSame('Original fixture customer', $edit->before_snapshot['order']['customer_name']);
         $this->assertSame('Edited fixture customer', $edit->after_snapshot['order']['customer_name']);
@@ -230,21 +226,15 @@ class MerchantOrderEditingTest extends TestCase
         $this->assertSame(2, StorePaymentTransaction::where('amount', '47.00')->count());
     }
 
-    public function test_a_physical_bridge_can_follow_a_digital_replacement_and_later_physical_cart_again(): void
+    public function test_a_physical_order_can_switch_to_a_digital_replacement_and_back(): void
     {
         $this->order->update(['payment_method' => 'bank_transfer']);
         StorePaymentTransaction::query()->update(['gateway' => 'bank_transfer']);
-        $bridge = app(StorefrontOrderBridge::class)->bridge($this->order->fresh(), $this->store);
         $digital = Product::create(['store_id' => $this->store->id, 'user_id' => $this->owner->id, 'name' => 'Link cycle fixture', 'slug' => 'link-cycle', 'price' => '10.00', 'is_active' => true, 'digital_type' => 'link', 'digital_url' => 'https://files.example.test/fixture.pdf']);
         $body = $this->body(['items' => [['product_id' => $digital->id, 'quantity' => 1, 'unit_price' => '10.00']], 'shipping_total' => '0.00']);
         $this->postJson($this->endpoint(), $body)->assertOk()->assertJsonPath('data.fulfillment.type', 'digital');
-        $this->assertSame('cancelled', $bridge->fresh()->status);
-        $this->assertSame([], $bridge->fresh()->storefront_items);
         $body = $this->body(['items' => [['product_id' => $this->product->id, 'quantity' => 1, 'unit_price' => '20.00']], 'shipping_total' => '5.00']);
         $this->postJson($this->endpoint(), $body)->assertOk()->assertJsonPath('data.fulfillment.type', 'physical');
-        $this->assertSame('pending', $bridge->fresh()->status);
-        $this->assertSame(1, (int) $bridge->fresh()->quantity);
-        $this->assertSame('edit-product', $bridge->fresh()->storefront_items[0]['slug']);
         $this->assertSame(1, $this->product->fresh()->reserved_quantity);
     }
 }

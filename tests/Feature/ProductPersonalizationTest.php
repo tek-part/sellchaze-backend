@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Product;
 use App\Models\ProductPersonalizationUpload;
 use App\Models\ProductVariant;
@@ -10,7 +9,6 @@ use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\StoreOrder;
 use App\Models\User;
-use App\Services\Commerce\StorefrontOrderBridge;
 use App\Services\Commerce\StoreOrderService;
 use App\Services\JwtTokenService;
 use App\Support\Tenancy\CurrentStore;
@@ -18,7 +16,6 @@ use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -43,7 +40,6 @@ class ProductPersonalizationTest extends TestCase
     {
         parent::setUp();
         $this->seed([PermissionTableSeeder::class, RolesTableSeeder::class]);
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         Storage::fake('local');
         $owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $owner->assignRole('Merchant');
@@ -162,8 +158,7 @@ class ProductPersonalizationTest extends TestCase
         $this->assertNotNull(ProductPersonalizationUpload::firstOrFail()->claimed_at);
         app(CurrentStore::class)->set($this->store);
         $order = StoreOrder::with('items')->findOrFail($first->json('data.id'));
-        $bridge = app(StorefrontOrderBridge::class)->bridge($order, $this->store);
-        $this->assertSame('Alice', $bridge->storefront_items[0]['personalization'][0]['value']);
+        $this->assertSame('Alice', $order->items[0]->personalization[0]['value']);
         $this->product->update(['personalization_fields' => [], 'is_active' => false, 'price' => 900]);
         $this->travel(8)->days();
         $this->artisan('personalization:prune')->assertSuccessful();

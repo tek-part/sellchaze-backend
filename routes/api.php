@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\ActivityLogsApiController;
 use App\Http\Controllers\Api\AdminDashboardApiController;
 use App\Http\Controllers\Api\AdminModerationController;
 use App\Http\Controllers\Api\AdminReportsApiController;
+use App\Http\Controllers\Api\AdminSupportTicketsController;
 use App\Http\Controllers\Api\AdminThemesController;
 use App\Http\Controllers\Api\ArticlesApiController;
 use App\Http\Controllers\Api\AttributesApiController;
@@ -12,15 +13,13 @@ use App\Http\Controllers\Api\BostaWebhookController;
 use App\Http\Controllers\Api\BundlesApiController;
 use App\Http\Controllers\Api\CategoriesApiController;
 use App\Http\Controllers\Api\ChatApiController;
+use App\Http\Controllers\Api\CommunityDirectoryController;
 use App\Http\Controllers\Api\CommunityGroupController;
 use App\Http\Controllers\Api\CommunityMediaUploadController;
 use App\Http\Controllers\Api\CommunityReelController;
 use App\Http\Controllers\Api\CommunitySearchController;
 use App\Http\Controllers\Api\CouponsApiController;
 use App\Http\Controllers\Api\CurrencySettingsApiController;
-use App\Http\Controllers\Api\DashboardApiController;
-use App\Http\Controllers\Api\DealsApiController;
-use App\Http\Controllers\Api\DeliveriesApiController;
 use App\Http\Controllers\Api\DomainMetricsApiController;
 use App\Http\Controllers\Api\EmailLogsApiController;
 use App\Http\Controllers\Api\EmailSettingsApiController;
@@ -29,17 +28,13 @@ use App\Http\Controllers\Api\EmployeesApiController;
 use App\Http\Controllers\Api\ExternalStoreOrdersController;
 use App\Http\Controllers\Api\FeedController;
 use App\Http\Controllers\Api\FeedEventController;
-use App\Http\Controllers\Api\FinancingRequestController;
 use App\Http\Controllers\Api\FollowController;
-use App\Http\Controllers\Api\GatewaysApiController;
 use App\Http\Controllers\Api\GoogleMerchantController;
 use App\Http\Controllers\Api\GoogleSettingsApiController;
 use App\Http\Controllers\Api\HostedPaymentReturnController;
 use App\Http\Controllers\Api\ImpersonationApiController;
 use App\Http\Controllers\Api\InventoryApiController;
-use App\Http\Controllers\Api\InvestmentOpportunityController;
 use App\Http\Controllers\Api\InvoicesApiController;
-use App\Http\Controllers\Api\LedgerApiController;
 use App\Http\Controllers\Api\ManualStoreOrderController;
 use App\Http\Controllers\Api\MarketplaceThemesController;
 use App\Http\Controllers\Api\MerchantBulkPaymentController;
@@ -54,12 +49,7 @@ use App\Http\Controllers\Api\MerchantSubscriptionsController;
 use App\Http\Controllers\Api\MeSectorController;
 use App\Http\Controllers\Api\MonitoringApiController;
 use App\Http\Controllers\Api\NotificationsApiController;
-use App\Http\Controllers\Api\OnboardingController;
-use App\Http\Controllers\Api\OrderApiController;
-use App\Http\Controllers\Api\OrderQuotationsApiController;
-use App\Http\Controllers\Api\OrdersApiController;
 use App\Http\Controllers\Api\OrganizationFollowController;
-use App\Http\Controllers\Api\PartnersApiController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\PlatformHealthController;
 use App\Http\Controllers\Api\PlatformWalletController;
@@ -68,11 +58,9 @@ use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\ProductsApiController;
 use App\Http\Controllers\Api\PublicContactApiController;
 use App\Http\Controllers\Api\PublicProfileApiController;
-use App\Http\Controllers\Api\QuotationsApiController;
 use App\Http\Controllers\Api\RolesApiController;
 use App\Http\Controllers\Api\ServiceMarketplaceController;
 use App\Http\Controllers\Api\SettingsSummaryApiController;
-use App\Http\Controllers\Api\ShippingCompaniesApiController;
 use App\Http\Controllers\Api\SocialSafetyController;
 use App\Http\Controllers\Api\StockTransfersApiController;
 use App\Http\Controllers\Api\StoreAbTestsController;
@@ -156,14 +144,10 @@ use App\Http\Controllers\Api\StoreThemesApiController;
 use App\Http\Controllers\Api\StoreTrackingController;
 use App\Http\Controllers\Api\StoreUiBlocksController;
 use App\Http\Controllers\Api\SubscriptionController;
-use App\Http\Controllers\Api\SuppliersApiController;
-use App\Http\Controllers\Api\SuppliersDirectoryController;
+use App\Http\Controllers\Api\SupportTicketsController;
 use App\Http\Controllers\Api\ThemeLicensePurchaseController;
 use App\Http\Controllers\Api\ThemeLicenseWebhookController;
-use App\Http\Controllers\Api\TicketsApiController;
 use App\Http\Controllers\Api\UsersApiController;
-use App\Http\Controllers\Api\V2\OrganizationAuditExportController;
-use App\Http\Controllers\Api\V2\OrganizationConnectionController;
 use App\Http\Controllers\Api\V2\OrganizationController;
 use App\Http\Controllers\Api\V2\OrganizationDiscoveryController;
 use App\Http\Controllers\Api\V2\OrganizationMembershipController;
@@ -171,10 +155,6 @@ use App\Http\Controllers\Api\V2\OrganizationStoreController;
 use App\Http\Controllers\Api\V2\OrganizationStorePublishingController;
 use App\Http\Controllers\Api\V2\OrganizationSubscriptionController;
 use App\Http\Controllers\Api\V2\PlanCatalogController;
-use App\Http\Controllers\Api\V2\ProcurementConversationController;
-use App\Http\Controllers\Api\V2\ProcurementOrderController;
-use App\Http\Controllers\Api\V2\ProcurementQuoteController;
-use App\Http\Controllers\Api\V2\ProcurementRequestController;
 use App\Http\Controllers\Api\VerificationsApiController;
 use App\Http\Controllers\Api\WarehousesApiController;
 use App\Http\Controllers\Api\Wavex\WavexCampaignsApiController;
@@ -187,7 +167,6 @@ use App\Http\Controllers\Api\Wavex\WavexSessionApiController;
 use App\Http\Controllers\Api\Wavex\WavexSettingsApiController;
 use App\Http\Controllers\Api\Wavex\WavexTemplatesApiController;
 use App\Http\Controllers\Api\Wavex\WavexWebhookController;
-use App\Http\Controllers\Api\WigpleasureSyncApiController;
 use App\Http\Controllers\Api\XpayPaymentReturnController;
 use App\Http\Controllers\Storefront\ReferralLinkController;
 use App\Http\Middleware\AuthenticateStoreApiKey;
@@ -230,16 +209,8 @@ Route::prefix('v2')->middleware(['jwt.auth', 'pending.restrict'])->group(functio
     Route::post('organizations', [OrganizationController::class, 'store']);
     Route::get('organizations/{organization}', [OrganizationController::class, 'show']);
     Route::patch('organizations/{organization}', [OrganizationController::class, 'update']);
-    Route::get('organizations/{organization}/audit-export', OrganizationAuditExportController::class)
-        ->middleware('scope.organization.route');
     Route::post('organizations/{organization}/posts', [PostController::class, 'store'])
         ->name('v2.organization.posts.store')->middleware(['scope.organization.route', 'throttle:20,1']);
-    Route::prefix('organizations/{organization}/connections')->group(function () {
-        Route::get('/', [OrganizationConnectionController::class, 'index']);
-        Route::post('/', [OrganizationConnectionController::class, 'store'])->middleware('idempotent');
-        Route::post('{connection}/accept', [OrganizationConnectionController::class, 'accept'])->middleware('idempotent');
-        Route::post('{connection}/reject', [OrganizationConnectionController::class, 'reject'])->middleware('idempotent');
-    });
 
     Route::get('organizations/{organization}/memberships', [OrganizationMembershipController::class, 'index']);
     Route::post('organizations/{organization}/memberships', [OrganizationMembershipController::class, 'store']);
@@ -276,28 +247,6 @@ Route::prefix('v2')->middleware(['jwt.auth', 'pending.restrict'])->group(functio
     });
     Route::get('organizations/{organization}/subscription', [OrganizationSubscriptionController::class, 'show']);
     Route::post('organizations/{organization}/subscription', [OrganizationSubscriptionController::class, 'store']);
-    Route::get('procurement/requests', [ProcurementRequestController::class, 'index']);
-    Route::post('procurement/requests', [ProcurementRequestController::class, 'store'])->middleware('idempotent');
-    Route::get('procurement/requests/{procurementRequest}', [ProcurementRequestController::class, 'show']);
-    Route::get('procurement/requests/{procurementRequest}/audit', [ProcurementRequestController::class, 'audit']);
-    Route::get('procurement/requests/{procurementRequest}/quotes/compare', [ProcurementQuoteController::class, 'compare']);
-    Route::post('procurement/requests/{procurementRequest}/quotes', [ProcurementQuoteController::class, 'store'])->middleware('idempotent');
-    Route::patch('procurement/requests/{procurementRequest}/quotes/{procurementQuote}', [ProcurementQuoteController::class, 'update'])->middleware('idempotent');
-    Route::post('procurement/requests/{procurementRequest}/quotes/{procurementQuote}/accept', [ProcurementQuoteController::class, 'accept'])->middleware('idempotent');
-    Route::post('procurement/requests/{procurementRequest}/conversation', [ProcurementConversationController::class, 'store'])->middleware('idempotent');
-    Route::get('procurement/orders', [ProcurementOrderController::class, 'index']);
-    Route::get('procurement/orders/{procurementOrder}', [ProcurementOrderController::class, 'show']);
-    Route::patch('procurement/orders/{procurementOrder}', [ProcurementOrderController::class, 'update']);
-});
-
-/** Wigpleasure → Sellchase: single-store sync; merchant resolved in OrderSyncService (no API key). */
-Route::post('/orders', [OrderApiController::class, 'store']);
-
-Route::prefix('v1')->group(function () {
-    Route::post('/orders', [App\Http\Controllers\Api\V1\OrderApiController::class, 'store']);
-    // Numeric id only — avoids catching SPA PATCH /v1/orders/{code} (e.g. ORD-1-1) as Wigpleasure order id.
-    Route::patch('/orders/{wigpleasureOrderId}', [App\Http\Controllers\Api\V1\OrderApiController::class, 'updateByWigpleasureOrderId'])
-        ->whereNumber('wigpleasureOrderId');
 });
 
 Route::prefix('v1')->group(function () {
@@ -318,20 +267,7 @@ Route::prefix('v1')->group(function () {
 
     // Public (unauthenticated) endpoints for marketing pages and shareable profiles.
     Route::get('/public/profile/{username}', [PublicProfileApiController::class, 'show']);
-    Route::get('/public/profile/{username}/products', [PublicProfileApiController::class, 'products']);
     Route::post('/public/contact', [PublicContactApiController::class, 'store'])->middleware('throttle:60,1');
-
-    // Public Supplier Directory (sellchaze.com/suppliers) — sector hub, industry & specialty pages.
-    Route::get('/public/sectors', [SuppliersDirectoryController::class, 'index']);
-    Route::get('/public/directory/stats', [SuppliersDirectoryController::class, 'stats']);
-    Route::get('/public/suppliers', [SuppliersDirectoryController::class, 'suppliers']);
-    Route::get('/public/cities', [SuppliersDirectoryController::class, 'cities']);
-    Route::get('/public/suppliers/{username}/similar', [SuppliersDirectoryController::class, 'similar'])
-        ->where('username', '[A-Za-z0-9_\-\.]+');
-    Route::get('/public/sectors/{sector}', [SuppliersDirectoryController::class, 'sector'])
-        ->where('sector', '[a-z0-9\-]+');
-    Route::get('/public/sectors/{sector}/{specialty}', [SuppliersDirectoryController::class, 'specialty'])
-        ->where(['sector' => '[a-z0-9\-]+', 'specialty' => '[a-z0-9\-]+']);
 
     // Public Blog API (unauthenticated).
     Route::get('/public/articles', [ArticlesApiController::class, 'publicIndex']);
@@ -514,8 +450,6 @@ Route::prefix('v1')->group(function () {
         Route::delete('/auth/sessions/others', [AuthController::class, 'revokeOtherSessions']);
         Route::delete('/auth/sessions/{sessionId}', [AuthController::class, 'revokeSession']);
 
-        Route::get('/dashboard', DashboardApiController::class);
-
         Route::get('/notifications', [NotificationsApiController::class, 'index'])->middleware('throttle:tenant-read');
         Route::post('/notifications/{id}/read', [NotificationsApiController::class, 'markRead']);
         Route::post('/notifications/read-all', [NotificationsApiController::class, 'markAllRead']);
@@ -554,6 +488,8 @@ Route::prefix('v1')->group(function () {
             Route::post('{upload}/complete', [CommunityMediaUploadController::class, 'complete'])->middleware('idempotent');
             Route::delete('{upload}', [CommunityMediaUploadController::class, 'destroy']);
         });
+        Route::get('/community/sectors', [CommunityDirectoryController::class, 'sectors']);
+        Route::get('/community/members', [CommunityDirectoryController::class, 'members'])->middleware('throttle:tenant-read');
         Route::prefix('community/groups')->group(function () {
             Route::get('/', [CommunityGroupController::class, 'index']);
             Route::post('/', [CommunityGroupController::class, 'store'])->middleware('idempotent');
@@ -561,9 +497,6 @@ Route::prefix('v1')->group(function () {
             Route::post('{group}/join', [CommunityGroupController::class, 'join'])->whereNumber('group');
             Route::delete('{group}/join', [CommunityGroupController::class, 'leave'])->whereNumber('group');
         });
-
-        // ---- Onboarding checklist (5 steps, derived from real state) ----
-        Route::get('/me/onboarding', [OnboardingController::class, 'show']);
 
         // ---- Company following + community suggestions ----
         Route::post('/follows', [FollowController::class, 'store']);
@@ -578,19 +511,6 @@ Route::prefix('v1')->group(function () {
             ->whereNumber('user')->whereIn('type', ['block', 'mute']);
         Route::post('/reports', [SocialSafetyController::class, 'report'])->middleware('throttle:10,1');
 
-        // ---- Financing requests (factory funding board) ----
-        // Any registered user may raise a request and browse the approved board.
-        Route::post('/financing-requests', [FinancingRequestController::class, 'store']);
-        Route::get('/financing-requests', [FinancingRequestController::class, 'board']);
-        Route::get('/me/financing-requests', [FinancingRequestController::class, 'mine']);
-        Route::get('/financing-requests/{id}', [FinancingRequestController::class, 'show'])->whereNumber('id');
-
-        // ---- Investment & partnership opportunities ----
-        Route::post('/opportunities', [InvestmentOpportunityController::class, 'store']);
-        Route::get('/opportunities', [InvestmentOpportunityController::class, 'board']);
-        Route::get('/me/opportunities', [InvestmentOpportunityController::class, 'mine']);
-        Route::get('/opportunities/{id}', [InvestmentOpportunityController::class, 'show'])->whereNumber('id');
-
         // ---- Subscription plan (billing tiers) + monthly posting quota ----
         Route::get('/me/subscription', [SubscriptionController::class, 'me']);
         Route::get('/plans', [SubscriptionController::class, 'plans']);
@@ -600,40 +520,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/invoices', [InvoicesApiController::class, 'index']);
         Route::get('/me/invoices/{invoice}', [InvoicesApiController::class, 'show'])->whereNumber('invoice');
 
-        // ---- Supplier's own directory sectors (one or many + primary) ----
+        // ---- Member's own community sectors (one or many + primary) ----
         Route::get('/me/sectors', [MeSectorController::class, 'index']);
         Route::put('/me/sectors', [MeSectorController::class, 'update']);
-
-        Route::get('/orders', [OrdersApiController::class, 'index']);
-        Route::middleware('permission:orders-create')->post('/orders', [OrdersApiController::class, 'store']);
-        Route::get('/orders/{code}', [OrdersApiController::class, 'show']);
-        Route::middleware('permission:orders-out|orders-in')->patch('/orders/{code}', [OrdersApiController::class, 'update']);
-        Route::middleware('permission:orders-out|orders-in')->post('/orders/bulk-destroy', [OrdersApiController::class, 'bulkDestroy']);
-        Route::middleware('permission:orders-in')->post('/orders/{code}/assign-supplier', [OrdersApiController::class, 'assignSupplier']);
-
-        Route::middleware('permission:quotations-out')->post('/orders/{code}/quotations', [OrderQuotationsApiController::class, 'store']);
-        Route::middleware('permission:quotations-out')->patch('/orders/{code}/quotations/{quotation}', [OrderQuotationsApiController::class, 'update']);
-        Route::middleware('permission:quotations-in')->post('/orders/{code}/quotations/{quotation}/accept', [OrderQuotationsApiController::class, 'accept']);
-        Route::middleware('permission:quotations-out')->patch('/orders/{code}/quotations/{quotation}/tracking', [OrderQuotationsApiController::class, 'updateTracking']);
-
-        /** Read-only list for quotation currency picker (same data as admin Settings → Currencies). */
-        Route::middleware('permission:quotations-out|quotations-in')->get('/currencies', [CurrencySettingsApiController::class, 'index']);
-
-        Route::get('/quotations', [QuotationsApiController::class, 'index']);
-        Route::get('/deals', [DealsApiController::class, 'index']);
-        Route::middleware('permission:gateways-list')->get('/gateways', [GatewaysApiController::class, 'index']);
-        Route::middleware('permission:gateways-list')->get('/gateways/{gateway}', [GatewaysApiController::class, 'show']);
-        Route::middleware('permission:gateways-edit')->put('/gateways/{gateway}', [GatewaysApiController::class, 'update']);
-        Route::middleware('permission:gateways-delete')->delete('/gateways/{gateway}', [GatewaysApiController::class, 'destroy']);
-        Route::get('/suppliers', [SuppliersApiController::class, 'index']);
-        Route::post('/suppliers/bulk-destroy', [SuppliersApiController::class, 'bulkDestroy']);
-        Route::post('/suppliers', [SuppliersApiController::class, 'store']);
-        Route::get('/suppliers/{supplier}', [SuppliersApiController::class, 'show']);
-        Route::put('/suppliers/{supplier}', [SuppliersApiController::class, 'update']);
-        Route::patch('/suppliers/{supplier}/status', [SuppliersApiController::class, 'updateStatus']);
-        Route::delete('/suppliers/{supplier}', [SuppliersApiController::class, 'destroy']);
-        Route::get('/suppliers/{supplier}/routing-categories', [SuppliersApiController::class, 'routingCategories']);
-        Route::put('/suppliers/{supplier}/routing-categories', [SuppliersApiController::class, 'saveRoutingCategories']);
 
         Route::get('/merchants', [MerchantsApiController::class, 'index']);
         Route::post('/merchants/bulk-destroy', [MerchantsApiController::class, 'bulkDestroy']);
@@ -643,16 +532,23 @@ Route::prefix('v1')->group(function () {
         Route::patch('/merchants/{merchant}/status', [MerchantsApiController::class, 'updateStatus']);
         Route::delete('/merchants/{merchant}', [MerchantsApiController::class, 'destroy']);
 
-        Route::middleware('permission:tickets-list')->group(function () {
-            Route::get('/tickets', [TicketsApiController::class, 'index']);
-            Route::get('/tickets/{ticket}', [TicketsApiController::class, 'show']);
+        // Merchant support tickets (merchant ↔ platform support team).
+        Route::prefix('support/tickets')->group(function () {
+            Route::get('/', [SupportTicketsController::class, 'index']);
+            Route::post('/', [SupportTicketsController::class, 'store'])->middleware('throttle:10,1');
+            Route::get('{ticket}', [SupportTicketsController::class, 'show'])->whereNumber('ticket');
+            Route::post('{ticket}/messages', [SupportTicketsController::class, 'reply'])->whereNumber('ticket')->middleware('throttle:30,1');
+            Route::post('{ticket}/close', [SupportTicketsController::class, 'close'])->whereNumber('ticket');
+            Route::get('{ticket}/messages/{message}/attachments/{index}', [SupportTicketsController::class, 'attachment'])
+                ->whereNumber(['ticket', 'message', 'index']);
         });
-        Route::middleware('permission:tickets-create')->post('/tickets', [TicketsApiController::class, 'store']);
-        Route::post('/tickets/{ticket}/messages', [TicketsApiController::class, 'storeMessage']);
-        Route::patch('/tickets/{ticket}', [TicketsApiController::class, 'updateTicket']);
-        Route::middleware('permission:tickets-manage')->group(function () {
-            Route::post('/tickets/bulk-destroy', [TicketsApiController::class, 'bulkDestroy']);
-            Route::post('/tickets/{ticket}/actions', [TicketsApiController::class, 'storeAction']);
+        Route::middleware('permission:support-tickets-manage')->prefix('admin/support/tickets')->group(function () {
+            Route::get('/', [AdminSupportTicketsController::class, 'index']);
+            Route::get('{ticket}', [AdminSupportTicketsController::class, 'show'])->whereNumber('ticket');
+            Route::post('{ticket}/messages', [AdminSupportTicketsController::class, 'reply'])->whereNumber('ticket');
+            Route::patch('{ticket}', [AdminSupportTicketsController::class, 'update'])->whereNumber('ticket');
+            Route::get('{ticket}/messages/{message}/attachments/{index}', [AdminSupportTicketsController::class, 'attachment'])
+                ->whereNumber(['ticket', 'message', 'index']);
         });
 
         // Direct user-to-user chat (Pusher broadcasting). Distinct from the Wavex
@@ -686,21 +582,11 @@ Route::prefix('v1')->group(function () {
             Route::delete('/products/{product}', [ProductsApiController::class, 'destroy']);
         });
 
-        // Bidirectional partners directory + invitations (Merchant↔Supplier).
-        Route::get('/partners', [PartnersApiController::class, 'index']);
-        Route::post('/partners/invite', [PartnersApiController::class, 'invite']);
-        Route::post('/partners/invitations/{id}/accept', [PartnersApiController::class, 'acceptInvitation'])->whereNumber('id');
-        Route::post('/partners/invitations/{id}/reject', [PartnersApiController::class, 'rejectInvitation'])->whereNumber('id');
-
         // Employees (owner manages child accounts).
         Route::get('/employees', [EmployeesApiController::class, 'index']);
         Route::post('/employees', [EmployeesApiController::class, 'store']);
         Route::put('/employees/{id}', [EmployeesApiController::class, 'update'])->whereNumber('id');
         Route::delete('/employees/{id}', [EmployeesApiController::class, 'destroy'])->whereNumber('id');
-
-        // Ledger between current user and a partner (merchant↔supplier pair).
-        Route::get('/ledger/{partnerId}', [LedgerApiController::class, 'show'])->whereNumber('partnerId');
-        Route::post('/ledger/{partnerId}/payments', [LedgerApiController::class, 'addPayment'])->whereNumber('partnerId');
 
         // Verification (blue-badge) — user side.
         Route::middleware('permission:verifications-request')->group(function () {
@@ -713,14 +599,6 @@ Route::prefix('v1')->group(function () {
             Route::get('/admin/verifications', [VerificationsApiController::class, 'index']);
             Route::post('/admin/verifications/{id}/approve', [VerificationsApiController::class, 'approve'])->whereNumber('id');
             Route::post('/admin/verifications/{id}/reject', [VerificationsApiController::class, 'reject'])->whereNumber('id');
-        });
-
-        // Financing requests + investment opportunities — admin moderation.
-        Route::middleware('role:Admin|Manager')->group(function () {
-            Route::get('/admin/financing-requests', [FinancingRequestController::class, 'adminIndex']);
-            Route::post('/admin/financing-requests/{id}/review', [FinancingRequestController::class, 'review'])->whereNumber('id');
-            Route::get('/admin/opportunities', [InvestmentOpportunityController::class, 'adminIndex']);
-            Route::post('/admin/opportunities/{id}/review', [InvestmentOpportunityController::class, 'review'])->whereNumber('id');
         });
 
         Route::middleware('permission:attributes-list')->group(function () {
@@ -753,7 +631,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/bundles/{bundle}', [BundlesApiController::class, 'destroy']);
         });
 
-        // ---- Stores (Phase 1: Merchant/Supplier store ownership) ----
+        // ---- Stores (Phase 1: Merchant store ownership) ----
         // Platform-wide custom-domain metrics (Prometheus-compatible).
         // Admin is enforced in the controller rather than by a `permission:`
         // middleware, because these aggregate across every tenant and are not
@@ -813,7 +691,7 @@ Route::prefix('v1')->group(function () {
             Route::put('funnels/{funnel}', [StoreFunnelsApiController::class, 'update'])->whereNumber('funnel');
             Route::post('funnels/{funnel}/duplicate', [StoreFunnelsApiController::class, 'duplicate'])->whereNumber('funnel');
             // ---- Custom domains: connect / verify / promote / disconnect ----
-            // Identical surface for Supplier and Merchant storefronts.
+            // Owner storefront surface.
             // Verification triggers outbound DNS and can lead to certificate
             // issuance, so each group carries its own rate limiter (see
             // RouteServiceProvider: domain-read / domain-write / domain-verify).
@@ -1157,7 +1035,7 @@ Route::prefix('v1')->group(function () {
 
         // Admin: explicit store id (multi-store console).
         Route::middleware('store.scope')->prefix('stores/{store}')->whereNumber('store')->group($storeScopedRoutes);
-        // Owner (Merchant/Supplier): auto-resolved single store, no id in the URL.
+        // Owner (Merchant): auto-resolved single store, no id in the URL.
         // The store record itself (read + settings update) plus all sub-resources.
         Route::middleware('store.own')->group(function () {
             Route::get('my-store', [StoresApiController::class, 'current']);
@@ -1184,33 +1062,6 @@ Route::prefix('v1')->group(function () {
             Route::delete('/admin/themes/{theme}/assets/{asset}', [AdminThemesController::class, 'destroyAsset'])->whereNumber('theme')->whereNumber('asset');
         });
 
-        Route::middleware('permission:deliveries-list')->group(function () {
-            Route::get('/deliveries', [DeliveriesApiController::class, 'index']);
-            Route::get('/deliveries/{delivery}', [DeliveriesApiController::class, 'show']);
-        });
-        Route::middleware('permission:deliveries-update')->group(function () {
-            Route::post('/deliveries', [DeliveriesApiController::class, 'store']);
-            Route::patch('/deliveries/{delivery}', [DeliveriesApiController::class, 'update']);
-        });
-
-        Route::middleware('permission:shipping-companies-list|deliveries-list|deliveries-update')->get(
-            '/shipping-companies',
-            [ShippingCompaniesApiController::class, 'index']
-        );
-        Route::middleware('permission:shipping-companies-list|shipping-companies-edit')->get(
-            '/shipping-companies/{shipping_company}',
-            [ShippingCompaniesApiController::class, 'show']
-        );
-        Route::middleware('permission:shipping-companies-create')->post('/shipping-companies', [ShippingCompaniesApiController::class, 'store']);
-        Route::middleware('permission:shipping-companies-edit')->match(
-            ['put', 'patch'],
-            '/shipping-companies/{shipping_company}',
-            [ShippingCompaniesApiController::class, 'update']
-        );
-        Route::middleware('permission:shipping-companies-delete')->delete(
-            '/shipping-companies/{shipping_company}',
-            [ShippingCompaniesApiController::class, 'destroy']
-        );
         Route::get('/admin/monitoring/live', [MonitoringApiController::class, 'live']);
         Route::get('/admin/monitoring/sessions', [MonitoringApiController::class, 'sessions']);
         Route::post('/admin/monitoring/sessions/bulk-destroy', [MonitoringApiController::class, 'bulkDestroySessions']);
@@ -1258,11 +1109,6 @@ Route::prefix('v1')->group(function () {
             Route::post('/admin/settings/currencies', [CurrencySettingsApiController::class, 'store']);
             Route::put('/admin/settings/currencies/{currencyCode}', [CurrencySettingsApiController::class, 'update']);
             Route::post('/admin/settings/currencies/refresh', [CurrencySettingsApiController::class, 'refresh']);
-            Route::get('/admin/settings/wigpleasure-sync', [WigpleasureSyncApiController::class, 'showSettings']);
-            Route::put('/admin/settings/wigpleasure-sync', [WigpleasureSyncApiController::class, 'updateSettings']);
-            Route::post('/admin/wigpleasure-sync/ping', [WigpleasureSyncApiController::class, 'ping']);
-            Route::post('/admin/wigpleasure-sync/catalog', [WigpleasureSyncApiController::class, 'syncCatalog']);
-            Route::post('/admin/wigpleasure-sync/orders', [WigpleasureSyncApiController::class, 'syncOrders']);
 
             // Admin Dashboard (aggregated KPIs + charts).
             Route::get('/admin/dashboard/overview', [AdminDashboardApiController::class, 'overview']);
@@ -1271,7 +1117,6 @@ Route::prefix('v1')->group(function () {
             Route::get('/admin/reports/users', [AdminReportsApiController::class, 'users']);
             Route::get('/admin/reports/orders', [AdminReportsApiController::class, 'orders']);
             Route::get('/admin/reports/revenue', [AdminReportsApiController::class, 'revenue']);
-            Route::get('/admin/reports/tickets', [AdminReportsApiController::class, 'tickets']);
 
             // Articles (Blog) management — Admin CRUD.
             Route::get('/admin/articles', [ArticlesApiController::class, 'adminIndex']);

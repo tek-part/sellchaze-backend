@@ -138,14 +138,4 @@ class StoreOrder extends Model
     {
         return $this->belongsTo(StoreCustomer::class, 'store_customer_id');
     }
-
-    /**
-     * The B2B order bridged from this storefront order (see StorefrontOrderBridge).
-     *
-     * @return HasOne<Order, $this>
-     */
-    public function b2bOrder(): HasOne
-    {
-        return $this->hasOne(Order::class, 'store_order_id');
-    }
 }

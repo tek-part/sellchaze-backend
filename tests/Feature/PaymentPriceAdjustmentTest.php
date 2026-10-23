@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\Store;
@@ -15,7 +14,6 @@ use App\Services\Commerce\StorePaymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -76,7 +74,6 @@ class PaymentPriceAdjustmentTest extends TestCase
     private function fixture(string $method = 'cod'): array
     {
         Http::preventStrayRequests();
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         $owner = User::factory()->create();
         $store = Store::create(['owner_user_id' => $owner->id, 'owner_type' => 'merchant', 'name' => 'Fees', 'slug' => 'fees', 'currency' => 'EGP', 'status' => 'active',
             'shipping_enabled' => true, 'shipping_flat_rate' => '25.00', 'tax_enabled' => true, 'tax_rate' => '10', 'tax_prices_include' => false]);

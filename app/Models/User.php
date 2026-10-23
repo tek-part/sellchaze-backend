@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -82,7 +81,7 @@ class User extends Authenticatable
     }
 
     /**
-     * The single store this user owns (one Merchant/Supplier = one Store).
+     * The single store this user owns (one Merchant = one Store).
      * Null for accounts that never own a store (Admin, Staff, Customer,
      * Employee). Use StoreProvisioner to resolve/auto-create it in request flow.
      *
@@ -133,50 +132,8 @@ class User extends Authenticatable
         return $this->hasMany(Product::class);
     }
 
-    /** @return HasMany<Product, $this> */
-    public function orders(): HasMany
-    {
-        return $this->hasMany(Product::class);
-    }
-
-    /** @return HasMany<OrderQuotations, $this> */
-    public function quotations(): HasMany
-    {
-        return $this->hasMany(OrderQuotations::class, 'supplier_user_id', 'id');
-    }
-
-    /** @return HasMany<OrderSuppliers, $this> */
-    public function suppliers(): HasMany
-    {
-        return $this->hasMany(OrderSuppliers::class);
-    }
-
     /**
-     * Suppliers linked to this user as merchant (pivot merchant_supplier).
-     *
-     * @return BelongsToMany<User, $this>
-     */
-    public function suppliersAsMerchant(): BelongsToMany
-    {
-        return $this->belongsToMany(User::class, 'merchant_supplier', 'merchant_id', 'supplier_id')
-            ->withPivot(['status', 'invited_by_user_id'])
-            ->withTimestamps();
-    }
-
-    /**
-     * Merchants linked to this user as supplier (pivot merchant_supplier).
-     *
-     * @return BelongsToMany<User, $this>
-     */
-    public function merchantsAsSupplier(): BelongsToMany
-    {
-        return $this->belongsToMany(User::class, 'merchant_supplier', 'supplier_id', 'merchant_id')
-            ->withPivot(['status', 'invited_by_user_id'])
-            ->withTimestamps();
-    }
-
-    /**
-     * Sectors this supplier/merchant is listed under in the public directory (one or many).
+     * Community sectors this member belongs to (one or many; the pivot keeps its historical name).
      *
      * @return BelongsToMany<Sector, $this>
      */
@@ -187,7 +144,7 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
-    /** The supplier's primary sector (drives "your sector first" feed ordering). @return BelongsTo<Sector, $this> */
+    /** The member's primary sector (drives "your sector first" feed ordering). @return BelongsTo<Sector, $this> */
     public function primarySector(): BelongsTo
     {
         return $this->belongsTo(Sector::class, 'primary_sector_id');
@@ -239,18 +196,13 @@ class User extends Authenticatable
         return $this->hasRole(['Merchant', 'Customer']);
     }
 
-    public function isSupplier(): bool
-    {
-        return $this->hasRole('Supplier');
-    }
-
     /**
      * The role label the community surfaces show under a name. Query-free when
      * the `roles` relation is eager-loaded (Spatie reads the loaded collection).
      */
     public function communityRole(): string
     {
-        return $this->isSupplier() ? 'supplier' : ($this->isMerchant() ? 'merchant' : 'user');
+        return $this->isMerchant() ? 'merchant' : 'user';
     }
 
     /** Members who follow this user. */
@@ -263,17 +215,6 @@ class User extends Authenticatable
     public function followingUsers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'follows', 'follower_id', 'followed_id')->withTimestamps();
-    }
-
-    /**
-     * Generate a new API key for this user.
-     */
-    public function generateApiKey(): string
-    {
-        $key = Str::random(64);
-        $this->forceFill(['api_key' => $key])->save();
-
-        return $key;
     }
 
     /**

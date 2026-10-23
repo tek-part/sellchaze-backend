@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Mail\DigitalOrderPaidMail;
 use App\Mail\DigitalOrderReceiptMail;
 use App\Models\OutboxMessage;
@@ -25,7 +24,6 @@ use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -45,7 +43,6 @@ class DigitalFulfillmentTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         Mail::fake();
         $this->seed([PermissionTableSeeder::class, RolesTableSeeder::class]);
         $this->owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);

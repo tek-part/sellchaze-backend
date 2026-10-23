@@ -18,7 +18,7 @@ class RenewMerchantSubscriptions extends Command
             return self::SUCCESS;
         }
         $ids = User::query()->where('is_active', true)->where('pending_approval', false)->whereNull('parent_user_id')
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['Merchant', 'Supplier']))
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['Merchant']))
             ->whereExists(fn ($query) => $query->selectRaw('1')->from('platform_subscription_preferences')->whereColumn('user_id', 'users.id')->where('auto_renew', true))
             ->whereExists(fn ($query) => $query->selectRaw('1')->from('platform_merchant_subscriptions')->whereColumn('user_id', 'users.id')->where('ends_at', '<=', now()))
             ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('platform_merchant_subscriptions')->whereColumn('user_id', 'users.id')->where('ends_at', '>', now()))

@@ -14,8 +14,10 @@ use App\Models\PostReaction;
 use App\Models\PostSave;
 use App\Models\PostShare;
 use App\Models\Product;
+use App\Models\Store;
 use App\Models\User;
 use App\Services\FeedCache;
+use App\Services\Rbac\UserScope;
 use App\Services\SubscriptionService;
 use App\Support\Feed\FeedQuery;
 use App\Support\Feed\PostPresenter;
@@ -46,7 +48,7 @@ class PostController extends Controller
         }
 
         $data = $request->validate([
-            'type' => ['required', Rule::in(Post::TYPES)],
+            'type' => ['required', Rule::in(Post::CREATABLE_TYPES)],
             'format' => ['nullable', Rule::in(['post', 'reel', 'carousel'])],
             'body' => ['nullable', 'string', 'max:20000'],
             'product_id' => ['nullable', 'integer', 'exists:products,id'],
@@ -114,9 +116,10 @@ class PostController extends Controller
             return response()->json(['message' => 'A carousel requires at least two images.'], 422);
         }
 
-        // Only allow attaching a product the author actually owns.
+        // Only allow attaching a product from the author's own store catalog.
         if (! empty($data['product_id'])) {
-            $owns = Product::query()->where('id', $data['product_id'])->where('user_id', $user->id)->exists();
+            $storeIds = Store::query()->where('owner_user_id', UserScope::effectiveMerchantUserId($user))->pluck('id');
+            $owns = Product::withoutGlobalScopes()->whereKey($data['product_id'])->whereIn('store_id', $storeIds)->exists();
             if (! $owns) {
                 return response()->json(['message' => 'You can only attach your own products.'], 422);
             }
@@ -196,7 +199,7 @@ class PostController extends Controller
             'cta_label' => ['sometimes', 'nullable', 'string', 'max:120'],
             'cta_url' => ['sometimes', 'nullable', 'url', 'max:2048'],
             'location_name' => ['sometimes', 'nullable', 'string', 'max:160'],
-            'type' => ['sometimes', Rule::in(Post::TYPES)],
+            'type' => ['sometimes', Rule::in(Post::CREATABLE_TYPES)],
             'hashtags' => ['sometimes', 'array', 'max:10'],
             'hashtags.*' => ['string', 'max:100'],
             'lifecycle_status' => ['sometimes', Rule::in(['published', 'archived'])],

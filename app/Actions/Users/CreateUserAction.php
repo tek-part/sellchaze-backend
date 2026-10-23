@@ -2,8 +2,8 @@
 
 namespace App\Actions\Users;
 
-use App\Models\User;
 use App\Models\Profile;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Intervention\Image\Facades\Image;
 
@@ -13,7 +13,6 @@ class CreateUserAction
      * Create a user with profile from validated data.
      *
      * @param  array<string, mixed>  $data
-     * @return User
      */
     public function __invoke(array $data): User
     {
@@ -27,8 +26,7 @@ class CreateUserAction
 
         $user->save();
 
-        $roleName = ($data['account_type'] ?? 'merchant') === 'supplier' ? 'Supplier' : 'Merchant';
-        $user->syncRoles([$roleName]);
+        $user->syncRoles(['Merchant']);
         $user->syncPermissions([]);
 
         $profile = new Profile;
@@ -62,7 +60,7 @@ class CreateUserAction
      */
     protected function handlePhotoUpload(UploadedFile $photo): string
     {
-        $filename = md5($photo->getClientOriginalName() . time()) . '.' . $photo->getClientOriginalExtension();
+        $filename = md5($photo->getClientOriginalName().time()).'.'.$photo->getClientOriginalExtension();
         $destinationPath = public_path('/storage/uploads/users/thumbnails');
 
         if (! file_exists($destinationPath)) {
@@ -72,7 +70,7 @@ class CreateUserAction
         $imgFile = Image::make($photo->getRealPath());
         $imgFile->resize(300, 300, function ($constraint) {
             $constraint->aspectRatio();
-        })->save($destinationPath . '/' . $filename);
+        })->save($destinationPath.'/'.$filename);
 
         $destinationPath = public_path('/storage/uploads/users/original');
         if (! file_exists($destinationPath)) {

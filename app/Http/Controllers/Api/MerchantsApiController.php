@@ -6,13 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\Rbac\UserScope;
+use App\Services\Stores\StoreProvisioner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
 /**
  * Admin/Staff/Manager view of Merchant accounts (and pending merchant sign-ups).
- * Mirrors the admin branch of SuppliersApiController, scoped to the Merchant role.
+ * Admin list of merchant accounts (and pending merchant sign-ups).
  */
 class MerchantsApiController extends Controller
 {
@@ -39,7 +40,7 @@ class MerchantsApiController extends Controller
 
     private function authorizeDirectory(?User $user): void
     {
-        if (! UserScope::seesAdminSupplierDirectory($user)) {
+        if (! UserScope::seesAllMerchants($user)) {
             abort(403);
         }
     }
@@ -127,7 +128,7 @@ class MerchantsApiController extends Controller
         $m->assignRole('Merchant');
 
         // One Merchant = one Store: provision the store as part of account creation.
-        app(\App\Services\Stores\StoreProvisioner::class)->ensureFor($m);
+        app(StoreProvisioner::class)->ensureFor($m);
 
         ActivityLogger::log('merchant.created', $m, ['email' => $m->email]);
 

@@ -24,10 +24,6 @@ class ArchitectureBoundariesTest extends TestCase
                 dirname(__DIR__, 2).'/app/Actions/Organizations',
                 ['App\\Http\\Controllers', 'App\\Http\\Requests', 'App\\Http\\Resources'],
             ],
-            'procurement actions stay independent from HTTP delivery' => [
-                dirname(__DIR__, 2).'/app/Actions/Procurement',
-                ['App\\Http\\Controllers', 'App\\Http\\Requests', 'App\\Http\\Resources'],
-            ],
             'subscription actions stay independent from HTTP delivery' => [
                 dirname(__DIR__, 2).'/app/Actions/Subscriptions',
                 ['App\\Http\\Controllers', 'App\\Http\\Requests', 'App\\Http\\Resources'],

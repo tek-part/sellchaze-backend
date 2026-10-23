@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Owner auto-context. Resolves the authenticated Merchant/Supplier's single
+ * Owner auto-context. Resolves the authenticated Merchant's single
  * store (provisioning it on first access if missing) and binds it as the
  * CurrentStore tenant, so /my-store/* routes never carry a store id and
  * StoreScope isolates every catalog query automatically.

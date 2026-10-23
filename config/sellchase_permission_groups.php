@@ -48,67 +48,12 @@ return [
         'attributes-edit',
         'attributes-delete',
     ],
-    'orders' => [
-        'orders-out',
-        'orders-in',
-        'orders-create',
-    ],
-    'quotations' => [
-        'quotations-in',
-        'quotations-out',
-    ],
-    'deals' => [
-        'deals-in',
-        'deals-out',
-    ],
-    'balance' => [
-        'balance-in',
-        'balance-out',
-    ],
-    'notifications' => [
-        'notifications-orders',
-        'notifications-quotations',
-    ],
-    'invitations' => [
-        'invitations-list',
-        'invitations-send-request',
-        'invitations-delete',
-    ],
-    'supplier_routings' => [
-        'supplier-routings-manage',
+    'support' => [
+        'support-tickets-manage',
     ],
     'settings' => [
         'settings-view',
         'settings-edit',
-    ],
-    'gateways' => [
-        'gateways-list',
-        'gateways-create',
-        'gateways-edit',
-        'gateways-delete',
-        'gateways-manage',
-    ],
-    'suppliers' => [
-        'suppliers-list',
-    ],
-    'deliveries' => [
-        'deliveries-list',
-        'deliveries-update',
-    ],
-    'shipping_companies' => [
-        'shipping-companies-list',
-        'shipping-companies-create',
-        'shipping-companies-edit',
-        'shipping-companies-delete',
-    ],
-    'tickets' => [
-        'tickets-list',
-        'tickets-create',
-        'tickets-manage',
-    ],
-    'suppliers_payments' => [
-        'suppliers-payments-list',
-        'suppliers-payments-manage',
     ],
     'website' => [
         'website-settings-view',

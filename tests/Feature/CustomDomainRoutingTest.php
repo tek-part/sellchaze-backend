@@ -20,7 +20,7 @@ use Tests\TestCase;
 
 /**
  * End-to-end custom-domain behaviour over HTTP: resolution, redirects, host
- * trust, spoofing and tenant isolation — for BOTH supplier and merchant stores.
+ * trust, spoofing and tenant isolation for merchant stores.
  */
 class CustomDomainRoutingTest extends TestCase
 {
@@ -43,7 +43,7 @@ class CustomDomainRoutingTest extends TestCase
     private function makeStoreWithDomain(string $slug, string $host, string $ownerType = 'merchant'): array
     {
         $user = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
-        $user->assignRole($ownerType === 'supplier' ? 'Supplier' : 'Merchant');
+        $user->assignRole('Merchant');
 
         $store = Store::create([
             'owner_user_id' => $user->id,
@@ -82,9 +82,9 @@ class CustomDomainRoutingTest extends TestCase
         $this->get('http://pharma-eg.com/')->assertOk()->assertSee('Nike');
     }
 
-    public function test_supplier_custom_domain_serves_the_storefront(): void
+    public function test_second_merchant_custom_domain_serves_the_storefront(): void
     {
-        $this->makeStoreWithDomain('acme', 'myshop.net', 'supplier');
+        $this->makeStoreWithDomain('acme', 'myshop.net');
 
         $this->get('http://myshop.net/')->assertOk()->assertSee('Acme');
     }

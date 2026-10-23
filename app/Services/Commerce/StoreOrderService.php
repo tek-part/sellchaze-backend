@@ -108,13 +108,6 @@ class StoreOrderService
             $order->store?->owner?->notify(new StoreOrderActivity($order, 'status_changed'));
             app(StoreOrderWebhooks::class)->statusChanged($order, $from, (int) $change->id);
 
-            // One-way mirror onto the bridged B2B order (cancelled only). Never let it break the transition.
-            try {
-                app(StorefrontOrderBridge::class)->syncStatus($order);
-            } catch (\Throwable $e) {
-                report($e);
-            }
-
             return $order;
         });
     }

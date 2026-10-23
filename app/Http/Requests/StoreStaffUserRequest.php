@@ -18,7 +18,7 @@ class StoreStaffUserRequest extends FormRequest
      */
     public function rules(): array
     {
-        $assignable = Role::query()->where('name', '!=', 'Supplier')->pluck('name')->all();
+        $assignable = Role::query()->pluck('name')->all();
 
         return [
             'name' => ['required', 'string', 'max:255'],

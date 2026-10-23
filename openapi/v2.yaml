@@ -129,63 +129,6 @@ paths:
         '201': { description: Member added }
         '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/ValidationError' }
-  /organizations/{organization}/connections:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationId'
-    get:
-      operationId: listOrganizationConnections
-      summary: List incoming and outgoing business relationships for a company
-      parameters:
-        - { name: status, in: query, schema: { type: string, enum: [pending, accepted, rejected] } }
-        - { name: per_page, in: query, schema: { type: integer, minimum: 5, maximum: 50, default: 20 } }
-      responses:
-        '200': { description: Paginated organization connections }
-        '403': { $ref: '#/components/responses/Forbidden' }
-    post:
-      operationId: requestOrganizationConnection
-      summary: Request a business relationship with another company
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [target_organization_id]
-              properties:
-                target_organization_id: { type: integer }
-                message: { type: [string, 'null'], maxLength: 1000 }
-      responses:
-        '201': { description: Connection request created }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-  /organizations/{organization}/connections/{connection}/accept:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationId'
-      - { name: connection, in: path, required: true, schema: { type: integer } }
-    post:
-      operationId: acceptOrganizationConnection
-      summary: Accept an incoming business relationship request
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      responses:
-        '200': { description: Connection accepted and ConnectionAccepted event recorded }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-  /organizations/{organization}/connections/{connection}/reject:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationId'
-      - { name: connection, in: path, required: true, schema: { type: integer } }
-    post:
-      operationId: rejectOrganizationConnection
-      summary: Reject an incoming business relationship request
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      responses:
-        '200': { description: Connection rejected }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/ValidationError' }
   /organizations/{organization}/stores:
     parameters:
       - $ref: '#/components/parameters/OrganizationId'
@@ -312,17 +255,6 @@ paths:
         '201': { description: Organization post created }
         '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/ValidationError' }
-  /organizations/{organization}/audit-export:
-    parameters:
-      - $ref: '#/components/parameters/OrganizationId'
-      - { name: from, in: query, schema: { type: string, format: date } }
-      - { name: to, in: query, schema: { type: string, format: date } }
-    get:
-      operationId: exportOrganizationAudit
-      summary: Stream the organization procurement audit trail as CSV
-      responses:
-        '200': { description: CSV audit export }
-        '403': { $ref: '#/components/responses/Forbidden' }
   /organizations/{organization}/stores/{store}/themes:
     parameters: &organizationStoreParameters
       - $ref: '#/components/parameters/OrganizationId'
@@ -444,158 +376,6 @@ paths:
     post:
       operationId: restoreOrganizationStorePageRevision
       responses: { '200': { description: Revision restored } }
-  /procurement/requests:
-    get:
-      operationId: listProcurementRequests
-      summary: List published RFQs and requests owned by the member's companies
-      responses:
-        '200': { description: Paginated procurement requests }
-    post:
-      operationId: createProcurementRequest
-      summary: Create a draft or published company RFQ
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ProcurementRequestInput' }
-      responses:
-        '201': { description: Procurement request created }
-        '409': { description: Idempotency key is in-flight or was reused with a different payload }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-  /procurement/requests/{procurementRequest}:
-    parameters:
-      - $ref: '#/components/parameters/ProcurementRequestId'
-    get:
-      operationId: getProcurementRequest
-      responses:
-        '200': { description: Request with visible supplier quotes }
-        '404': { description: Request is private or does not exist }
-  /procurement/requests/{procurementRequest}/quotes:
-    parameters:
-      - $ref: '#/components/parameters/ProcurementRequestId'
-    post:
-      operationId: submitProcurementQuote
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ProcurementQuoteInput' }
-      responses:
-        '201': { description: Quote submitted }
-        '409': { description: Idempotency key is in-flight or was reused with a different payload }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-  /procurement/requests/{procurementRequest}/quotes/compare:
-    parameters:
-      - $ref: '#/components/parameters/ProcurementRequestId'
-    get:
-      operationId: compareProcurementQuotes
-      summary: Compare supplier quotes by amount, lead time, validity, terms and version
-      responses:
-        '200': { description: Comparable supplier quote matrix }
-        '403': { $ref: '#/components/responses/Forbidden' }
-  /procurement/requests/{procurementRequest}/quotes/{procurementQuote}:
-    parameters:
-      - $ref: '#/components/parameters/ProcurementRequestId'
-      - name: procurementQuote
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    patch:
-      operationId: reviseProcurementQuote
-      summary: Create an immutable revision and update a submitted quote
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ProcurementQuoteInput' }
-      responses:
-        '200': { description: Quote revised }
-        '409': { description: Idempotency key conflict }
-        '422': { $ref: '#/components/responses/ValidationError' }
-  /procurement/requests/{procurementRequest}/audit:
-    parameters:
-      - $ref: '#/components/parameters/ProcurementRequestId'
-    get:
-      operationId: getProcurementAuditTrail
-      summary: Get the party-scoped immutable RFQ, quote and order audit timeline
-      responses:
-        '200': { description: Chronological audit entries }
-        '404': { description: RFQ is outside the member's organizations }
-  /procurement/requests/{procurementRequest}/quotes/{procurementQuote}/accept:
-    parameters:
-      - $ref: '#/components/parameters/ProcurementRequestId'
-      - name: procurementQuote
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    post:
-      operationId: acceptProcurementQuote
-      summary: Atomically award one quote, reject competitors, and create a procurement order
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      responses:
-        '200': { description: Quote accepted and RFQ awarded }
-        '409': { description: Idempotency key is in-flight or was reused with a different payload }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-  /procurement/requests/{procurementRequest}/conversation:
-    parameters:
-      - $ref: '#/components/parameters/ProcurementRequestId'
-    post:
-      operationId: createProcurementConversation
-      summary: Start or join the company-scoped conversation for an RFQ supplier
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [supplier_organization_id]
-              properties:
-                supplier_organization_id: { type: integer, minimum: 1 }
-      responses:
-        '200': { description: Existing conversation returned }
-        '201': { description: Procurement conversation created }
-        '409': { description: Idempotency key is in-flight or was reused with a different payload }
-        '404': { description: RFQ or company context is outside the member's scope }
-        '422': { $ref: '#/components/responses/ValidationError' }
-  /procurement/orders:
-    get:
-      operationId: listProcurementOrders
-      summary: List orders where a member company is the buyer or supplier
-      responses:
-        '200': { description: Paginated procurement orders }
-  /procurement/orders/{procurementOrder}:
-    parameters:
-      - $ref: '#/components/parameters/ProcurementOrderId'
-    get:
-      operationId: getProcurementOrder
-      summary: Get the accepted quote and RFQ snapshot for an order party
-      responses:
-        '200': { description: Procurement order detail }
-        '404': { description: Order is outside the member's companies }
-    patch:
-      operationId: updateProcurementOrderStatus
-      summary: Advance the buyer/supplier controlled fulfillment lifecycle
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ProcurementOrderStatusInput' }
-      responses:
-        '200': { description: Procurement order status updated }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/ValidationError' }
 components:
   securitySchemes:
     bearerAuth:
@@ -614,16 +394,6 @@ components:
       in: path
       required: true
       schema: { type: integer, minimum: 1 }
-    ProcurementRequestId:
-      name: procurementRequest
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
-    ProcurementOrderId:
-      name: procurementOrder
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
     StoreId:
       name: store
       in: path
@@ -635,69 +405,6 @@ components:
       required: true
       schema: { type: integer, minimum: 1 }
   schemas:
-    Attachment:
-      type: object
-      required: [url]
-      properties:
-        url: { type: string, format: uri, maxLength: 2048 }
-        name: { type: [string, 'null'], maxLength: 255 }
-        type: { type: [string, 'null'], enum: [image, video, document, null] }
-    ProcurementRequestInput:
-      type: object
-      required: [organization_id, title, quantity, unit]
-      properties:
-        organization_id: { type: integer, minimum: 1 }
-        target_supplier_organization_id: { type: [integer, 'null'], minimum: 1 }
-        target_supplier_organization_ids:
-          type: array
-          maxItems: 50
-          items: { type: integer, minimum: 1 }
-        target_sector_id: { type: [integer, 'null'], minimum: 1 }
-        store_id: { type: [integer, 'null'], minimum: 1 }
-        title: { type: string, maxLength: 180 }
-        description: { type: [string, 'null'], maxLength: 10000 }
-        quantity: { type: number, exclusiveMinimum: 0 }
-        unit: { type: string, maxLength: 40 }
-        budget: { type: [number, 'null'], minimum: 0 }
-        currency: { type: string, maxLength: 8 }
-        status: { type: string, enum: [draft, published] }
-        response_deadline: { type: [string, 'null'], format: date-time }
-        items:
-          type: array
-          maxItems: 100
-          items:
-            type: object
-            required: [name, quantity, unit]
-            properties:
-              name: { type: string }
-              quantity: { type: number, exclusiveMinimum: 0 }
-              unit: { type: string }
-              specifications: { type: object }
-        attachments:
-          type: array
-          maxItems: 20
-          items: { $ref: '#/components/schemas/Attachment' }
-        metadata: { type: [object, 'null'] }
-    ProcurementQuoteInput:
-      type: object
-      required: [supplier_organization_id, amount]
-      properties:
-        supplier_organization_id: { type: integer, minimum: 1 }
-        amount: { type: number, minimum: 0 }
-        currency: { type: string, maxLength: 8 }
-        lead_time_days: { type: [integer, 'null'], minimum: 0 }
-        valid_until: { type: [string, 'null'], format: date }
-        notes: { type: [string, 'null'], maxLength: 10000 }
-        delivery_terms: { type: [string, 'null'], maxLength: 10000 }
-        attachments:
-          type: array
-          maxItems: 20
-          items: { $ref: '#/components/schemas/Attachment' }
-    ProcurementOrderStatusInput:
-      type: object
-      required: [status]
-      properties:
-        status: { type: string, enum: [in_fulfillment, shipped, completed, cancelled] }
     OrganizationInput:
       type: object
       properties:

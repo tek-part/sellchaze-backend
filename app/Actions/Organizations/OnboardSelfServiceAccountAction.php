@@ -27,7 +27,7 @@ class OnboardSelfServiceAccountAction
             $organization = $this->organizations->execute($owner, [
                 'name' => $companyName,
                 'slug' => $this->organizationSlug($companyName),
-                'type' => $owner->isSupplier() ? 'supplier' : 'merchant',
+                'type' => 'merchant',
                 'default_locale' => app()->getLocale() === 'ar' ? 'ar' : 'en',
                 'default_currency' => 'USD',
                 'timezone' => config('app.timezone', 'UTC'),

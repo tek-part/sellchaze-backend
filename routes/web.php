@@ -1,8 +1,6 @@
 <?php
 
 use App\Http\Controllers\Auth\GoogleAuthController;
-use App\Http\Controllers\Auth\RegisteredUserController;
-use App\Http\Controllers\InvitationsController;
 use App\Http\Controllers\Storefront\ReferralLinkController;
 use App\Http\Controllers\Storefront\StorefrontPageController;
 use App\Http\Controllers\Storefront\ThemeBundleController;
@@ -66,13 +64,6 @@ Route::get('locale/{locale}', function (string $locale) {
 
 Route::get('auth/google', [GoogleAuthController::class, 'redirect'])->middleware('throttle:60,1')->name('google.redirect');
 Route::get('auth/google/callback', [GoogleAuthController::class, 'callback'])->middleware('throttle:60,1')->name('google.callback');
-
-/** Legacy Blade (Growtech/Rizz): invitation request form + listing; guests are sent to SPA login via auth middleware. */
-Route::middleware('auth')->group(function () {
-    Route::get('register/request', [RegisteredUserController::class, 'requestInvitation'])->name('requestInvitation');
-    Route::post('invitations', [InvitationsController::class, 'store'])->name('storeInvitation');
-    Route::get('invitations', [InvitationsController::class, 'index'])->name('invitations.index');
-});
 
 // Any other GET on a resolved tenant host is a React-storefront route (cart, checkout,
 // account, search, …). Registered as a fallback so it never shadows the app-host routes.

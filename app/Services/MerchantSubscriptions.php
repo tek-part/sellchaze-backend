@@ -49,7 +49,7 @@ class MerchantSubscriptions
 
     private function owner(User $user): void
     {
-        abort_unless($user->is_active && ! $user->pending_approval && ! $user->parent_user_id && $user->hasAnyRole(['Merchant', 'Supplier']), 403);
+        abort_unless($user->is_active && ! $user->pending_approval && ! $user->parent_user_id && $user->hasAnyRole(['Merchant']), 403);
     }
 
     public function purchase(User $user, string $cycle, string $quote, string $requestKey, bool $autoRenew): object
@@ -106,13 +106,13 @@ class MerchantSubscriptions
     /** A single new period, never a chain of backdated charges after downtime. */
     public function renew(User $user, ?int $orderBoundary = null): ?object
     {
-        if (! $this->ready() || ! $user->is_active || $user->pending_approval || $user->parent_user_id || ! $user->hasAnyRole(['Merchant', 'Supplier'])) {
+        if (! $this->ready() || ! $user->is_active || $user->pending_approval || $user->parent_user_id || ! $user->hasAnyRole(['Merchant'])) {
             return null;
         }
 
         return DB::transaction(function () use ($user, $orderBoundary) {
             $fresh = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
-            if (! $fresh->is_active || $fresh->pending_approval || $fresh->parent_user_id || ! $fresh->hasAnyRole(['Merchant', 'Supplier'])) {
+            if (! $fresh->is_active || $fresh->pending_approval || $fresh->parent_user_id || ! $fresh->hasAnyRole(['Merchant'])) {
                 return null;
             }
             if ($active = $this->active($user)) {

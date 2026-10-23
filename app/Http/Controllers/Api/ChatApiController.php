@@ -25,10 +25,9 @@ class ChatApiController extends Controller
 
         $conversations = Conversation::query()
             ->whereHas('participants', fn ($q) => $q->where('user_id', $me->id))
-            ->with([
-                'latestMessage', 'users:id,name,avatar',
-                'buyerOrganization:id,name,slug', 'supplierOrganization:id,name,slug',
-            ])
+            // Order and procurement threads belonged to the removed B2B system.
+            ->whereNotIn('type', ['order', 'procurement'])
+            ->with(['latestMessage', 'users:id,name,avatar'])
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
             ->get();
@@ -57,12 +56,6 @@ class ChatApiController extends Controller
                 ] : null,
                 'unread' => $unread,
                 'last_message_at' => $c->last_message_at?->toIso8601String(),
-                'context' => $c->type === 'procurement' ? [
-                    'procurement_request_id' => $c->procurement_request_id,
-                    'procurement_order_id' => $c->procurement_order_id,
-                    'buyer_organization' => $c->buyerOrganization,
-                    'supplier_organization' => $c->supplierOrganization,
-                ] : null,
             ];
         });
 

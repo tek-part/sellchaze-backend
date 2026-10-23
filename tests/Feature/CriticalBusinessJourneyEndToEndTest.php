@@ -35,11 +35,10 @@ class CriticalBusinessJourneyEndToEndTest extends TestCase
         ];
     }
 
-    public function test_registration_theme_storefront_order_and_b2b_procurement_work_as_one_journey(): void
+    public function test_registration_theme_storefront_and_order_work_as_one_journey(): void
     {
         $this->seed(ThemeSeeder::class);
         $merchant = $this->registerCompany('Merchant', 'merchant-journey@example.com', 'Nile Retail', 'Nile Market');
-        $supplier = $this->registerCompany('Supplier', 'supplier-journey@example.com', 'Delta Factory', 'Delta Supply');
 
         $store = Store::query()->findOrFail($merchant['store_id']);
         $themeId = (int) StoreTheme::query()->where('store_id', $store->id)->where('status', 'active')->valueOrFail('theme_id');
@@ -87,47 +86,5 @@ class CriticalBusinessJourneyEndToEndTest extends TestCase
             ->assertJsonPath('data.grand_total', '500.00');
         $this->assertNotEmpty($order->json('data.order_number'));
         $this->assertDatabaseHas('store_orders', ['id' => $order->json('data.id'), 'customer_phone' => '01000000000']);
-
-        $connection = $this->withToken($merchant['token'])->withHeader('Idempotency-Key', 'critical-journey-connection')
-            ->postJson("/api/v2/organizations/{$merchant['organization_id']}/connections", [
-                'target_organization_id' => $supplier['organization_id'],
-                'message' => 'We want to source branded packaging from your factory.',
-            ])->assertCreated()
-            ->assertJsonPath('data.status', 'pending')
-            ->assertJsonPath('data.direction', 'outgoing');
-        $connectionId = $connection->json('data.id');
-
-        $this->withToken($supplier['token'])->withHeader('Idempotency-Key', 'critical-journey-connection-accept')
-            ->postJson("/api/v2/organizations/{$supplier['organization_id']}/connections/{$connectionId}/accept")
-            ->assertOk()
-            ->assertJsonPath('data.status', 'accepted')
-            ->assertJsonPath('data.direction', 'incoming');
-
-        $rfq = $this->withToken($merchant['token'])->withHeader('Idempotency-Key', 'critical-journey-rfq')
-            ->postJson('/api/v2/procurement/requests', [
-                'organization_id' => $merchant['organization_id'],
-                'target_supplier_organization_id' => $supplier['organization_id'],
-                'title' => 'Supply 1,000 branded boxes',
-                'quantity' => 1000,
-                'unit' => 'box',
-                'status' => 'published',
-            ])->assertCreated();
-        $requestId = $rfq->json('data.id');
-
-        $quote = $this->withToken($supplier['token'])->withHeader('Idempotency-Key', 'critical-journey-quote')
-            ->postJson("/api/v2/procurement/requests/{$requestId}/quotes", [
-                'supplier_organization_id' => $supplier['organization_id'],
-                'amount' => 18000,
-                'lead_time_days' => 7,
-            ])->assertCreated();
-        $quoteId = $quote->json('data.id');
-
-        $this->withToken($merchant['token'])
-            ->postJson("/api/v2/procurement/requests/{$requestId}/quotes/{$quoteId}/accept")
-            ->assertOk()->assertJsonPath('data.status', 'accepted')
-            ->assertJsonPath('data.procurement_request.order.status', 'confirmed');
-        $this->assertDatabaseHas('outbox_messages', ['event_type' => 'StorePublished']);
-        $this->assertDatabaseHas('outbox_messages', ['event_type' => 'ConnectionAccepted']);
-        $this->assertDatabaseHas('outbox_messages', ['event_type' => 'ProcurementOrderCreated']);
     }
 }

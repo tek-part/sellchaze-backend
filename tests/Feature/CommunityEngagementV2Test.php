@@ -260,17 +260,17 @@ class CommunityEngagementV2Test extends TestCase
 
     public function test_payloads_include_author_role(): void
     {
-        Role::findOrCreate('Supplier', 'web');
-        $supplier = $this->user('role-supplier@example.com');
-        $supplier->assignRole('Supplier');
-        $post = $this->makePost($supplier);
-        PostComment::query()->create(['post_id' => $post->id, 'user_id' => $supplier->id, 'body' => 'my own note']);
+        Role::findOrCreate('Merchant', 'web');
+        $merchant = $this->user('role-merchant@example.com');
+        $merchant->assignRole('Merchant');
+        $post = $this->makePost($merchant);
+        PostComment::query()->create(['post_id' => $post->id, 'user_id' => $merchant->id, 'body' => 'my own note']);
 
         $viewer = $this->user('role-viewer@example.com');
         $this->asUser($viewer)->getJson("/api/v1/posts/{$post->id}")
-            ->assertOk()->assertJsonPath('data.author.role', 'supplier');
+            ->assertOk()->assertJsonPath('data.author.role', 'merchant');
         $comments = $this->asUser($viewer)->getJson("/api/v1/posts/{$post->id}/comments")->assertOk()->json('data');
-        $this->assertSame('supplier', $comments[0]['author']['role']);
+        $this->assertSame('merchant', $comments[0]['author']['role']);
     }
 
     public function test_deactivated_account_gets_machine_readable_403(): void

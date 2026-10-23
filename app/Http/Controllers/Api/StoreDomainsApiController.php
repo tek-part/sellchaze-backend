@@ -24,7 +24,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  * Custom-domain management for a store.
  *
  * Mounted under BOTH /stores/{store}/domains (admin) and /my-store/domains
- * (owner), so Suppliers and Merchants use one identical surface — the store is
+ * (owner), so every merchant uses one identical surface — the store is
  * already resolved into the route by ScopeToStore / ResolveOwnStore.
  *
  * Every action that touches DNS or a certificate authority is DISPATCHED, never

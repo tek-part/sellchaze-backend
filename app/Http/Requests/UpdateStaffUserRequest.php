@@ -18,7 +18,7 @@ class UpdateStaffUserRequest extends FormRequest
      */
     public function rules(): array
     {
-        $assignable = Role::query()->where('name', '!=', 'Supplier')->pluck('name')->all();
+        $assignable = Role::query()->pluck('name')->all();
         $user = $this->route('user');
         $userId = $user ? $user->id : null;
 
@@ -28,7 +28,7 @@ class UpdateStaffUserRequest extends FormRequest
             'password' => ['nullable', 'string', 'min:8'],
             'is_active' => ['sometimes', 'boolean'],
             'approve_pending_registration' => ['sometimes', 'boolean'],
-            'approval_role' => ['nullable', 'string', Rule::in(['Staff', 'Supplier', 'Merchant'])],
+            'approval_role' => ['nullable', 'string', Rule::in(['Staff', 'Merchant'])],
             'roles' => ['nullable', 'array'],
             'roles.*' => ['string', Rule::in($assignable)],
             'profile' => ['nullable', 'array'],

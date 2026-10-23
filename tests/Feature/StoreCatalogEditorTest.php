@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductMedia;
@@ -15,7 +14,6 @@ use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
@@ -37,7 +35,6 @@ class StoreCatalogEditorTest extends TestCase
     {
         parent::setUp();
         $this->seed([PermissionTableSeeder::class, RolesTableSeeder::class]);
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         Storage::fake('public');
         $owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $owner->assignRole('Merchant');

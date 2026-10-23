@@ -40,7 +40,7 @@ class OpenApiV2ContractTest extends TestCase
                 ->map(fn (string $method): string => strtolower($method).' '.$path)
                 ->all();
         });
-        $v2Routes = $actual->keys()->filter(fn (string $key): bool => str_contains($key, ' /organizations') || str_contains($key, ' /procurement'));
+        $v2Routes = $actual->keys()->filter(fn (string $key): bool => str_contains($key, ' /organizations'));
         $this->assertEmpty($v2Routes->diff($documented)->values()->all(), 'Laravel exposes undocumented v2 routes.');
     }
 
@@ -50,7 +50,7 @@ class OpenApiV2ContractTest extends TestCase
 
         $this->assertSame('bearer', $document['components']['securitySchemes']['bearerAuth']['scheme']);
         foreach (array_keys($document['paths']) as $path) {
-            if (in_array($path, ['/organizations', '/plans'], true) || str_starts_with($path, '/directory/organizations') || str_starts_with($path, '/procurement/')) {
+            if (in_array($path, ['/organizations', '/plans'], true) || str_starts_with($path, '/directory/organizations')) {
                 continue;
             }
             $this->assertStringStartsWith('/organizations/{organization}', $path);

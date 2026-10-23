@@ -2,7 +2,6 @@
 
 namespace App\Http;
 
-use App\Http\Middleware\ApiKeyMiddleware;
 use App\Http\Middleware\AttachRequestContext;
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\AuthenticateJwt;
@@ -11,7 +10,6 @@ use App\Http\Middleware\EncryptCookies;
 use App\Http\Middleware\EnsureIdempotentRequest;
 use App\Http\Middleware\EnsureProfileComplete;
 use App\Http\Middleware\EnsureUserApproved;
-use App\Http\Middleware\HasInvitation;
 use App\Http\Middleware\IsAdmin;
 use App\Http\Middleware\LogApiActivity;
 use App\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -130,11 +128,9 @@ class Kernel extends HttpKernel
         'role' => RoleMiddleware::class,
         'permission' => PermissionMiddleware::class,
         'role_or_permission' => RoleOrPermissionMiddleware::class,
-        'hasInvitation' => HasInvitation::class,
         'profile.complete' => EnsureProfileComplete::class,
         'user.approved' => EnsureUserApproved::class,
         'admin' => IsAdmin::class,
-        'api.key' => ApiKeyMiddleware::class,
         'jwt.auth' => AuthenticateJwt::class,
         'scope.organization.route' => ScopeOrganizationRoute::class,
         'pending.restrict' => RestrictPendingApiUser::class,

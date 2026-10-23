@@ -2,7 +2,6 @@
 
 namespace App\Services\Commerce;
 
-use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductDigitalCode;
 use App\Models\ProductVariant;
@@ -23,10 +22,7 @@ class MerchantOrderEditing
     public function capabilities(Store $store, StoreOrder $order): array
     {
         $shipment = StoreShipment::where('store_id', $store->id)->where('store_order_id', $order->id)->exists();
-        $bridge = Order::where('store_id', $store->id)->where('store_order_id', $order->id)->first();
-        $emptyBridge = $bridge && $bridge->status === 'cancelled' && (int) $bridge->quantity === 0 && empty($bridge->storefront_items) && ! $order->physicalItems()->exists();
-        $supplierLocked = $bridge && (($bridge->status !== 'pending' && ! $emptyBridge) || DB::table('order_quotations')->where('order_id', $bridge->id)->exists());
-        $contact = ! $order->trashed() && ! in_array($order->status, ['cancelled', 'delivered', ...StoreOrder::RETURN_STATUSES], true) && ! $shipment && ! $supplierLocked;
+        $contact = ! $order->trashed() && ! in_array($order->status, ['cancelled', 'delivered', ...StoreOrder::RETURN_STATUSES], true) && ! $shipment;
         $financial = $contact && in_array($order->status, ['pending', 'confirmed'], true) && $order->payment_status === 'pending'
             && in_array($order->payment_method, ['cod', 'bank_transfer'], true) && strtoupper($order->currency) === strtoupper($store->currency ?: 'USD')
             && ! StorePaymentTransaction::where('store_id', $store->id)->where('store_order_id', $order->id)
@@ -34,7 +30,7 @@ class MerchantOrderEditing
             && ! $order->items()->whereIn('inventory_status', ['committed', 'released'])->exists();
 
         return ['contact' => $contact, 'financial' => $financial,
-            'reason' => $shipment ? 'shipment_exists' : ($supplierLocked ? 'supplier_locked' : (! $contact ? 'order_closed' : (! $financial ? 'payment_or_inventory_locked' : null)))];
+            'reason' => $shipment ? 'shipment_exists' : (! $contact ? 'order_closed' : (! $financial ? 'payment_or_inventory_locked' : null))];
     }
 
     public function snapshot(Store $store, StoreOrder $order): array
@@ -44,7 +40,6 @@ class MerchantOrderEditing
                 'tax_prices_include' => (bool) $store->tax_prices_include, 'limits' => app(OrderLimits::class)->configured($store)], 'order' => $order->getAttributes(),
             'items' => $order->items()->orderBy('id')->get()->map(fn ($item) => $item->getAttributes())->all(),
             'payments' => StorePaymentTransaction::where('store_id', $store->id)->where('store_order_id', $order->id)->orderBy('id')->get()->map(fn ($row) => $row->getAttributes())->all(),
-            'bridge' => Order::where('store_id', $store->id)->where('store_order_id', $order->id)->first()?->getAttributes(),
             'capabilities' => $this->capabilities($store, $order), 'revision' => (int) StoreOrderEdit::where('store_order_id', $order->id)->max('revision')];
     }
 
@@ -72,11 +67,10 @@ class MerchantOrderEditing
 
                 return $order;
             }
-            $bridge = Order::where('store_id', $store->id)->where('store_order_id', $order->id)->lockForUpdate()->first();
             $before = $this->snapshot($store, $order);
             abort_unless(hash_equals($this->hash($before), $data['expected_token']), 409, 'Order changed. Reload it before saving this edit.');
             $caps = $before['capabilities'];
-            abort_unless($caps['contact'], 422, 'This order has closed, entered shipping or supplier fulfillment.');
+            abort_unless($caps['contact'], 422, 'This order has closed or entered shipping.');
             $old = $order->items()->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             $retained = [];
             $shippingChanged = bccomp($data['shipping_total'], $order->shipping_total, 2) !== 0;
@@ -138,9 +132,6 @@ class MerchantOrderEditing
                 abort_unless(filter_var($order->customer_email, FILTER_VALIDATE_EMAIL), 422, 'Enter an email for digital delivery.');
             }
             $order->save();
-            if ($bridge) {
-                app(StorefrontOrderBridge::class)->syncEdit($order, $bridge);
-            }
             $order->refresh();
             $edit = StoreOrderEdit::create(['store_id' => $store->id, 'store_order_id' => $order->id, 'actor_id' => $actor->id, 'owner_id' => $store->owner_user_id,
                 'request_key' => $key, 'request_hash' => $hash, 'revision' => $before['revision'] + 1, 'before_snapshot' => $before,

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Profile;
 use App\Models\User;
 use App\Providers\RouteServiceProvider;
+use App\Services\Stores\StoreProvisioner;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -16,19 +17,10 @@ class GoogleAuthController extends Controller
 {
     /**
      * Redirect to Google OAuth.
-     * Optional ?intent=register&type=merchant|supplier for new account creation.
+     * New accounts created through Google are always merchants.
      */
     public function redirect()
     {
-        $intent = request('intent', 'login'); // login | register
-        $type = request('type', 'merchant');  // merchant | supplier
-
-        if ($intent === 'register' && in_array($type, ['merchant', 'supplier'], true)) {
-            session(['google_register_type' => $type]);
-        } else {
-            session()->forget('google_register_type');
-        }
-
         return Socialite::driver('google')->redirect();
     }
 
@@ -72,9 +64,6 @@ class GoogleAuthController extends Controller
                 $this->ensureProfile($user);
             } else {
                 // New user: create account (register via Google)
-                $registerType = session('google_register_type', 'merchant');
-                $role = $registerType === 'supplier' ? 'Supplier' : 'Merchant';
-
                 $user = User::create([
                     'name' => $name,
                     'email' => $email,
@@ -86,11 +75,11 @@ class GoogleAuthController extends Controller
                     'last_login_ip' => request()->getClientIp(),
                 ]);
 
-                $user->assignRole($role);
+                $user->assignRole('Merchant');
                 $user->syncPermissions([]);
 
-                // One Merchant/Supplier = one Store: provision on Google sign-up.
-                app(\App\Services\Stores\StoreProvisioner::class)->ensureFor($user);
+                // One Merchant = one Store: provision on Google sign-up.
+                app(StoreProvisioner::class)->ensureFor($user);
 
                 $profile = Profile::create([
                     'username' => generateUserName($email),
@@ -101,7 +90,6 @@ class GoogleAuthController extends Controller
                     'online' => 1,
                 ]);
 
-                session()->forget('google_register_type');
             }
         }
 
@@ -113,7 +101,7 @@ class GoogleAuthController extends Controller
     private function ensureProfile(User $user): void
     {
         $profile = $user->profile;
-        if (!$profile) {
+        if (! $profile) {
             Profile::create([
                 'username' => generateUserName($user->email),
                 'user_id' => $user->id,

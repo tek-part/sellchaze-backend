@@ -17,7 +17,7 @@ class PlatformWalletController extends Controller
     private function owner(Request $request): User
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['Merchant', 'Supplier']), 403);
+        abort_unless($user->hasAnyRole(['Merchant']), 403);
 
         return $user;
     }
@@ -91,7 +91,7 @@ class PlatformWalletController extends Controller
         abort_unless($request->user()->hasRole('Admin'), 403);
         $data = $request->validate(['currency' => ['required', 'in:USD'], 'user_id' => ['required', 'integer', 'exists:users,id'], 'operation' => ['required', 'in:funding,refund,payout'], 'amount_milli' => ['required', 'integer', 'min:1', 'max:600000'], 'reference' => ['required', 'string', 'max:100', 'regex:/\A[A-Za-z0-9_.:-]+\z/'], 'confirmed' => ['required', 'accepted'], 'funding_id' => ['required_if:operation,refund', 'nullable', 'integer', 'min:1']]);
         $user = User::query()->findOrFail($data['user_id']);
-        abort_unless($user->hasAnyRole(['Merchant', 'Supplier']), 422);
+        abort_unless($user->hasAnyRole(['Merchant']), 422);
         $entry = match ($data['operation']) {
             'funding' => $wallet->funding($user, $data['amount_milli'], $data['reference'], $request->user()),
             'refund' => $wallet->refund($user, $data['funding_id'], $data['amount_milli'], $data['reference'], $request->user()),

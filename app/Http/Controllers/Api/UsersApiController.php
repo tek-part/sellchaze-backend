@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\NotificationChannelResolver;
 use App\Services\UserProfileSync;
+use App\Services\Users\RegistrationApprover;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -37,14 +38,14 @@ class UsersApiController extends Controller
 
         if ($pendingOnly) {
             $query->where('pending_approval', true);
-            $query->whereRaw('LOWER(TRIM(COALESCE(registration_role, ""))) NOT IN (?, ?)', ['supplier', 'merchant']);
+            $query->whereRaw('LOWER(TRIM(COALESCE(registration_role, ""))) <> ?', ['merchant']);
         } else {
             $query->whereDoesntHave('roles', function ($q) {
-                $q->whereIn('name', ['Supplier', 'Merchant']);
+                $q->where('name', 'Merchant');
             });
             $query->whereNot(function ($q) {
                 $q->where('pending_approval', true)
-                    ->whereRaw('LOWER(TRIM(COALESCE(registration_role, ""))) IN (?, ?)', ['supplier', 'merchant']);
+                    ->whereRaw('LOWER(TRIM(COALESCE(registration_role, ""))) = ?', ['merchant']);
             });
         }
 
@@ -71,7 +72,6 @@ class UsersApiController extends Controller
     public function show(Request $request, User $user): JsonResponse
     {
         $user->loadMissing('roles');
-        $this->ensureStaffUser($user);
         $this->authorizeStaffDirectoryView($request, $user);
         $user->load(['profile', 'roles']);
 
@@ -112,7 +112,6 @@ class UsersApiController extends Controller
     public function update(UpdateStaffUserRequest $request, User $user): JsonResponse
     {
         $user->loadMissing('roles');
-        $this->ensureStaffUser($user);
         $this->authorizeStaffDirectoryMutate($request, $user, $request->boolean('approve_pending_registration'));
 
         $validated = $request->validated();
@@ -165,7 +164,6 @@ class UsersApiController extends Controller
     public function updateStatus(UpdateStaffUserStatusRequest $request, User $user): JsonResponse
     {
         $user->loadMissing('roles');
-        $this->ensureStaffUser($user);
         $this->authorizeStaffDirectoryMutate($request, $user, false);
         $actor = $request->user();
         if ($actor && $actor->id === $user->id) {
@@ -185,7 +183,6 @@ class UsersApiController extends Controller
     public function destroy(Request $request, User $user): JsonResponse
     {
         $user->loadMissing('roles');
-        $this->ensureStaffUser($user);
         $this->authorizeStaffDirectoryMutate($request, $user, false);
         $actor = $request->user();
         if ($actor && $actor->id === $user->id) {
@@ -201,7 +198,6 @@ class UsersApiController extends Controller
     public function notificationPreferences(Request $request, User $user): JsonResponse
     {
         $user->loadMissing('roles');
-        $this->ensureStaffUser($user);
         if ($user->pending_approval) {
             abort(403);
         }
@@ -218,7 +214,6 @@ class UsersApiController extends Controller
     public function updateNotificationPreferences(Request $request, User $user): JsonResponse
     {
         $user->loadMissing('roles');
-        $this->ensureStaffUser($user);
         if ($user->pending_approval) {
             abort(403);
         }
@@ -272,61 +267,26 @@ class UsersApiController extends Controller
             ]);
         }
 
-        $role = $this->normalizeStaffOrSupplierRole($approvalRoleFromAdmin)
-            ?? $this->normalizeStaffOrSupplierRole($user->registration_role);
+        $approver = app(RegistrationApprover::class);
+        $role = $approver->normalizeRole($approvalRoleFromAdmin) ?? $approver->normalizeRole($user->registration_role);
         if ($role === null) {
             throw ValidationException::withMessages([
-                'approve_pending_registration' => [__('No valid registration role is set for this user. Choose Staff, Supplier, or Merchant when approving.')],
+                'approve_pending_registration' => [__('No valid registration role is set for this user. Choose Staff or Merchant when approving.')],
             ]);
         }
 
         // Same path self-service sign-up uses, so approval can never drift from it.
-        app(\App\Services\Users\RegistrationApprover::class)
-            ->approve($user, $role, 'staff_user.registration_approved');
+        $approver->approve($user, $role, 'staff_user.registration_approved');
     }
 
-    private function normalizeStaffOrSupplierRole(?string $role): ?string
+    private function isPendingSignup(User $user): bool
     {
-        if ($role === null || trim($role) === '') {
-            return null;
-        }
-
-        return match (strtolower(trim($role))) {
-            'staff' => 'Staff',
-            'supplier' => 'Supplier',
-            'merchant' => 'Merchant',
-            default => null,
-        };
-    }
-
-    private function ensureStaffUser(User $user): void
-    {
-        // Pending sign-ups (staff or supplier) must be reachable for approval PATCH, even if a Supplier role was assigned early.
-        if ($user->pending_approval) {
-            return;
-        }
-
-        if ($user->roles->count() === 0) {
-            return;
-        }
-
-        if ($user->hasRole('Supplier') && ! $user->hasAnyRole(['Staff', 'Manager', 'Admin', 'Merchant'])) {
-            abort(404);
-        }
-    }
-
-    private function isPendingNonSupplierStaffSignup(User $user): bool
-    {
-        if (! $user->pending_approval) {
-            return false;
-        }
-
-        return strtolower(trim((string) ($user->registration_role ?? ''))) !== 'supplier';
+        return (bool) $user->pending_approval;
     }
 
     private function authorizeStaffDirectoryView(Request $request, User $user): void
     {
-        if ($this->isPendingNonSupplierStaffSignup($user)) {
+        if ($this->isPendingSignup($user)) {
             abort_unless($request->user()->can('users-pending-list'), 403);
         } else {
             abort_unless($request->user()->can('users-list'), 403);
@@ -337,14 +297,14 @@ class UsersApiController extends Controller
     {
         if ($approvingRegistration) {
             abort_unless($request->user()->can('users-pending-list'), 403);
-            if (! $this->isPendingNonSupplierStaffSignup($user)) {
+            if (! $this->isPendingSignup($user)) {
                 abort_unless($request->user()->can('users-list'), 403);
             }
 
             return;
         }
 
-        if ($this->isPendingNonSupplierStaffSignup($user)) {
+        if ($this->isPendingSignup($user)) {
             abort_unless($request->user()->can('users-pending-list'), 403);
         } else {
             abort_unless($request->user()->can('users-list'), 403);
@@ -357,7 +317,7 @@ class UsersApiController extends Controller
     public function staffRoleOptions(Request $request): JsonResponse
     {
         $guard = config('auth.defaults.guard', 'web');
-        $omit = ['Admin', 'Supplier', 'Merchant', 'Customer'];
+        $omit = ['Admin', 'Merchant', 'Customer'];
         $rows = Role::query()
             ->where('guard_name', $guard)
             ->whereNotIn('name', $omit)

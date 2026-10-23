@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A node in the global, platform-owned sector taxonomy powering the public Supplier Directory.
+ * A node in the global, platform-owned sector taxonomy used by the community (feed filters, groups).
  *
  * Unlike {@see Category}, this model is intentionally NOT tenant-scoped — sectors are shared across
  * the whole platform (depth 0 = sector, depth 1 = specialty). Bilingual name/SEO/intro fields are
@@ -60,7 +60,7 @@ class Sector extends Model
         return $this->hasMany(Sector::class, 'parent_id')->orderBy('position');
     }
 
-    /** Suppliers/merchants linked to this sector. @return BelongsToMany<User, $this> */
+    /** Members linked to this sector. @return BelongsToMany<User, $this> */
     public function suppliers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'supplier_sector', 'sector_id', 'user_id')

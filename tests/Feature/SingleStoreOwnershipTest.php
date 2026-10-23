@@ -20,7 +20,7 @@ use Tests\TestCase;
 
 /**
  * Phase 2 — single-store ownership. Verifies the authoritative rule:
- * one Merchant = one Store, one Supplier = one Store, Admin manages all.
+ * one Merchant = one Store, Admin manages all.
  * Covers auto-provisioning, idempotency, the /my-store auto-context, the
  * service/policy/DB cardinality guards, and employee store inheritance.
  */
@@ -64,15 +64,6 @@ class SingleStoreOwnershipTest extends TestCase
         $this->assertNotNull($store, 'a store must be auto-provisioned');
         $this->assertSame('merchant', $store->owner_type);
         $this->assertSame($merchant->id, (int) $store->owner_user_id);
-    }
-
-    public function test_supplier_auto_provisions_a_supplier_typed_store(): void
-    {
-        $supplier = $this->owner('Supplier');
-
-        $this->asUser($supplier)->getJson('/api/v1/my-store/coupons')->assertOk();
-
-        $this->assertSame('supplier', $supplier->fresh()->store->owner_type);
     }
 
     public function test_my_store_resolves_to_the_owners_store_and_stays_isolated(): void
@@ -190,7 +181,7 @@ class SingleStoreOwnershipTest extends TestCase
 
     public function test_owner_roles_have_no_multi_store_permissions(): void
     {
-        foreach (['Merchant', 'Supplier'] as $roleName) {
+        foreach (['Merchant'] as $roleName) {
             $perms = Role::query()
                 ->where('name', $roleName)->firstOrFail()
                 ->permissions->pluck('name');

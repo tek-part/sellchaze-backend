@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 /**
- * Employees = child users with parent_user_id pointing to the owner (Merchant/Supplier).
+ * Employees = child users with parent_user_id pointing to the owner (Merchant).
  * Each employee has their own login and the Spatie "Employee" role.
  */
 class EmployeesApiController extends Controller
@@ -94,7 +94,7 @@ class EmployeesApiController extends Controller
     private function owner(Request $request): User
     {
         $user = $request->user();
-        abort_unless($user && ($user->hasRole('Admin') || (! $user->parent_user_id && $user->hasAnyRole(['Merchant', 'Supplier']))), 403);
+        abort_unless($user && ($user->hasRole('Admin') || (! $user->parent_user_id && $user->hasAnyRole(['Merchant']))), 403);
 
         return $user;
     }

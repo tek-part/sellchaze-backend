@@ -8,7 +8,7 @@ use App\Services\StoreService;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Single source of truth for the "one Merchant = one Store / one Supplier = one
+ * Single source of truth for the "one Merchant = one
  * Store" rule. ensureFor() is idempotent and concurrency-safe: it returns the
  * owner's existing store or creates exactly one, inside a transaction with a
  * row lock on the owner, so two concurrent first-hits can never race a duplicate
@@ -68,10 +68,10 @@ class StoreProvisioner
         if ($user->hasRole('Employee') && $user->parent_user_id) {
             $parent = $user->parent()->first();
 
-            return $parent && $parent->hasAnyRole(['Merchant', 'Supplier']) ? $parent : null;
+            return $parent && $parent->hasAnyRole(['Merchant']) ? $parent : null;
         }
 
-        return $user->hasAnyRole(['Merchant', 'Supplier']) ? $user : null;
+        return $user->hasAnyRole(['Merchant']) ? $user : null;
     }
 
     private function defaultName(User $owner): string

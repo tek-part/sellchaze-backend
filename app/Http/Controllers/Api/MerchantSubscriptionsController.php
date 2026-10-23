@@ -15,7 +15,7 @@ class MerchantSubscriptionsController extends Controller
     private function owner(Request $request): User
     {
         $user = $request->user();
-        abort_unless($user && ! $user->parent_user_id && $user->hasAnyRole(['Merchant', 'Supplier']), 403);
+        abort_unless($user && ! $user->parent_user_id && $user->hasAnyRole(['Merchant']), 403);
 
         return $user;
     }

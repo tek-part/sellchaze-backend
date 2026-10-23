@@ -66,7 +66,7 @@ class ArabicStorefrontDemoSeeder extends Seeder
             'currency' => 'SAR',
             'email' => 'sales@noor-supplies.example',
             'phone' => '+966 55 987 6543',
-            'owner_type' => 'supplier',
+            'owner_type' => 'merchant',
             'cities' => ['الرياض', 'جدة', 'الدمام', 'مكة المكرمة'],
         ]);
 

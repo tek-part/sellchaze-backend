@@ -10,7 +10,7 @@
                 @if (Route::has('register'))
                 <a href="{{ route('register.choose-type') }}" class="btn btn--large btn--primary">{{ __('landing.hero.cta') }}</a>
                 @else
-                <a href="{{ route('requestInvitation') }}" class="btn btn--large btn--primary">{{ __('landing.hero.cta') }}</a>
+                <a href="{{ rtrim(config('sellchase.frontend_url'), '/') }}/register" class="btn btn--large btn--primary">{{ __('landing.hero.cta') }}</a>
                 @endif
                 <a href="{{ route('login') }}" class="btn btn--large btn--secondary-white">{{ __('Sign In') }}<div class="btn__icon"></div></a>
             </div>
@@ -176,7 +176,7 @@
                 @if (Route::has('register'))
                 <a href="{{ route('register.choose-type') }}" class="btn btn--medium btn--primary">{{ __('landing.hero.cta') }}</a>
                 @else
-                <a href="{{ route('requestInvitation') }}" class="btn btn--medium btn--primary">{{ __('landing.hero.cta') }}</a>
+                <a href="{{ rtrim(config('sellchase.frontend_url'), '/') }}/register" class="btn btn--medium btn--primary">{{ __('landing.hero.cta') }}</a>
                 @endif
                 <a href="{{ route('login') }}" class="btn btn--medium btn--secondary-purple">{{ __('landing.cta.button') }}</a>
             </div>

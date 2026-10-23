@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\Store;
@@ -11,13 +10,11 @@ use App\Models\StoreMediaAsset;
 use App\Models\StoreOrder;
 use App\Models\User;
 use App\Services\Commerce\CheckoutFields;
-use App\Services\Commerce\StorefrontOrderBridge;
 use App\Services\JwtTokenService;
 use App\Support\Tenancy\CurrentStore;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -36,7 +33,6 @@ class StoreShippingTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         $this->seed([PermissionTableSeeder::class, RolesTableSeeder::class]);
         $owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $owner->assignRole('Merchant');
@@ -184,11 +180,6 @@ class StoreShippingTest extends TestCase
         $order = StoreOrder::findOrFail($id);
         $this->assertSame('Cairo', $order->shipping_address['city']);
         $this->assertSame('85.00', $order->shipping_total);
-        $bridge = app(StorefrontOrderBridge::class)->bridge($order, $this->store);
-        $this->assertStringContainsString('Express', $bridge->shipping_address);
-        $this->assertStringContainsString('Cairo', $bridge->shipping_address);
-        $shipping = is_array($bridge->shipping_address_json) ? $bridge->shipping_address_json : json_decode($bridge->shipping_address_json, true);
-        $this->assertSame('85.00', $shipping['shipping_details']['base_rate']);
     }
 
     public function test_invalid_settings_and_foreign_icons_are_rejected_without_overwriting_valid_configuration(): void

@@ -4,15 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Conversation extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'type', 'order_id', 'procurement_request_id', 'procurement_order_id',
-        'buyer_organization_id', 'supplier_organization_id', 'last_message_at',
+        'type', 'last_message_at',
     ];
 
     protected $casts = ['last_message_at' => 'datetime'];
@@ -37,30 +35,6 @@ class Conversation extends Model
         return $this->belongsToMany(User::class, 'conversation_participants')
             ->withPivot('last_read_at')
             ->withTimestamps();
-    }
-
-    /** @return BelongsTo<ProcurementRequest, $this> */
-    public function procurementRequest(): BelongsTo
-    {
-        return $this->belongsTo(ProcurementRequest::class);
-    }
-
-    /** @return BelongsTo<ProcurementOrder, $this> */
-    public function procurementOrder(): BelongsTo
-    {
-        return $this->belongsTo(ProcurementOrder::class);
-    }
-
-    /** @return BelongsTo<Organization, $this> */
-    public function buyerOrganization(): BelongsTo
-    {
-        return $this->belongsTo(Organization::class, 'buyer_organization_id');
-    }
-
-    /** @return BelongsTo<Organization, $this> */
-    public function supplierOrganization(): BelongsTo
-    {
-        return $this->belongsTo(Organization::class, 'supplier_organization_id');
     }
 
     /**

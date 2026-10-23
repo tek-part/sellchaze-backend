@@ -69,16 +69,4 @@ class Organization extends Model
             ->withPivot(['enabled', 'configuration', 'expires_at'])
             ->withTimestamps();
     }
-
-    /** @return HasMany<ProcurementRequest, $this> */
-    public function procurementRequests(): HasMany
-    {
-        return $this->hasMany(ProcurementRequest::class, 'buyer_organization_id');
-    }
-
-    /** @return HasMany<ProcurementQuote, $this> */
-    public function procurementQuotes(): HasMany
-    {
-        return $this->hasMany(ProcurementQuote::class, 'supplier_organization_id');
-    }
 }

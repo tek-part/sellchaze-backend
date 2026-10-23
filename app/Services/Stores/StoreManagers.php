@@ -33,7 +33,7 @@ class StoreManagers
     {
         $parent = $manager->parent()->where('is_active', true)->where('pending_approval', false)->first();
 
-        return $parent && ! $parent->parent_user_id && $parent->hasAnyRole(['Merchant', 'Supplier']) ? $parent : null;
+        return $parent && ! $parent->parent_user_id && $parent->hasAnyRole(['Merchant']) ? $parent : null;
     }
 
     /**
@@ -159,7 +159,7 @@ class StoreManagers
         $current = Store::query()->lockForUpdate()->findOrFail($store->id);
         $owner = User::query()->findOrFail($actor->id);
         abort_unless((int) $current->owner_user_id === (int) $owner->id && ! $owner->parent_user_id
-            && $owner->is_active && ! $owner->pending_approval && $owner->hasAnyRole(['Merchant', 'Supplier']), 403);
+            && $owner->is_active && ! $owner->pending_approval && $owner->hasAnyRole(['Merchant']), 403);
     }
 
     private function locked(Store $store, int $id, string $version, bool $trashed = false): User

@@ -4,11 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Follow;
-use App\Models\Product;
 use App\Models\Profile;
 use App\Models\User;
 use App\Services\JwtTokenService;
-use App\Support\ProductImageUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Throwable;
@@ -30,19 +28,9 @@ class PublicProfileApiController extends Controller
             return response()->json(['message' => 'Not found'], 404);
         }
 
-        $role = $user->isSupplier() ? 'supplier' : ($user->isMerchant() ? 'merchant' : 'user');
+        $role = $user->communityRole();
 
         $yearsActive = (int) max(0, $user->created_at ? now()->diffInYears($user->created_at) : 0);
-        $partnersCount = (int) (
-            \DB::table('merchant_supplier')
-                ->where(function ($q) use ($user) {
-                    $q->where('merchant_id', $user->id)->orWhere('supplier_id', $user->id);
-                })
-                ->where('status', 'accepted')
-                ->count()
-        );
-        $productsCount = $user->isSupplier() ? (int) Product::query()->where('user_id', $user->id)->count() : 0;
-
         $followersCount = (int) Follow::query()->where('followed_id', $user->id)->count();
         $followingCount = (int) Follow::query()->where('follower_id', $user->id)->count();
 
@@ -80,8 +68,6 @@ class PublicProfileApiController extends Controller
             ],
             'stats' => [
                 'years_active' => $yearsActive,
-                'partners_count' => $partnersCount,
-                'products_count' => $productsCount,
                 'followers_count' => $followersCount,
                 'following_count' => $followingCount,
             ],
@@ -106,39 +92,5 @@ class PublicProfileApiController extends Controller
         }
 
         return $user && ($user->is_active ?? true) ? $user : null;
-    }
-
-    public function products(Request $request, string $username): JsonResponse
-    {
-        $profile = Profile::query()->where('username', $username)->first();
-        if (! $profile || ! $profile->is_public) {
-            return response()->json(['message' => 'Not found'], 404);
-        }
-        $user = User::query()->find($profile->user_id);
-        if (! $user || ! $user->isSupplier() || ! ($user->is_active ?? true)) {
-            return response()->json(['data' => [], 'meta' => ['total' => 0]]);
-        }
-
-        $perPage = (int) min(48, max(6, (int) $request->query('per_page', 12)));
-        $rows = Product::query()
-            ->where('user_id', $user->id)
-            ->orderByDesc('id')
-            ->paginate($perPage);
-
-        return response()->json([
-            'data' => collect($rows->items())->map(fn (Product $p) => [
-                'id' => $p->id,
-                'name' => $p->name,
-                'description' => $p->description,
-                'image' => ProductImageUrl::thumbUrl($p->image),
-                'category_id' => $p->category_id,
-            ])->values()->all(),
-            'meta' => [
-                'total' => $rows->total(),
-                'per_page' => $rows->perPage(),
-                'current_page' => $rows->currentPage(),
-                'last_page' => $rows->lastPage(),
-            ],
-        ]);
     }
 }

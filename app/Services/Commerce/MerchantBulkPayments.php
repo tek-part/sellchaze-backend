@@ -2,7 +2,6 @@
 
 namespace App\Services\Commerce;
 
-use App\Models\Order;
 use App\Models\Store;
 use App\Models\StoreOrder;
 use App\Models\StorePaymentTransaction;
@@ -105,7 +104,7 @@ class MerchantBulkPayments
 
     private function contexts(Store $store, array $ids, bool $lock): array
     {
-        // Match settlement: payment transactions -> storefront orders -> linked B2B rows.
+        // Match settlement: payment transactions -> storefront orders.
         $query = StorePaymentTransaction::where('store_id', $store->id)->whereIn('store_order_id', $ids)->orderBy('id');
         $transactions = ($lock ? $query->lockForUpdate() : $query)->get();
         $query = StoreOrder::forStore($store)->whereIn('id', $ids)->orderBy('id');
@@ -114,12 +113,10 @@ class MerchantBulkPayments
         foreach ($orders as $order) {
             app(PlatformWallet::class)->assertOrderVisible($order);
         }
-        $query = Order::withoutGlobalScopes()->where('store_id', $store->id)->whereIn('store_order_id', $ids)->orderBy('id');
-        $bridges = ($lock ? $query->lockForUpdate() : $query)->get()->keyBy('store_order_id');
         $proofs = DB::table('store_payment_proofs')->where('store_id', $store->id)->whereIn('store_order_id', $ids)->orderByDesc('created_at')->orderByDesc('id')->get();
 
         return $orders->map(fn ($order) => ['order' => $order, 'transactions' => $transactions->where('store_order_id', $order->id)->values()->all(),
-            'bridge' => $bridges->get($order->id), 'proofs' => $proofs->where('store_order_id', $order->id)->values()->all()])->all();
+            'proofs' => $proofs->where('store_order_id', $order->id)->values()->all()])->all();
     }
 
     private function transaction(array $context): ?StorePaymentTransaction
@@ -160,8 +157,7 @@ class MerchantBulkPayments
         if (! in_array($row->payment_method, ['cod', 'bank_transfer', 'transfer_receipt'], true)) {
             return ['skipped', 'provider_controls'];
         }
-        if ($row->payment_status === 'paid' || collect($context['transactions'])->contains(fn ($t) => $t->status === 'paid' || $t->paid_at !== null)
-            || bccomp((string) ($context['bridge']?->paid_amount ?? '0'), '0', 2) > 0) {
+        if ($row->payment_status === 'paid' || collect($context['transactions'])->contains(fn ($t) => $t->status === 'paid' || $t->paid_at !== null)) {
             return ['skipped', 'settled_payment'];
         }
         if ($transaction === null) {
@@ -184,7 +180,7 @@ class MerchantBulkPayments
     {
         return hash_hmac('sha256', json_encode(['target' => $target, 'order' => $context['order']->getAttributes(),
             'transactions' => array_map(fn ($t) => $t->getAttributes(), $context['transactions']),
-            'bridge' => $context['bridge']?->getAttributes(), 'proofs' => $context['proofs']], JSON_THROW_ON_ERROR), (string) config('app.key'));
+            'proofs' => $context['proofs']], JSON_THROW_ON_ERROR), (string) config('app.key'));
     }
 
     private function inputHash(array $input, string $target): string

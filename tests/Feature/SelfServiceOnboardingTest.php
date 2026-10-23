@@ -68,7 +68,7 @@ class SelfServiceOnboardingTest extends TestCase
             'email' => 'rollback@example.com',
             'password' => 'StrongPass123!',
             'password_confirmation' => 'StrongPass123!',
-            'registration_role' => 'Supplier',
+            'registration_role' => 'Merchant',
         ])->assertStatus(500);
 
         $this->assertDatabaseMissing('users', ['email' => 'rollback@example.com']);

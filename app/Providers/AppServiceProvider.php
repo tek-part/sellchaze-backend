@@ -5,15 +5,12 @@ namespace App\Providers;
 use App\Core\Bootstrap\BootstrapDefault;
 use App\Models\Article;
 use App\Models\EmailTemplate;
-use App\Models\Order;
-use App\Models\OrderQuotations;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\EmailTemplateService;
 use App\Services\Stores\Ssl\SslProviderManager;
 use App\Services\Stores\TrustedHostRegistry;
 use App\Services\Themes\ThemeSettingsMigrator;
-use App\Support\AttributeBadgeCache;
 use App\Support\Localization\LocaleContext;
 use App\Support\Tenancy\CurrentStore;
 use Auth;
@@ -43,7 +40,6 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(LocaleContext::class);
 
         // Request-scoped memo for order attribute-badge lookups (Octane-safe).
-        $this->app->scoped(AttributeBadgeCache::class);
 
         // Theme settings migrations registry (Phase 4D, Task 4).
         if (class_exists(ThemeSettingsMigrator::class)) {
@@ -114,57 +110,6 @@ class AppServiceProvider extends ServiceProvider
                 Config::set('mail.mailers.smtp.encryption', $enc === 'null' || $enc === 'none' ? null : $enc);
             }
         }
-
-        view()->composer('partials.drawers._activity-drawer', function ($view) {
-            if (! Auth::check()) {
-                $view->with('recent_activities', collect());
-
-                return;
-            }
-
-            $uid = (int) Auth::id();
-            $authUser = Auth::user();
-            $isAdmin = ($uid === 1) || (($authUser->email ?? '') === 'admin@admin.com') || $authUser->hasRole('Admin');
-            $effectiveUserId = $isAdmin ? $uid : b2bListingsUserId();
-
-            $ordersQuery = Order::with('product', 'user')->latest();
-            if (! $isAdmin) {
-                $ordersQuery->where(function ($q) use ($effectiveUserId) {
-                    $q->where('user_id', $effectiveUserId)
-                        ->orWhereHas('suppliers', fn ($sq) => $sq->where('customer', $effectiveUserId))
-                        ->orWhereHas('suppliers', fn ($sq) => $sq->where('supplier', $effectiveUserId));
-                });
-            }
-            $orders = $ordersQuery->take(10)->get()->map(function ($o) {
-                return [
-                    'type' => 'order',
-                    'model' => $o,
-                    'created_at' => $o->created_at,
-                    'title' => 'Order '.($o->code ?? $o->id),
-                    'url' => $o->code ? route('orders.show', $o->code) : null,
-                ];
-            });
-
-            $quotationsQuery = OrderQuotations::with('order', 'order.product')->latest();
-            if (! $isAdmin) {
-                $quotationsQuery->where(function ($q) use ($effectiveUserId) {
-                    $q->where('supplier_user_id', $effectiveUserId)
-                        ->orWhere('customer_user_id', $effectiveUserId);
-                });
-            }
-            $quotations = $quotationsQuery->take(10)->get()->map(function ($q) {
-                return [
-                    'type' => 'quotation',
-                    'model' => $q,
-                    'created_at' => $q->created_at,
-                    'title' => 'Quotation for order '.($q->order->code ?? $q->order_id ?? '-'),
-                    'url' => $q->order && $q->order->code ? route('orders.show', $q->order->code) : null,
-                ];
-            });
-
-            $recent_activities = $orders->concat($quotations)->sortByDesc('created_at')->take(15)->values();
-            $view->with('recent_activities', $recent_activities);
-        });
 
         // Share website settings and default SEO for frontend (Growtech) layouts
         foreach (['layout.growtech._landing', 'layout.growtech._auth'] as $viewName) {

@@ -13,20 +13,6 @@ return [
      */
     'marketing_url' => env('MARKETING_URL', 'https://sellchaze.com'),
 
-    /**
-     * Absolute path of the public sitemap.xml the SPA serves. The backend
-     * regenerates it from live directory data so suppliers who register after
-     * the last frontend build still get indexed. Unset = generation disabled.
-     */
-    'sitemap_path' => env('SELLCHASE_SITEMAP_PATH'),
-
-    /**
-     * IndexNow key (Bing/Yandex/Seznam) used to announce sitemap changes.
-     * Google no longer accepts pings — it reads the Sitemap: line in robots.txt.
-     * Unset = no ping is attempted.
-     */
-    'indexnow_key' => env('SELLCHASE_INDEXNOW_KEY'),
-
     'jwt' => [
         'secret' => env('JWT_SECRET') ?: '',
         'access_ttl_minutes' => (int) env('JWT_ACCESS_TTL_MINUTES', 1440),
