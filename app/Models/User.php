@@ -56,7 +56,6 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
-        'api_key',
     ];
 
     /**
@@ -215,26 +214,5 @@ class User extends Authenticatable
     public function followingUsers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'follows', 'follower_id', 'followed_id')->withTimestamps();
-    }
-
-    /**
-     * Get a masked version of the API key for display.
-     */
-    public function getApiKeyForDisplay(): ?string
-    {
-        $key = $this->getRawApiKey();
-        if (! $key || strlen($key) < 12) {
-            return null;
-        }
-
-        return substr($key, 0, 8).'...'.substr($key, -4);
-    }
-
-    /**
-     * Get the raw API key (use only when necessary, e.g. for copy in own profile).
-     */
-    public function getRawApiKey(): ?string
-    {
-        return $this->attributes['api_key'] ?? null;
     }
 }
