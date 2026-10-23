@@ -2,6 +2,8 @@
 
 namespace App\Services\Storefront;
 
+use App\Services\Media\ImageDerivatives;
+
 /**
  * Serves the React storefront on tenant hosts.
  *
@@ -97,6 +99,12 @@ class SpaShell
 
         $html = preg_replace('/<\/head>/i', implode("\n", $head)."\n</head>", $html, 1) ?? $html;
 
+        // Open the asset and media connections before the parser reaches the stylesheet and bundle.
+        $early = $this->earlyHints($context, $seo);
+        if ($early !== []) {
+            $html = preg_replace('/<head\b[^>]*>/i', '$0'."\n".implode("\n", $early), $html, 1) ?? $html;
+        }
+
         return str_replace('id="storefront-root"', 'id="storefront-root" data-rendered-by="spa"', $html);
     }
 
@@ -124,5 +132,46 @@ class SpaShell
         self::$cache[$path] = ['mtime' => $mtime, 'html' => $html];
 
         return $html;
+    }
+
+    /**
+     * preconnect for the asset/media origins and, on product pages, a preload of the main product
+     * image. The preload's srcset and sizes must match ProductGallery's <img> exactly (the storefront
+     * builds the same ladder in foundation/media/responsive.ts), or the browser downloads it twice.
+     *
+     * @param  array<string, mixed>  $context
+     * @param  array<string, mixed>  $seo
+     * @return list<string>
+     */
+    private function earlyHints(array $context, array $seo): array
+    {
+        $tags = [];
+        // Module scripts and fonts are CORS requests; images are not, so each needs its own connection type.
+        $assets = $this->assetOrigin();
+        $media = $this->origin((string) config('filesystems.disks.public.url'));
+        if ($assets !== '') {
+            $tags[] = '<link rel="preconnect" href="'.e($assets).'" crossorigin>';
+        }
+        if ($media) {
+            $tags[] = '<link rel="preconnect" href="'.e($media).'">';
+        }
+
+        $image = $seo['og']['og:image'] ?? null;
+        if (($context['page']['template'] ?? null) === 'product' && is_string($image)) {
+            $derivatives = app(ImageDerivatives::class);
+            if ($derivatives->relativePath($image) !== null) {
+                $srcset = implode(', ', array_map(fn (int $w) => $derivatives->url($image, $w).' '.$w.'w', [320, 640, 960, 1280, 1600]));
+                $tags[] = '<link rel="preload" as="image" fetchpriority="high" imagesrcset="'.e($srcset).'" imagesizes="(min-width: 1024px) 50vw, 100vw">';
+            }
+        }
+
+        return $tags;
+    }
+
+    private function origin(string $url): ?string
+    {
+        $parts = parse_url($url);
+
+        return isset($parts['scheme'], $parts['host']) ? $parts['scheme'].'://'.$parts['host'].(isset($parts['port']) ? ':'.$parts['port'] : '') : null;
     }
 }
