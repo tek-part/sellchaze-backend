@@ -16,14 +16,13 @@ use Illuminate\Support\Facades\Cache;
 /**
  * The single canonical category model. Serves both the global B2B taxonomy (store_id = NULL) and the
  * multi-tenant storefront taxonomy (store_id = the store), isolated by {@see ProductScope} via
- * {@see HasStoreTenancy}. Retains the legacy bilingual name_en/name_ar, the wigpleasure_category_id
- * external key, and the name-derivation hook; adds hierarchy, slug, imagery, visibility and SEO.
+ * {@see HasStoreTenancy}. Retains the legacy bilingual name_en/name_ar and the name-derivation hook;
+ * adds hierarchy, slug, imagery, visibility and SEO.
  *
  * @property int $id
  * @property string $name
  * @property string|null $name_en
  * @property string|null $name_ar
- * @property int|null $wigpleasure_category_id
  * @property int|null $store_id
  * @property int|null $parent_id
  * @property string|null $slug
@@ -54,7 +53,7 @@ class Category extends Model
     protected $hidden = ['updated_at', 'deleted_at'];
 
     protected $fillable = [
-        'name', 'name_en', 'name_ar', 'wigpleasure_category_id',
+        'name', 'name_en', 'name_ar',
         // canonical superset (from Category)
         'user_id', 'store_id', 'parent_id', 'slug', 'description', 'image', 'icon',
         'is_active', 'is_featured', 'show_in_header', 'is_hidden', 'position', 'seo_title', 'seo_description', 'translations',
