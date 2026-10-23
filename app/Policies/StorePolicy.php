@@ -28,9 +28,9 @@ class StorePolicy
             return true;
         }
 
-        // One Merchant/Supplier = one Store. A non-admin owner may create their
+        // One Merchant = one Store. A non-admin owner may create their
         // store only while they own none; a second store is never permitted.
-        if ($user->hasAnyRole(['Merchant', 'Supplier', 'Manager'])) {
+        if ($user->hasAnyRole(['Merchant', 'Manager'])) {
             return ! Store::query()
                 ->where('owner_user_id', UserScope::effectiveMerchantUserId($user))
                 ->exists();

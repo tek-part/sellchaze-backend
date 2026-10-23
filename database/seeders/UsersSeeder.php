@@ -50,16 +50,16 @@ class UsersSeeder extends Seeder
         $supplier = User::updateOrCreate(
             ['email' => 'supplier@demo.com'],
             [
-                'name' => 'Demo Supplier',
+                'name' => 'Demo Marketplace Owner',
                 'password' => Hash::make('12345678'),
                 'email_verified_at' => now(),
                 'is_active' => true,
             ]
         );
-        $supplier->syncRoles(['Supplier']);
+        $supplier->syncRoles(['Merchant']);
         $supplier->syncPermissions([]);
 
-        $this->command->info('Users seeded: admin (wigpleasure@gmail.com), merchant (customer@demo.com), supplier (supplier@demo.com). Password: 12345678');
+        $this->command->info('Users seeded: admin (wigpleasure@gmail.com), merchant (customer@demo.com), second merchant (supplier@demo.com). Password: 12345678');
     }
 
     private function createProfile(User $user, string $username): void

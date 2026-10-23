@@ -80,7 +80,7 @@ class MerchantOrderEditController extends Controller
     {
         $editing = app(MerchantOrderEditing::class);
 
-        return response()->json(['data' => new MerchantOrderResource($row->load(['items', 'merchantReview', 'statusChanges.actor', 'b2bOrder'])),
+        return response()->json(['data' => new MerchantOrderResource($row->load(['items', 'merchantReview', 'statusChanges.actor'])),
             'edit' => $editing->capabilities($store, $row) + ['token' => $editing->token($store, $row)],
             'pricing' => ['currency' => $row->currency, 'tax_enabled' => (bool) $store->tax_enabled, 'tax_rate' => (string) ($store->tax_rate ?: '0'), 'tax_prices_include' => (bool) $store->tax_prices_include]]);
     }

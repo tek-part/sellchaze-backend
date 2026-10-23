@@ -2,10 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Mail\DigitalOrderPaidMail;
 use App\Mail\DigitalOrderReceiptMail;
-use App\Models\Order;
 use App\Models\OutboxMessage;
 use App\Models\Product;
 use App\Models\Store;
@@ -16,9 +14,9 @@ use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Models\StoreShipment;
 use App\Models\User;
+use App\Services\Commerce\DigitalDelivery;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\ManualCashPayment;
-use App\Services\Commerce\StorefrontOrderBridge;
 use App\Services\Commerce\StoreOrderService;
 use App\Services\JwtTokenService;
 use App\Services\Outbox\OutboxPublisher;
@@ -30,7 +28,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
 use RuntimeException;
 use Tests\TestCase;
@@ -55,14 +52,9 @@ class CashCollectionTest extends TestCase
         Http::preventStrayRequests();
         Mail::fake();
         Notification::fake();
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         $this->seed([PermissionTableSeeder::class, RolesTableSeeder::class]);
         $this->owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $this->owner->assignRole('Merchant');
-        $supplier = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
-        $supplier->assignRole('Supplier');
-        $this->owner->suppliersAsMerchant()->attach($supplier->id, ['status' => 'accepted']);
-        config()->set('services.sellchase_fallback_supplier_user_id', null);
         $this->store = Store::create(['owner_user_id' => $this->owner->id, 'owner_type' => 'merchant', 'name' => 'Cash review', 'slug' => 'cash', 'currency' => 'EGP', 'status' => 'active']);
         StoreDomain::create(['store_id' => $this->store->id, 'host' => 'cash.sellchase.com', 'type' => 'subdomain', 'is_primary' => true]);
         app(CurrentStore::class)->set($this->store);
@@ -86,7 +78,6 @@ class CashCollectionTest extends TestCase
         }
         $data = $this->postJson($this->base.'/checkout', ['items' => $items, 'customer_name' => 'Cash review buyer', 'customer_phone' => '01000000000',
             'customer_email' => 'cash@example.test', 'shipping_address' => ['line1' => 'Review address', 'city' => 'Cairo', 'country' => 'EG'], 'payment_method' => $method])->assertCreated()->json();
-        app(StorefrontOrderBridge::class)->bridge(StoreOrder::forStore($this->store->id)->findOrFail($data['data']['id']), $this->store);
 
         return $data;
     }
@@ -123,11 +114,6 @@ class CashCollectionTest extends TestCase
         $this->assertNotNull($transaction->paid_at);
         $this->assertSame(1, $order->statusChanges()->where('source', 'cash_payment')->count());
         $this->assertSame(1, OutboxMessage::where('event_type', 'StorefrontDigitalPaid')->count());
-        $bridge = Order::where('store_order_id', $id)->firstOrFail();
-        $this->assertSame('150.00', $bridge->paid_amount);
-        $this->assertSame('CASH-REVIEW', $bridge->payment_transaction_id);
-        $this->assertSame(1, (int) $bridge->quantity);
-        $this->assertStringNotContainsString('PRIVATE-CASH', $bridge->getRawOriginal('storefront_items'));
         $this->postJson($this->base.'/checkout/receipt', ['token' => $data['receipt']['token']])->assertOk()->assertJsonPath('data.payment_status', 'paid')->assertJsonPath('data.items.0.digital_delivery.values', ['PRIVATE-CASH-1'])
             ->assertDontSee('Synthetic receipt checked');
         app(CurrentStore::class)->forget();
@@ -246,11 +232,11 @@ class CashCollectionTest extends TestCase
         $this->assertSame(1, OutboxMessage::where('event_type', 'StorefrontDigitalPaid')->count());
     }
 
-    public function test_failure_during_bridge_sync_rolls_back_payment_audit_and_delivery_event(): void
+    public function test_failure_during_confirmation_rolls_back_payment_audit_and_delivery_event(): void
     {
         $data = $this->place();
         $order = StoreOrder::forStore($this->store->id)->findOrFail($data['data']['id']);
-        $this->mock(StorefrontOrderBridge::class)->shouldReceive('syncPayment')->once()->andThrow(new RuntimeException('Review rollback'));
+        $this->mock(DigitalDelivery::class)->shouldReceive('record')->once()->andThrow(new RuntimeException('Review rollback'));
         try {
             app(ManualCashPayment::class)->confirm($order, 'ROLLBACK', '150.00', 'EGP', $this->owner->id);
             $this->fail('The simulated failure must propagate.');

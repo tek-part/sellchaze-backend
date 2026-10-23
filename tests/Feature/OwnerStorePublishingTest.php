@@ -33,7 +33,7 @@ class OwnerStorePublishingTest extends TestCase
         app(ThemeRegistry::class)->registerFromFile(resource_path('themes/storefront/naseem.json'));
     }
 
-    private function owner(string $role = 'Supplier'): User
+    private function owner(string $role = 'Merchant'): User
     {
         $user = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $user->assignRole($role);

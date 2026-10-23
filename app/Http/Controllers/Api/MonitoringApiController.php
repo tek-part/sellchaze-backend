@@ -59,7 +59,7 @@ class MonitoringApiController extends Controller
 
             $roles = $user->roles->pluck('name')->values()->all();
             $bucket = $this->monitoringBucket($roles);
-            $isSupplier = in_array('Supplier', $roles, true);
+            $isMerchant = in_array('Merchant', $roles, true);
 
             return [
                 'user_id' => $user->id,
@@ -68,7 +68,7 @@ class MonitoringApiController extends Controller
                 'avatar_url' => $this->avatarUrl($user),
                 'roles' => $roles,
                 'monitoring_bucket' => $bucket,
-                'role_type' => $isSupplier ? 'supplier' : 'staff',
+                'role_type' => $isMerchant ? 'merchant' : 'staff',
                 'session' => [
                     'id' => $session->id,
                     'device_name' => $session->device_name,
@@ -91,7 +91,7 @@ class MonitoringApiController extends Controller
         })->filter()->values();
 
         if ($bucketFilter !== '') {
-            $allowedBuckets = ['admin', 'manager', 'staff', 'supplier', 'merchant', 'customer', 'mixed'];
+            $allowedBuckets = ['admin', 'manager', 'staff', 'merchant', 'customer', 'mixed'];
             if (in_array($bucketFilter, $allowedBuckets, true)) {
                 $rows = $rows->filter(fn ($r) => ($r['monitoring_bucket'] ?? '') === $bucketFilter)->values();
             }
@@ -101,7 +101,6 @@ class MonitoringApiController extends Controller
             'admin' => 0,
             'manager' => 0,
             'staff' => 0,
-            'supplier' => 0,
             'merchant' => 0,
             'customer' => 0,
             'mixed' => 0,
@@ -119,25 +118,22 @@ class MonitoringApiController extends Controller
 
         $internal = $byBucket['admin'] + $byBucket['manager'] + $byBucket['staff'];
         $activeStaff = $rows->filter(fn ($r) => in_array($r['monitoring_bucket'] ?? '', ['admin', 'manager', 'staff'], true))->values();
-        $activeSuppliers = $rows->where('monitoring_bucket', 'supplier')->values();
 
         return response()->json([
             'active_within_minutes' => $minutes,
             'stats' => [
                 'active_total' => $rows->count(),
                 'active_staff' => $internal,
-                'active_suppliers' => $byBucket['supplier'],
                 'active_merchants' => $byBucket['merchant'],
                 'active_customers' => $byBucket['customer'],
                 'by_bucket' => $byBucket,
                 'by_role' => $byRole,
             ],
             'active_staff' => $activeStaff,
-            'active_suppliers' => $activeSuppliers,
             'data' => $rows,
             'meta' => [
                 'available_roles' => Role::query()->orderBy('name')->pluck('name')->values()->all(),
-                'available_buckets' => ['admin', 'manager', 'staff', 'supplier', 'merchant', 'customer', 'mixed'],
+                'available_buckets' => ['admin', 'manager', 'staff', 'merchant', 'customer', 'mixed'],
             ],
         ]);
     }
@@ -173,9 +169,6 @@ class MonitoringApiController extends Controller
         }
         if (isset($set['Staff'])) {
             return 'staff';
-        }
-        if (isset($set['Supplier'])) {
-            return 'supplier';
         }
         if (isset($set['Merchant'])) {
             return 'merchant';
@@ -226,10 +219,10 @@ class MonitoringApiController extends Controller
         if ($dateTo !== '') {
             $query->whereDate('created_at', '<=', $dateTo);
         }
-        if ($roleType === 'supplier') {
-            $query->whereHas('user.roles', fn ($q) => $q->where('name', 'Supplier'));
+        if ($roleType === 'merchant') {
+            $query->whereHas('user.roles', fn ($q) => $q->where('name', 'Merchant'));
         } elseif ($roleType === 'staff') {
-            $query->whereHas('user.roles', fn ($q) => $q->where('name', '!=', 'Supplier'));
+            $query->whereDoesntHave('user.roles', fn ($q) => $q->where('name', 'Merchant'));
         }
         if ($status === 'active') {
             $query->whereNull('revoked_at')
@@ -253,7 +246,7 @@ class MonitoringApiController extends Controller
                 return null;
             }
             $roles = $u->roles->pluck('name')->values()->all();
-            $isSupplier = in_array('Supplier', $roles, true);
+            $isMerchant = in_array('Merchant', $roles, true);
             $endAt = $this->sessionEndAt($session, $now);
             $duration = $session->created_at ? $session->created_at->diffInSeconds($endAt) : 0;
 
@@ -264,7 +257,7 @@ class MonitoringApiController extends Controller
                     'name' => $u->name,
                     'email' => $u->email,
                     'roles' => $roles,
-                    'role_type' => $isSupplier ? 'supplier' : 'staff',
+                    'role_type' => $isMerchant ? 'merchant' : 'staff',
                 ],
                 'device_name' => $session->device_name,
                 'browser' => $this->browserFromUserAgent((string) $session->user_agent),
@@ -280,8 +273,8 @@ class MonitoringApiController extends Controller
 
         $staffWork = AuthSession::query()
             ->with(['user.roles'])
-            ->whereHas('user.roles', function ($q) {
-                $q->where('name', '!=', 'Supplier');
+            ->whereDoesntHave('user.roles', function ($q) {
+                $q->where('name', 'Merchant');
             })
             ->get()
             ->groupBy('user_id')

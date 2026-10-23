@@ -50,7 +50,7 @@ class StoreService
             ? (int) ($data['owner_user_id'] ?? $actor->id)
             : UserScope::effectiveMerchantUserId($actor);
 
-        return $this->persist($ownerId, $this->resolveOwnerType($actor, $ownerId), $data, $logo, $banner);
+        return $this->persist($ownerId, 'merchant', $data, $logo, $banner);
     }
 
     /**
@@ -60,9 +60,7 @@ class StoreService
      */
     public function createForOwner(User $owner, array $data, ?UploadedFile $logo = null, ?UploadedFile $banner = null): Store
     {
-        $ownerType = $owner->hasRole('Supplier') ? 'supplier' : 'merchant';
-
-        return $this->persist((int) $owner->id, $ownerType, $data, $logo, $banner);
+        return $this->persist((int) $owner->id, 'merchant', $data, $logo, $banner);
     }
 
     /**
@@ -347,13 +345,6 @@ class StoreService
     public static function isReserved(string $slug): bool
     {
         return in_array(strtolower($slug), self::RESERVED_SLUGS, true);
-    }
-
-    private function resolveOwnerType(User $actor, int $ownerId): string
-    {
-        $owner = $ownerId === (int) $actor->id ? $actor : User::find($ownerId);
-
-        return ($owner && $owner->hasRole('Supplier')) ? 'supplier' : 'merchant';
     }
 
     private function storeImage(UploadedFile $file): string

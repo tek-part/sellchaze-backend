@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreDomain;
@@ -10,13 +9,11 @@ use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\User;
 use App\Services\Commerce\CheckoutFields;
-use App\Services\Commerce\StorefrontOrderBridge;
 use App\Services\JwtTokenService;
 use App\Support\Tenancy\CurrentStore;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class StoreCheckoutFieldsTest extends TestCase
@@ -32,7 +29,6 @@ class StoreCheckoutFieldsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         $this->seed([PermissionTableSeeder::class, RolesTableSeeder::class]);
         $owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $owner->assignRole('Merchant');
@@ -72,10 +68,9 @@ class StoreCheckoutFieldsTest extends TestCase
             ->assertCreated()->assertJsonPath('data.customer_email', null)->assertJsonPath('data.shipping_address.national_address', 'LOCAL1234')->json('data.id');
         app(CurrentStore::class)->set($this->store);
         $order = StoreOrder::findOrFail($id);
-        $bridge = app(StorefrontOrderBridge::class)->bridge($order, $this->store);
-        $this->assertNull($bridge->customer_email);
-        $this->assertStringContainsString('01111111111', $bridge->shipping_address);
-        $this->assertStringContainsString('LOCAL1234', $bridge->shipping_address);
+        $this->assertNull($order->customer_email);
+        $this->assertSame('01111111111', $order->shipping_address['phone_alt']);
+        $this->assertSame('LOCAL1234', $order->shipping_address['national_address']);
         $this->assertSame('Local delivery note', $order->notes);
     }
 

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Store;
 use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
@@ -16,7 +15,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
@@ -71,7 +69,6 @@ class HostedPaymentsTest extends TestCase
     private function fixtures(string $slug, string $currency = 'EGP'): array
     {
         Http::preventStrayRequests();
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         $owner = User::factory()->create();
         $store = Store::create(['owner_user_id' => $owner->id, 'owner_type' => 'merchant', 'name' => $slug, 'slug' => $slug, 'currency' => $currency, 'status' => 'active']);
         $setting = StorePaymentGateway::create(['store_id' => $store->id, 'gateway' => $slug, 'enabled' => true, 'test_mode' => $slug !== 'easykash',

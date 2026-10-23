@@ -32,9 +32,9 @@ class CatalogTranslationsTest extends TestCase
         $this->seed(PermissionTableSeeder::class);
         $this->seed(RolesTableSeeder::class);
         $this->owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
-        $this->owner->assignRole('Supplier');
+        $this->owner->assignRole('Merchant');
         $this->store = Store::create([
-            'owner_user_id' => $this->owner->id, 'owner_type' => 'supplier', 'name' => 'Nike', 'slug' => 'nike',
+            'owner_user_id' => $this->owner->id, 'owner_type' => 'merchant', 'name' => 'Nike', 'slug' => 'nike',
             'currency' => 'USD', 'status' => 'active', 'default_locale' => 'en', 'supported_locales' => ['en', 'ar'],
         ]);
         StoreDomain::create(['store_id' => $this->store->id, 'host' => 'nike.sellchase.com', 'type' => 'subdomain', 'is_primary' => true]);

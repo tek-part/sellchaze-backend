@@ -19,19 +19,8 @@ class UserScope
         return $user->hasRole('Admin');
     }
 
-    public static function isSupplier(?User $user): bool
-    {
-        if (! $user) {
-            return false;
-        }
-
-        return $user->hasRole('Supplier');
-    }
-
-    /**
-     * Full supplier directory (all supplier accounts + pending supplier sign-ups), same as admin in SuppliersApiController.
-     */
-    public static function seesAdminSupplierDirectory(?User $user): bool
+    /** Platform staff who may list every merchant account (admin Merchants page). */
+    public static function seesAllMerchants(?User $user): bool
     {
         if (! $user) {
             return false;
@@ -41,7 +30,8 @@ class UserScope
     }
 
     /**
-     * User id used for listing orders/products for non-admin (merchant context).
+     * The account that owns the merchant data a user works on: store managers and employees act for
+     * their parent merchant, everyone else for themselves.
      */
     public static function effectiveMerchantUserId(User $user): int
     {
@@ -53,6 +43,10 @@ class UserScope
             return (int) (StoreManagers::parentOwner($user)?->id ?? 0);
         }
 
-        return b2bListingsUserId();
+        if ($user->hasRole('Employee') && ! empty($user->parent_user_id)) {
+            return (int) $user->parent_user_id;
+        }
+
+        return (int) $user->id;
     }
 }

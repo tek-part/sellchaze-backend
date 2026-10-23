@@ -140,6 +140,6 @@ class MerchantOrderActionsController extends Controller
 
     private function response(StoreOrder $row): JsonResponse
     {
-        return response()->json(['data' => new MerchantOrderResource($row->load(['items', 'statusChanges.actor', 'b2bOrder']))]);
+        return response()->json(['data' => new MerchantOrderResource($row->load(['items', 'statusChanges.actor']))]);
     }
 }

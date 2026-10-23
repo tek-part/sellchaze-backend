@@ -101,7 +101,7 @@ class ImpersonationApiController extends Controller
             return false;
         }
 
-        return $target->hasAnyRole(['Staff', 'Manager', 'Admin', 'Merchant', 'Supplier']);
+        return $target->hasAnyRole(['Staff', 'Manager', 'Admin', 'Merchant']);
     }
 
     /**

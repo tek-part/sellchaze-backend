@@ -13,13 +13,13 @@ use Spatie\Permission\PermissionRegistrar;
  * clears the pending flag and provisions the owner's store.
  *
  * Shared by the two routes into an approved account so they can never drift:
- *   - self-service sign-up (Merchant/Supplier are approved immediately)
+ *   - self-service sign-up (Merchants are approved immediately)
  *   - an administrator approving a pending registration
  */
 class RegistrationApprover
 {
     /** Roles a visitor may self-select when signing up. */
-    public const SELF_SERVICE_ROLES = ['Merchant', 'Supplier'];
+    public const SELF_SERVICE_ROLES = ['Merchant'];
 
     public function __construct(private readonly StoreProvisioner $provisioner) {}
 
@@ -41,8 +41,8 @@ class RegistrationApprover
 
         return match (strtolower(trim($role))) {
             'staff' => 'Staff',
-            'supplier' => 'Supplier',
-            'merchant' => 'Merchant',
+            // Supplier accounts were merged into Merchant; older clients may still send it.
+            'merchant', 'supplier' => 'Merchant',
             default => null,
         };
     }
@@ -65,7 +65,7 @@ class RegistrationApprover
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // One Merchant/Supplier = one Store — provision it now so the onboarding
+        // One Merchant = one Store — provision it now so the onboarding
         // checklist has something to measure progress against.
         $this->provisioner->ensureFor($user->fresh());
 

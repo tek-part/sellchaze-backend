@@ -45,7 +45,7 @@ class OrganizationStoreController extends Controller
             $store = $organization->stores()->create([
                 ...$data,
                 'owner_user_id' => $request->user()->id,
-                'owner_type' => $request->user()->isSupplier() ? 'supplier' : 'merchant',
+                'owner_type' => 'merchant',
                 'currency' => $data['currency'] ?? $organization->default_currency,
                 'status' => 'draft',
                 'is_primary' => $isPrimary,

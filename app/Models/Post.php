@@ -36,6 +36,9 @@ class Post extends Model
 {
     public const TYPES = ['new_product', 'ad_offer', 'rfq', 'update_news', 'question'];
 
+    /** Types members can still create; 'rfq' (B2B supply request) only survives on older posts. */
+    public const CREATABLE_TYPES = ['new_product', 'ad_offer', 'update_news', 'question'];
+
     /** Relations every feed-card render needs — single source of truth for eager-loading.
      *  author.roles rides along so PostPresenter can emit the author's community
      *  role (supplier/merchant) without a per-row Spatie query. */

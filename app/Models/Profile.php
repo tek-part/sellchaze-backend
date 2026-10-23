@@ -38,13 +38,4 @@ class Profile extends Model
     {
         return $this->belongsTo(User::class);
     }
-
-    /**
-     * Accepted quotations (deals) where this user is the customer.
-     */
-    public function acceptedQuotations()
-    {
-        return $this->hasMany(OrderQuotations::class, 'customer_user_id', 'user_id')
-            ->where('status', 'accepted');
-    }
 }

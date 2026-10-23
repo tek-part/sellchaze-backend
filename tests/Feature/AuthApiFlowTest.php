@@ -23,11 +23,10 @@ class AuthApiFlowTest extends TestCase
     public function test_protected_bootstrap_endpoints_require_a_bearer_token(): void
     {
         $this->getJson('/api/v1/auth/me')->assertUnauthorized();
-        $this->getJson('/api/v1/dashboard')->assertUnauthorized();
         $this->getJson('/api/v1/my-store')->assertUnauthorized();
     }
 
-    public function test_valid_access_token_bootstraps_user_dashboard_and_store(): void
+    public function test_valid_access_token_bootstraps_user_and_store(): void
     {
         $merchant = User::factory()->create([
             'is_active' => true,
@@ -40,11 +39,6 @@ class AuthApiFlowTest extends TestCase
             ->getJson('/api/v1/auth/me')
             ->assertOk()
             ->assertJsonPath('user.id', $merchant->id);
-
-        $this->withToken($token)
-            ->getJson('/api/v1/dashboard')
-            ->assertOk()
-            ->assertJsonPath('dashboard_mode', 'merchant');
 
         $this->withToken($token)
             ->getJson('/api/v1/my-store')

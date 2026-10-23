@@ -7,8 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Sector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Validation\Rule;
 
 /**
  * Lets the signed-in supplier/merchant choose which directory sectors they appear under (one or
@@ -77,24 +75,6 @@ class MeSectorController extends Controller
         $user->sectors()->sync($sync);
         $user->primary_sector_id = $primary;
         $user->save();
-
-        // Directory counts/stats are membership-derived — drop the cached aggregates.
-        Cache::forget('directory.sector_counts');
-        Cache::forget('directory.stats');
-
-        // Joining (or moving between) sectors changes which public pages exist,
-        // so rebuild the sitemap and let Google know. Deferred until after the
-        // response, and best-effort: indexing must never fail the user's save.
-        app()->terminating(function () {
-            try {
-                $generator = app(\App\Services\Seo\SitemapGenerator::class);
-                if ($generator->generate() !== null) {
-                    $generator->ping();
-                }
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::info('Sitemap refresh failed: '.$e->getMessage());
-            }
-        });
 
         return response()->json([
             'message' => 'Sectors updated.',

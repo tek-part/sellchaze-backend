@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Store;
@@ -17,7 +16,6 @@ use App\Support\Tenancy\CurrentStore;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -36,7 +34,6 @@ class StoreInventoryTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         $this->seed([PermissionTableSeeder::class, RolesTableSeeder::class]);
         $this->owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $this->owner->assignRole('Merchant');

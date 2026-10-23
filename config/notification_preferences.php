@@ -16,14 +16,6 @@ return [
             ],
             'roles' => ['Admin', 'Staff', 'Manager', 'Merchant'],
         ],
-        'delivery_updates' => [
-            'label_key' => 'notif_pref_delivery_updates',
-            'defaults' => [
-                'in_app' => true,
-                'email' => true,
-            ],
-            'roles' => ['Admin', 'Merchant'],
-        ],
         'inventory_alerts' => [
             'label_key' => 'notif_pref_inventory_alerts',
             'defaults' => [
@@ -41,39 +33,16 @@ return [
                 'in_app' => true,
                 'email' => true,
             ],
-            'roles' => ['Admin', 'Merchant', 'Supplier'],
-        ],
-        'quotation_activity' => [
-            'label_key' => 'notif_pref_quotation_activity',
-            'defaults' => [
-                'in_app' => true,
-                'email' => true,
-            ],
             'roles' => ['Admin', 'Merchant'],
         ],
+        // Support tickets: new tickets/replies for the support team, replies and resolutions for merchants.
         'ticket_in_app' => [
             'label_key' => 'notif_pref_ticket_updates',
             'defaults' => [
                 'in_app' => true,
-                'email' => false,
+                'email' => true,
             ],
             'roles' => ['Admin', 'Staff', 'Manager', 'Merchant'],
-        ],
-        'quotation_approved' => [
-            'label_key' => 'notif_pref_quotation_approved',
-            'defaults' => [
-                'in_app' => true,
-                'email' => true,
-            ],
-            'roles' => ['Supplier'],
-        ],
-        'order_assigned' => [
-            'label_key' => 'notif_pref_order_assigned',
-            'defaults' => [
-                'in_app' => true,
-                'email' => true,
-            ],
-            'roles' => ['Supplier'],
         ],
     ],
 ];

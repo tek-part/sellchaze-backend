@@ -9,7 +9,6 @@ use App\Models\StoreOrder;
 use App\Models\StorePaymentTransaction;
 use App\Models\User;
 use App\Services\Commerce\PaymentSettlement;
-use App\Services\Commerce\StorefrontOrderBridge;
 use App\Services\JwtTokenService;
 use App\Services\PlatformWallet;
 use App\Support\Tenancy\CurrentStore;
@@ -107,8 +106,6 @@ class MerchantBulkPaymentTest extends TestCase
         $online = $this->order('stripe');
         $closed = $this->order('cod', ['status' => 'refunded']);
         $already = $this->order('bank_transfer', ['payment_status' => 'paid']);
-        $bridge = app(StorefrontOrderBridge::class)->bridge($cash, $this->store);
-        $this->assertNotNull($bridge);
         $cash->items()->create(['store_id' => $this->store->id, 'name' => 'Synthetic digital item', 'unit_price' => 0, 'quantity' => 1, 'line_total' => 0, 'digital_delivery' => ['type' => 'codes']]);
         $payload = $this->payload([$cash, $bank, $transfer, $online, $closed, $already]);
         $this->postJson($this->base.'/bulk-payment-status', $payload, $this->auth)->assertOk()->assertJsonPath('updated', 3)->assertJsonPath('skipped', 2)->assertJsonPath('unchanged', 1);
@@ -122,8 +119,6 @@ class MerchantBulkPaymentTest extends TestCase
             $this->assertSame('DO-NOT-EXPOSE', $tx->metadata['private_provider_secret']);
             $this->assertSame(1, $row->statusChanges()->count());
         }
-        $this->assertSame('100.00', $bridge->fresh()->paid_amount);
-        $this->assertSame('SYNTHETIC-COLLECT-'.$cash->id, $bridge->fresh()->payment_transaction_id);
         $this->assertSame('accepted', DB::table('store_payment_proofs')->where('id', $receipt)->value('status'));
         $this->assertSame(10, $this->product->fresh()->stock_quantity);
         $this->assertSame(3, $this->product->fresh()->reserved_quantity);
@@ -254,25 +249,21 @@ class MerchantBulkPaymentTest extends TestCase
         $this->assertSame('accepted', DB::table('store_payment_proofs')->where('id', $second)->value('status'));
     }
 
-    public function test_settled_store_or_bridge_payments_cannot_be_downgraded_and_mismatched_or_processing_transactions_are_not_confirmed(): void
+    public function test_settled_store_payments_cannot_be_downgraded_and_mismatched_or_processing_transactions_are_not_confirmed(): void
     {
         $paid = $this->order('cod', ['payment_status' => 'paid']);
         foreach (['pending', 'failed'] as $target) {
             $this->postJson($this->base.'/bulk-payment-status', $this->payload([$paid], $target), $this->auth)->assertOk()->assertJsonPath('skipped', 1)->assertJsonPath('updated', 0);
         }
-        $bridgeOrder = $this->order();
-        $bridge = app(StorefrontOrderBridge::class)->bridge($bridgeOrder, $this->store);
-        $bridge->update(['paid_amount' => 25]);
         $mismatch = $this->order();
         $this->transaction($mismatch)->update(['amount' => 99]);
         $processing = $this->order();
         $this->transaction($processing)->update(['status' => 'processing']);
         $missing = $this->order();
         $this->transaction($missing)->delete();
-        $response = $this->postJson($this->base.'/bulk-payment-review', ['target' => 'paid', 'ids' => [$bridgeOrder->id, $mismatch->id, $processing->id, $missing->id]], $this->auth)->assertOk();
-        $this->assertSame(['settled_payment', 'amount_changed', 'processing_payment', 'missing_transaction'], array_column($response->json('data'), 'reason'));
+        $response = $this->postJson($this->base.'/bulk-payment-review', ['target' => 'paid', 'ids' => [$mismatch->id, $processing->id, $missing->id]], $this->auth)->assertOk();
+        $this->assertSame(['amount_changed', 'processing_payment', 'missing_transaction'], array_column($response->json('data'), 'reason'));
         $this->assertSame('paid', $paid->fresh()->payment_status);
-        $this->assertSame('25.00', $bridge->fresh()->paid_amount);
         $this->assertDatabaseCount('store_order_status_changes', 0);
     }
 

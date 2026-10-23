@@ -18,7 +18,6 @@ class ApplyDataRetention extends Command
         $targets = [
             'published_outbox' => OutboxMessage::query()->whereNotNull('published_at')->where('published_at', '<', now()->subDays((int) config('operations.retention.published_outbox_days', 30))),
             'activity_logs' => DB::table('activity_logs')->where('created_at', '<', now()->subDays($days)),
-            'procurement_audit' => DB::table('procurement_audit_entries')->where('created_at', '<', now()->subDays($days)),
             'moderation_audit' => DB::table('moderation_actions')->where('created_at', '<', now()->subDays($days)),
         ];
         foreach ($targets as $name => $query) {

@@ -46,7 +46,6 @@
                             <span class="alert-badge">{{ $total_notifs > 99 ? '99+' : $total_notifs }}</span>
                         @endif
                     </a>
-                    @include('layout.rizz.partials._notifications-dropdown')
                 </li>
                 <li class="dropdown topbar-item">
                     <a class="nav-link dropdown-toggle arrow-none nav-icon" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false">

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\Store;
@@ -21,7 +20,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -42,7 +40,6 @@ class StoreCheckoutIdempotencyTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         Http::preventStrayRequests();
         $owner = User::factory()->create();
         $this->store = Store::create(['owner_user_id' => $owner->id, 'owner_type' => 'merchant', 'name' => 'Repeat', 'slug' => 'repeat', 'currency' => 'EGP', 'status' => 'active']);
@@ -87,7 +84,6 @@ class StoreCheckoutIdempotencyTest extends TestCase
         }
         $this->assertDatabaseCount('store_inventory_movements', 2);
         $this->assertDatabaseCount('store_payment_transactions', 2);
-        Queue::assertPushed(BridgeStorefrontOrderJob::class, 2);
     }
 
     public function test_changed_body_is_rejected_but_recovery_survives_product_removal_from_sale(): void

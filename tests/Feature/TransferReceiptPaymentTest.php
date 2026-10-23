@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\StoreOrder;
@@ -16,7 +15,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -29,7 +27,6 @@ class TransferReceiptPaymentTest extends TestCase
     {
         Storage::fake('local');
         Http::preventStrayRequests();
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         $owner = User::factory()->create();
         $store = Store::create(['owner_user_id' => $owner->id, 'owner_type' => 'merchant', 'name' => 'Proof', 'slug' => 'proof', 'currency' => 'EGP', 'status' => 'active']);
         StoreDomain::create(['store_id' => $store->id, 'host' => 'proof.sellchase.com', 'type' => 'subdomain', 'is_primary' => true]);

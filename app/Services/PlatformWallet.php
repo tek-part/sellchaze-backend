@@ -2,10 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Order;
 use App\Models\StoreOrder;
 use App\Models\User;
-use App\Services\Rbac\UserScope;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -54,17 +52,6 @@ class PlatformWallet
         abort_if($owner && $this->ordersLocked($owner) && DB::table('platform_wallet_entries')->where('store_order_id', $order->id)->where('type', 'order_fee')->exists(), 402, 'PLATFORM_WALLET_FUNDING_REQUIRED');
     }
 
-    public function assertBridgeVisible(Order $order, User $viewer): void
-    {
-        if (! config('platform_wallet.fees_enabled') || ! $order->store_order_id || $viewer->hasAnyRole(['Admin', 'Staff', 'Manager'])) {
-            return;
-        }
-        $source = StoreOrder::withoutGlobalScopes()->whereKey($order->store_order_id)->where('store_id', $order->store_id)->first();
-        if ($source && (int) $source->store?->owner_user_id === UserScope::effectiveMerchantUserId($viewer)) {
-            $this->assertOrderVisible($source);
-        }
-    }
-
     public function profile(User $user): object
     {
         return DB::transaction(function () use ($user) {
@@ -77,7 +64,7 @@ class PlatformWallet
 
     public function attachSignup(User $user, ?string $code): void
     {
-        if (! $code || (! $user->hasAnyRole(['Merchant', 'Supplier']) && ! in_array($user->registration_role, ['Merchant', 'Supplier'], true))) {
+        if (! $code || (! $user->hasAnyRole(['Merchant']) && ! in_array($user->registration_role, ['Merchant'], true))) {
             return;
         }
         $profile = DB::table('platform_referral_profiles')->join('users', 'users.id', '=', 'platform_referral_profiles.user_id')

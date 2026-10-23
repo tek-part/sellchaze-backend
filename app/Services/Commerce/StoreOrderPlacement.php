@@ -2,7 +2,6 @@
 
 namespace App\Services\Commerce;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\StoreOrder;
 use App\Notifications\StoreOrderActivity;
 use App\Services\Outbox\OutboxRecorder;
@@ -25,6 +24,5 @@ class StoreOrderPlacement
         app(StoreOrderWebhooks::class)->created($order);
         app(DigitalDelivery::class)->recordReceipt($order);
         $order->store?->owner?->notify(new StoreOrderActivity($order, 'created'));
-        BridgeStorefrontOrderJob::dispatch($order->id, $order->store_id)->afterCommit();
     }
 }

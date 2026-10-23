@@ -5,15 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\EmailLog;
-use App\Models\Order;
-use App\Models\OrderQuotations;
+use App\Models\LoginSession;
 use App\Models\User;
+use App\Models\VerificationRequest;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Admin-only dashboard: KPIs, user growth, orders volume, roles breakdown,
+ * Admin-only dashboard: KPIs, user growth, store-order volume, roles breakdown,
  * pending queues (registrations + verifications), errors, email stats.
  */
 class AdminDashboardApiController extends Controller
@@ -35,21 +35,19 @@ class AdminDashboardApiController extends Controller
         $pendingRegistrations = User::where('pending_approval', true)->count();
 
         $pendingVerifications = 0;
-        if (class_exists(\App\Models\VerificationRequest::class)) {
-            $pendingVerifications = \App\Models\VerificationRequest::where('status', 'pending')->count();
+        if (class_exists(VerificationRequest::class)) {
+            $pendingVerifications = VerificationRequest::where('status', 'pending')->count();
         } else {
             $pendingVerifications = 0;
         }
 
-        $orders30 = Order::where('created_at', '>=', $since30)->count();
-
-        $dealsAcceptedUsd30 = (float) OrderQuotations::where('status', 'accepted')
-            ->where('created_at', '>=', $since30)
-            ->sum('price');
+        // Store orders across every store (admin view, so no tenant scope).
+        $storeOrders = fn () => DB::table('store_orders')->whereNull('deleted_at');
+        $orders30 = $storeOrders()->where('created_at', '>=', $since30)->count();
 
         $activeSessions = 0;
-        if (class_exists(\App\Models\LoginSession::class)) {
-            $activeSessions = \App\Models\LoginSession::whereNull('logged_out_at')->count();
+        if (class_exists(LoginSession::class)) {
+            $activeSessions = LoginSession::whereNull('logged_out_at')->count();
         }
 
         // ---------- User signup chart (30 days) ----------
@@ -64,7 +62,7 @@ class AdminDashboardApiController extends Controller
         }
 
         // ---------- Orders chart (30 days) ----------
-        $ordersRaw = Order::where('created_at', '>=', $since30)
+        $ordersRaw = $storeOrders()->where('created_at', '>=', $since30)
             ->select(DB::raw('DATE(created_at) as d'), DB::raw('COUNT(*) as c'))
             ->groupBy('d')->pluck('c', 'd')->all();
 
@@ -105,8 +103,8 @@ class AdminDashboardApiController extends Controller
             ]);
 
         $pendingVerifsList = [];
-        if (class_exists(\App\Models\VerificationRequest::class)) {
-            $pendingVerifsList = \App\Models\VerificationRequest::where('status', 'pending')
+        if (class_exists(VerificationRequest::class)) {
+            $pendingVerifsList = VerificationRequest::where('status', 'pending')
                 ->with('user:id,name,email')
                 ->latest('created_at')->take(5)->get()
                 ->map(fn ($v) => [
@@ -130,7 +128,6 @@ class AdminDashboardApiController extends Controller
                 'pending_registrations' => $pendingRegistrations,
                 'pending_verifications' => $pendingVerifications,
                 'orders_30d' => $orders30,
-                'deals_accepted_usd_30d' => round($dealsAcceptedUsd30, 2),
                 'active_sessions' => $activeSessions,
             ],
             'users_signup_chart' => $signupChart,

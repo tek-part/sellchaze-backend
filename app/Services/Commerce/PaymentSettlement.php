@@ -26,7 +26,6 @@ class PaymentSettlement
             if ($status === 'paid') {
                 $wasPaid = $order->payment_status === 'paid';
                 $order->update(['payment_status' => 'paid', 'payment_reference' => $reference]);
-                app(StorefrontOrderBridge::class)->syncPayment($order);
                 if (! $wasPaid) {
                     app(DigitalDelivery::class)->record($order);
                 }

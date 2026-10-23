@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Product;
 use App\Models\ProductDigitalCode;
 use App\Models\ProductVariant;
@@ -19,7 +18,6 @@ use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -37,7 +35,6 @@ class DigitalProductsTest extends TestCase
     {
         parent::setUp();
         $this->seed([PermissionTableSeeder::class, RolesTableSeeder::class]);
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         $owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $owner->assignRole('Merchant');
         $this->auth = ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($owner)];

@@ -48,7 +48,7 @@ class DemoSupplierStoreSeeder extends Seeder
         if (! $store) {
             $store = Store::create([
                 'owner_user_id' => $supplier->id,
-                'owner_type' => 'supplier',
+                'owner_type' => 'merchant',
                 'name' => 'Demo Supplier Marketplace',
                 'slug' => 'demo-suppliers-store',
                 'currency' => 'SAR',
@@ -61,7 +61,7 @@ class DemoSupplierStoreSeeder extends Seeder
             'currency' => 'SAR',
             'email' => 'hello@demosupplier.example',
             'phone' => '+966 11 234 5678',
-            'owner_type' => 'supplier',
+            'owner_type' => 'merchant',
             'status' => 'active',
         ])->save();
 

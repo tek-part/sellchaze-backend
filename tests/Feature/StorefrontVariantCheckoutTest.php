@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -10,10 +9,8 @@ use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\StoreOrder;
 use App\Models\User;
-use App\Services\Commerce\StorefrontOrderBridge;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class StorefrontVariantCheckoutTest extends TestCase
@@ -33,7 +30,6 @@ class StorefrontVariantCheckoutTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         $owner = User::factory()->create();
         $this->store = Store::create(['owner_user_id' => $owner->id, 'owner_type' => 'merchant', 'name' => 'Variants', 'slug' => 'variants', 'currency' => 'EGP', 'status' => 'active']);
         StoreDomain::create(['store_id' => $this->store->id, 'host' => 'variants.sellchase.com', 'type' => 'subdomain', 'is_primary' => true]);
@@ -73,10 +69,10 @@ class StorefrontVariantCheckoutTest extends TestCase
         $this->red->update(['name' => 'Renamed', 'price_override' => 900, 'options' => ['color' => 'Changed']]);
         app(CurrentStore::class)->set($this->store);
         $order = StoreOrder::query()->with('items')->findOrFail($orderId);
-        $bridge = app(StorefrontOrderBridge::class)->bridge($order, $this->store);
-        $this->assertSame('Red', $bridge->storefront_items[0]['variant_name']);
-        $this->assertSame(['color' => 'Red'], $bridge->storefront_items[0]['variant_options']);
-        $this->assertSame('125.00', $bridge->storefront_items[0]['unit_price']);
+        $line = $order->items->firstWhere('variant_id', $this->red->id);
+        $this->assertSame('Red', $line->variant_name);
+        $this->assertSame(['color' => 'Red'], $line->variant_options);
+        $this->assertSame('125.00', (string) $line->unit_price);
     }
 
     public function test_missing_inactive_wrong_product_and_wrong_store_options_are_rejected(): void

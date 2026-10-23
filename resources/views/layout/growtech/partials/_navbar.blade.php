@@ -33,7 +33,7 @@
             @if (Route::has('register'))
             <a class="btn btn--small btn--secondary-white" href="{{ route('register.choose-type') }}">{{ __('Sign up') }}</a>
             @else
-            <a class="btn btn--small btn--secondary-white" href="{{ route('requestInvitation') }}">{{ __('Request an invitation') }}</a>
+            <a class="btn btn--small btn--secondary-white" href="{{ rtrim(config('sellchase.frontend_url'), '/') }}/register">{{ __('Create your store') }}</a>
             @endif
         </div>
         <div class="navbar__menu js-navbar__menu"></div>

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
 use App\Models\Cart;
 use App\Models\Coupon;
 use App\Models\Product;
@@ -16,7 +15,6 @@ use App\Services\Commerce\CheckoutFields;
 use App\Services\Commerce\CustomerAuthService;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -37,7 +35,6 @@ class DigitalCheckoutTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Queue::fake([BridgeStorefrontOrderJob::class]);
         $owner = User::factory()->create();
         $this->region = (string) Str::uuid();
         $this->store = Store::create(['owner_user_id' => $owner->id, 'owner_type' => 'merchant', 'name' => 'Digital checkout', 'slug' => 'digital-checkout', 'currency' => 'EGP', 'status' => 'active', 'default_locale' => 'en',

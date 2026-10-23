@@ -47,7 +47,7 @@ class MerchantOrderController extends Controller
         $locked = $store->owner && app(PlatformWallet::class)->ordersLocked($store->owner);
         $charged = DB::table('platform_wallet_entries')->where('type', 'order_fee')->whereNotNull('store_order_id')->select('store_order_id');
         $lockedCount = $locked ? StoreOrder::forStore($store)->whereIn('id', $charged)->count() : 0;
-        $paginator = $query->build($store, $filters)->withCount('items')->withBotVerification()->with(['b2bOrder', 'merchantReview'])->orderBy($sort, $dir)->orderBy('id', $dir)->paginate($perPage);
+        $paginator = $query->build($store, $filters)->withCount('items')->withBotVerification()->with(['merchantReview'])->orderBy($sort, $dir)->orderBy('id', $dir)->paginate($perPage);
 
         return response()->json([
             'data' => MerchantOrderResource::collection($paginator->getCollection()),
@@ -61,14 +61,14 @@ class MerchantOrderController extends Controller
     public function show(Request $request, Store $store, int $order): JsonResponse
     {
         return response()->json([
-            'data' => new MerchantOrderResource($this->find($order)->load(['items', 'statusChanges.actor', 'b2bOrder'])),
+            'data' => new MerchantOrderResource($this->find($order)->load(['items', 'statusChanges.actor'])),
         ]);
     }
 
     public function printData(Request $request, Store $store): JsonResponse
     {
         $data = $request->validate(['ids' => ['required', 'array', 'min:1', 'max:100'], 'ids.*' => ['required', 'integer', 'min:1', 'distinct']]);
-        $rows = StoreOrder::forStore($store)->whereIn('id', $data['ids'])->withBotVerification()->with(['items', 'b2bOrder', 'merchantReview'])->orderBy('id')->get();
+        $rows = StoreOrder::forStore($store)->whereIn('id', $data['ids'])->withBotVerification()->with(['items', 'merchantReview'])->orderBy('id')->get();
         abort_unless($rows->count() === count($data['ids']), 404);
         foreach ($rows as $row) {
             app(PlatformWallet::class)->assertOrderVisible($row);
@@ -149,7 +149,7 @@ class MerchantOrderController extends Controller
         $this->orders->transition($model, $to, (int) $request->user()->id, $request->input('note'));
 
         return response()->json([
-            'data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor', 'b2bOrder'])),
+            'data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor'])),
         ]);
     }
 
@@ -160,7 +160,7 @@ class MerchantOrderController extends Controller
         $this->orders->addNote($model, (string) $request->input('note'), (int) $request->user()->id);
 
         return response()->json([
-            'data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor', 'b2bOrder'])),
+            'data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor'])),
         ]);
     }
 
@@ -169,7 +169,7 @@ class MerchantOrderController extends Controller
         $data = $request->validate(['reference' => ['required', 'string', 'max:200'], 'note' => ['nullable', 'string', 'max:2000']]);
         $model = app(ManualBankPayment::class)->confirm($this->find($order), $data['reference'], (int) $request->user()->id, $data['note'] ?? null);
 
-        return response()->json(['data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor', 'b2bOrder']))]);
+        return response()->json(['data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor']))]);
     }
 
     public function confirmCashPayment(Request $request, Store $store, int $order): JsonResponse
@@ -178,7 +178,7 @@ class MerchantOrderController extends Controller
             'currency' => ['required', 'string', 'regex:/^[A-Za-z]{3}$/'], 'collected' => ['required', 'accepted'], 'note' => ['nullable', 'string', 'max:2000']]);
         $model = app(ManualCashPayment::class)->confirm($this->find($order), $data['reference'], (string) $data['amount'], $data['currency'], (int) $request->user()->id, $data['note'] ?? null);
 
-        return response()->json(['data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor', 'b2bOrder']))]);
+        return response()->json(['data' => new MerchantOrderResource($model->load(['items', 'statusChanges.actor']))]);
     }
 
     public function digitalEmail(Request $request, Store $store, int $order): JsonResponse

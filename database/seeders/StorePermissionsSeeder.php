@@ -9,7 +9,7 @@ use Spatie\Permission\Models\Role;
 
 /**
  * Multi-store management permissions (the admin console that lists/creates/edits/
- * deletes ANY store). Under the single-store model a Merchant/Supplier owns exactly
+ * deletes ANY store). Under the single-store model a Merchant owns exactly
  * one store and manages it via ownership (store.* feature permissions), so these
  * multi-store permissions are granted to Admin/Manager ONLY — never to owners.
  */
@@ -32,7 +32,7 @@ class StorePermissionsSeeder extends Seeder
         }
 
         // Revoke from owner roles in case an earlier seed granted them (idempotent).
-        foreach (['Merchant', 'Supplier'] as $roleName) {
+        foreach (['Merchant'] as $roleName) {
             $role = Role::query()->where('name', $roleName)->first();
             if ($role) {
                 $role->revokePermissionTo($perms);

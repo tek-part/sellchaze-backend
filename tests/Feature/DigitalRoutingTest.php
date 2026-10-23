@@ -2,12 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\BridgeStorefrontOrderJob;
-use App\Models\Order;
-use App\Models\OrderDelivery;
 use App\Models\OutboxMessage;
 use App\Models\Product;
-use App\Models\ShippingCompany;
 use App\Models\Store;
 use App\Models\StoreCarrierConnection;
 use App\Models\StoreDomain;
@@ -15,9 +11,7 @@ use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Models\User;
-use App\Notifications\OrderAssignedToSupplierNotification;
 use App\Services\Commerce\DigitalProducts;
-use App\Services\Commerce\StorefrontOrderBridge;
 use App\Services\JwtTokenService;
 use App\Support\Tenancy\CurrentStore;
 use Database\Seeders\PermissionTableSeeder;
@@ -27,7 +21,6 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\TestResponse;
-use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class DigitalRoutingTest extends TestCase
@@ -37,8 +30,6 @@ class DigitalRoutingTest extends TestCase
     private Store $store;
 
     private User $owner;
-
-    private User $supplier;
 
     private Product $digital;
 
@@ -55,12 +46,8 @@ class DigitalRoutingTest extends TestCase
         Mail::fake();
         Notification::fake();
         $this->seed([PermissionTableSeeder::class, RolesTableSeeder::class]);
-        config()->set('services.sellchase_fallback_supplier_user_id', null);
         $this->owner = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
         $this->owner->assignRole('Merchant');
-        $this->supplier = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
-        $this->supplier->assignRole('Supplier');
-        $this->owner->suppliersAsMerchant()->attach($this->supplier->id, ['status' => 'accepted']);
         $this->store = Store::create(['owner_user_id' => $this->owner->id, 'owner_type' => 'merchant', 'name' => 'Routing store', 'slug' => 'routing', 'currency' => 'EGP', 'status' => 'active']);
         StoreDomain::create(['store_id' => $this->store->id, 'host' => 'routing.sellchase.com', 'type' => 'subdomain', 'is_primary' => true]);
         app(CurrentStore::class)->set($this->store);
@@ -96,49 +83,12 @@ class DigitalRoutingTest extends TestCase
         return $this->patchJson('/api/v1/my-store/orders/'.$id.'/status', ['status' => $status], $this->headers($this->owner));
     }
 
-    public function test_pure_digital_checkout_stays_in_store_and_never_fans_out_to_suppliers(): void
+    public function test_pure_digital_checkout_stays_in_store(): void
     {
         $data = $this->place();
-        $this->assertDatabaseCount('orders', 0);
-        $this->assertDatabaseCount('order_suppliers', 0);
-        $this->assertSame(0, OutboxMessage::where('event_type', 'StorefrontOrderBridged')->count());
-        Notification::assertNotSentTo($this->supplier, OrderAssignedToSupplierNotification::class);
-        BridgeStorefrontOrderJob::dispatchSync($data['data']['id'], $this->store->id);
-        $this->assertDatabaseCount('orders', 0);
         $this->getJson('/api/v1/my-store/orders/'.$data['data']['id'], $this->headers($this->owner))->assertOk()
             ->assertJsonPath('data.fulfillment.type', 'digital')->assertJsonPath('data.fulfillment.requires_shipping', false)
-            ->assertJsonPath('data.fulfillment.digital_quantity', 2)->assertJsonPath('data.b2b_order', null)->assertJsonPath('data.next_statuses', ['confirmed', 'cancelled']);
-    }
-
-    public function test_mixed_checkout_bridges_only_physical_snapshot_quantity_and_syncs_full_customer_payment(): void
-    {
-        $data = $this->place(true);
-        $order = Order::where('store_order_id', $data['data']['id'])->firstOrFail();
-        $this->assertSame($this->physical->id, (int) $order->product_id);
-        $this->assertSame(3, (int) $order->quantity);
-        $this->assertCount(1, $order->storefront_items);
-        $this->assertSame('Physical bag', $order->storefront_items[0]['name']);
-        $this->assertSame('physical', $order->storefront_items[0]['fulfillment_type']);
-        $this->assertSame([], $order->storefront_items[0]['personalization']);
-        $this->assertStringNotContainsString('PRIVATE-', $order->getRawOriginal('storefront_items'));
-        $this->assertStringNotContainsString('Private digital license', $order->getRawOriginal('storefront_items'));
-        Notification::assertSentTo($this->supplier, OrderAssignedToSupplierNotification::class, 1);
-        $this->getJson('/api/v1/orders/'.$order->code, $this->headers($this->supplier))->assertOk()
-            ->assertDontSee('PRIVATE-')->assertDontSee('Private digital license')
-            ->assertJsonPath('data.quantity', 3)->assertJsonCount(1, 'data.storefront_items')
-            ->assertJsonPath('data.storefront_items.0.personalization', [])
-            ->assertJsonPath('data.storefront_fulfillment.type', 'mixed')->assertJsonPath('data.storefront_fulfillment.physical_quantity', 3);
-        $legacyItems = $order->storefront_items;
-        $legacyItems[0]['personalization'] = null;
-        $order->update(['storefront_items' => $legacyItems]);
-        $this->getJson('/api/v1/orders/'.$order->code, $this->headers($this->supplier))->assertOk()
-            ->assertJsonPath('data.storefront_items.0.personalization', []);
-        $this->confirm($data['data']['id'])->assertOk();
-        $this->assertSame($data['data']['grand_total'], $order->fresh()->paid_amount);
-        $this->assertSame('LOCAL-ROUTING-'.$data['data']['id'], $order->fresh()->payment_transaction_id);
-        BridgeStorefrontOrderJob::dispatchSync($data['data']['id'], $this->store->id);
-        $this->assertDatabaseCount('orders', 1);
-        Notification::assertSentTo($this->supplier, OrderAssignedToSupplierNotification::class, 1);
+            ->assertJsonPath('data.fulfillment.digital_quantity', 2)->assertJsonPath('data.next_statuses', ['confirmed', 'cancelled']);
     }
 
     public function test_pure_digital_shipment_is_rejected_before_any_carrier_network_call_even_with_legacy_address(): void
@@ -194,7 +144,6 @@ class DigitalRoutingTest extends TestCase
         $this->assertSame(3, $this->digital->fresh()->stock_quantity);
         $this->assertSame(0, $this->digital->fresh()->reserved_quantity);
         $this->assertDatabaseHas('store_inventory_movements', ['product_id' => $this->digital->id, 'reason' => 'digital_committed', 'stock_delta' => -2]);
-        $this->assertSame(0, OutboxMessage::where('event_type', 'StorefrontOrderBridged')->count());
         $this->assertSame(1, OutboxMessage::where('event_type', 'StorefrontDigitalPaid')->count());
     }
 
@@ -207,42 +156,9 @@ class DigitalRoutingTest extends TestCase
         $order = StoreOrder::forStore($this->store->id)->findOrFail($data['data']['id']);
         $this->assertFalse($order->requiresShipping());
         $this->postJson($this->base.'/checkout/receipt', ['token' => $data['receipt']['token']])->assertOk()->assertJsonPath('data.fulfillment.requires_shipping', false);
-        $foreign = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Foreign', 'slug' => 'foreign-routing', 'status' => 'active']);
-        $this->expectException(ValidationException::class);
-        app(StorefrontOrderBridge::class)->bridge($order, $foreign);
     }
 
-    public function test_legacy_pure_digital_b2b_row_is_retained_but_cannot_create_a_delivery(): void
-    {
-        $id = $this->place()['data']['id'];
-        $legacy = Order::create(['code' => 'LEGACY-DIGITAL', 'quantity' => 2, 'product_id' => $this->digital->id, 'user_id' => $this->owner->id,
-            'attributes' => 'a:0:{}', 'notes' => '', 'status' => 'pending', 'source' => Order::SOURCE_STOREFRONT, 'store_id' => $this->store->id, 'store_order_id' => $id, 'storefront_items' => []]);
-        $this->getJson('/api/v1/orders/'.$legacy->code, $this->headers($this->owner))->assertOk()->assertJsonPath('data.storefront_fulfillment.requires_shipping', false);
-        $company = ShippingCompany::create(['name' => 'Review carrier', 'code' => 'manual', 'is_active' => true]);
-        $this->owner->givePermissionTo('deliveries-update');
-        $this->postJson('/api/v1/deliveries', ['order_code' => $legacy->code, 'shipping_company_id' => $company->id], $this->headers($this->owner))
-            ->assertUnprocessable()->assertJsonValidationErrors('order');
-        try {
-            OrderDelivery::create(['order_id' => $legacy->id, 'delivery_company' => 'manual', 'status' => 'pending']);
-            $this->fail('Legacy digital order accepted a delivery.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('order', $exception->errors());
-        }
-        $this->assertDatabaseHas('orders', ['id' => $legacy->id]);
-        $this->assertDatabaseCount('order_deliveries', 0);
-    }
-
-    public function test_supplier_owned_pure_digital_order_does_not_self_route_to_procurement(): void
-    {
-        $this->owner->syncRoles(['Supplier']);
-        $data = $this->place();
-        $this->assertDatabaseCount('orders', 0);
-        $this->assertDatabaseCount('order_suppliers', 0);
-        $this->confirm($data['data']['id'])->assertOk();
-        $this->transition($data['data']['id'], 'delivered')->assertOk();
-    }
-
-    public function test_verified_provider_payment_updates_mixed_b2b_metadata_without_ambient_tenant(): void
+    public function test_verified_provider_payment_settles_mixed_order_without_ambient_tenant(): void
     {
         $data = $this->place(true);
         $id = $data['data']['id'];
@@ -259,10 +175,7 @@ class DigitalRoutingTest extends TestCase
         $url = '/api/v1/payment-webhooks/'.$this->store->id.'/stripe';
         $this->call('POST', $url, [], [], [], $headers, $json)->assertOk();
         $this->call('POST', $url, [], [], [], $headers, $json)->assertOk()->assertJsonPath('duplicate', true);
-        $bridge = Order::where('store_id', $this->store->id)->where('store_order_id', $id)->firstOrFail();
-        $this->assertSame($data['data']['grand_total'], $bridge->paid_amount);
-        $this->assertSame('pi_routing', $bridge->payment_transaction_id);
-        $this->assertSame(3, $bridge->storefrontFulfillment()['physical_quantity']);
+        $this->assertSame('paid', StoreOrder::forStore($this->store->id)->findOrFail($id)->payment_status);
         $this->assertSame(1, OutboxMessage::where('event_type', 'StorefrontDigitalPaid')->count());
     }
 }

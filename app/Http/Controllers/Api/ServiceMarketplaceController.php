@@ -22,7 +22,7 @@ class ServiceMarketplaceController extends Controller
     private function publisher(Request $request): User
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['Merchant', 'Supplier']), 403);
+        abort_unless($user->hasAnyRole(['Merchant']), 403);
 
         return $user;
     }

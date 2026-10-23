@@ -18,7 +18,7 @@ class StoreManagersController extends Controller
         $actor = $request->user();
         abort_unless($store instanceof Store, 404);
         abort_unless($actor && (int) $store->owner_user_id === (int) $actor->id
-            && ! $actor->parent_user_id && $actor->hasAnyRole(['Merchant', 'Supplier']), 403);
+            && ! $actor->parent_user_id && $actor->hasAnyRole(['Merchant']), 403);
 
         return $store;
     }

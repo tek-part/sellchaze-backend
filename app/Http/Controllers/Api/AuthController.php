@@ -456,14 +456,14 @@ class AuthController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', PasswordRule::defaults()],
-            'registration_role' => ['required', Rule::in(['Staff', 'Supplier', 'Merchant'])],
+            'registration_role' => ['required', Rule::in(['Staff', 'Merchant'])],
             'company_name' => ['nullable', 'string', 'max:160'],
             'store_name' => ['nullable', 'string', 'max:160'],
             'platform_referral_code' => ['nullable', 'uuid'],
         ]);
 
         $approver = app(RegistrationApprover::class);
-        // Merchants and Suppliers are customers onboarding themselves, so they
+        // Merchants are customers onboarding themselves, so they
         // start using the platform right away. Staff carries internal access and
         // still waits for an administrator.
         $selfService = $approver->isSelfServiceRole($data['registration_role']);
@@ -579,14 +579,14 @@ class AuthController extends Controller
 
     /**
      * SPA Google Sign-In: pass OAuth access_token from GIS, or id_token (JWT from credential response).
-     * New accounts require registration_role Staff|Supplier and stay pending until an admin approves.
+     * New accounts require registration_role Staff|Merchant and stay pending until an admin approves.
      */
     public function google(Request $request): JsonResponse
     {
         $data = $request->validate([
             'access_token' => ['required_without:id_token', 'string'],
             'id_token' => ['required_without:access_token', 'string'],
-            'registration_role' => ['nullable', Rule::in(['Staff', 'Supplier', 'Merchant'])],
+            'registration_role' => ['nullable', Rule::in(['Staff', 'Merchant'])],
             'platform_referral_code' => ['nullable', 'uuid'],
         ]);
 
@@ -630,7 +630,7 @@ class AuthController extends Controller
         if (! $user) {
             if (empty($data['registration_role'])) {
                 return response()->json([
-                    'message' => __('Please choose whether you are registering as staff or supplier.'),
+                    'message' => __('Please choose whether you are registering as staff or merchant.'),
                     'code' => 'registration_role_required',
                 ], 422);
             }
@@ -852,7 +852,7 @@ class AuthController extends Controller
 
     /**
      * Soft-deleted rows still reserve unique email/google_id. Google proves email ownership — restore
-     * and re-apply pending registration when the SPA sends Staff|Supplier.
+     * and re-apply pending registration when the SPA sends Staff|Merchant.
      */
     private function restoreTrashedUserForGoogleSignup(?User $user, array $data): void
     {
