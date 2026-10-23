@@ -423,7 +423,8 @@ class ArticlesApiController extends Controller
         $lang = $this->resolveLang($request);
         $articles = Article::query()->published()->latest('published_at')->limit(20)->get();
 
-        $site = rtrim((string) config('sellchase.frontend_url', env('FRONTEND_URL', 'https://b2b-sellcahase.wigpleasure.com')), '/');
+        // The blog lives on the marketing site.
+        $site = rtrim((string) config('sellchase.marketing_url', 'https://sellchaze.com'), '/');
         $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n";
         $xml .= '<rss version="2.0"><channel>';
         $xml .= '<title>Sellchaze Blog</title>';

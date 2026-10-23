@@ -43,7 +43,8 @@ class SitemapGenerator
 
     public function siteUrl(): string
     {
-        return rtrim((string) config('sellchase.frontend_url', 'https://sellchaze.com'), '/');
+        // Directory and /u/ profile pages are served by the marketing site, not the dashboard.
+        return rtrim((string) config('sellchase.marketing_url', 'https://sellchaze.com'), '/');
     }
 
     /** Absolute path the sitemap is written to, or null when not configured. */

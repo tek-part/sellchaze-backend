@@ -73,12 +73,6 @@ parameters:
 			path: app/Http/Controllers/Api/AdminReportsApiController.php
 
 		-
-			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
-			identifier: larastan.noEnvCallsOutsideOfConfig
-			count: 1
-			path: app/Http/Controllers/Api/ArticlesApiController.php
-
-		-
 			message: '#^Call to an undefined method Laravel\\Socialite\\Contracts\\Provider\:\:stateless\(\)\.$#'
 			identifier: method.notFound
 			count: 1
