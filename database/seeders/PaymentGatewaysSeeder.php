@@ -10,22 +10,22 @@ class PaymentGatewaysSeeder extends Seeder
     public function run(): void
     {
         $providers = [
-            ['name' => 'Cash on delivery', 'slug' => 'cod', 'icon_class' => 'fas fa-money-bill-wave'],
-            ['name' => 'Bank transfer', 'slug' => 'bank_transfer', 'icon_class' => 'fas fa-building-columns'],
-            ['name' => 'Stripe', 'slug' => 'stripe', 'icon_class' => 'fab fa-stripe'],
-            ['name' => 'PayPal', 'slug' => 'paypal', 'icon_class' => 'fab fa-paypal'],
-            ['name' => 'Tabby', 'slug' => 'tabby', 'icon_class' => 'fas fa-wallet'],
-            ['name' => 'Tamara', 'slug' => 'tamara', 'icon_class' => 'fas fa-wallet'],
-            ['name' => 'Paymob', 'slug' => 'paymob', 'icon_class' => 'fas fa-credit-card'],
-            ['name' => 'Fawry', 'slug' => 'fawry', 'icon_class' => 'fas fa-receipt'],
-            ['name' => 'Fawaterak', 'slug' => 'fawaterak', 'icon_class' => 'fas fa-file-invoice-dollar'],
-            ['name' => 'Tap Payments', 'slug' => 'tap', 'icon_class' => 'fas fa-credit-card'],
-            ['name' => 'PayTabs', 'slug' => 'paytabs', 'icon_class' => 'fas fa-credit-card'],
-            ['name' => 'HyperPay', 'slug' => 'hyperpay', 'icon_class' => 'fas fa-credit-card'],
+            ['name' => 'Cash on delivery', 'slug' => 'cod'],
+            ['name' => 'Bank transfer', 'slug' => 'bank_transfer'],
+            ['name' => 'Stripe', 'slug' => 'stripe'],
+            ['name' => 'PayPal', 'slug' => 'paypal'],
+            ['name' => 'Tabby', 'slug' => 'tabby'],
+            ['name' => 'Tamara', 'slug' => 'tamara'],
+            ['name' => 'Paymob', 'slug' => 'paymob'],
+            ['name' => 'Fawry', 'slug' => 'fawry'],
+            ['name' => 'Fawaterak', 'slug' => 'fawaterak'],
+            ['name' => 'Tap Payments', 'slug' => 'tap'],
+            ['name' => 'PayTabs', 'slug' => 'paytabs'],
+            ['name' => 'HyperPay', 'slug' => 'hyperpay'],
         ];
 
         foreach ($providers as $provider) {
-            PaymentGateway::query()->updateOrCreate(['slug' => $provider['slug']], $provider + ['is_active' => true]);
+            PaymentGateway::query()->updateOrCreate(['slug' => $provider['slug']], $provider);
         }
     }
 }
