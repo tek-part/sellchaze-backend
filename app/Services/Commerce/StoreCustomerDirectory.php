@@ -7,6 +7,7 @@ use App\Models\StoreOrder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -74,20 +75,30 @@ class StoreCustomerDirectory
         // City and address of each customer's most recent order (one extra query per page).
         $latest = StoreOrder::query()->withoutGlobalScopes()->where('store_id', $store->id)
             ->whereIn('id', collect($page->items())->pluck('last_order_id'))->get(['id', 'shipping_address'])->keyBy('id');
-        $page->setCollection($page->getCollection()->map(fn ($row) => [
-            'key' => (string) $row->customer_key,
-            'name' => $row->name,
-            'email' => $row->email,
-            'phone' => $row->phone,
-            'account_id' => $row->account_id ? (int) $row->account_id : null,
-            'orders_count' => (int) $row->orders_count,
-            'total_spent' => round((float) $row->total_spent, 2),
-            'first_order_at' => $row->first_order_at ? Carbon::parse($row->first_order_at)->toIso8601String() : null,
-            'last_order_at' => $row->last_order_at ? Carbon::parse($row->last_order_at)->toIso8601String() : null,
-            'city' => self::city($latest->get($row->last_order_id)?->shipping_address),
-        ]));
+        $page->setCollection($page->getCollection()->map(fn (StoreOrder $model) => self::row($model->getAttributes(), $latest)));
 
         return $page;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @param  Collection<int, StoreOrder>  $latest
+     * @return array<string, mixed>
+     */
+    private static function row(array $row, Collection $latest): array
+    {
+        return [
+            'key' => (string) $row['customer_key'],
+            'name' => $row['name'],
+            'email' => $row['email'],
+            'phone' => $row['phone'],
+            'account_id' => $row['account_id'] ? (int) $row['account_id'] : null,
+            'orders_count' => (int) $row['orders_count'],
+            'total_spent' => round((float) $row['total_spent'], 2),
+            'first_order_at' => $row['first_order_at'] ? Carbon::parse($row['first_order_at'])->toIso8601String() : null,
+            'last_order_at' => $row['last_order_at'] ? Carbon::parse($row['last_order_at'])->toIso8601String() : null,
+            'city' => self::city($latest->get($row['last_order_id'])?->shipping_address),
+        ];
     }
 
     private static function city(?array $address): ?string
