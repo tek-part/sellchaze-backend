@@ -294,7 +294,7 @@ class StoreNotificationSettings
     public function orderPlaced(StoreOrder $order): void
     {
         $this->schedule($order, 'staff_new_order');
-        if (self::confirmable($order)) {
+        if (self::confirmable($order) && ! self::hasDigitalItems($order)) {
             $this->schedule($order, 'order_confirmation');
         }
     }
@@ -302,7 +302,15 @@ class StoreNotificationSettings
     /** An online payment succeeded after the order was created. */
     public function orderPaid(StoreOrder $order): void
     {
-        $this->schedule($order, 'order_confirmation');
+        if (! self::hasDigitalItems($order)) {
+            $this->schedule($order, 'order_confirmation');
+        }
+    }
+
+    /** Digital orders already get their receipt/delivery email, which is their confirmation. */
+    public static function hasDigitalItems(StoreOrder $order): bool
+    {
+        return $order->items()->withoutGlobalScopes()->where('store_id', $order->store_id)->whereNotNull('digital_delivery')->exists();
     }
 
     public function statusChanged(StoreOrder $order, string $to): void

@@ -155,6 +155,15 @@ class StoreNotificationsTest extends TestCase
         $this->assertSame(['order_confirmation:email:mona@example.test', 'staff_new_order:email:owner@example.test'], $this->queued($order));
     }
 
+    public function test_a_digital_order_relies_on_its_digital_receipt_instead_of_a_second_confirmation(): void
+    {
+        $order = $this->order();
+        StoreOrderItem::withoutGlobalScopes()->create(['store_id' => $this->store->id, 'store_order_id' => $order->id, 'name' => 'E-book', 'unit_price' => 50, 'quantity' => 1, 'line_total' => 50, 'digital_delivery' => ['type' => 'link', 'values' => ['https://example.test/book']]]);
+        app(StoreNotificationSettings::class)->orderPlaced($order);
+        app(StoreNotificationSettings::class)->orderPaid($order);
+        $this->assertSame(['staff_new_order:email:owner@example.test'], $this->queued($order));
+    }
+
     public function test_status_changes_queue_their_event_and_a_disabled_event_is_skipped_at_send_time(): void
     {
         $order = $this->order();

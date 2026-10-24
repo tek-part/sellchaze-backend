@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Mail\DigitalOrderItemMail;
 use App\Mail\DigitalOrderPaidMail;
 use App\Mail\DigitalOrderReceiptMail;
 use App\Models\OutboxMessage;
@@ -171,7 +172,7 @@ class DigitalFulfillmentTest extends TestCase
         app(OutboxPublisher::class)->publishPending();
         $event = OutboxMessage::where('event_type', 'StorefrontDigitalReceipt')->firstOrFail();
         $this->assertSame(1, $event->attempts);
-        Mail::assertNothingSent();
+        $this->assertNoDigitalMail();
         // Model credentials/metadata casts are restored through Eloquent.
         StorePaymentTransaction::create($original);
         $this->travel(10)->seconds();
@@ -200,7 +201,7 @@ class DigitalFulfillmentTest extends TestCase
         app(CurrentStore::class)->set($this->store);
         app(StoreOrderService::class)->transition(StoreOrder::query()->findOrFail($id), 'cancelled');
         app(OutboxPublisher::class)->publishPending();
-        Mail::assertNothingSent();
+        $this->assertNoDigitalMail();
         $this->emailStatus($id)->assertJsonPath('data.0.state', 'skipped')->assertJsonPath('data.0.can_send', false);
     }
 
@@ -212,7 +213,7 @@ class DigitalFulfillmentTest extends TestCase
         $this->postJson($this->base.'/checkout', $body)->assertCreated();
         $this->assertSame(0, OutboxMessage::where('event_type', 'StorefrontDigitalReceipt')->count());
         app(OutboxPublisher::class)->publishPending();
-        Mail::assertNothingSent();
+        $this->assertNoDigitalMail();
     }
 
     public function test_private_receipt_requires_correct_store_unexpired_purpose_specific_token_and_preserves_bank_snapshot(): void
@@ -231,7 +232,7 @@ class DigitalFulfillmentTest extends TestCase
         $other = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other', 'slug' => 'other-receipt', 'status' => 'active']);
         StoreDomain::create(['store_id' => $other->id, 'host' => 'other-receipt.sellchase.com', 'type' => 'subdomain', 'is_primary' => true]);
         $this->postJson('http://other-receipt.sellchase.com/api/v1/storefront/checkout/receipt', ['token' => $token])->assertNotFound();
-        Mail::assertNothingSent();
+        $this->assertNoDigitalMail();
     }
 
     public function test_manual_confirmation_releases_delivery_once_and_replay_refreshes_paid_state(): void
@@ -287,7 +288,7 @@ class DigitalFulfillmentTest extends TestCase
         app(CurrentStore::class)->set($this->store);
         app(StoreOrderService::class)->transition(StoreOrder::query()->findOrFail($data['data']['id']), 'cancelled');
         app(OutboxPublisher::class)->publishPending();
-        Mail::assertNothingSent();
+        $this->assertNoDigitalMail();
     }
 
     public function test_code_mail_escapes_values_and_survives_deleted_catalog(): void
@@ -348,5 +349,13 @@ class DigitalFulfillmentTest extends TestCase
         app(OutboxPublisher::class)->publishPending();
         Mail::assertSent(DigitalOrderPaidMail::class, 1);
         $this->postJson($this->base.'/checkout/receipt', ['token' => $data['receipt']['token']])->assertOk()->assertJsonPath('data.payment_status', 'paid');
+    }
+
+    /** Order notifications (staff new-order email) are separate; these assertions are about digital mail. */
+    private function assertNoDigitalMail(): void
+    {
+        foreach ([DigitalOrderPaidMail::class, DigitalOrderReceiptMail::class, DigitalOrderItemMail::class] as $mail) {
+            Mail::assertNotSent($mail);
+        }
     }
 }
