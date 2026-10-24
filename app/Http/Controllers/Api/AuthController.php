@@ -32,7 +32,6 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
 use Intervention\Image\Facades\Image;
-use Laravel\Socialite\Facades\Socialite;
 use Throwable;
 
 class AuthController extends Controller
@@ -178,9 +177,13 @@ class AuthController extends Controller
         $user = $request->user();
         $user->password = Hash::make($request->validated('password'));
         $user->save();
-        ActivityLogger::log('profile.password_changed', $user);
+        // Anyone holding a stolen session loses it; this device stays signed in.
+        $jwt = JwtTokenService::fromConfig();
+        $token = $this->accessTokenFromRequest($request);
+        $revoked = $jwt->revokeOtherSessions($user, $token ? $jwt->accessSessionId($token) : null);
+        ActivityLogger::log('profile.password_changed', $user, ['sessions_revoked' => $revoked]);
 
-        return response()->json(['message' => __('Password updated.')]);
+        return response()->json(['message' => __('Password updated.'), 'revoked' => $revoked]);
     }
 
     public function uploadAvatar(UploadAvatarRequest $request): JsonResponse
@@ -565,6 +568,8 @@ class AuthController extends Controller
                 $user->forceFill([
                     'password' => Hash::make($password),
                 ])->save();
+                // A reset means the old password may be compromised: end every session.
+                JwtTokenService::fromConfig()->revokeOtherSessions($user, null);
 
                 event(new PasswordReset($user));
             }
@@ -578,14 +583,13 @@ class AuthController extends Controller
     }
 
     /**
-     * SPA Google Sign-In: pass OAuth access_token from GIS, or id_token (JWT from credential response).
+     * SPA Google Sign-In with the GIS id_token (JWT from the credential response).
      * New accounts require registration_role Staff|Merchant and stay pending until an admin approves.
      */
     public function google(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'access_token' => ['required_without:id_token', 'string'],
-            'id_token' => ['required_without:access_token', 'string'],
+            'id_token' => ['required', 'string'],
             'registration_role' => ['nullable', Rule::in(['Staff', 'Merchant'])],
             'platform_referral_code' => ['nullable', 'uuid'],
         ]);
@@ -625,7 +629,10 @@ class AuthController extends Controller
             })
             ->first();
 
-        $this->restoreTrashedUserForGoogleSignup($user, $data);
+        // A deleted account stays deleted: signing in with Google must not bring it back.
+        if ($user?->trashed()) {
+            return response()->json(['message' => __('This account is no longer active. Contact support.'), 'code' => 'account_deleted'], 403);
+        }
 
         if (! $user) {
             if (empty($data['registration_role'])) {
@@ -689,7 +696,9 @@ class AuthController extends Controller
                 if (! $user) {
                     throw $e;
                 }
-                $this->restoreTrashedUserForGoogleSignup($user, $data);
+                if ($user->trashed()) {
+                    return response()->json(['message' => __('This account is no longer active. Contact support.'), 'code' => 'account_deleted'], 403);
+                }
             } catch (Throwable $exception) {
                 DB::rollBack();
                 throw $exception;
@@ -774,21 +783,6 @@ class AuthController extends Controller
      */
     private function resolveGoogleIdentity(array $data): array
     {
-        if (! empty($data['access_token'] ?? null)) {
-            $googleUser = Socialite::driver('google')->stateless()->userFromToken($data['access_token']);
-            $googleId = (string) $googleUser->getId();
-            $email = $googleUser->getEmail();
-            $name = $googleUser->getName() ?: ($email ? strstr($email, '@', true) : 'User');
-            $avatar = $googleUser->getAvatar();
-
-            return [
-                'google_id' => $googleId,
-                'email' => $email,
-                'name' => (string) $name,
-                'avatar' => $avatar,
-            ];
-        }
-
         $info = Http::get('https://oauth2.googleapis.com/tokeninfo', [
             'id_token' => $data['id_token'],
         ]);
@@ -802,6 +796,12 @@ class AuthController extends Controller
         if ($expectedAud === '' || ($payload['aud'] ?? '') !== $expectedAud) {
             throw ValidationException::withMessages([
                 'id_token' => [__('Invalid token audience.')],
+            ]);
+        }
+        // Accounts are matched by email, so only accept addresses Google has verified.
+        if (! in_array($payload['email_verified'] ?? null, [true, 'true'], true)) {
+            throw ValidationException::withMessages([
+                'id_token' => [__('Your Google email address is not verified.')],
             ]);
         }
 
@@ -848,24 +848,6 @@ class AuthController extends Controller
         $token = trim(substr($header, 7));
 
         return $token !== '' ? $token : null;
-    }
-
-    /**
-     * Soft-deleted rows still reserve unique email/google_id. Google proves email ownership — restore
-     * and re-apply pending registration when the SPA sends Staff|Merchant.
-     */
-    private function restoreTrashedUserForGoogleSignup(?User $user, array $data): void
-    {
-        if ($user === null || ! $user->trashed()) {
-            return;
-        }
-
-        $user->restore();
-
-        if (! empty($data['registration_role'])) {
-            $user->pending_approval = true;
-            $user->registration_role = $data['registration_role'];
-        }
     }
 
     private function isDuplicateKeyException(QueryException $e): bool

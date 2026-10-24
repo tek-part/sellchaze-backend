@@ -214,6 +214,21 @@ class StorefrontCouponTest extends TestCase
         $this->assertApplyRejected('SOLO', $auth);
     }
 
+    public function test_per_customer_limit_also_applies_to_guest_checkouts_by_phone_or_email(): void
+    {
+        $this->coupon($this->alpha, ['code' => 'ONCE', 'type' => 'fixed', 'value' => '5.00', 'max_uses_per_customer' => 1]);
+        $order = fn (string $phone, string $email) => $this->postJson($this->host($this->alpha).'/api/v1/storefront/checkout', [
+            'items' => [['product_id' => $this->tee->id, 'quantity' => 1]], 'coupon_code' => 'ONCE',
+            'customer_name' => 'Guest', 'customer_phone' => $phone, 'customer_email' => $email,
+            'shipping_address' => ['line1' => 'Street 1', 'city' => 'Cairo', 'country' => 'EG'],
+        ]);
+
+        $order('01011111111', 'guest@example.com')->assertCreated();
+        $order('+201011111111', 'other@example.com')->assertUnprocessable()->assertJsonValidationErrors('coupon');
+        $order('01022222222', 'GUEST@example.com')->assertUnprocessable()->assertJsonValidationErrors('coupon');
+        $order('01033333333', 'fresh@example.com')->assertCreated();
+    }
+
     // ------------------------------------------------------------ regression
 
     public function test_checkout_revalidation_prevents_double_redemption_of_a_single_use_coupon(): void

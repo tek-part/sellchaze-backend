@@ -116,7 +116,7 @@ class CheckoutService
             $coupon = $cart->coupon_id ? Coupon::query()->lockForUpdate()->find($cart->coupon_id) : null;
             $discount = '0.00';
             if ($coupon !== null) {
-                $this->coupons->validate($coupon, $customer, $subtotal);
+                $this->coupons->validate($coupon, $customer, $subtotal, ['phone' => $phone, 'email' => $contact['email'] ?? null]);
                 $discount = $this->coupons->computeDiscount($coupon, $subtotal);
             }
 

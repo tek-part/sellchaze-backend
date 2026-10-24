@@ -8,21 +8,34 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-/** Fail closed for dedicated managers without changing legacy owner/employee contracts. */
+/** Fail closed for store managers and employees: each store area needs its matching store.* grant. */
 class StoreManagerPermissions
 {
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        if (! $user || ! $user->hasRole(StoreManagers::ROLE)) {
+        if (! $user) {
+            return $next($request);
+        }
+        $manager = $user->hasRole(StoreManagers::ROLE);
+        // Employees act for their parent merchant too; they get exactly the store.* grants they hold.
+        $delegate = ! $manager && ! empty($user->parent_user_id) && ! $user->hasAnyRole(['Admin', 'Manager', 'Staff']);
+        if (! $manager && ! $delegate) {
             return $next($request);
         }
         $store = $request->attributes->get('store');
-        $parent = StoreManagers::parentOwner($user);
-        abort_unless($store instanceof Store && $parent && (int) $store->owner_user_id === (int) $parent->id && $user->can('store.view'), 403);
+        $parent = $manager ? StoreManagers::parentOwner($user) : $user->parent;
+        abort_unless($store instanceof Store && $parent && (int) $store->owner_user_id === (int) $parent->id, 403);
+        if ($manager) {
+            abort_unless($user->can('store.view'), 403);
+        }
         $uri = (string) $request->route()?->uri();
-        $relative = preg_replace('#^.*?/(?:my-store|stores/\{store\})(?:/|$)#', '', $uri);
-        $grants = $this->required((string) $relative, $request->isMethod('GET') || $request->isMethod('HEAD'));
+        $relative = (string) preg_replace('#^.*?/(?:my-store|stores/\{store\})(?:/|$)#', '', $uri);
+        // The catalog keeps its per-route products-* / categories-* checks for employees.
+        if ($delegate && explode('/', trim($relative, '/'))[0] === 'catalog') {
+            return $next($request);
+        }
+        $grants = $this->required($relative, $request->isMethod('GET') || $request->isMethod('HEAD'));
         abort_unless($grants && collect($grants)->contains(fn ($grant) => $user->can($grant)), 403);
 
         return $next($request);

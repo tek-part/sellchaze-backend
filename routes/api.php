@@ -257,7 +257,7 @@ Route::prefix('v1')->group(function () {
         ->middleware('signed')
         ->name('wavex.media-pickup');
 
-    Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
     Route::post('/auth/register', [AuthController::class, 'register']);
     Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:60,1');
     Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
@@ -363,7 +363,7 @@ Route::prefix('v1')->group(function () {
         Route::delete('checkout/coupon', [CheckoutController::class, 'removeCoupon']);
 
         Route::post('auth/register', [CustomerAuthController::class, 'register']);
-        Route::post('auth/login', [CustomerAuthController::class, 'login']);
+        Route::post('auth/login', [CustomerAuthController::class, 'login'])->middleware('throttle:login');
 
         // Authenticated store-customer area (bearer token, store-scoped).
         Route::middleware('store.customer')->group(function () {
