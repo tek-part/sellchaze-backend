@@ -21,7 +21,9 @@ abstract class DomainNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public readonly StoreDomain $domain) {}
+    // Not readonly: queued notifications are restored by SerializesModels from the subclass's scope,
+    // which PHP forbids for a readonly property declared here.
+    public function __construct(public StoreDomain $domain) {}
 
     /** Machine-readable key for the database payload and the frontend. */
     abstract public function event(): string;

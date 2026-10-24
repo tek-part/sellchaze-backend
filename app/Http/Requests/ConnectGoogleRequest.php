@@ -17,8 +17,7 @@ class ConnectGoogleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'access_token' => ['required_without:id_token', 'string'],
-            'id_token' => ['required_without:access_token', 'string'],
+            'id_token' => ['required', 'string'],
         ];
     }
 }

@@ -31,8 +31,10 @@ class CouponService
     /**
      * Assert the coupon may be redeemed for the given subtotal + customer.
      * Throws ValidationException (422) with a `coupon` key on any rule failure.
+     *
+     * @param  array{phone?: ?string, email?: ?string}  $guest  contact of a guest checkout (normalized phone, email)
      */
-    public function validate(Coupon $coupon, ?StoreCustomer $customer, string $subtotal): void
+    public function validate(Coupon $coupon, ?StoreCustomer $customer, string $subtotal, array $guest = []): void
     {
         if (! $coupon->is_active) {
             $this->reject('This coupon is no longer active.');
@@ -54,6 +56,10 @@ class CouponService
         if ($coupon->max_uses_per_customer !== null && $customer !== null
             && $coupon->usages()->where('store_customer_id', $customer->id)->count() >= $coupon->max_uses_per_customer) {
             $this->reject('You have already used this coupon the maximum number of times.');
+        }
+        // Applying a code to the cart has no contact yet; the guest limit is enforced when the order is placed.
+        if ($coupon->max_uses_per_customer !== null && $customer === null && $guest !== []) {
+            $this->assertGuestLimit($coupon, $guest);
         }
     }
 
@@ -77,6 +83,38 @@ class CouponService
             'discount_amount' => $discount,
             'used_at' => now(),
         ]);
+    }
+
+    /**
+     * Guests have no account, so their past uses are matched by the phone or email on earlier orders
+     * (most cash-on-delivery orders are guest orders).
+     *
+     * @param  array{phone?: ?string, email?: ?string}  $guest
+     */
+    private function assertGuestLimit(Coupon $coupon, array $guest): void
+    {
+        $phone = filled($guest['phone'] ?? null) ? (string) $guest['phone'] : null;
+        $email = filled($guest['email'] ?? null) ? strtolower(trim((string) $guest['email'])) : null;
+        if ($phone === null && $email === null) {
+            $this->reject('Sign in or enter your phone number to use this coupon.');
+        }
+        $used = $coupon->usages()
+            ->whereExists(function ($orders) use ($phone, $email) {
+                $orders->selectRaw('1')->from('store_orders')
+                    ->whereColumn('store_orders.id', 'coupon_usages.store_order_id')
+                    ->where(function ($match) use ($phone, $email) {
+                        if ($phone !== null) {
+                            $match->orWhere('store_orders.customer_phone_normalized', $phone);
+                        }
+                        if ($email !== null) {
+                            $match->orWhereRaw('LOWER(store_orders.customer_email) = ?', [$email]);
+                        }
+                    });
+            })
+            ->count();
+        if ($used >= $coupon->max_uses_per_customer) {
+            $this->reject('You have already used this coupon the maximum number of times.');
+        }
     }
 
     /** @return never */

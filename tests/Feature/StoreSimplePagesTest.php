@@ -214,7 +214,7 @@ class StoreSimplePagesTest extends TestCase
         $a = $this->create(['slug' => 'first', 'position' => 1, 'title' => ['ar' => 'أول', 'en' => 'First'], 'show_in_header' => true]);
         $b = $this->create(['slug' => 'second', 'position' => 2, 'title' => ['ar' => 'ثاني', 'en' => 'Second'], 'show_in_footer' => false]);
         $this->getJson($this->api.'?page=2&per_page=1', $this->auth)->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $b['id'])->assertJsonPath('meta.last_page', 2)->assertJsonPath('meta.total', 2);
-        $this->getJson($this->api.'?q=أول', $this->auth)->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $a['id']);
+        $this->getJson($this->api.'?q='.rawurlencode('أول'), $this->auth)->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $a['id']);
         $this->getJson($this->api.'?sort=show_in_header&direction=asc', $this->auth)->assertJsonPath('data.0.id', $b['id']);
         $this->getJson($this->api.'?sort=show_in_footer&direction=desc', $this->auth)->assertJsonPath('data.0.id', $a['id']);
         $this->postJson($this->api.'/archive', ['pages' => [['id' => $a['id'], 'version' => 1], ['id' => $a['id'], 'version' => 1]]], $this->auth)->assertUnprocessable();

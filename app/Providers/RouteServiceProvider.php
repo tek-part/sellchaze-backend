@@ -47,6 +47,16 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting()
     {
+        // Password guessing: 10 tries a minute per account and address, 30 per address overall.
+        RateLimiter::for('login', function (Request $request) {
+            $email = strtolower(trim((string) $request->input('email')));
+
+            return [
+                Limit::perMinute(10)->by('login:'.$request->ip().'|'.$email),
+                Limit::perMinute(30)->by('login-ip:'.$request->ip()),
+            ];
+        });
+
         // Only cache misses reach PHP (rendering a new image size); hits are static files.
         RateLimiter::for('media-derivatives', fn (Request $request) => Limit::perMinute(600)->by('img:'.$request->ip()));
 

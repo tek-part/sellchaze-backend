@@ -330,7 +330,7 @@ class PlatformWalletTest extends TestCase
     public function test_new_google_signup_keeps_referral_but_existing_signin_never_rebinds_it(): void
     {
         config(['services.google.client_id' => 'wallet-google-test']);
-        Http::fake(['https://oauth2.googleapis.com/tokeninfo*' => Http::response(['aud' => 'wallet-google-test', 'sub' => 'wallet-google-fixture', 'email' => 'wallet-google@example.test', 'name' => 'Wallet Google test'], 200)]);
+        Http::fake(['https://oauth2.googleapis.com/tokeninfo*' => Http::response(['aud' => 'wallet-google-test', 'sub' => 'wallet-google-fixture', 'email' => 'wallet-google@example.test', 'email_verified' => 'true', 'name' => 'Wallet Google test'], 200)]);
         $profile = $this->wallet->profile($this->referrer);
         $this->postJson('/api/v1/auth/google', ['id_token' => 'named-local-fixture', 'registration_role' => 'Merchant', 'platform_referral_code' => $profile->code])->assertCreated();
         $user = User::query()->where('email', 'wallet-google@example.test')->firstOrFail();
