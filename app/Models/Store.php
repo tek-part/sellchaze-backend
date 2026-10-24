@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Storage;
  * @property array<string,mixed>|null $dashboard_preferences
  * @property array<string,mixed>|null $digital_delivery_configuration
  * @property array<string,mixed>|null $digital_delivery_credentials
+ * @property array<string,mixed>|null $notification_settings
  * @property array<string,mixed>|null $order_limits
  * @property array<string,mixed>|null $shopping_preferences
  * @property array<string,mixed>|null $thank_you_configuration
@@ -47,7 +48,7 @@ class Store extends Model
         'tax_enabled', 'tax_rate', 'tax_prices_include', 'shipping_enabled',
         'shipping_flat_rate', 'shipping_free_over',
         'theme_id', 'theme_settings', 'checkout_fields', 'shipping_configuration', 'downsell_configuration', 'dashboard_preferences',
-        'digital_delivery_configuration', 'digital_delivery_credentials',
+        'digital_delivery_configuration', 'digital_delivery_credentials', 'notification_settings',
         'order_limits',
         'shopping_preferences',
         'thank_you_configuration',
@@ -76,6 +77,7 @@ class Store extends Model
         'design_assets_configuration' => 'array',
         'digital_delivery_configuration' => 'array',
         'digital_delivery_credentials' => 'encrypted:array',
+        'notification_settings' => 'array',
         'theme_settings' => 'array',
         'checkout_fields' => 'array',
         'shipping_configuration' => 'array',

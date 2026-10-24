@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Models\StoreOrder;
 use App\Models\StorePaymentTransaction;
+use App\Services\Notifications\StoreNotificationSettings;
 use Illuminate\Support\Facades\DB;
 
 class PaymentSettlement
@@ -28,6 +29,7 @@ class PaymentSettlement
                 $order->update(['payment_status' => 'paid', 'payment_reference' => $reference]);
                 if (! $wasPaid) {
                     app(DigitalDelivery::class)->record($order);
+                    app(StoreNotificationSettings::class)->orderPaid($order);
                 }
             } elseif ($order->payment_status !== 'paid') {
                 $order->update(['payment_status' => 'failed']);
