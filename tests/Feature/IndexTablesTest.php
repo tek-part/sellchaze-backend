@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Coupon;
 use App\Models\Product;
+use App\Models\ProductReview;
 use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\StoreDomain;
@@ -130,5 +132,46 @@ class IndexTablesTest extends TestCase
         $this->assertSame(['omar@example.test'], array_column($inactive->json('data'), 'key'));
         $this->assertSame(['201001112222'], array_column($this->getJson('/api/v1/my-store/customers/directory?search=mona&spent_min=400', $this->auth)->json('data'), 'key'));
         $this->getJson('/api/v1/my-store/customers/directory?sort_by=password', $this->auth)->assertUnprocessable();
+    }
+
+    public function test_coupon_status_type_and_sort_filters(): void
+    {
+        $make = fn (string $code, array $attributes = []) => Coupon::withoutGlobalScopes()->create(array_merge(['store_id' => $this->store->id, 'code' => $code, 'type' => 'fixed', 'value' => 10, 'is_active' => true], $attributes));
+        $make('LIVE');
+        $make('LATER', ['starts_at' => now()->addDays(3), 'type' => 'percentage']);
+        $make('OLD', ['expires_at' => now()->subDay()]);
+        $make('OFF', ['is_active' => false]);
+        $codes = fn (string $query) => array_column($this->getJson('/api/v1/my-store/coupons?'.$query, $this->auth)->assertOk()->json('data'), 'code');
+
+        $this->assertSame(['LIVE'], $codes('status=active'));
+        $this->assertSame(['LATER'], $codes('status=scheduled'));
+        $this->assertSame(['OLD'], $codes('status=expired'));
+        $this->assertSame(['OFF'], $codes('status=disabled'));
+        $this->assertSame(['LATER'], $codes('type=percentage'));
+        $this->assertSame(['LATER', 'LIVE', 'OFF', 'OLD'], $codes('sort_by=code&sort_direction=asc'));
+        $this->getJson('/api/v1/my-store/coupons?status=forever', $this->auth)->assertUnprocessable();
+    }
+
+    public function test_review_search_rating_filters_and_bulk_moderation_stay_in_the_store(): void
+    {
+        $product = $this->product('Silk scarf');
+        $review = fn (int $rating, string $title, array $attributes = []) => ProductReview::withoutGlobalScopes()->create(array_merge(['store_id' => $this->store->id, 'store_product_id' => $product->id,
+            'rating' => $rating, 'title' => $title, 'body' => 'Body', 'status' => 'pending', 'author_name' => 'Guest'], $attributes));
+        $great = $review(5, 'Lovely fabric');
+        $bad = $review(1, 'Torn on arrival');
+        $review(3, 'Okay');
+        $otherStore = Store::create(['owner_user_id' => User::factory()->create()->id, 'owner_type' => 'merchant', 'name' => 'Other', 'slug' => 'other-index', 'currency' => 'EGP', 'status' => 'active']);
+        $foreign = ProductReview::withoutGlobalScopes()->create(['store_id' => $otherStore->id, 'store_product_id' => $product->id, 'rating' => 5, 'title' => 'Foreign', 'body' => 'x', 'status' => 'pending']);
+
+        $titles = fn (string $query) => array_column($this->getJson('/api/v1/my-store/reviews?'.$query, $this->auth)->assertOk()->json('data'), 'title');
+        $this->assertSame(['Lovely fabric', 'Torn on arrival'], $titles('rating=1,5&sort_by=rating&sort_direction=desc'));
+        $this->assertSame(['Torn on arrival'], $titles('search=torn'));
+        $this->assertSame(['Lovely fabric', 'Okay', 'Torn on arrival'], $titles('search=silk&sort_by=rating&sort_direction=desc'));
+        $this->getJson('/api/v1/my-store/reviews?rating=9', $this->auth)->assertUnprocessable();
+
+        $this->postJson('/api/v1/my-store/reviews/bulk-status', ['ids' => [$great->id, $bad->id, $foreign->id], 'status' => 'approved'], $this->auth)
+            ->assertOk()->assertJsonPath('meta.updated', 2);
+        $this->assertSame('approved', $great->fresh()->status);
+        $this->assertSame('pending', $foreign->fresh()->status);
     }
 }
