@@ -21,12 +21,13 @@
 </IfModule>
 
 # Long-lived caching for stored media. Derivatives under /storage/_img/ never change for a URL;
-# uploaded originals get unique names, so a month is safe for them.
+# uploaded originals get unique names, so a month is safe for them. Patterns are unanchored: on the
+# server the docroot's .htaccess rewrites into public/, so REQUEST_URI may be /public/storage/....
 <IfModule mod_headers.c>
-    <If "%{REQUEST_URI} =~ m#^/storage/_img/#">
+    <If "%{REQUEST_URI} =~ m#/storage/_img/#">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </If>
-    <ElseIf "%{REQUEST_URI} =~ m#^/storage/.+\.(png|jpe?g|webp|gif|svg|avif|mp4|webm|woff2?)$#i">
+    <ElseIf "%{REQUEST_URI} =~ m#/storage/.+\.(png|jpe?g|webp|gif|svg|avif|mp4|webm|woff2?)$#i">
         Header set Cache-Control "public, max-age=2592000"
     </ElseIf>
 </IfModule>
