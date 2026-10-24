@@ -13,8 +13,10 @@ use App\Services\StoreCatalog\StorefrontProductService;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
 use App\Support\CatalogProductVersion;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -27,14 +29,47 @@ class StorefrontProductsApiController extends Controller
 {
     public function __construct(private readonly StorefrontProductService $service) {}
 
+    private const DIGITAL_TYPES = ['codes', 'link'];
+
+    /**
+     * Shopify-style inventory filter. A product with variants is judged by its variants; "available"
+     * is on-hand minus reserved, and "low" is at or under the reorder level (5 when none is set).
+     */
+    private static function applyStockFilter(Builder $query, string $stock): void
+    {
+        $available = '(stock_quantity - reserved_quantity)';
+        $sellable = fn ($q) => $q->where('track_inventory', false)->orWhereRaw($available.' > 0');
+        $variants = fn ($q) => $q->where('is_active', true);
+        match ($stock) {
+            'untracked' => $query->where('track_inventory', false)->whereDoesntHave('variants', fn ($v) => $variants($v)->where('track_inventory', true)),
+            'in_stock' => $query->where(fn ($q) => $q
+                ->where(fn ($simple) => $simple->whereDoesntHave('variants', $variants)->where($sellable))
+                ->orWhereHas('variants', fn ($v) => $variants($v)->where($sellable))),
+            'out_of_stock' => $query->where(fn ($q) => $q
+                ->where(fn ($simple) => $simple->whereDoesntHave('variants', $variants)->where('track_inventory', true)->whereRaw($available.' <= 0'))
+                ->orWhere(fn ($withVariants) => $withVariants->whereHas('variants', $variants)->whereDoesntHave('variants', fn ($v) => $variants($v)->where($sellable)))),
+            'low' => $query->where(fn ($q) => $q
+                ->where(fn ($simple) => $simple->whereDoesntHave('variants', $variants)->where('track_inventory', true)
+                    ->whereRaw($available.' > 0')->whereRaw($available.' <= COALESCE(NULLIF(reorder_level, 0), 5)'))
+                ->orWhereHas('variants', fn ($v) => $variants($v)->where('track_inventory', true)->whereRaw($available.' > 0')->whereRaw($available.' <= 5'))),
+            default => null,
+        };
+    }
+
     public function index(Request $request, Store $store): JsonResponse
     {
         $request->validate([
             'status' => ['nullable', 'in:active,draft'],
             'search' => ['nullable', 'string', 'max:255'],
             'sku' => ['nullable', 'string', 'max:120'],
-            'sort_by' => ['nullable', 'in:position,name,price,created_at'],
+            'sort_by' => ['nullable', 'in:position,name,price,created_at,updated_at,stock_quantity'],
             'sort_direction' => ['nullable', 'in:asc,desc'],
+            'stock' => ['nullable', 'in:in_stock,out_of_stock,low,untracked'],
+            'type' => ['nullable', 'in:physical,digital'],
+            'price_min' => ['nullable', 'numeric', 'min:0'],
+            'price_max' => ['nullable', 'numeric', 'min:0'],
+            'created_from' => ['nullable', 'date'],
+            'created_to' => ['nullable', 'date'],
         ]);
         $query = Product::query()->with(['category:id,name,slug', 'additionalCategories', 'variants', 'media']); // StoreScope -> this store only
 
@@ -53,6 +88,26 @@ class StorefrontProductsApiController extends Controller
 
         if ($request->filled('status')) {
             $query->where('is_active', $request->get('status') === 'active');
+        }
+        if ($request->filled('type')) {
+            $request->get('type') === 'digital'
+                ? $query->whereIn('digital_type', self::DIGITAL_TYPES)
+                : $query->where(fn ($q) => $q->whereNull('digital_type')->orWhereNotIn('digital_type', self::DIGITAL_TYPES));
+        }
+        if ($request->filled('price_min')) {
+            $query->where('price', '>=', (float) $request->input('price_min'));
+        }
+        if ($request->filled('price_max')) {
+            $query->where('price', '<=', (float) $request->input('price_max'));
+        }
+        if ($request->filled('created_from')) {
+            $query->where('created_at', '>=', Carbon::parse($request->input('created_from'))->startOfDay());
+        }
+        if ($request->filled('created_to')) {
+            $query->where('created_at', '<=', Carbon::parse($request->input('created_to'))->endOfDay());
+        }
+        if ($request->filled('stock')) {
+            self::applyStockFilter($query, (string) $request->input('stock'));
         }
 
         $perPage = min(max((int) $request->get('per_page', 15), 1), 100);
