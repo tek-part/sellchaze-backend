@@ -14,7 +14,7 @@ class MarketplaceThemesTest extends TestCase
     use RefreshDatabase;
 
     /** Every first-party storefront theme, as shipped in resources/themes/storefront. */
-    private const KEYS = ['bazaar', 'blast-pets', 'elite-furniture', 'elite-wallets', 'fresh', 'hype-fashion', 'hype-perfumes', 'naseem', 'nature-kids', 'nature-pets', 'pure-furniture', 'sahra', 'sphinx-v3', 'techno'];
+    private const KEYS = ['bazaar', 'blast-pets', 'elite-furniture', 'elite-wallets', 'fresh', 'glow', 'hype-fashion', 'hype-perfumes', 'karat', 'maison', 'naseem', 'nature-kids', 'nature-pets', 'pure-furniture', 'sahra', 'sphinx-v3', 'stride', 'techno'];
 
     protected function setUp(): void
     {
@@ -38,6 +38,9 @@ class MarketplaceThemesTest extends TestCase
         $this->assertContains('general', $res->json('categories'));
         $this->assertContains('luxury', $res->json('categories'));
         $this->assertContains('electronics', $res->json('categories'));
+        foreach (['beauty', 'jewelry', 'sports', 'home-decor'] as $category) {
+            $this->assertContains($category, $res->json('categories'));
+        }
     }
 
     public function test_featured_filter_returns_featured_themes(): void
