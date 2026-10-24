@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreInventoryMovement;
 use App\Services\Commerce\StoreInventory;
+use App\Support\Catalog\ProductStockFilter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,10 +16,17 @@ class StoreInventoryController extends Controller
 {
     public function index(Request $request, Store $store): JsonResponse
     {
-        $input = $request->validate(['search' => ['nullable', 'string', 'max:120'], 'page' => ['nullable', 'integer', 'min:1']]);
+        $input = $request->validate([
+            'search' => ['nullable', 'string', 'max:120'], 'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'], 'stock' => ['nullable', 'in:'.implode(',', ProductStockFilter::VALUES)],
+            'sort_by' => ['nullable', 'in:name,stock_quantity,updated_at'], 'sort_direction' => ['nullable', 'in:asc,desc'],
+        ]);
         $products = Product::query()->where('store_id', $store->id)->with('variants')
-            ->when(! empty($input['search']), fn ($query) => $query->where('name', 'like', '%'.$input['search'].'%'))
-            ->orderBy('id')->paginate(20);
+            ->when(! empty($input['search']), fn ($query) => $query->where(fn ($q) => $q->where('name', 'like', '%'.$input['search'].'%')
+                ->orWhere('sku', 'like', '%'.$input['search'].'%')->orWhereHas('variants', fn ($v) => $v->where('sku', 'like', '%'.$input['search'].'%'))))
+            ->when(! empty($input['stock']), fn ($query) => ProductStockFilter::apply($query, $input['stock']))
+            ->orderBy($input['sort_by'] ?? 'id', $input['sort_direction'] ?? 'asc')->orderBy('id')
+            ->paginate($input['per_page'] ?? 20);
 
         return response()->json(['data' => $products->getCollection()->map(function (Product $product) {
             return ['id' => $product->id, 'name' => $product->name, 'sku' => $product->sku, 'track_inventory' => $product->track_inventory,

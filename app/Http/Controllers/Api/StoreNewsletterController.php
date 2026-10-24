@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Store;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -18,6 +19,9 @@ class StoreNewsletterController extends Controller
             'search' => ['nullable', 'string', 'max:255'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'between:1,100'],
+            'status' => ['nullable', Rule::in(['active', 'inactive'])],
+            'created_from' => ['nullable', 'date'], 'created_to' => ['nullable', 'date'],
+            'sort_by' => ['nullable', Rule::in(['created_at', 'email', 'phone', 'name'])], 'sort_direction' => ['nullable', Rule::in(['asc', 'desc'])],
         ]);
         $email = DB::table('newsletter_subscribers')->where('store_id', $store->id)
             ->selectRaw("id, 'email' as channel, NULL as name, email, NULL as phone, is_active, created_at");
@@ -33,7 +37,17 @@ class StoreNewsletterController extends Controller
                 ->orWhereRaw("email LIKE ? ESCAPE '!'", [$literal])
                 ->orWhereRaw("phone LIKE ? ESCAPE '!'", [$literal]));
         }
-        $paginator = $query->orderByDesc('created_at')->orderByDesc('id')->orderBy('channel')->paginate($filters['per_page'] ?? 25);
+        if (! empty($filters['status'])) {
+            $query->where('is_active', $filters['status'] === 'active');
+        }
+        if (! empty($filters['created_from'])) {
+            $query->where('created_at', '>=', Carbon::parse($filters['created_from'])->startOfDay());
+        }
+        if (! empty($filters['created_to'])) {
+            $query->where('created_at', '<=', Carbon::parse($filters['created_to'])->endOfDay());
+        }
+        $paginator = $query->orderBy($filters['sort_by'] ?? 'created_at', $filters['sort_direction'] ?? 'desc')
+            ->orderByDesc('id')->orderBy('channel')->paginate($filters['per_page'] ?? 25);
 
         return response()->json([
             'data' => $paginator->items(),

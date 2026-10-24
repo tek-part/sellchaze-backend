@@ -30,7 +30,18 @@ class UsersApiController extends Controller
             abort_unless($request->user()->can('users-list'), 403);
         }
 
-        $query = User::with(['profile', 'roles'])->orderByDesc('id');
+        $input = $request->validate([
+            'role' => ['nullable', 'string', 'max:60'], 'status' => ['nullable', 'in:active,inactive'],
+            'sort_by' => ['nullable', 'in:name,email,created_at'], 'sort_direction' => ['nullable', 'in:asc,desc'],
+        ]);
+        $query = User::with(['profile', 'roles']);
+        isset($input['sort_by']) ? $query->orderBy('users.'.$input['sort_by'], $input['sort_direction'] ?? 'asc')->orderByDesc('users.id') : $query->orderByDesc('id');
+        if (filled($input['role'] ?? null)) {
+            $query->whereHas('roles', fn ($roles) => $roles->where('name', $input['role']));
+        }
+        if (filled($input['status'] ?? null)) {
+            $query->where('users.is_active', $input['status'] === 'active');
+        }
         $query->where(function ($q) {
             $q->where('email', 'not like', 'guest_%@wigpleasure.com')
                 ->orWhereHas('roles');
