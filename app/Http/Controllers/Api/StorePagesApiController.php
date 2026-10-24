@@ -41,11 +41,18 @@ class StorePagesApiController extends Controller
     public function index(Request $request, Store $store): JsonResponse
     {
         $templates = array_values(array_filter(array_map('trim', explode(',', (string) $request->query('template', '')))));
+        $input = $request->validate([
+            'search' => ['nullable', 'string', 'max:200'], 'locale' => ['nullable', 'string', 'max:10'],
+            'sort_by' => ['nullable', 'in:title,created_at,updated_at,published_at'], 'sort_direction' => ['nullable', 'in:asc,desc'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
 
         $pages = StorePage::query()->where('template', '!=', 'simple')->with('funnel')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($templates !== [], fn ($q) => $q->whereIn('template', $templates), fn ($q) => $q->whereNotIn('template', StorePageService::TEMPLATE_PAGES))
-            ->orderByDesc('id')->paginate((int) $request->get('per_page', 20));
+            ->when(filled($input['search'] ?? null), fn ($q) => $q->where(fn ($w) => $w->where('title', 'like', '%'.$input['search'].'%')->orWhere('slug', 'like', '%'.$input['search'].'%')))
+            ->when(filled($input['locale'] ?? null), fn ($q) => $q->where('locale', $input['locale']))
+            ->orderBy($input['sort_by'] ?? 'id', $input['sort_direction'] ?? 'desc')->orderByDesc('id')->paginate($input['per_page'] ?? 20);
 
         return response()->json([
             'data' => $pages->getCollection()->map(fn (StorePage $p) => $this->pageArray($p)),

@@ -49,8 +49,22 @@ class MerchantsApiController extends Controller
     {
         $this->authorizeDirectory($request->user());
 
+        $input = $request->validate([
+            'status' => ['nullable', 'in:pending,active,inactive'],
+            'sort_by' => ['nullable', 'in:name,email,created_at'], 'sort_direction' => ['nullable', 'in:asc,desc'],
+        ]);
         $perPage = min((int) $request->get('per_page', 30), 100);
-        $q = $this->baseQuery()->orderByDesc('pending_approval')->orderBy('name');
+        $q = $this->baseQuery();
+        // Default keeps pending approvals on top; an explicit sort replaces it.
+        isset($input['sort_by'])
+            ? $q->orderBy('users.'.$input['sort_by'], $input['sort_direction'] ?? 'asc')->orderBy('users.id')
+            : $q->orderByDesc('pending_approval')->orderBy('name');
+        match ($input['status'] ?? null) {
+            'pending' => $q->where('users.pending_approval', true),
+            'active' => $q->where('users.pending_approval', false)->where('users.is_active', true),
+            'inactive' => $q->where('users.pending_approval', false)->where('users.is_active', false),
+            default => null,
+        };
 
         if ($request->filled('search')) {
             $term = '%'.$request->string('search')->trim().'%';

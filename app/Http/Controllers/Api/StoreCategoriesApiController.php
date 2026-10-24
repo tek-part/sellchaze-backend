@@ -22,12 +22,30 @@ class StoreCategoriesApiController extends Controller
 
     public function index(Request $request, Store $store): JsonResponse
     {
-        $filters = $request->validate(['sort_by' => ['sometimes', 'in:name,position,show_in_header'], 'sort_direction' => ['sometimes', 'in:asc,desc']]);
+        $filters = $request->validate([
+            'sort_by' => ['sometimes', 'in:name,position,show_in_header,products_count,created_at'], 'sort_direction' => ['sometimes', 'in:asc,desc'],
+            'visibility' => ['nullable', 'in:visible,hidden'], 'in_header' => ['nullable', 'in:yes,no'],
+            'level' => ['nullable', 'in:top,sub'], 'products' => ['nullable', 'in:with,without'],
+        ]);
         $query = Category::query()->withCatalogProductCount()->withCount('children'); // StoreScope -> this store only
 
         if ($request->filled('search')) {
             $term = '%'.$request->string('search')->trim().'%';
             $query->where(fn ($q) => $q->where('name', 'like', $term)->orWhere('slug', 'like', $term));
+        }
+
+        if (isset($filters['visibility'])) {
+            $query->where('is_hidden', $filters['visibility'] === 'hidden');
+        }
+        if (isset($filters['in_header'])) {
+            $query->where('show_in_header', $filters['in_header'] === 'yes');
+        }
+        if (isset($filters['level'])) {
+            $filters['level'] === 'top' ? $query->whereNull('parent_id') : $query->whereNotNull('parent_id');
+        }
+        if (isset($filters['products'])) {
+            // products_count is a select subquery: filter it in HAVING-free form by wrapping the query.
+            $query = Category::query()->fromSub($query, 'categories')->where('products_count', $filters['products'] === 'with' ? '>' : '=', 0);
         }
 
         $perPage = min(max((int) $request->get('per_page', 15), 1), 100);

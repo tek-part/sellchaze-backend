@@ -41,7 +41,7 @@ class IndexTablesTest extends TestCase
 
     private function product(string $name, array $attributes = []): Product
     {
-        return Product::withoutGlobalScopes()->create(array_merge(['store_id' => $this->store->id, 'name' => $name, 'slug' => Str::slug($name).'-'.Str::random(5),
+        return Product::withoutGlobalScopes()->create(array_merge(['store_id' => $this->store->id, 'name' => $name, 'slug' => 'ix-'.Str::slug($name),
             'price' => 100, 'is_active' => true, 'track_inventory' => true, 'stock_quantity' => 20, 'reserved_quantity' => 0], $attributes));
     }
 

@@ -25,10 +25,17 @@ class StoreAbTestsController extends Controller
     public function index(Request $request, ProductAbTests $tests, StorefrontUrlGenerator $urls)
     {
         $store = $this->storeFor($request);
-        $request->validate(['page' => ['sometimes', 'integer', 'min:1']]);
-        $rows = DB::table('store_ab_tests')->where('store_id', $store->id)->whereNull('deleted_at')->orderByDesc('id')->paginate(20);
+        $input = $request->validate([
+            'page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'search' => ['nullable', 'string', 'max:160'], 'status' => ['nullable', 'in:active,paused'],
+            'sort_by' => ['nullable', 'in:name,created_at,updated_at'], 'sort_direction' => ['nullable', 'in:asc,desc'],
+        ]);
+        $rows = DB::table('store_ab_tests')->where('store_id', $store->id)->whereNull('deleted_at')
+            ->when(filled($input['search'] ?? null), fn ($q) => $q->where(fn ($w) => $w->where('name', 'like', '%'.$input['search'].'%')->orWhere('slug', 'like', '%'.$input['search'].'%')))
+            ->when(filled($input['status'] ?? null), fn ($q) => $q->where('active', $input['status'] === 'active'))
+            ->orderBy($input['sort_by'] ?? 'id', $input['sort_direction'] ?? 'desc')->orderByDesc('id')->paginate($input['per_page'] ?? 20);
 
-        return response()->json(['data' => $rows->items(), 'meta' => ['current_page' => $rows->currentPage(), 'last_page' => $rows->lastPage()], 'storefront_url' => $urls->publicUrl($store)], 200, ['Cache-Control' => 'private, no-store']);
+        return response()->json(['data' => $rows->items(), 'meta' => ['current_page' => $rows->currentPage(), 'last_page' => $rows->lastPage(), 'total' => $rows->total(), 'per_page' => $rows->perPage()], 'storefront_url' => $urls->publicUrl($store)], 200, ['Cache-Control' => 'private, no-store']);
     }
 
     public function products(Request $request, ProductAbTests $tests)

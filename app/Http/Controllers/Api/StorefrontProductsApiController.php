@@ -12,8 +12,8 @@ use App\Models\Store;
 use App\Services\StoreCatalog\StorefrontProductService;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Storefront\StorefrontService;
+use App\Support\Catalog\ProductStockFilter;
 use App\Support\CatalogProductVersion;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -30,31 +30,6 @@ class StorefrontProductsApiController extends Controller
     public function __construct(private readonly StorefrontProductService $service) {}
 
     private const DIGITAL_TYPES = ['codes', 'link'];
-
-    /**
-     * Shopify-style inventory filter. A product with variants is judged by its variants; "available"
-     * is on-hand minus reserved, and "low" is at or under the reorder level (5 when none is set).
-     */
-    private static function applyStockFilter(Builder $query, string $stock): void
-    {
-        $available = '(stock_quantity - reserved_quantity)';
-        $sellable = fn ($q) => $q->where('track_inventory', false)->orWhereRaw($available.' > 0');
-        $variants = fn ($q) => $q->where('is_active', true);
-        match ($stock) {
-            'untracked' => $query->where('track_inventory', false)->whereDoesntHave('variants', fn ($v) => $variants($v)->where('track_inventory', true)),
-            'in_stock' => $query->where(fn ($q) => $q
-                ->where(fn ($simple) => $simple->whereDoesntHave('variants', $variants)->where($sellable))
-                ->orWhereHas('variants', fn ($v) => $variants($v)->where($sellable))),
-            'out_of_stock' => $query->where(fn ($q) => $q
-                ->where(fn ($simple) => $simple->whereDoesntHave('variants', $variants)->where('track_inventory', true)->whereRaw($available.' <= 0'))
-                ->orWhere(fn ($withVariants) => $withVariants->whereHas('variants', $variants)->whereDoesntHave('variants', fn ($v) => $variants($v)->where($sellable)))),
-            'low' => $query->where(fn ($q) => $q
-                ->where(fn ($simple) => $simple->whereDoesntHave('variants', $variants)->where('track_inventory', true)
-                    ->whereRaw($available.' > 0')->whereRaw($available.' <= COALESCE(NULLIF(reorder_level, 0), 5)'))
-                ->orWhereHas('variants', fn ($v) => $variants($v)->where('track_inventory', true)->whereRaw($available.' > 0')->whereRaw($available.' <= 5'))),
-            default => null,
-        };
-    }
 
     public function index(Request $request, Store $store): JsonResponse
     {
@@ -107,7 +82,7 @@ class StorefrontProductsApiController extends Controller
             $query->where('created_at', '<=', Carbon::parse($request->input('created_to'))->endOfDay());
         }
         if ($request->filled('stock')) {
-            self::applyStockFilter($query, (string) $request->input('stock'));
+            ProductStockFilter::apply($query, (string) $request->input('stock'));
         }
 
         $perPage = min(max((int) $request->get('per_page', 15), 1), 100);
