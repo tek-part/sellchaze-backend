@@ -20,11 +20,26 @@ class CouponsApiController extends Controller
     /** GET /stores/{store}/coupons */
     public function index(Request $request, Store $store): JsonResponse
     {
+        $request->validate([
+            'status' => ['nullable', 'in:active,scheduled,expired,disabled'],
+            'type' => ['nullable', 'in:fixed,percentage'],
+            'sort_by' => ['nullable', 'in:code,created_at,expires_at,usages_count,value'],
+            'sort_direction' => ['nullable', 'in:asc,desc'],
+        ]);
         $perPage = min(max((int) $request->get('per_page', 15), 1), 100);
+        $now = now();
 
         $paginator = Coupon::query()
             ->withCount('usages')
             ->when($request->filled('search'), fn ($q) => $q->where('code', 'like', '%'.strtoupper((string) $request->get('search')).'%'))
+            ->when($request->filled('type'), fn ($q) => $q->where('type', $request->get('type')))
+            ->when($request->get('status') === 'disabled', fn ($q) => $q->where('is_active', false))
+            ->when($request->get('status') === 'expired', fn ($q) => $q->where('is_active', true)->whereNotNull('expires_at')->where('expires_at', '<', $now))
+            ->when($request->get('status') === 'scheduled', fn ($q) => $q->where('is_active', true)->whereNotNull('starts_at')->where('starts_at', '>', $now))
+            ->when($request->get('status') === 'active', fn ($q) => $q->where('is_active', true)
+                ->where(fn ($w) => $w->whereNull('starts_at')->orWhere('starts_at', '<=', $now))
+                ->where(fn ($w) => $w->whereNull('expires_at')->orWhere('expires_at', '>=', $now)))
+            ->orderBy($request->input('sort_by') ?: 'id', $request->input('sort_direction') ?: 'desc')
             ->orderByDesc('id')
             ->paginate($perPage);
 

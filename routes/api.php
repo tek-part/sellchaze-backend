@@ -857,6 +857,7 @@ Route::prefix('v1')->group(function () {
             // ---- Reviews (Phase 6H) ----
             Route::prefix('reviews')->group(function () {
                 Route::get('/', [MerchantReviewController::class, 'index']);
+                Route::post('bulk-status', [MerchantReviewController::class, 'bulkStatus'])->middleware('throttle:30,1');
                 Route::patch('{review}/status', [MerchantReviewController::class, 'updateStatus'])->whereNumber('review');
                 Route::delete('{review}', [MerchantReviewController::class, 'destroy'])->whereNumber('review');
             });
