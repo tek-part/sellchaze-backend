@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Models\StoreOrder;
 use App\Notifications\StoreOrderActivity;
+use App\Services\Notifications\StoreNotificationSettings;
 use App\Services\Outbox\OutboxRecorder;
 use App\Services\PlatformWallet;
 
@@ -24,5 +25,6 @@ class StoreOrderPlacement
         app(StoreOrderWebhooks::class)->created($order);
         app(DigitalDelivery::class)->recordReceipt($order);
         $order->store?->owner?->notify(new StoreOrderActivity($order, 'created'));
+        app(StoreNotificationSettings::class)->orderPlaced($order);
     }
 }

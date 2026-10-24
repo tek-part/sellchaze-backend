@@ -5,6 +5,7 @@ namespace App\Services\Commerce;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderStatusChange;
 use App\Notifications\StoreOrderActivity;
+use App\Services\Notifications\StoreNotificationSettings;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -107,6 +108,7 @@ class StoreOrderService
             DB::afterCommit(fn () => StoreAnalyticsService::forget($order->store_id));
             $order->store?->owner?->notify(new StoreOrderActivity($order, 'status_changed'));
             app(StoreOrderWebhooks::class)->statusChanged($order, $from, (int) $change->id);
+            app(StoreNotificationSettings::class)->statusChanged($order, $to);
 
             return $order;
         });

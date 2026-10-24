@@ -119,6 +119,7 @@ use App\Http\Controllers\Api\StoreMediaApiController;
 use App\Http\Controllers\Api\StoreMenusApiController;
 use App\Http\Controllers\Api\StoreMissedOrdersController;
 use App\Http\Controllers\Api\StoreNewsletterController;
+use App\Http\Controllers\Api\StoreNotificationsController;
 use App\Http\Controllers\Api\StoreOrderExportController;
 use App\Http\Controllers\Api\StoreOrderLimitsController;
 use App\Http\Controllers\Api\StoreOrderWebhookController;
@@ -837,6 +838,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('{order}/digital-delivery', [MerchantOrderController::class, 'digitalDeliveryStatus'])->whereNumber('order')->middleware('permission:store.orders.manage');
                 Route::post('{order}/digital-delivery/email', [MerchantOrderController::class, 'resendDigitalItemEmail'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:10,1']);
                 Route::post('{order}/digital-email', [MerchantOrderController::class, 'resendDigitalEmail'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:10,1']);
+                Route::get('{order}/notifications', [StoreNotificationsController::class, 'orderLog'])->whereNumber('order')->middleware('permission:store.orders.manage');
+                Route::post('{order}/notifications/resend', [StoreNotificationsController::class, 'resend'])->whereNumber('order')->middleware(['permission:store.orders.manage', 'throttle:10,1']);
                 Route::get('{order}/shipment', [StoreShipmentController::class, 'show'])->whereNumber('order');
                 Route::post('{order}/shipment', [StoreShipmentController::class, 'create'])->whereNumber('order')->middleware('throttle:20,1');
                 Route::post('{order}/shipment/sync', [StoreShipmentController::class, 'sync'])->whereNumber('order')->middleware('throttle:30,1');
@@ -888,6 +891,7 @@ Route::prefix('v1')->group(function () {
             Route::get('thank-you', [StoreThankYouController::class, 'index']);
             Route::put('thank-you', [StoreThankYouController::class, 'update']);
             Route::get('digital-delivery', [StoreDigitalDeliveryController::class, 'index']);
+            Route::get('notifications', [StoreNotificationsController::class, 'index']);
             Route::get('order-limits', [StoreOrderLimitsController::class, 'index']);
             Route::get('blocked-phone-numbers', [StorePhoneBlockController::class, 'index']);
             Route::get('blocked-phones', [StorePhoneBlockController::class, 'index']);
@@ -961,6 +965,9 @@ Route::prefix('v1')->group(function () {
             Route::get('blocked-phone-numbers/{block}/history', [StorePhoneBlockController::class, 'history'])->whereNumber('block');
             Route::put('order-limits', [StoreOrderLimitsController::class, 'update']);
             Route::put('digital-delivery', [StoreDigitalDeliveryController::class, 'update']);
+            Route::put('notifications', [StoreNotificationsController::class, 'update']);
+            Route::post('notifications/preview', [StoreNotificationsController::class, 'preview'])->middleware('throttle:60,1');
+            Route::post('notifications/test', [StoreNotificationsController::class, 'test'])->middleware('throttle:5,1');
             Route::put('digital-delivery/connection', [StoreDigitalDeliveryController::class, 'connection']);
             Route::post('digital-delivery/verify', [StoreDigitalDeliveryController::class, 'verify'])->middleware('throttle:10,1');
 

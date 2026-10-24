@@ -6,6 +6,7 @@ use App\Events\DomainEventPublished;
 use App\Listeners\AddAntiSpamMailHeaders;
 use App\Listeners\RecordMailLog;
 use App\Listeners\SendDigitalDelivery;
+use App\Listeners\SendStoreNotification;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -20,7 +21,7 @@ class EventServiceProvider extends ServiceProvider
      * @var array<class-string, array<int, class-string>>
      */
     protected $listen = [
-        DomainEventPublished::class => [SendDigitalDelivery::class],
+        DomainEventPublished::class => [SendDigitalDelivery::class, SendStoreNotification::class],
         Registered::class => [
             SendEmailVerificationNotification::class,
         ],
