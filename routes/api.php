@@ -146,6 +146,7 @@ use App\Http\Controllers\Api\StoreTrackingController;
 use App\Http\Controllers\Api\StoreUiBlocksController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SupportTicketsController;
+use App\Http\Controllers\Api\TableViewsController;
 use App\Http\Controllers\Api\ThemeLicensePurchaseController;
 use App\Http\Controllers\Api\ThemeLicenseWebhookController;
 use App\Http\Controllers\Api\UsersApiController;
@@ -454,6 +455,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/notifications', [NotificationsApiController::class, 'index'])->middleware('throttle:tenant-read');
         Route::post('/notifications/{id}/read', [NotificationsApiController::class, 'markRead']);
         Route::post('/notifications/read-all', [NotificationsApiController::class, 'markAllRead']);
+
+        // ---- Saved views for dashboard index tables (private to the user) ----
+        Route::get('/table-views', [TableViewsController::class, 'index'])->middleware('throttle:tenant-read');
+        Route::post('/table-views', [TableViewsController::class, 'store'])->middleware('throttle:30,1');
+        Route::patch('/table-views/{view}', [TableViewsController::class, 'update'])->whereNumber('view')->middleware('throttle:30,1');
+        Route::delete('/table-views/{view}', [TableViewsController::class, 'destroy'])->whereNumber('view')->middleware('throttle:30,1');
 
         // ---- Community feed / wall (all registered users) ----
         Route::get('/feed', [FeedController::class, 'index'])->middleware('throttle:tenant-read');
