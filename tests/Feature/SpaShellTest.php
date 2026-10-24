@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\User;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Themes\StoreThemeService;
 use App\Services\Themes\ThemeRegistry;
+use App\Support\Tenancy\CurrentStore;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -77,6 +79,33 @@ HTML);
             ->assertSee('<link rel="canonical"', false)
             ->assertSee('application/ld+json', false)
             ->assertDontSee('data-rendered-by="blade"', false);
+    }
+
+    public function test_shell_opens_asset_and_media_connections_early(): void
+    {
+        config()->set('filesystems.disks.public.url', 'https://api.sellchaze.test/storage');
+        $html = $this->get('http://nike.sellchase.com/')->assertOk()->getContent();
+
+        $this->assertStringContainsString('<link rel="preconnect" href="https://sellchaze.com" crossorigin>', $html);
+        $this->assertStringContainsString('<link rel="preconnect" href="https://api.sellchaze.test">', $html);
+        $this->assertLessThan(strpos($html, 'rel="stylesheet"'), strpos($html, 'rel="preconnect"'));
+        $this->assertStringNotContainsString('rel="preload" as="image"', $html);
+    }
+
+    public function test_product_pages_preload_the_main_image_with_the_gallery_srcset(): void
+    {
+        config()->set('filesystems.disks.public.url', 'https://api.sellchaze.test/storage');
+        $store = Store::query()->where('slug', 'nike')->firstOrFail();
+        app(CurrentStore::class)->set($store);
+        Product::create(['store_id' => $store->id, 'user_id' => $store->owner_user_id, 'name' => 'Runner', 'slug' => 'runner', 'price' => 50,
+            'is_active' => true, 'image' => 'https://api.sellchaze.test/storage/stores/1/runner.png']);
+        app(CurrentStore::class)->forget();
+
+        $html = $this->get('http://nike.sellchase.com/products/runner')->assertOk()->getContent();
+
+        $this->assertStringContainsString('rel="preload" as="image" fetchpriority="high"', $html);
+        $this->assertStringContainsString('_img/w320/stores/1/runner.png.webp 320w', $html);
+        $this->assertStringContainsString('imagesizes="(min-width: 1024px) 50vw, 100vw"', $html);
     }
 
     public function test_arabic_request_sets_lang_and_dir_on_the_shell(): void

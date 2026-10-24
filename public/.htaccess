@@ -20,6 +20,17 @@
     RewriteRule ^ index.php [L]
 </IfModule>
 
+# Long-lived caching for stored media. Derivatives under /storage/_img/ never change for a URL;
+# uploaded originals get unique names, so a month is safe for them.
+<IfModule mod_headers.c>
+    <If "%{REQUEST_URI} =~ m#^/storage/_img/#">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </If>
+    <ElseIf "%{REQUEST_URI} =~ m#^/storage/.+\.(png|jpe?g|webp|gif|svg|avif|mp4|webm|woff2?)$#i">
+        Header set Cache-Control "public, max-age=2592000"
+    </ElseIf>
+</IfModule>
+
 # BEGIN cPanel-generated php ini directives, do not edit
 # Manual editing of this file may result in unexpected behavior.
 # To make changes to this file, use the cPanel MultiPHP INI Editor (Home >> Software >> MultiPHP INI Editor)

@@ -29,6 +29,8 @@ class RouteServiceProvider extends ServiceProvider
         $this->configureRateLimiting();
 
         $this->routes(function () {
+            Route::group([], base_path('routes/media.php'));
+
             Route::middleware('api')
                 ->prefix('api')
                 ->group(base_path('routes/api.php'));
@@ -45,6 +47,9 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting()
     {
+        // Only cache misses reach PHP (rendering a new image size); hits are static files.
+        RateLimiter::for('media-derivatives', fn (Request $request) => Limit::perMinute(600)->by('img:'.$request->ip()));
+
         // SPA + Wavex polls/lists can burst; keep abuse protection without blocking normal use.
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute((int) config('performance.api_ip_per_minute', 1200))
