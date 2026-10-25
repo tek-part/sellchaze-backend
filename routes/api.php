@@ -366,6 +366,8 @@ Route::prefix('v1')->group(function () {
 
         Route::post('auth/register', [CustomerAuthController::class, 'register']);
         Route::post('auth/login', [CustomerAuthController::class, 'login'])->middleware('throttle:login');
+        Route::post('auth/forgot-password', [CustomerAuthController::class, 'forgotPassword'])->middleware('throttle:6,1');
+        Route::post('auth/reset-password', [CustomerAuthController::class, 'resetPassword'])->middleware('throttle:10,1');
 
         // Authenticated store-customer area (bearer token, store-scoped).
         Route::middleware('store.customer')->group(function () {

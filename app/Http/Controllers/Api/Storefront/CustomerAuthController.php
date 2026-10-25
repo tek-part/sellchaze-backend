@@ -11,6 +11,7 @@ use App\Http\Requests\Storefront\UpdateCustomerRequest;
 use App\Http\Resources\Storefront\StoreCustomerResource;
 use App\Models\StoreCustomer;
 use App\Services\Commerce\CustomerAuthService;
+use App\Services\Commerce\CustomerPasswordResetService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -86,6 +87,32 @@ class CustomerAuthController extends Controller
         return response()->json(['message' => 'Password updated.']);
     }
 
+    /**
+     * POST /storefront/auth/forgot-password — always the same answer, whether or
+     * not the address has an account here, so emails cannot be probed.
+     */
+    public function forgotPassword(Request $request, CustomerPasswordResetService $resets): JsonResponse
+    {
+        $data = $request->validate(['email' => ['required', 'email', 'max:255']]);
+        $resets->sendLink($this->currentStore($request), $data['email']);
+
+        return response()->json(['message' => 'If an account exists for this email, a reset link is on its way.']);
+    }
+
+    /** POST /storefront/auth/reset-password */
+    public function resetPassword(Request $request, CustomerPasswordResetService $resets): JsonResponse
+    {
+        $this->currentStore($request);
+        $data = $request->validate([
+            'token' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'password' => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
+        ]);
+        $resets->reset($data['email'], $data['token'], $data['password']);
+
+        return response()->json(['message' => 'Your password has been reset.']);
+    }
+
     /** @param array{customer: StoreCustomer, token: string} $result */
     private function authResponse(array $result, int $status): JsonResponse
     {
@@ -94,5 +121,4 @@ class CustomerAuthController extends Controller
             'token' => $result['token'],
         ], $status, [], JSON_UNESCAPED_UNICODE);
     }
-
 }
