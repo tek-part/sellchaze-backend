@@ -802,6 +802,10 @@ Route::prefix('v1')->group(function () {
             Route::middleware('permission:store.orders.manage')->prefix('customers')->group(function () {
                 Route::get('/', [StoreCustomersApiController::class, 'index']);
                 Route::get('directory', [StoreCustomersApiController::class, 'directory'])->middleware('throttle:tenant-read');
+                Route::get('directory/export', [StoreCustomersApiController::class, 'export'])->middleware('throttle:10,1');
+                Route::get('profile', [StoreCustomersApiController::class, 'profile'])->middleware('throttle:tenant-read');
+                Route::put('profile', [StoreCustomersApiController::class, 'updateProfile'])->middleware('throttle:60,1');
+                Route::get('tags', [StoreCustomersApiController::class, 'tags'])->middleware('throttle:tenant-read');
                 Route::get('{customer}', [StoreCustomersApiController::class, 'show'])->whereNumber('customer');
             });
 
