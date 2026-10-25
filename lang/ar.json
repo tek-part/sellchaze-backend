@@ -463,5 +463,14 @@
     "Article created successfully.": "تم إنشاء المقال بنجاح.",
     "Article updated successfully.": "تم تحديث المقال بنجاح.",
     "Article deleted successfully.": "تم حذف المقال بنجاح.",
-    "by": "بواسطة"
+    "by": "بواسطة",
+    "Customer not found.": "العميل غير موجود.",
+    "Customer saved.": "تم حفظ العميل.",
+    "No order or customer account in this store matches this customer.": "لا يوجد طلب أو حساب عميل في هذا المتجر يطابق هذا العميل.",
+    "Each tag must be :max characters or fewer.": "يجب ألا يزيد كل وسم عن :max حرفًا.",
+    "A customer can have at most :max tags.": "يمكن أن يحمل العميل :max وسمًا كحد أقصى.",
+    "The note must be :max characters or fewer.": "يجب ألا تزيد الملاحظة عن :max حرف.",
+    "Enter a valid e-mail address.": "أدخل بريدًا إلكترونيًا صالحًا.",
+    "Enter a valid phone number, including the country code for a foreign number.": "أدخل رقم هاتف صالحًا مع كود الدولة للأرقام الأجنبية.",
+    "Add an e-mail address or phone number before subscribing this customer to marketing.": "أضف بريدًا إلكترونيًا أو رقم هاتف قبل اشتراك هذا العميل في التسويق."
 }
