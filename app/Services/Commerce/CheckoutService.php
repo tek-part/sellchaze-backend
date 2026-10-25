@@ -114,11 +114,11 @@ class CheckoutService
             // usage-count check + insert is atomic — max_uses cannot be exceeded
             // under concurrent checkouts.
             $coupon = $cart->coupon_id ? Coupon::query()->lockForUpdate()->find($cart->coupon_id) : null;
-            $discount = '0.00';
-            if ($coupon !== null) {
-                $this->coupons->validate($coupon, $customer, $subtotal, ['phone' => $phone, 'email' => $contact['email'] ?? null]);
-                $discount = $this->coupons->computeDiscount($coupon, $subtotal);
-            }
+            $discounts = app(DiscountEngine::class)->evaluate($store,
+                array_map(fn (array $line) => ['product_id' => (int) $line['store_product_id'], 'quantity' => (int) $line['quantity'], 'unit_price' => (string) $line['unit_price']], $lines),
+                $coupon, $customer, ['phone' => $phone, 'email' => $contact['email'] ?? null], true);
+            $discount = $discounts['discount'];
+            $offerFreeShipping = $offerFreeShipping || $discounts['free_shipping'];
 
             if ($hasDigital && (! is_string($contact['email']) || ! filter_var($contact['email'], FILTER_VALIDATE_EMAIL))) {
                 throw ValidationException::withMessages(['customer_email' => 'A valid email address is required for digital delivery.']);
@@ -170,6 +170,7 @@ class CheckoutService
                 'shipping_total' => $totals['shipping_total'],
                 'discount_total' => $totals['discount_total'],
                 'coupon_code' => $coupon?->code,
+                'discount_details' => $discounts['applied'] ?: null,
                 'tax_total' => $totals['tax_total'],
                 'grand_total' => $totals['grand_total'],
                 'payment_adjustment' => $totals['payment_adjustment'],
@@ -188,8 +189,8 @@ class CheckoutService
             $phoneProof?->update(['store_order_id' => $order->id]);
             $botProof?->update(['store_order_id' => $order->id]);
 
-            if ($coupon !== null) {
-                $this->coupons->recordUsage($coupon, $customer, $order, $totals['discount_total']);
+            foreach ($discounts['usages'] as $usage) {
+                $this->coupons->recordUsage($usage['coupon'], $customer, $order, $usage['coupon']->type === 'free_shipping' ? '0.00' : $totals['discount_total']);
             }
 
             $cart->update(['status' => 'converted', 'coupon_id' => null]);
