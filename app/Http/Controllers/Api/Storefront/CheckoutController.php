@@ -27,6 +27,7 @@ use App\Services\Commerce\CheckoutQuote;
 use App\Services\Commerce\CheckoutService;
 use App\Services\Commerce\CouponService;
 use App\Services\Commerce\CustomerAuthService;
+use App\Services\Commerce\DiscountEngine;
 use App\Services\Commerce\HostedPaymentGateways;
 use App\Services\Commerce\HostedPaymentReconciliation;
 use App\Services\Commerce\OrderReceipt;
@@ -344,17 +345,17 @@ class CheckoutController extends Controller
         }
 
         $subtotal = $cart->subtotal();
-        $offerFreeShipping = app(QuantityOffers::class)->freeShippingForCart($cart);
         $productFreeShipping = ProductPreferences::freeForCart($cart);
-        $this->coupons->validate($coupon, $customer, $subtotal);
+        $discounts = app(DiscountEngine::class)->evaluate($store, DiscountEngine::linesFromCart($cart->items), $coupon, $customer);
+        $offerFreeShipping = app(QuantityOffers::class)->freeShippingForCart($cart) || $discounts['free_shipping'];
 
         $cart->update(['coupon_id' => $coupon->id]);
-        $discount = $this->coupons->computeDiscount($coupon, $subtotal);
 
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
             'coupon' => ['code' => $coupon->code, 'type' => $coupon->type, 'value' => $coupon->value],
-            'totals' => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping),
+            'discounts' => $discounts['applied'],
+            'totals' => $this->pricing->forStore($store, $subtotal, $discounts['discount'], $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -370,13 +371,16 @@ class CheckoutController extends Controller
         $customer = $this->auth->resolve($request);
         $cart = $this->carts->resolve($request, $store, $customer);
 
-        $offerFreeShipping = app(QuantityOffers::class)->freeShippingForCart($cart);
         $productFreeShipping = ProductPreferences::freeForCart($cart);
         $cart->update(['coupon_id' => null]);
+        // Automatic discounts still apply without a code.
+        $discounts = app(DiscountEngine::class)->evaluate($store, DiscountEngine::linesFromCart($cart->items), null, $customer);
+        $offerFreeShipping = app(QuantityOffers::class)->freeShippingForCart($cart) || $discounts['free_shipping'];
 
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
-            'totals' => $this->pricing->forStore($store, $cart->subtotal(), '0.00', $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping),
+            'discounts' => $discounts['applied'],
+            'totals' => $this->pricing->forStore($store, $cart->subtotal(), $discounts['discount'], $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 }

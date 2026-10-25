@@ -22,7 +22,8 @@ class CouponsApiController extends Controller
     {
         $request->validate([
             'status' => ['nullable', 'in:active,scheduled,expired,disabled'],
-            'type' => ['nullable', 'in:fixed,percentage'],
+            'type' => ['nullable', 'in:fixed,percentage,free_shipping,buy_x_get_y'],
+            'method' => ['nullable', 'in:code,automatic'],
             'sort_by' => ['nullable', 'in:code,created_at,expires_at,usages_count,value'],
             'sort_direction' => ['nullable', 'in:asc,desc'],
         ]);
@@ -31,8 +32,11 @@ class CouponsApiController extends Controller
 
         $paginator = Coupon::query()
             ->withCount('usages')
-            ->when($request->filled('search'), fn ($q) => $q->where('code', 'like', '%'.strtoupper((string) $request->get('search')).'%'))
+            ->when($request->filled('search'), fn ($q) => $q->where(fn ($match) => $match
+                ->where('code', 'like', '%'.strtoupper((string) $request->get('search')).'%')
+                ->orWhere('title', 'like', '%'.(string) $request->get('search').'%')))
             ->when($request->filled('type'), fn ($q) => $q->where('type', $request->get('type')))
+            ->when($request->filled('method'), fn ($q) => $q->where('method', $request->get('method')))
             ->when($request->get('status') === 'disabled', fn ($q) => $q->where('is_active', false))
             ->when($request->get('status') === 'expired', fn ($q) => $q->where('is_active', true)->whereNotNull('expires_at')->where('expires_at', '<', $now))
             ->when($request->get('status') === 'scheduled', fn ($q) => $q->where('is_active', true)->whereNotNull('starts_at')->where('starts_at', '>', $now))

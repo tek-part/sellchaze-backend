@@ -13,6 +13,7 @@ class CheckoutQuote
         private readonly PurchasableSelection $selections,
         private readonly CouponService $coupons,
         private readonly PricingCalculator $pricing,
+        private readonly DiscountEngine $discounts,
     ) {}
 
     public function calculate(Store $store, array $items, ?string $code, ?StoreCustomer $customer, array $shippingSelection = []): array
@@ -52,22 +53,23 @@ class CheckoutQuote
                 'personalization' => ProductPersonalization::present($custom['snapshot'], $store->id), 'personalization_key' => $custom['key'],
                 'name' => $selection['name'], 'unit_price' => $selection['price'], 'quantity' => $quantity, 'line_total' => $lineTotal];
         }
-        $discount = '0.00';
+        $coupon = null;
         if ($code !== null && trim($code) !== '') {
             $coupon = $this->coupons->resolveActive($code);
             if ($coupon === null || (int) $coupon->store_id !== (int) $store->id) {
                 throw ValidationException::withMessages(['coupon_code' => 'This coupon is not available.']);
             }
-            $this->coupons->validate($coupon, $customer, $subtotal);
-            $discount = $this->coupons->computeDiscount($coupon, $subtotal);
         }
+        $discounts = $this->discounts->evaluate($store, array_map(fn (array $line) => ['product_id' => (int) $line['product_id'], 'quantity' => (int) $line['quantity'], 'unit_price' => (string) $line['unit_price']], $lines), $coupon, $customer);
+        $discount = $discounts['discount'];
+        $offerFreeShipping = $offerFreeShipping || $discounts['free_shipping'];
 
         $productFreeShipping = $requiresShipping && $allPhysicalFree;
         $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping);
         $adjustments = app(PaymentPriceAdjustment::class);
         $totals = $adjustments->forMethod($store, $shippingSelection['payment_method'] ?? '', $totals);
 
-        return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'requires_shipping' => $requiresShipping, 'offer_free_shipping' => $offerFreeShipping, 'product_free_shipping' => $productFreeShipping,
+        return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'discounts' => $discounts['applied'], 'requires_shipping' => $requiresShipping, 'offer_free_shipping' => $offerFreeShipping, 'product_free_shipping' => $productFreeShipping,
             'payment_adjustment_token' => $adjustments->token($store, $totals['payment_adjustment']),
             'order_minimum' => app(OrderLimits::class)->minimum($store, $subtotal, $discount),
             'totals' => $totals];

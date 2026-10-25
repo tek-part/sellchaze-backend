@@ -23,6 +23,7 @@ class CouponService
         $normalized = Str::upper(trim($code));
 
         return Coupon::query()
+            ->where('method', 'code')
             ->where('code', $normalized)
             ->where('is_active', true)
             ->first();

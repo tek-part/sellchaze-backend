@@ -214,6 +214,7 @@ class StorefrontService
         $now = now();
 
         return Coupon::query()
+            ->where('method', 'code')
             ->where('is_active', true)
             ->where(fn ($q) => $q->whereNull('starts_at')->orWhere('starts_at', '<=', $now))
             ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>=', $now))

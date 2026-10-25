@@ -43,7 +43,7 @@ class StoreOrder extends Model
         'payment_adjustment',
         'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'notes',
         'placed_at', 'cancelled_at', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'coupon_code',
-        'manual_actor_id', 'manual_owner_id', 'manual_request_key', 'manual_request_hash', 'manual_adjustment_total', 'manual_tax_included',
+        'discount_details', 'manual_actor_id', 'manual_owner_id', 'manual_request_key', 'manual_request_hash', 'manual_adjustment_total', 'manual_tax_included',
     ];
 
     protected $hidden = ['customer_phone_normalized', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'manual_request_key', 'manual_request_hash', 'manual_owner_id', 'checkout_bot_verified', 'retained_bot_verified'];
@@ -51,6 +51,7 @@ class StoreOrder extends Model
     protected $casts = [
         'shipping_address' => 'array',
         'payment_adjustment' => 'array',
+        'discount_details' => 'array',
         'marketing_attribution' => 'array',
         'referral_attribution' => 'array',
         'subtotal' => 'decimal:2',
