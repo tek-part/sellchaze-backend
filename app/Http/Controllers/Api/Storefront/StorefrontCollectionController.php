@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ResolvesStorefront;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Storefront\StorefrontCollectionResource;
 use App\Http\Resources\Storefront\StorefrontProductResource;
+use App\Models\StoreCollection;
 use App\Services\Storefront\StorefrontService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,11 @@ class StorefrontCollectionController extends Controller
         abort_unless($collection !== null, 404, 'Collection not found.');
 
         $perPage = min(max((int) $request->get('per_page', 24), 1), 60);
+        // Shoppers may re-sort a collection (theme listing controls); the merchant order is the default.
+        $sort = $request->query('sort');
+        if (is_string($sort) && in_array($sort, StoreCollection::SORT_ORDERS, true)) {
+            $collection->sort_order = $sort;
+        }
         $products = $this->storefront->collectionProducts($collection, $perPage);
 
         return response()->json([

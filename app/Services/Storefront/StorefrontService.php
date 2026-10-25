@@ -11,6 +11,7 @@ use App\Models\StoreCollection;
 use App\Services\Commerce\OrderLimits;
 use App\Services\Commerce\ProductPreferences;
 use App\Services\Commerce\ShoppingPreferences;
+use App\Services\StoreCatalog\StoreCollectionProducts;
 use App\Support\Localization\LocaleContext;
 use App\Support\Localization\LocalizedValue;
 use App\Support\Tenancy\CurrentStore;
@@ -174,11 +175,19 @@ class StorefrontService
     /** @return Collection<int, StoreCollection> */
     public function collections(int $limit = 12): Collection
     {
-        return StoreCollection::query()
+        $collections = StoreCollection::query()
             ->where('is_active', true)
-            ->withCount('products')
+            ->withCount(['products' => fn ($q) => $q->where('products.is_active', true)->where('products.catalog_hidden', false)])
             ->orderBy('position')->orderBy('id')
             ->limit($limit)->get();
+        // Automated collections count their rule matches (one count query each; the list is capped).
+        $collections->each(function (StoreCollection $collection) {
+            if ($collection->usesRules()) {
+                $collection->setAttribute('products_count', app(StoreCollectionProducts::class)->count($collection, true));
+            }
+        });
+
+        return $collections;
     }
 
     public function collection(string $slug): ?StoreCollection
@@ -191,9 +200,8 @@ class StorefrontService
 
     public function collectionProducts(StoreCollection $collection, int $perPage): LengthAwarePaginator
     {
-        return $collection->products()
-            ->where('is_active', true)
-            ->listed()->reorder()->orderByDesc('display_priority')->orderBy('store_collection_product.position')
+        // Manual collections page their pivot rows; automated ones page their compiled rules.
+        return app(StoreCollectionProducts::class)->query($collection, true)
             ->with(['category:id,name,name_en,name_ar,slug,translations', 'variants'])
             ->paginate($perPage);
     }

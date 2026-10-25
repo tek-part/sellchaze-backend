@@ -20,6 +20,8 @@ class StorefrontCollectionResource extends JsonResource
             'type' => $this->type,
             'description' => $this->translated('description'),
             'image_url' => $this->imageUrl(),
+            'seo_title' => $this->seo_title,
+            'seo_description' => $this->seo_description,
             'products_count' => (int) ($this->products_count ?? 0),
             // Products included only when eager-loaded (collection detail / homepage rails).
             'products' => StorefrontProductResource::collection($this->whenLoaded('products')),
