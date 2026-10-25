@@ -56,6 +56,8 @@ class StoreManagerPermissions
                 'products', 'inventory' => ['store.products.manage'],
                 // Product editors may read category choices, but cannot edit them.
                 'categories' => $read ? ['store.categories.manage', 'store.products.manage'] : ['store.categories.manage'],
+                // Collections are catalog structure like categories; product editors may read them.
+                'collections' => $read ? ['store.categories.manage', 'store.products.manage'] : ['store.categories.manage'],
                 default => [],
             };
         }

@@ -73,6 +73,7 @@ use App\Http\Controllers\Api\StoreCarrierController;
 use App\Http\Controllers\Api\StoreCatalogTransferController;
 use App\Http\Controllers\Api\StoreCategoriesApiController;
 use App\Http\Controllers\Api\StoreCheckoutFieldsController;
+use App\Http\Controllers\Api\StoreCollectionsApiController;
 use App\Http\Controllers\Api\StoreContentPagesApiController;
 use App\Http\Controllers\Api\StoreCustomersApiController;
 use App\Http\Controllers\Api\StoreDashboardGuideController;
@@ -779,6 +780,20 @@ Route::prefix('v1')->group(function () {
                 Route::middleware('store.catalog.permission:categories-create')->post('/', [StoreCategoriesApiController::class, 'store']);
                 Route::middleware('store.catalog.permission:categories-list')->get('{category}', [StoreCategoriesApiController::class, 'show'])->whereNumber('category');
                 Route::middleware('store.catalog.permission:categories-edit')->match(['put', 'post'], '{category}', [StoreCategoriesApiController::class, 'update'])->whereNumber('category');
+            });
+
+            // ---- Collections (manual + automated); guarded like categories ----
+            Route::prefix('catalog/collections')->group(function () {
+                Route::middleware('store.catalog.permission:categories-list')->get('/', [StoreCollectionsApiController::class, 'index']);
+                Route::middleware('store.catalog.permission:categories-list')->get('rule-options', [StoreCollectionsApiController::class, 'ruleOptions']);
+                Route::middleware('store.catalog.permission:categories-list')->post('preview', [StoreCollectionsApiController::class, 'preview']);
+                Route::middleware('store.catalog.permission:categories-create')->post('/', [StoreCollectionsApiController::class, 'store']);
+                Route::middleware('store.catalog.permission:categories-edit')->post('bulk-update', [StoreCollectionsApiController::class, 'bulkUpdate']);
+                Route::middleware('store.catalog.permission:categories-delete')->post('bulk-delete', [StoreCollectionsApiController::class, 'bulkDestroy']);
+                Route::middleware('store.catalog.permission:categories-list')->get('{collection}', [StoreCollectionsApiController::class, 'show'])->whereNumber('collection');
+                Route::middleware('store.catalog.permission:categories-edit')->match(['put', 'post'], '{collection}', [StoreCollectionsApiController::class, 'update'])->whereNumber('collection');
+                Route::middleware('store.catalog.permission:categories-edit')->post('{collection}/products', [StoreCollectionsApiController::class, 'products'])->whereNumber('collection');
+                Route::middleware('store.catalog.permission:categories-delete')->delete('{collection}', [StoreCollectionsApiController::class, 'destroy'])->whereNumber('collection');
             });
 
             // ---- Coupons (Phase 6D) ----
