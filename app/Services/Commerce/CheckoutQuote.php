@@ -26,6 +26,7 @@ class CheckoutQuote
     {
         $subtotal = '0.00';
         $lines = [];
+        $products = [];
         $counts = [];
         $digitalCounts = [];
         $requiresShipping = false;
@@ -36,6 +37,7 @@ class CheckoutQuote
             $variantId = isset($item['variant_id']) ? (int) $item['variant_id'] : null;
             $selection = $this->selections->resolve($store, (int) $item['product_id'], $variantId, false,
                 $item['quantity_offer_id'] ?? null, (int) $item['quantity'], isset($item['quantity_offer_version']) ? (int) $item['quantity_offer_version'] : null);
+            $products[$selection['product']->id] = $selection['product'];
             $requiresShipping = $requiresShipping || $selection['product']->digital_type === 'physical';
             if ($selection['product']->digital_type === 'physical') {
                 $allPhysicalFree = $allPhysicalFree && ProductPreferences::flag($selection['product'], 'is_free_shipping');
@@ -96,9 +98,12 @@ class CheckoutQuote
         $adjustments = app(PaymentPriceAdjustment::class);
         $totals = $adjustments->forDue($store, $shippingSelection['payment_method'] ?? '', $totals, $tender['amount_due']);
         $totals['gift_card_total'] = $tender['gift_card_total'];
+        $due = bcadd($tender['amount_due'], $totals['payment_adjustment_total'], 2);
+        // A deposit is what the shopper pays now; the rest is due on delivery (checkout requires a method that can collect it).
+        $deposit = app(OrderDeposits::class)->quote($store, $products, $requiresShipping, $due, $store->currency ?: 'USD');
 
         return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'gift_cards' => $tender['gift_cards'],
-            'amount_due' => bcadd($tender['amount_due'], $totals['payment_adjustment_total'], 2), 'discounts' => $discounts['applied'], 'requires_shipping' => $requiresShipping, 'offer_free_shipping' => $offerFreeShipping, 'product_free_shipping' => $productFreeShipping,
+            'amount_due' => $deposit['amount'] ?? $due, 'deposit' => OrderDeposits::presentQuote($deposit), 'discounts' => $discounts['applied'], 'requires_shipping' => $requiresShipping, 'offer_free_shipping' => $offerFreeShipping, 'product_free_shipping' => $productFreeShipping,
             'payment_adjustment_token' => $adjustments->token($store, $totals['payment_adjustment']),
             'order_minimum' => app(OrderLimits::class)->minimum($store, $subtotal, $discount),
             'shipping' => $this->shipping($breakdown['shipping']), 'tax' => $this->tax($breakdown['tax']),

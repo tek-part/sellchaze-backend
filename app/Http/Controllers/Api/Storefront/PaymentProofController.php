@@ -27,7 +27,7 @@ class PaymentProofController extends Controller
         try {
             return DB::transaction(function () use ($request, $store, $id, $data, &$path) {
                 $order = StoreOrder::forStore($store)->whereKey($id)->lockForUpdate()->firstOrFail();
-                abort_unless($order->payment_method === 'transfer_receipt' && $order->payment_status !== 'paid'
+                abort_unless($order->payment_method === 'transfer_receipt' && ! in_array($order->payment_status, ['paid', 'deposit_paid'], true)
                     && ! in_array($order->status, ['cancelled', ...StoreOrder::RETURN_STATUSES], true), 422, 'This order cannot accept a transfer receipt.');
                 abort_if(DB::table('store_payment_proofs')->where('store_id', $store->id)->where('store_order_id', $order->id)->count() >= 3, 422, 'The receipt upload limit for this order has been reached. Contact the store.');
                 $file = $request->file('file');

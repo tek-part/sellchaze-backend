@@ -41,10 +41,12 @@ class StoreShipmentService
             if ($order->currency !== 'EGP' || ($order->shipping_address['country'] ?? '') !== 'EG') {
                 throw ValidationException::withMessages(['order' => 'This connection supports Egyptian addresses and EGP orders.']);
             }
-            if ($order->payment_status !== 'paid' && ($order->payment_method !== 'cod' || ! in_array($order->payment_status, ['pending', 'unpaid'], true))) {
+            // A paid deposit leaves the remainder to collect on delivery, even after part of the deposit was refunded.
+            $remainderDue = $order->deposit_paid_at !== null && $order->remainder_collected_at === null && in_array($order->payment_status, ['deposit_paid', 'partially_refunded', 'refunded'], true);
+            if ($order->payment_status !== 'paid' && ! $remainderDue && ($order->payment_method !== 'cod' || ! in_array($order->payment_status, ['pending', 'unpaid'], true))) {
                 throw ValidationException::withMessages(['order' => 'The order must be paid or awaiting cash on delivery.']);
             }
-            $cod = $order->payment_status === 'paid' ? '0.00' : $order->amountDue();
+            $cod = $order->collectOnDelivery();
             if (bccomp($cod, '30000', 2) > 0 || bccomp($cod, '0', 2) < 0 || ! $order->items()->exists()) {
                 throw ValidationException::withMessages(['order' => 'Check the order items and cash collection amount (maximum EGP 30,000).']);
             }

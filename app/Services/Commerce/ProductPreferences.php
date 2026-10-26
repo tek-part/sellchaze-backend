@@ -12,7 +12,9 @@ final class ProductPreferences
 {
     public const FLAGS = ['is_skip_cart', 'is_fixed_bottom_buy', 'is_reviews_enabled', 'is_one_page_checkout', 'is_free_shipping',
         'is_fake_visitors', 'is_fake_stock', 'is_fake_timer', 'is_header_hidden', 'is_quantity_hidden',
-        'is_checkout_before_description', 'hide_related_products'];
+        'is_checkout_before_description', 'hide_related_products',
+        // A product in the cart makes the order need a deposit when the store charges deposits for flagged products.
+        'requires_deposit'];
 
     public static function rules(): array
     {

@@ -157,7 +157,12 @@ class MerchantBulkPayments
         if (! in_array($row->payment_method, ['cod', 'bank_transfer', 'transfer_receipt'], true)) {
             return ['skipped', 'provider_controls'];
         }
-        if ($row->payment_status === 'paid' || collect($context['transactions'])->contains(fn ($t) => $t->status === 'paid' || $t->paid_at !== null)) {
+        // A deposit and its remainder are recorded one at a time from the order page.
+        if ($row->deposit_total !== null) {
+            return ['skipped', 'deposit_order'];
+        }
+        // A capture recorded on a replaced attempt (needs a refund) never settles the order.
+        if ($row->payment_status === 'paid' || collect($context['transactions'])->contains(fn ($t) => ($t->status === 'paid' || $t->paid_at !== null) && ! isset($t->metadata['unapplied']))) {
             return ['skipped', 'settled_payment'];
         }
         if ($transaction === null) {
