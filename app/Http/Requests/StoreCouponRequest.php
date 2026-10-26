@@ -34,7 +34,7 @@ class StoreCouponRequest extends FormRequest
         if ($key !== null || ! is_array($data)) {
             return $data;
         }
-        $data['method'] ??= 'code';
+        $data['method'] ??= $this->effectiveMethod();
         // An update that leaves out the scope keeps the stored one; an empty scope still means all.
         if ($this->route('coupon') === null || array_key_exists('applies_to', $data)) {
             $data['applies_to'] ??= 'all';
@@ -55,6 +55,24 @@ class StoreCouponRequest extends FormRequest
         return $data;
     }
 
+    /** An update that leaves out the method keeps the stored one. */
+    private function effectiveMethod(): string
+    {
+        if ($this->filled('method')) {
+            return (string) $this->input('method');
+        }
+        $couponId = $this->route('coupon');
+        $store = $this->route('store');
+        if ($couponId !== null && $store instanceof Store) {
+            $stored = Coupon::query()->withoutGlobalScopes()->where('store_id', $store->id)->whereKey($couponId)->value('method');
+            if (is_string($stored) && $stored !== '') {
+                return $stored;
+            }
+        }
+
+        return 'code';
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
@@ -63,7 +81,7 @@ class StoreCouponRequest extends FormRequest
         $couponId = $this->route('coupon');
 
         $valueMax = $this->input('type') === 'percentage' ? 100 : 99999999;
-        $automatic = $this->input('method') === 'automatic';
+        $automatic = $this->effectiveMethod() === 'automatic';
         $valued = in_array($this->input('type'), ['fixed', 'percentage'], true);
         $products = Rule::exists('products', 'id')->where('store_id', $storeId);
         $categories = Rule::exists('categories', 'id')->where('store_id', $storeId);

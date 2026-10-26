@@ -330,4 +330,17 @@ class StoreDiscountsTest extends TestCase
         $this->assertSame('all', $coupon->fresh()->applies_to);
         $this->assertNull($coupon->fresh()->target_ids);
     }
+
+    public function test_updating_an_automatic_discount_without_a_method_keeps_it_automatic(): void
+    {
+        $base = "/api/v1/stores/{$this->store->id}/coupons";
+        $id = $this->admin()->postJson($base, ['method' => 'automatic', 'title' => 'Autumn', 'type' => 'percentage', 'value' => 10])
+            ->assertCreated()->json('data.id');
+
+        $this->admin()->putJson("{$base}/{$id}", ['title' => 'Autumn', 'type' => 'percentage', 'value' => 15])->assertOk();
+        $coupon = Coupon::query()->withoutGlobalScopes()->findOrFail($id);
+        $this->assertSame('automatic', $coupon->method);
+        $this->assertNull($coupon->code);
+        $this->assertSame('15.00', (string) $coupon->value);
+    }
 }
