@@ -166,6 +166,7 @@ class StoreCollectionService
     private function flush(int $storeId): void
     {
         StorefrontService::forgetHomepage($storeId);
+        StorefrontService::forgetCollections($storeId);
         app(StorefrontPageCache::class)->flushStore($storeId);
     }
 

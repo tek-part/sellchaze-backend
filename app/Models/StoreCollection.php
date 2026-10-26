@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
 use App\Models\Concerns\HasTranslations;
+use App\Services\Storefront\StorefrontService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\Storage;
@@ -66,6 +67,14 @@ class StoreCollection extends Model
         'position' => 'integer',
         'translations' => 'array',
     ];
+
+    protected static function booted(): void
+    {
+        // The storefront bootstrap caches whether a store has published collections.
+        $forget = fn (StoreCollection $collection) => StorefrontService::forgetCollections((int) $collection->store_id);
+        static::saved($forget);
+        static::deleted($forget);
+    }
 
     /** @return BelongsToMany<Product, $this> */
     public function products(): BelongsToMany

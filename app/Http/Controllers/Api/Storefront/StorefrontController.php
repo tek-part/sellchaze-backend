@@ -220,6 +220,7 @@ class StorefrontController extends Controller
             'downsell_enabled' => app(DownsellOffers::class)->enabled($store),
             'social_proof_enabled' => app(SocialProof::class)->enabled($store),
             'bundles_enabled' => app(ProductBundles::class)->enabled($store),
+            'has_collections' => $this->storefront->hasCollections($store),
             'merchant_information' => app(GoogleMerchantSettings::class)->publicInformation($store),
             'supported_currencies' => array_keys($multipliers),
             'currency_multipliers' => $multipliers,
