@@ -76,7 +76,10 @@ class StoreGeneralSettingsController extends Controller
             'max_product_quantity' => ['required', 'integer', 'min:0', 'max:100000'], 'max_orders_per_phone_24h' => ['required', 'integer', 'min:0', 'max:100000'],
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
             'favicon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:512', 'dimensions:min_width=16,min_height=16,max_width=512,max_height=512,ratio=1/1'],
-            'remove_logo' => ['sometimes', 'boolean'], 'remove_favicon' => ['sometimes', 'boolean']];
+            'remove_logo' => ['sometimes', 'boolean'], 'remove_favicon' => ['sometimes', 'boolean'],
+            // Optional so older clients that only send header_text keep working.
+            'header_mode' => ['sometimes', Rule::in(['theme', 'custom', 'hidden'])],
+            'banner' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:4096'], 'remove_banner' => ['sometimes', 'boolean']];
         if ($seo) {
             $rules = array_intersect_key($rules, array_flip(['revision', 'site_title', 'logo', 'favicon', 'remove_logo', 'remove_favicon']));
             $rules['description'] = ['present', 'nullable', 'string', 'max:5000'];
@@ -86,12 +89,13 @@ class StoreGeneralSettingsController extends Controller
             }
         }
         $data = $request->validate($rules);
-        foreach (['logo', 'favicon'] as $field) {
+        $images = $seo ? ['logo', 'favicon'] : ['logo', 'favicon', 'banner'];
+        foreach ($images as $field) {
             abort_if($request->hasFile($field) && ($data['remove_'.$field] ?? false), 422, 'Choose replacement or removal.');
         }
         $staged = [];
         try {
-            $updated = DB::transaction(function () use ($store, $data, $request, $seo, &$staged) {
+            $updated = DB::transaction(function () use ($store, $data, $request, $seo, $images, &$staged) {
                 $locked = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
                 abort_unless(hash_equals($this->settings->revision($locked), $data['revision']), 409, 'Store settings changed. Reload before saving.');
                 $before = $this->settings->data($locked);
@@ -106,6 +110,10 @@ class StoreGeneralSettingsController extends Controller
                     if (($data['header_text'] ?? '') !== ($before['header_text'] ?? '')) {
                         $changes['header_text'] = $data['header_text'];
                         $changes['header_mode'] = $data['header_text'] ? 'custom' : 'hidden';
+                    }
+                    // An explicitly chosen mode wins over the one implied by the text.
+                    if (isset($data['header_mode']) && $data['header_mode'] !== $before['header_mode']) {
+                        $changes['header_mode'] = $data['header_mode'];
                     }
                     if (bccomp((string) $data['shipping_flat_rate'], $before['shipping_flat_rate'], 2) !== 0) {
                         $changes['shipping_flat_rate'] = bcadd((string) $data['shipping_flat_rate'], '0', 2);
@@ -122,7 +130,7 @@ class StoreGeneralSettingsController extends Controller
                     }
                 }
                 $old = [];
-                foreach (['logo', 'favicon'] as $field) {
+                foreach ($images as $field) {
                     if ($request->hasFile($field)) {
                         $file = $request->file($field);
                         abort_unless($file instanceof UploadedFile, 422, 'Choose a valid image.');

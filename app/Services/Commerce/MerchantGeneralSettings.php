@@ -12,7 +12,7 @@ class MerchantGeneralSettings
 {
     public function revision(Store $store): string
     {
-        $fields = ['site_title', 'description', 'header_mode', 'header_text', 'primary_color', 'font_family', 'logo', 'favicon',
+        $fields = ['site_title', 'description', 'header_mode', 'header_text', 'primary_color', 'font_family', 'logo', 'banner', 'favicon',
             'default_locale', 'supported_locales', 'currency', 'supported_currencies', 'timezone',
             'shipping_enabled', 'shipping_flat_rate', 'shipping_configuration', 'shopping_preferences',
             'order_limits', 'bot_protection_configuration', 'bot_protection_credentials'];
@@ -31,13 +31,13 @@ class MerchantGeneralSettings
         $bot = app(CheckoutBotProtection::class)->settings($store);
 
         return ['revision' => $this->revision($store), 'site_title' => $store->site_title ?? '',
-            'header_text' => $store->header_text ?? '', 'primary_color' => $store->primary_color ?? '', 'font_family' => $store->font_family ?? '',
+            'header_mode' => $store->header_mode ?? 'theme', 'header_text' => $store->header_text ?? '', 'primary_color' => $store->primary_color ?? '', 'font_family' => $store->font_family ?? '',
             'default_locale' => $store->default_locale ?: 'en', 'currency' => $store->currency ?: 'USD', 'timezone' => $store->timezone ?: 'UTC',
             'shipping_flat_rate' => $store->shipping_enabled ? (string) ($store->shipping_flat_rate ?: '0.00') : '0.00',
             'phone_country' => $limits['phone_country'], 'disable_auto_select_shipping' => ! $shopping['auto_select_shipping_region'],
             'disable_auto_select_variants' => ! $shopping['auto_select_variants'], 'disable_bot_protection' => ! $bot['enabled'],
             'bot_credentials_configured' => $bot['credentials_configured'], 'max_product_quantity' => $limits['max_product_quantity'],
-            'max_orders_per_phone_24h' => $limits['max_orders_per_phone_24h'], 'logo_url' => $store->logoUrl(), 'favicon_url' => $store->identity()['favicon_url']];
+            'max_orders_per_phone_24h' => $limits['max_orders_per_phone_24h'], 'logo_url' => $store->logoUrl(), 'banner_url' => $store->bannerUrl(), 'favicon_url' => $store->identity()['favicon_url']];
     }
 
     public function choices(Store $store): array
