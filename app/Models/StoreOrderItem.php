@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array|null $digital_delivery
  * @property array|null $quantity_offer
  * @property string|null $unit_cost
+ * @property int $fulfilled_quantity
+ * @property int $released_quantity
  */
 class StoreOrderItem extends Model
 {
@@ -28,6 +30,7 @@ class StoreOrderItem extends Model
     protected $fillable = [
         'store_id', 'store_order_id', 'store_product_id', 'name',
         'unit_price', 'quantity', 'line_total', 'variant_id', 'variant_name', 'variant_options', 'sku', 'inventory_status', 'personalization', 'digital_delivery', 'quantity_offer', 'unit_cost', 'superseded_at',
+        'fulfilled_quantity', 'released_quantity',
     ];
 
     protected $casts = [
@@ -35,6 +38,8 @@ class StoreOrderItem extends Model
         'unit_cost' => 'decimal:2',
         'line_total' => 'decimal:2',
         'quantity' => 'integer',
+        'fulfilled_quantity' => 'integer',
+        'released_quantity' => 'integer',
         'variant_options' => 'array',
         'personalization' => 'array',
         'quantity_offer' => 'array',

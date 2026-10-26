@@ -79,35 +79,182 @@ class StoreInventory
         }
     }
 
-    /** The order row is locked by StoreOrderService before calling this method. */
-    public function settle(StoreOrder $order, bool $shipped): void
+    /**
+     * Settle every unit still held for the order: ship (commit) or release it. The order row is locked
+     * by the caller. Units already fulfilled or released are never counted twice; `$digitalOnly`
+     * settles digital lines alone (physical lines ship through fulfillments).
+     */
+    public function settle(StoreOrder $order, bool $shipped, bool $digitalOnly = false): void
     {
-        $items = $order->items()->where('inventory_status', 'reserved')->orderBy('store_product_id')->orderBy('variant_id')->orderBy('id')->lockForUpdate()->get();
+        $items = $order->items()->where(fn ($query) => $query->where('inventory_status', 'reserved')->orWhereNull('inventory_status'))
+            ->when($digitalOnly, fn ($query) => $query->whereNotNull('digital_delivery'))
+            ->orderBy('store_product_id')->orderBy('variant_id')->orderBy('id')->lockForUpdate()->get();
+        $touched = false;
         foreach ($items as $item) {
-            $product = Product::query()->where('store_id', $order->store_id)->whereKey($item->store_product_id)->lockForUpdate()->first();
-            $stock = $item->variant_id === null ? $product : ProductVariant::query()->where('store_id', $order->store_id)
-                ->where('store_product_id', $item->store_product_id)->whereKey($item->variant_id)->lockForUpdate()->first();
-            if ($stock === null) {
-                // Deletion cannot manufacture stock on a replacement product with the same SKU.
-                $item->update(['inventory_status' => $shipped ? 'committed' : 'released']);
-
-                continue;
+            $units = max(0, $item->quantity - (int) $item->fulfilled_quantity - (int) $item->released_quantity);
+            $tracked = $item->inventory_status === 'reserved';
+            $stock = $tracked && $units > 0 ? $this->lockedStock($item) : null;
+            if ($stock !== null) {
+                if ($stock->reserved_quantity < $units || ($shipped && $stock->stock_quantity < $units)) {
+                    throw ValidationException::withMessages(['inventory' => 'Inventory reservations need reconciliation before changing this order.']);
+                }
+                $stock->reserved_quantity -= $units;
+                if ($shipped) {
+                    $stock->stock_quantity -= $units;
+                }
+                $stock->save();
+                $reason = $shipped ? ($item->digital_delivery !== null ? 'digital_committed' : 'shipped') : 'cancelled';
+                $this->record($stock, $reason, $shipped ? -$units : 0, -$units, $item->id);
+                $touched = true;
             }
-            if ($stock->reserved_quantity < $item->quantity || ($shipped && $stock->stock_quantity < $item->quantity)) {
-                throw ValidationException::withMessages(['inventory' => 'Inventory reservations need reconciliation before changing this order.']);
-            }
-            $stock->reserved_quantity -= $item->quantity;
+            // Deletion cannot manufacture stock on a replacement product with the same SKU: counters still move.
             if ($shipped) {
-                $stock->stock_quantity -= $item->quantity;
+                $item->fulfilled_quantity = (int) $item->fulfilled_quantity + $units;
+            } else {
+                $item->released_quantity = (int) $item->released_quantity + $units;
             }
-            $stock->save();
-            $item->update(['inventory_status' => $shipped ? 'committed' : 'released']);
-            $reason = $shipped ? ($item->digital_delivery !== null ? 'digital_committed' : 'shipped') : 'cancelled';
-            $this->record($stock, $reason, $shipped ? -$item->quantity : 0, -$item->quantity, $item->id);
+            if ($tracked) {
+                $item->inventory_status = $shipped || $item->fulfilled_quantity > 0 ? 'committed' : 'released';
+            }
+            if ($item->isDirty()) {
+                $item->save();
+            }
         }
-        if ($items->isNotEmpty()) {
+        if ($touched) {
             $this->flushAfterCommit($order->store_id);
         }
+    }
+
+    /** Physical units of a line still waiting to ship. */
+    public static function unfulfilled(StoreOrderItem $item): int
+    {
+        if ($item->digital_delivery !== null || in_array($item->inventory_status, ['committed', 'released'], true)) {
+            return 0;
+        }
+
+        return max(0, $item->quantity - (int) $item->fulfilled_quantity - (int) $item->released_quantity);
+    }
+
+    /** Units whose stock left the shelf. Lines committed before fulfillments existed shipped in full. */
+    public static function shippedUnits(StoreOrderItem $item): int
+    {
+        $fulfilled = (int) $item->fulfilled_quantity;
+
+        return $fulfilled === 0 && $item->inventory_status === 'committed' ? $item->quantity : $fulfilled;
+    }
+
+    /**
+     * Ship `$quantity` units of a line through a fulfillment: the reservation becomes a stock deduction.
+     * The caller holds the order lock and checked the units are unfulfilled.
+     */
+    public function commitPartial(StoreOrderItem $item, int $quantity, ?int $actorId = null, ?string $note = null): void
+    {
+        if ($quantity < 1 || $quantity > self::unfulfilled($item)) {
+            throw ValidationException::withMessages(['items' => 'You can fulfil at most '.self::unfulfilled($item)." of {$item->name}."]);
+        }
+        if ($item->inventory_status === 'reserved' && ($stock = $this->lockedStock($item)) !== null) {
+            if ($stock->reserved_quantity < $quantity || $stock->stock_quantity < $quantity) {
+                throw ValidationException::withMessages(['inventory' => 'Inventory reservations need reconciliation before fulfilling this order.']);
+            }
+            $stock->reserved_quantity -= $quantity;
+            $stock->stock_quantity -= $quantity;
+            $stock->save();
+            $this->record($stock, 'shipped', -$quantity, -$quantity, $item->id, $actorId, $note);
+            $this->flushAfterCommit($item->store_id);
+        }
+        $item->fulfilled_quantity = (int) $item->fulfilled_quantity + $quantity;
+        if ($item->inventory_status === 'reserved' && self::unfulfilled($item) === 0) {
+            $item->inventory_status = 'committed';
+        }
+        $item->save();
+    }
+
+    /**
+     * Undo a fulfillment's units on a line: stock goes back on the shelf and is held for the order again.
+     * When the catalog row stopped tracking stock the units still go back on the shelf, but nothing is
+     * held (an untracked row keeps no reservations) and the line becomes untracked.
+     */
+    public function uncommitPartial(StoreOrderItem $item, int $quantity, ?int $actorId = null, ?string $note = null): void
+    {
+        if ($quantity < 1 || $quantity > (int) $item->fulfilled_quantity) {
+            throw ValidationException::withMessages(['items' => 'This fulfillment no longer matches the order lines. Reload the order.']);
+        }
+        if (in_array($item->inventory_status, ['reserved', 'committed'], true)) {
+            $stock = $this->lockedStock($item);
+            if ($stock !== null && $stock->track_inventory) {
+                $stock->stock_quantity += $quantity;
+                $stock->reserved_quantity += $quantity;
+                $stock->save();
+                $this->record($stock, 'fulfillment_cancelled', $quantity, $quantity, $item->id, $actorId, $note);
+                $this->flushAfterCommit($item->store_id);
+                $item->inventory_status = 'reserved';
+            } elseif ($stock !== null) {
+                $stock->stock_quantity += $quantity;
+                $stock->save();
+                $this->record($stock, 'fulfillment_cancelled', $quantity, 0, $item->id, $actorId, $note);
+                $this->flushAfterCommit($item->store_id);
+                $item->inventory_status = null;
+            } else {
+                $item->inventory_status = 'reserved';
+            }
+        }
+        $item->fulfilled_quantity = (int) $item->fulfilled_quantity - $quantity;
+        $item->save();
+    }
+
+    /**
+     * Inventory side of refunding `$quantity` units of a line. `$units` picks which units the refund is
+     * about first: `unshipped` releases the hold on units still waiting to ship (they will never ship),
+     * `shipped` takes units that left the shelf (at most `$returnable`, the shipped units not refunded
+     * yet), which go back on the shelf when `$restock` asks for it, never more than `$restockable`.
+     * Whatever the first choice cannot cover comes from the other; units an order end already released
+     * have no inventory effect. The caller holds the order lock.
+     *
+     * @param  'shipped'|'unshipped'  $units
+     * @return array{released:int, returned:int, restocked:int}
+     */
+    public function refundUnits(StoreOrderItem $item, int $quantity, string $units, bool $restock, int $returnable, int $restockable, ?int $actorId = null, ?string $note = null): array
+    {
+        $waiting = self::unfulfilled($item);
+        $returnable = max(0, $returnable);
+        if ($units === 'shipped') {
+            $returned = min($quantity, $returnable);
+            $release = min($quantity - $returned, $waiting);
+        } else {
+            $release = min($quantity, $waiting);
+            $returned = min($quantity - $release, $returnable);
+        }
+        if ($release > 0) {
+            if ($item->inventory_status === 'reserved' && ($stock = $this->lockedStock($item)) !== null) {
+                if ($stock->reserved_quantity < $release) {
+                    throw ValidationException::withMessages(['inventory' => 'Inventory reservations need reconciliation before refunding this order.']);
+                }
+                $stock->reserved_quantity -= $release;
+                $stock->save();
+                $this->record($stock, 'refund_released', 0, -$release, $item->id, $actorId, $note);
+                $this->flushAfterCommit($item->store_id);
+            }
+            $item->released_quantity = (int) $item->released_quantity + $release;
+            if ($item->inventory_status === 'reserved' && self::unfulfilled($item) === 0) {
+                $item->inventory_status = (int) $item->fulfilled_quantity > 0 ? 'committed' : 'released';
+            }
+            $item->save();
+        }
+        $restocked = $restock && $returned > 0 ? $this->restock($item, min($returned, max(0, $restockable)), $actorId, $note) : 0;
+
+        return ['released' => $release, 'returned' => $returned, 'restocked' => $restocked];
+    }
+
+    /** Lock product then variant (the order every settlement path uses); null when the catalog row is gone. */
+    private function lockedStock(StoreOrderItem $item): Product|ProductVariant|null
+    {
+        if ($item->store_product_id === null) {
+            return null;
+        }
+        $product = Product::query()->where('store_id', $item->store_id)->whereKey($item->store_product_id)->lockForUpdate()->first();
+
+        return $item->variant_id === null ? $product : ProductVariant::query()->where('store_id', $item->store_id)
+            ->where('store_product_id', $item->store_product_id)->whereKey($item->variant_id)->lockForUpdate()->first();
     }
 
     /**
@@ -117,7 +264,9 @@ class StoreInventory
      */
     public function restock(StoreOrderItem $item, int $quantity, ?int $actorId = null, ?string $note = null): int
     {
-        if ($quantity < 1 || $item->inventory_status !== 'committed' || $item->digital_delivery !== null || $item->store_product_id === null) {
+        // A partly shipped line is still `reserved` for its unshipped units; its shipped units can come back.
+        if ($quantity < 1 || ! in_array($item->inventory_status, ['committed', 'reserved'], true) || self::shippedUnits($item) < 1
+            || $item->digital_delivery !== null || $item->store_product_id === null) {
             return 0;
         }
         $product = Product::query()->where('store_id', $item->store_id)->whereKey($item->store_product_id)->lockForUpdate()->first();

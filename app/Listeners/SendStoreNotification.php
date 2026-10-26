@@ -41,8 +41,9 @@ class SendStoreNotification
         }
         $config = $settings['events'][$key];
         try {
+            $fulfillment = isset($payload['fulfillment_id']) ? app(StoreNotificationSettings::class)->fulfillment($order, (int) $payload['fulfillment_id']) : null;
             Mail::to($payload['recipient'])->send(new StoreNotificationMail($store, $order, $key,
-                ['subject' => $config['email_subject'], 'body' => $config['email_body']], $event->message->id));
+                ['subject' => $config['email_subject'], 'body' => $config['email_body']], $event->message->id, false, $fulfillment));
         } catch (\Throwable) {
             // Provider errors can echo addresses; the outbox keeps only this generic reason and retries.
             throw new \RuntimeException('Store notification email could not be sent; retry is pending.');

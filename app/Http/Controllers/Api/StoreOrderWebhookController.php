@@ -44,7 +44,7 @@ class StoreOrderWebhookController extends Controller
             if (! $this->destination->validUrl($value)) {
                 $fail('Use a public HTTPS URL without credentials or a fragment.');
             }
-        }], 'description' => ['nullable', 'string', 'max:200'], 'type' => ['required', Rule::in(['orders', 'order-status-update'])],
+        }], 'description' => ['nullable', 'string', 'max:200'], 'type' => ['required', Rule::in(['orders', 'order-status-update', 'order-fulfillment'])],
             'enabled' => ['required', 'boolean'], 'version' => [$update ? 'required' : 'sometimes', 'integer', 'min:1'],
             'request_key' => [$update ? 'sometimes' : 'required', 'uuid']]);
     }

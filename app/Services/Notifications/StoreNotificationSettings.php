@@ -5,6 +5,7 @@ namespace App\Services\Notifications;
 use App\Models\OutboxMessage;
 use App\Models\Store;
 use App\Models\StoreOrder;
+use App\Models\StoreOrderFulfillment;
 use App\Models\StoreOrderItem;
 use App\Models\StoreShipment;
 use App\Services\Commerce\OrderReceipt;
@@ -193,12 +194,50 @@ class StoreNotificationSettings
         return implode('، ', array_unique($parts));
     }
 
-    /** @return array<string, string> */
-    public function variables(Store $store, StoreOrder $order, bool $staff = false): array
+    /**
+     * The fulfillment a message is about, else the latest active one with tracking. Null when the
+     * order has no fulfillments (the Bosta shipment, if any, is then the tracking source).
+     */
+    public function fulfillment(StoreOrder $order, ?int $fulfillmentId = null): ?StoreOrderFulfillment
     {
+        if (! $order->exists) {
+            return null;
+        }
+        $query = StoreOrderFulfillment::query()->withoutGlobalScopes()->where('store_id', $order->store_id)->where('store_order_id', $order->id);
+
+        return $fulfillmentId !== null
+            ? $query->whereKey($fulfillmentId)->first()
+            : $query->whereIn('status', StoreOrderFulfillment::ACTIVE)->whereNotNull('tracking_number')->orderByDesc('id')->first();
+    }
+
+    /** @return array{number: string, carrier: string, url: string|null}|null */
+    public function tracking(StoreOrder $order, ?StoreOrderFulfillment $fulfillment = null): ?array
+    {
+        $fulfillment ??= $this->fulfillment($order);
+        if ($fulfillment !== null) {
+            return $fulfillment->tracking_number ? ['number' => (string) $fulfillment->tracking_number, 'carrier' => $fulfillment->carrierLabel(), 'url' => $fulfillment->trackingUrl()] : null;
+        }
         $shipment = $this->shipment($order);
+
+        return $shipment?->tracking_number ? ['number' => (string) $shipment->tracking_number, 'carrier' => ucfirst((string) $shipment->carrier), 'url' => $this->trackingUrl($shipment)] : null;
+    }
+
+    /** @return array<string, string> */
+    public function variables(Store $store, StoreOrder $order, bool $staff = false, ?StoreOrderFulfillment $fulfillment = null): array
+    {
+        $tracking = $this->tracking($order, $fulfillment);
         /** @var Collection<int, StoreOrderItem> $items */
         $items = $order->relationLoaded('items') ? $order->items : $order->items()->get();
+        if ($fulfillment !== null) {
+            // A shipment message lists the units in that parcel.
+            $quantities = collect($fulfillment->items)->mapWithKeys(fn (array $row) => [(int) $row['store_order_item_id'] => (int) $row['quantity']]);
+            $items = $items->filter(fn ($item) => $quantities->has($item->id))->map(function ($item) use ($quantities) {
+                $line = clone $item;
+                $line->quantity = $quantities[$item->id];
+
+                return $line;
+            })->values();
+        }
 
         return [
             'customer_name' => trim((string) ($order->customer_name ?: ($store->default_locale === 'ar' ? 'عميلنا العزيز' : 'there'))),
@@ -211,8 +250,8 @@ class StoreNotificationSettings
             'items' => $items->map(fn ($item) => '• '.$item->name.($item->variant_name ? ' ('.$item->variant_name.')' : '').' × '.$item->quantity)->implode("\n"),
             'payment_method' => self::paymentLabel((string) $order->payment_method, $store->default_locale === 'ar'),
             'shipping_address' => self::address($order->shipping_address),
-            'tracking_number' => (string) ($shipment?->tracking_number ?? ''),
-            'carrier' => $shipment ? ucfirst((string) $shipment->carrier) : '',
+            'tracking_number' => $tracking['number'] ?? '',
+            'carrier' => $tracking['carrier'] ?? '',
         ];
     }
 
@@ -262,7 +301,7 @@ class StoreNotificationSettings
      * @param  list<string>|null  $channels
      * @return int number of messages queued
      */
-    public function schedule(StoreOrder $order, string $event, ?array $channels = null, bool $force = false): int
+    public function schedule(StoreOrder $order, string $event, ?array $channels = null, bool $force = false, ?StoreOrderFulfillment $fulfillment = null): int
     {
         $definition = self::events()[$event] ?? null;
         $store = $order->store;
@@ -283,13 +322,17 @@ class StoreNotificationSettings
             };
             foreach ($recipients as $recipient) {
                 $type = self::MESSAGE_TYPES[$channel];
+                // A shipment is announced once per fulfillment and tracking number.
+                $shipment = $fulfillment ? ['fulfillment_id' => $fulfillment->id, 'tracking_number' => (string) $fulfillment->tracking_number] : [];
                 $exists = ! $force && OutboxMessage::query()->where('event_type', $type)->where('aggregate_type', 'store_order')
-                    ->where('aggregate_id', (string) $order->id)->where('payload->event', $event)->where('payload->recipient', $recipient)->exists();
+                    ->where('aggregate_id', (string) $order->id)->where('payload->event', $event)->where('payload->recipient', $recipient)
+                    ->when($fulfillment !== null, fn ($query) => $query->where('payload->fulfillment_id', $fulfillment->id)->where('payload->tracking_number', (string) $fulfillment->tracking_number))
+                    ->exists();
                 if ($exists) {
                     continue;
                 }
                 app(OutboxRecorder::class)->record($type, 'store_order', $order->id,
-                    ['store_id' => $order->store_id, 'store_order_id' => $order->id, 'event' => $event, 'channel' => $channel, 'recipient' => $recipient],
+                    ['store_id' => $order->store_id, 'store_order_id' => $order->id, 'event' => $event, 'channel' => $channel, 'recipient' => $recipient] + $shipment,
                     ['resend' => $force]);
                 $queued++;
             }

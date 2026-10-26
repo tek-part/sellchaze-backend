@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\Storefront\StoreOrderResource;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderReturn;
+use App\Services\Commerce\StoreFulfillments;
 use App\Services\Commerce\StoreOrderReturns;
 use App\Services\Commerce\StoreOrderService;
 use Illuminate\Http\JsonResponse;
@@ -76,6 +77,8 @@ class StoreOrderController extends Controller
 
         return $resource + [
             'refunded_total' => $order->refunded_total ?? '0.00',
+            'fulfillment_status' => $order->fulfillment_status ?? 'unfulfilled',
+            'fulfillments' => app(StoreFulfillments::class)->forCustomer($order),
             'returns' => $order->returns()->get()->map(fn (StoreOrderReturn $row) => $this->returns->present($row, false))->values()->all(),
             'return_eligibility' => $this->returns->eligibility($order),
         ];

@@ -38,7 +38,8 @@ class SendStoreNotificationWhatsapp implements ShouldQueue
             $eligible = $store && $order && $notifications->whatsappReady($store)
                 && (! empty($message->metadata['resend']) || ! empty($settings['events'][$event]['whatsapp_enabled']))
                 && $phone === StoreDigitalWhatsappClient::phone((string) $order->customer_phone);
-            $text = $eligible ? StoreNotificationSettings::render((string) $settings['events'][$event]['whatsapp_body'], $notifications->variables($store, $order)) : '';
+            $text = $eligible ? StoreNotificationSettings::render((string) $settings['events'][$event]['whatsapp_body'], $notifications->variables($store, $order, false,
+                isset($message->payload['fulfillment_id']) ? $notifications->fulfillment($order, (int) $message->payload['fulfillment_id']) : null)) : '';
             $state = ! $eligible ? 'skipped' : ($text === '' || mb_strlen($text) > 4096 ? 'invalid' : 'sending');
             $message->update(['metadata' => array_merge($message->metadata ?? [], ['transport_state' => $state, 'transport_claimed_at' => now()->toIso8601String()])]);
 

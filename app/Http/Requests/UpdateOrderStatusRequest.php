@@ -24,6 +24,8 @@ class UpdateOrderStatusRequest extends FormRequest
         return [
             'status' => ['required', 'string', Rule::in(StoreOrder::STATUSES)],
             'note' => ['nullable', 'string', 'max:2000'],
+            // Marking a partially shipped order delivered ships the rest without tracking: the merchant must confirm.
+            'fulfil_remaining' => ['sometimes', 'boolean'],
         ];
     }
 }
