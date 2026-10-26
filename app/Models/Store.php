@@ -37,6 +37,7 @@ use Illuminate\Support\Facades\Storage;
  * @property array<string,mixed>|null $tracking_configuration
  * @property array<string,string>|null $tracking_credentials
  * @property array<string,mixed>|null $google_merchant_configuration
+ * @property array<string,mixed>|null $customer_login_configuration
  */
 class Store extends Model
 {
@@ -63,6 +64,7 @@ class Store extends Model
         'google_merchant_configuration',
         'social_links_configuration', 'head_code_configuration',
         'social_proof_configuration', 'country_restriction_configuration', 'order_protection_configuration', 'bundles_configuration',
+        'customer_login_configuration',
     ];
 
     protected $casts = [
@@ -74,6 +76,7 @@ class Store extends Model
         'bot_protection_configuration' => 'array',
         'bot_protection_credentials' => 'encrypted:array',
         'phone_otp_configuration' => 'array',
+        'customer_login_configuration' => 'array',
         'phone_otp_credentials' => 'encrypted:array',
         'order_limits' => 'array',
         'shopping_preferences' => 'array',

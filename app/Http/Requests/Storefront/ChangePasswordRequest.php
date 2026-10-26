@@ -15,7 +15,8 @@ class ChangePasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'current_password' => ['required', 'string'],
+            // G2: accounts created by WhatsApp code or Google have no password yet and set one without it.
+            'current_password' => ['nullable', 'string'],
             'password' => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
         ];
     }

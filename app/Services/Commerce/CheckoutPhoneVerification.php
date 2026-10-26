@@ -14,6 +14,9 @@ class CheckoutPhoneVerification
 {
     public const TTL = 300;
 
+    /** Checkout challenges; customer sign-in codes share the table and send limits but never these steps. */
+    public const PURPOSE = 'checkout';
+
     public const COOLDOWN = 60;
 
     public function configuration(Store $store): array
@@ -92,12 +95,12 @@ class CheckoutPhoneVerification
             $query = StorePhoneChallenge::withoutGlobalScopes()->where('store_id', $store->id);
             $existing = (clone $query)->where('token_hash', $tokenHash)->lockForUpdate()->first();
             if ($existing) {
-                abort_unless($existing->phone_normalized === $phone, 409, 'This verification request belongs to a different phone.');
+                abort_unless($existing->purpose === self::PURPOSE && $existing->phone_normalized === $phone, 409, 'This verification request belongs to a different phone.');
 
                 return [$existing, [], false];
             }
             $phoneQuery = (clone $query)->where('phone_normalized', $phone);
-            $recent = (clone $phoneQuery)->orderByDesc('id')->lockForUpdate()->first();
+            $recent = (clone $phoneQuery)->where('purpose', self::PURPOSE)->orderByDesc('id')->lockForUpdate()->first();
             abort_if($recent && $recent->resend_at->isFuture(), 429, $this->message('انتظر دقيقة قبل طلب رمز جديد.', 'Wait one minute before requesting another code.'));
             $ipHash = $this->hash($ip);
             $hour = now()->subHour();
@@ -106,8 +109,8 @@ class CheckoutPhoneVerification
                 || (clone $query)->where('ip_hash', $ipHash)->where('created_at', '>', $hour)->count() >= 10
                 || (clone $query)->where('created_at', '>', $hour)->count() >= 300,
                 429, $this->message('تم بلوغ حد إرسال الرموز. حاول لاحقًا.', 'The verification send limit was reached. Try again later.'));
-            (clone $phoneQuery)->whereIn('state', ['dispatching', 'sent', 'verified'])->update(['state' => 'superseded', 'code_hash' => null, 'updated_at' => now()]);
-            $challenge = StorePhoneChallenge::create(['store_id' => $store->id, 'phone_normalized' => $phone, 'token_hash' => $tokenHash,
+            (clone $phoneQuery)->where('purpose', self::PURPOSE)->whereIn('state', ['dispatching', 'sent', 'verified'])->update(['state' => 'superseded', 'code_hash' => null, 'updated_at' => now()]);
+            $challenge = StorePhoneChallenge::create(['store_id' => $store->id, 'purpose' => self::PURPOSE, 'phone_normalized' => $phone, 'token_hash' => $tokenHash,
                 'code_hash' => $this->hash($tokenHash.':'.$code), 'ip_hash' => $ipHash, 'generation' => $this->configuration($store)['generation'],
                 'expires_at' => now()->addSeconds(self::TTL), 'resend_at' => now()->addSeconds(self::COOLDOWN), 'state' => 'dispatching']);
 
@@ -143,7 +146,7 @@ class CheckoutPhoneVerification
         // Failed attempt counts must commit; validation errors are raised AFTER transaction.
         $result = DB::transaction(function () use ($store, $token, $code) {
             $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
-            $challenge = StorePhoneChallenge::withoutGlobalScopes()->where('store_id', $store->id)->where('token_hash', $this->hash($token))->lockForUpdate()->first();
+            $challenge = StorePhoneChallenge::withoutGlobalScopes()->where('store_id', $store->id)->where('purpose', self::PURPOSE)->where('token_hash', $this->hash($token))->lockForUpdate()->first();
             abort_unless($challenge, 422, $this->message('الرمز غير صحيح أو انتهت صلاحيته.', 'The code is incorrect or expired.'));
             $this->usable($store, $challenge->phone_normalized);
             $config = $this->configuration($store);
@@ -183,7 +186,7 @@ class CheckoutPhoneVerification
             throw ValidationException::withMessages(['phone_verification' => $this->message('أكد رقم الهاتف عبر واتساب قبل إنشاء الطلب.', 'Verify your phone through WhatsApp before placing this order.')]);
         }
         $this->usable($store, $phone);
-        $challenge = StorePhoneChallenge::withoutGlobalScopes()->where('store_id', $store->id)->where('token_hash', $this->hash($token))->lockForUpdate()->first();
+        $challenge = StorePhoneChallenge::withoutGlobalScopes()->where('store_id', $store->id)->where('purpose', self::PURPOSE)->where('token_hash', $this->hash($token))->lockForUpdate()->first();
         if (! $challenge || $challenge->phone_normalized !== $phone || $challenge->generation !== $this->configuration($store)['generation']
             || $challenge->state !== 'verified' || ! $challenge->proof_expires_at?->isFuture()) {
             throw ValidationException::withMessages(['phone_verification' => $this->message('انتهى تأكيد الهاتف أو تغير الرقم. أعد التأكيد.', 'Phone verification expired or the phone changed. Verify again.')]);

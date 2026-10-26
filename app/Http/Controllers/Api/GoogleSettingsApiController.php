@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use App\Services\Commerce\CustomerGoogleLogin;
+use App\Services\Commerce\CustomerLoginMethods;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
@@ -20,12 +22,16 @@ class GoogleSettingsApiController extends Controller
         $validated = $request->validate([
             'client_id' => ['required', 'string', 'max:1024'],
             'client_secret' => ['nullable', 'string', 'max:1024'],
+            'storefront_enabled' => ['sometimes', 'boolean'],
         ]);
 
         Setting::set('google_client_id', trim($validated['client_id']));
         $secret = $validated['client_secret'] ?? null;
         if (is_string($secret) && $secret !== '') {
             Setting::set('google_client_secret', $secret);
+        }
+        if (array_key_exists('storefront_enabled', $validated)) {
+            Setting::set(CustomerLoginMethods::GOOGLE_SETTING, $validated['storefront_enabled'] ? '1' : '0');
         }
         Setting::clearCache();
 
@@ -61,6 +67,10 @@ class GoogleSettingsApiController extends Controller
             'javascript_origins' => array_values(array_filter([$frontend !== '' ? $frontend : null])),
             'oauth_configured' => filled($clientId),
             'client_id_masked' => $this->maskClientId($clientId),
+            // G2: storefront customer sign-in uses this same client through one fixed redirect URI.
+            'storefront_callback_url' => CustomerGoogleLogin::callbackUrl(),
+            'storefront_enabled' => filter_var(Setting::get(CustomerLoginMethods::GOOGLE_SETTING, false), FILTER_VALIDATE_BOOLEAN),
+            'storefront_ready' => CustomerLoginMethods::googleReady(),
         ];
     }
 

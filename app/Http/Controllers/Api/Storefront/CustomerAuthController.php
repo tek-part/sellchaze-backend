@@ -12,6 +12,7 @@ use App\Http\Resources\Storefront\StoreCustomerResource;
 use App\Models\StoreCustomer;
 use App\Services\Commerce\CustomerAuthService;
 use App\Services\Commerce\CustomerPasswordResetService;
+use App\Services\Commerce\OrderLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -69,7 +70,16 @@ class CustomerAuthController extends Controller
     public function update(UpdateCustomerRequest $request): JsonResponse
     {
         $customer = $this->currentCustomer($request);
-        $customer->fill($request->validated())->save();
+        $customer->fill($request->validated());
+        // A WhatsApp-verified phone stops being the sign-in identity once the customer types another number.
+        if ($customer->isDirty('phone') && $customer->phone_normalized !== null) {
+            $store = $this->currentStore($request);
+            $normalized = app(OrderLimits::class)->normalizePhone($customer->phone, app(OrderLimits::class)->configured($store)['phone_country']);
+            if ($normalized !== $customer->phone_normalized) {
+                $customer->phone_normalized = null;
+            }
+        }
+        $customer->save();
 
         return response()->json(['data' => new StoreCustomerResource($customer)]);
     }
@@ -80,7 +90,7 @@ class CustomerAuthController extends Controller
         $customer = $this->currentCustomer($request);
         $this->auth->changePassword(
             $customer,
-            (string) $request->input('current_password'),
+            (string) $request->input('current_password', ''),
             (string) $request->input('password'),
         );
 

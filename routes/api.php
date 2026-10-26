@@ -79,6 +79,7 @@ use App\Http\Controllers\Api\StoreCategoriesApiController;
 use App\Http\Controllers\Api\StoreCheckoutFieldsController;
 use App\Http\Controllers\Api\StoreCollectionsApiController;
 use App\Http\Controllers\Api\StoreContentPagesApiController;
+use App\Http\Controllers\Api\StoreCustomerLoginController;
 use App\Http\Controllers\Api\StoreCustomersApiController;
 use App\Http\Controllers\Api\StoreDashboardGuideController;
 use App\Http\Controllers\Api\StoreDashboardMetricsController;
@@ -95,7 +96,10 @@ use App\Http\Controllers\Api\Storefront\CheckoutController;
 use App\Http\Controllers\Api\Storefront\CheckoutLeadController;
 use App\Http\Controllers\Api\Storefront\CustomerAddressController;
 use App\Http\Controllers\Api\Storefront\CustomerAuthController;
+use App\Http\Controllers\Api\Storefront\CustomerLoginController;
 use App\Http\Controllers\Api\Storefront\DownsellController;
+use App\Http\Controllers\Api\Storefront\GoogleCustomerCallbackController;
+use App\Http\Controllers\Api\Storefront\OrderTrackingController;
 use App\Http\Controllers\Api\Storefront\PaymentProofController;
 use App\Http\Controllers\Api\Storefront\PersonalizationUploadController;
 use App\Http\Controllers\Api\Storefront\PhoneVerificationController;
@@ -317,6 +321,9 @@ Route::prefix('v1')->group(function () {
 
     Route::get('personalization-files/{store}/{upload}', [PersonalizationUploadController::class, 'show'])->whereNumber('store')->whereUuid('upload')->middleware(['signed:relative', 'throttle:60,1'])->name('personalization.download');
 
+    // ---- G2 Customer login: the single Google redirect URI for every storefront (API host, no store) ----
+    Route::get('storefront-oauth/google/callback', GoogleCustomerCallbackController::class)->middleware('throttle:30,1');
+
     // Phase 3: public storefront API (host-resolved, store-scoped, read-only).
     Route::middleware(['resolve.store', 'storefront.locale', 'throttle:storefront-read'])->prefix('storefront')->group(function () {
         Route::get('/', [StorefrontController::class, 'index']);
@@ -396,6 +403,15 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/forgot-password', [CustomerAuthController::class, 'forgotPassword'])->middleware('throttle:6,1');
         Route::post('auth/reset-password', [CustomerAuthController::class, 'resetPassword'])->middleware('throttle:10,1');
 
+        // ---- G2 Customer login & tracking (#48): WhatsApp code, Google sign-in, guest order tracking ----
+        Route::get('auth/methods', [CustomerLoginController::class, 'methods']);
+        Route::post('auth/phone/send', [CustomerLoginController::class, 'sendPhoneCode'])->middleware('throttle:10,1');
+        Route::post('auth/phone/verify', [CustomerLoginController::class, 'verifyPhoneCode'])->middleware('throttle:30,1');
+        Route::get('auth/google/start', [CustomerLoginController::class, 'startGoogle'])->middleware('throttle:20,1');
+        Route::post('auth/google/exchange', [CustomerLoginController::class, 'exchangeGoogle'])->middleware('throttle:20,1');
+        Route::post('orders/track', OrderTrackingController::class)->middleware('throttle:10,1');
+        // ---- end G2 ----
+
         // Authenticated store-customer area (bearer token, store-scoped).
         Route::middleware('store.customer')->group(function () {
             Route::post('auth/logout', [CustomerAuthController::class, 'logout']);
@@ -409,6 +425,10 @@ Route::prefix('v1')->group(function () {
             Route::get('orders/{number}', [StoreOrderController::class, 'show'])->where('number', '[A-Za-z0-9\-]+');
             Route::post('orders/{number}/cancel', [StoreOrderController::class, 'cancel'])->where('number', '[A-Za-z0-9\-]+');
             Route::post('orders/{number}/returns', [StoreOrderController::class, 'requestReturn'])->where('number', '[A-Za-z0-9\-]+')->middleware('throttle:10,1');
+
+            // ---- G2 Customer login: confirm the account phone with a WhatsApp code ----
+            Route::post('account/phone/send', [CustomerLoginController::class, 'sendAccountPhoneCode'])->middleware('throttle:10,1');
+            Route::post('account/phone/verify', [CustomerLoginController::class, 'verifyAccountPhone'])->middleware('throttle:30,1');
 
             // ---- Phase 6: account password, wishlist, review authoring ----
             Route::put('account/password', [CustomerAuthController::class, 'changePassword']);
@@ -1100,6 +1120,11 @@ Route::prefix('v1')->group(function () {
             Route::put('shopping-preferences', [StoreShoppingPreferencesController::class, 'update']);
             Route::put('bot-protection', [StoreBotProtectionController::class, 'update'])->middleware('throttle:10,1');
             Route::put('phone-verification', [StorePhoneVerificationController::class, 'update'])->middleware('throttle:10,1');
+            // ---- G2 Customer login: storefront sign-in methods ----
+            Route::middleware('permission:store.settings.manage')->group(function () {
+                Route::get('customer-login', [StoreCustomerLoginController::class, 'index'])->middleware('throttle:tenant-read');
+                Route::put('customer-login', [StoreCustomerLoginController::class, 'update'])->middleware('throttle:20,1');
+            });
             Route::post('blocked-phone-numbers', [StorePhoneBlockController::class, 'storePhone'])->middleware('throttle:30,1');
             Route::put('blocked-phone-numbers/{block}', [StorePhoneBlockController::class, 'update'])->whereNumber('block')->middleware('throttle:30,1');
             Route::get('blocked-phone-numbers/{block}/history', [StorePhoneBlockController::class, 'history'])->whereNumber('block');
