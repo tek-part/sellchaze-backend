@@ -5,6 +5,8 @@ namespace App\Services\Commerce;
 use App\Models\Store;
 use App\Models\StoreCustomer;
 use App\Models\StoreCustomerLoginCode;
+use App\Models\StoreCustomerPasswordReset;
+use App\Models\StoreCustomerToken;
 use App\Services\Stores\StoreDomainResolver;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Database\QueryException;
@@ -22,13 +24,14 @@ use RuntimeException;
  * The callback exchanges Google's code server-side, verifies the ID token (signature via Google's
  * tokeninfo, audience, issuer, expiry, nonce, verified e-mail), links or creates the customer within
  * that store and returns to the storefront with a one-time code. Only the browser that started the
- * flow (it holds the verifier) can exchange that code for a customer token.
+ * flow (it holds the verifier) can exchange that code, within 60 seconds, for a customer token.
  */
 class CustomerGoogleLogin
 {
     public const STATE_TTL = 600;
 
-    public const CODE_TTL = 120;
+    /** Short: the code crosses the storefront page before the boot script clears it from the URL. */
+    public const CODE_TTL = 60;
 
     private const AUTHORIZE = 'https://accounts.google.com/o/oauth2/v2/auth';
 
@@ -92,7 +95,7 @@ class CustomerGoogleLogin
         return $plain;
     }
 
-    /** One use, this store, the browser holding the verifier, within two minutes. */
+    /** One use, this store, the browser holding the verifier, within a minute. */
     public function exchange(Store $store, string $code, string $verifier): ?StoreCustomer
     {
         return DB::transaction(function () use ($store, $code, $verifier) {
@@ -139,25 +142,41 @@ class CustomerGoogleLogin
         return ['sub' => $claims['sub'], 'email' => $email, 'name' => trim((string) ($claims['name'] ?? '')) ?: Str::before($email, '@')];
     }
 
-    /** Linked Google account, else the store account with that verified e-mail, else a new account. */
+    /**
+     * Linked Google account, else the store account with that e-mail, else a new account.
+     *
+     * Registration never proves the inbox, so an account found only by an unverified e-mail may have
+     * been created by someone else with a password they know. Google proves the inbox: the account
+     * passes to its owner — every session token and pending reset link is revoked and the password
+     * removed (the owner can set one from the account page) before it is linked and marked verified.
+     */
     private function customer(Store $store, array $identity): StoreCustomer
     {
         return DB::transaction(function () use ($store, $identity) {
             Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $accounts = StoreCustomer::query()->withoutGlobalScopes()->where('store_id', $store->id);
-            $customer = (clone $accounts)->where('google_sub', $identity['sub'])->first();
-            if (! $customer) {
-                $customer = (clone $accounts)->whereRaw('LOWER(email) = ?', [$identity['email']])->orderBy('id')->first();
-                if ($customer && $customer->google_sub !== null) {
-                    throw new RuntimeException('This e-mail belongs to an account linked to another Google identity.');
-                }
-            }
+            $customer = (clone $accounts)->where('google_sub', $identity['sub'])->lockForUpdate()->first();
             if ($customer) {
                 if (! $customer->is_active) {
                     throw new RuntimeException('The account is inactive.');
                 }
-                $customer->forceFill(['google_sub' => $identity['sub'], 'email_verified_at' => $customer->email_verified_at
-                    ?? (Str::lower(trim((string) $customer->email)) === $identity['email'] ? now() : null)])->save();
+
+                return $customer;
+            }
+            $customer = (clone $accounts)->whereRaw('LOWER(email) = ?', [$identity['email']])->orderBy('id')->lockForUpdate()->first();
+            if ($customer) {
+                if ($customer->google_sub !== null) {
+                    throw new RuntimeException('This e-mail belongs to an account linked to another Google identity.');
+                }
+                if (! $customer->is_active) {
+                    throw new RuntimeException('The account is inactive.');
+                }
+                if ($customer->email_verified_at === null) {
+                    StoreCustomerToken::query()->withoutGlobalScopes()->where('store_id', $store->id)->where('store_customer_id', $customer->id)->delete();
+                    StoreCustomerPasswordReset::query()->withoutGlobalScopes()->where('store_id', $store->id)->where('store_customer_id', $customer->id)->delete();
+                    $customer->password = null;
+                }
+                $customer->forceFill(['google_sub' => $identity['sub'], 'email_verified_at' => $customer->email_verified_at ?? now()])->save();
 
                 return $customer;
             }

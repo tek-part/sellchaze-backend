@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Setting;
 use App\Models\Store;
 use App\Models\StoreCustomer;
+use App\Models\StoreCustomerPasswordReset;
 use App\Models\StoreDomain;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderFulfillment;
@@ -197,26 +198,64 @@ class StorefrontCustomerLoginTest extends TestCase
         $this->postJson($this->api($this->alpha, 'auth/login'), ['email' => 'nobody@example.test', 'password' => 'password123'])->assertUnprocessable();
     }
 
-    public function test_verified_phone_links_the_existing_account_with_that_phone_in_the_same_store_only(): void
+    public function test_a_typed_phone_never_identifies_an_account_until_its_owner_confirms_it(): void
     {
         $this->connect($this->alpha);
         $this->connect($this->beta);
-        $existing = StoreCustomer::create(['store_id' => $this->alpha->id, 'name' => 'Known', 'email' => 'known@example.test', 'password' => bcrypt('password123'), 'phone' => '0100 123 4567', 'is_active' => true]);
-        $foreign = StoreCustomer::withoutGlobalScopes()->create(['store_id' => $this->beta->id, 'name' => 'Other store', 'email' => 'known@example.test', 'password' => bcrypt('password123'), 'phone' => '01001234567', 'is_active' => true]);
+        // Someone registers with the victim's number typed in; it must not capture the victim's sign-in.
+        $squatter = StoreCustomer::create(['store_id' => $this->alpha->id, 'name' => 'Squatter', 'email' => 'squatter@example.test', 'password' => bcrypt('password123'), 'phone' => '0100 123 4567', 'is_active' => true]);
+        $foreign = StoreCustomer::withoutGlobalScopes()->create(['store_id' => $this->beta->id, 'name' => 'Other store', 'email' => 'known@example.test', 'password' => bcrypt('password123'), 'phone' => '01001234567', 'phone_normalized' => '+201001234567', 'is_active' => true]);
 
         $token = $this->send($this->alpha, '+20 100 123 4567');
         // A challenge belongs to its store.
         $this->postJson($this->api($this->beta, 'auth/phone/verify'), ['token' => $token, 'code' => end($this->codes)])->assertUnprocessable();
-        $response = $this->postJson($this->api($this->alpha, 'auth/phone/verify'), ['token' => $token, 'code' => end($this->codes)])->assertOk()
-            ->assertJsonPath('data.id', $existing->id)->assertJsonPath('data.email', 'known@example.test');
-        $this->assertNotEmpty($response->json('token'));
-        $this->assertSame('+201001234567', $existing->fresh()->phone_normalized);
-        $this->assertNull($foreign->fresh()->phone_normalized);
-        $this->assertSame(1, StoreCustomer::withoutGlobalScopes()->where('store_id', $this->alpha->id)->count());
+        $this->postJson($this->api($this->alpha, 'auth/phone/verify'), ['token' => $token, 'code' => end($this->codes)])->assertOk()
+            ->assertJsonPath('data.status', 'name_required');
+        $owner = $this->postJson($this->api($this->alpha, 'auth/phone/verify'), ['token' => $token, 'name' => 'Phone owner'])->assertOk()
+            ->assertJsonPath('data.name', 'Phone owner')->assertJsonPath('data.phone_verified', true);
+        $this->assertNotSame($squatter->id, $owner->json('data.id'));
+        $this->assertNull($squatter->fresh()->phone_normalized);
+        $this->assertSame('+201001234567', $foreign->fresh()->phone_normalized, 'the other store keeps its own identity');
 
-        // Typing another number drops the verified sign-in identity; the old number then signs up anew.
-        $this->patchJson($this->api($this->alpha, 'account'), ['phone' => '01001234569'], ['Authorization' => 'Bearer '.$response->json('token')])->assertOk();
-        $this->assertNull($existing->fresh()->phone_normalized);
+        // The squatter cannot confirm a number already confirmed on another account.
+        $squatterToken = $this->postJson($this->api($this->alpha, 'auth/login'), ['email' => 'squatter@example.test', 'password' => 'password123'])->assertOk()->json('token');
+        $this->travel(2)->minutes();
+        $confirm = $this->token();
+        $this->postJson($this->api($this->alpha, 'account/phone/send'), ['phone' => '01001234567', 'token' => $confirm], ['Authorization' => "Bearer {$squatterToken}"])->assertOk();
+        $this->postJson($this->api($this->alpha, 'account/phone/verify'), ['token' => $confirm, 'code' => end($this->codes)], ['Authorization' => "Bearer {$squatterToken}"])
+            ->assertUnprocessable()->assertJsonValidationErrors('phone');
+        $this->assertNull($squatter->fresh()->phone_normalized);
+    }
+
+    public function test_signed_in_customer_confirms_their_phone_and_then_signs_in_with_it(): void
+    {
+        $this->connect($this->alpha);
+        $customer = StoreCustomer::create(['store_id' => $this->alpha->id, 'name' => 'Known', 'email' => 'known@example.test', 'password' => bcrypt('password123'), 'phone' => '0100 123 4567', 'is_active' => true]);
+        $auth = $this->postJson($this->api($this->alpha, 'auth/login'), ['email' => 'known@example.test', 'password' => 'password123'])->assertOk()->json('token');
+        $headers = ['Authorization' => "Bearer {$auth}"];
+        $this->postJson($this->api($this->alpha, 'account/phone/send'), ['phone' => '01001234567', 'token' => $this->token()])->assertUnauthorized();
+
+        $token = $this->token();
+        $this->postJson($this->api($this->alpha, 'account/phone/send'), ['phone' => '01001234567', 'token' => $token], $headers)->assertOk()->assertJsonPath('data.state', 'sent');
+        $this->assertSame('verify_phone', StorePhoneChallenge::withoutGlobalScopes()->latest('id')->value('purpose'));
+        // A confirmation code is not a sign-in code.
+        $this->postJson($this->api($this->alpha, 'auth/phone/verify'), ['token' => $token, 'code' => end($this->codes)])->assertUnprocessable();
+        $this->postJson($this->api($this->alpha, 'account/phone/verify'), ['token' => $token, 'code' => '00000'], $headers)->assertUnprocessable();
+        $this->postJson($this->api($this->alpha, 'account/phone/verify'), ['token' => $token, 'code' => end($this->codes)], $headers)->assertOk()
+            ->assertJsonPath('data.id', $customer->id)->assertJsonPath('data.phone_verified', true)->assertJsonPath('data.phone', '+201001234567');
+        // Nothing else changes: the session and password still work.
+        $this->getJson($this->api($this->alpha, 'account'), $headers)->assertOk();
+        $this->postJson($this->api($this->alpha, 'auth/login'), ['email' => 'known@example.test', 'password' => 'password123'])->assertOk();
+
+        $this->travel(2)->minutes();
+        $login = $this->send($this->alpha);
+        $this->postJson($this->api($this->alpha, 'auth/phone/verify'), ['token' => $login, 'code' => end($this->codes)])->assertOk()
+            ->assertJsonPath('data.id', $customer->id);
+        $this->assertSame(1, StoreCustomer::withoutGlobalScopes()->count());
+
+        // Typing another number drops the confirmed sign-in phone.
+        $this->patchJson($this->api($this->alpha, 'account'), ['phone' => '01001234569'], $headers)->assertOk();
+        $this->assertNull($customer->fresh()->phone_normalized);
     }
 
     public function test_inactive_accounts_and_checkout_challenges_cannot_sign_in(): void
@@ -234,6 +273,14 @@ class StorefrontCustomerLoginTest extends TestCase
             'expires_at' => now()->addMinutes(5), 'resend_at' => now()->addMinute(), 'state' => 'verified', 'verified_at' => now(), 'proof_expires_at' => now()->addMinutes(5)]);
         $this->postJson($this->api($this->alpha, 'auth/phone/verify'), ['token' => $checkout, 'name' => 'Checkout'])->assertUnprocessable();
         $this->assertSame(1, StoreCustomer::withoutGlobalScopes()->count());
+
+        // And the other way round: checkout never accepts a sign-in challenge as phone proof.
+        $this->alpha->update(['phone_otp_configuration' => array_replace($this->alpha->fresh()->phone_otp_configuration, ['enabled' => true])]);
+        $login = $this->send($this->alpha, '01001234572');
+        $this->postJson($this->api($this->alpha, 'checkout/phone/verify'), ['token' => $login, 'code' => end($this->codes)])->assertUnprocessable();
+        $this->assertSame('sent', StorePhoneChallenge::withoutGlobalScopes()->where('token_hash', $otp->hash($login))->value('state'));
+        $this->assertNull(StorePhoneChallenge::withoutGlobalScopes()->where('token_hash', $otp->hash($login))->value('verified_at'));
+        $this->alpha->update(['phone_otp_configuration' => array_replace($this->alpha->fresh()->phone_otp_configuration, ['enabled' => false])]);
 
         // Turning the method off stops verification of codes already sent.
         $token = $this->send($this->alpha, '01001234571');
@@ -309,23 +356,60 @@ class StorefrontCustomerLoginTest extends TestCase
         $this->postJson($this->api($this->alpha, 'auth/google/exchange'), ['code' => $code, 'verifier' => $verifier])->assertUnprocessable();
         $this->assertSame(1, StoreCustomer::withoutGlobalScopes()->count(), 'the same Google identity signs in to the same account');
 
-        // Codes expire after two minutes.
+        // Codes expire after one minute.
         [$verifier, $query] = $this->startGoogle($this->alpha);
         $code = Str::after($this->googleReturn($query), '#code=');
-        $this->travel(3)->minutes();
+        $this->travel(61)->seconds();
         $this->postJson($this->api($this->alpha, 'auth/google/exchange'), ['code' => $code, 'verifier' => $verifier])->assertUnprocessable();
     }
 
-    public function test_google_links_the_store_account_with_the_verified_email_and_rejects_bad_tokens(): void
+    public function test_google_takes_back_an_unverified_email_account_from_whoever_registered_it(): void
     {
         $this->enableGoogle($this->alpha);
-        $existing = StoreCustomer::create(['store_id' => $this->alpha->id, 'name' => 'Ada', 'email' => 'ada@example.test', 'password' => bcrypt('password123'), 'is_active' => true]);
+        // An attacker pre-registers the victim's address with a password they know and keeps a session.
+        $attacker = $this->postJson($this->api($this->alpha, 'auth/register'), ['name' => 'Attacker', 'email' => 'ada@example.test', 'password' => 'attacker-pass'])->assertCreated();
+        $attackerToken = $attacker->json('token');
+        $existing = StoreCustomer::withoutGlobalScopes()->findOrFail($attacker->json('data.id'));
+        $this->postJson($this->api($this->alpha, 'auth/forgot-password'), ['email' => 'ada@example.test'])->assertOk();
         $foreign = StoreCustomer::withoutGlobalScopes()->create(['store_id' => $this->beta->id, 'name' => 'Ada B', 'email' => 'ada@example.test', 'password' => bcrypt('password123'), 'is_active' => true]);
+        $foreignToken = $this->postJson($this->api($this->beta, 'auth/login'), ['email' => 'ada@example.test', 'password' => 'password123'])->assertOk()->json('token');
+
         [$verifier, $query] = $this->startGoogle($this->alpha);
         $code = Str::after($this->googleReturn($query), '#code=');
-        $this->postJson($this->api($this->alpha, 'auth/google/exchange'), ['code' => $code, 'verifier' => $verifier])->assertOk()->assertJsonPath('data.id', $existing->id);
-        $this->assertSame('1100220033', $existing->fresh()->google_sub);
+        $victim = $this->postJson($this->api($this->alpha, 'auth/google/exchange'), ['code' => $code, 'verifier' => $verifier])->assertOk()
+            ->assertJsonPath('data.id', $existing->id)->assertJsonPath('data.has_password', false)->json('token');
+        $existing->refresh();
+        $this->assertSame('1100220033', $existing->google_sub);
+        $this->assertNull($existing->password);
+        $this->assertNotNull($existing->email_verified_at);
+        // The attacker's session, password and pending reset link are gone; the victim's session works.
+        $this->getJson($this->api($this->alpha, 'account'), ['Authorization' => "Bearer {$attackerToken}"])->assertUnauthorized();
+        $this->postJson($this->api($this->alpha, 'auth/login'), ['email' => 'ada@example.test', 'password' => 'attacker-pass'])->assertUnprocessable();
+        $this->assertSame(0, StoreCustomerPasswordReset::withoutGlobalScopes()->where('store_customer_id', $existing->id)->count());
+        $this->getJson($this->api($this->alpha, 'account'), ['Authorization' => "Bearer {$victim}"])->assertOk();
+        // Other stores are untouched.
         $this->assertNull($foreign->fresh()->google_sub);
+        $this->getJson($this->api($this->beta, 'account'), ['Authorization' => "Bearer {$foreignToken}"])->assertOk();
+
+        // Once verified, a later Google sign-in keeps the owner's own sessions and password.
+        $this->putJson($this->api($this->alpha, 'account/password'), ['password' => 'owner-pass-1', 'password_confirmation' => 'owner-pass-1'], ['Authorization' => "Bearer {$victim}"])->assertOk();
+        [$verifier, $query] = $this->startGoogle($this->alpha);
+        $code = Str::after($this->googleReturn($query), '#code=');
+        $this->postJson($this->api($this->alpha, 'auth/google/exchange'), ['code' => $code, 'verifier' => $verifier])->assertOk()->assertJsonPath('data.has_password', true);
+        $this->getJson($this->api($this->alpha, 'account'), ['Authorization' => "Bearer {$victim}"])->assertOk();
+    }
+
+    public function test_google_links_a_verified_email_account_and_rejects_bad_tokens(): void
+    {
+        $this->enableGoogle($this->alpha);
+        $existing = StoreCustomer::create(['store_id' => $this->alpha->id, 'name' => 'Ada', 'email' => 'ada@example.test', 'password' => bcrypt('password123'), 'email_verified_at' => now(), 'is_active' => true]);
+        $session = $this->postJson($this->api($this->alpha, 'auth/login'), ['email' => 'ada@example.test', 'password' => 'password123'])->assertOk()->json('token');
+        [$verifier, $query] = $this->startGoogle($this->alpha);
+        $code = Str::after($this->googleReturn($query), '#code=');
+        $this->postJson($this->api($this->alpha, 'auth/google/exchange'), ['code' => $code, 'verifier' => $verifier])->assertOk()
+            ->assertJsonPath('data.id', $existing->id)->assertJsonPath('data.has_password', true);
+        $this->assertSame('1100220033', $existing->fresh()->google_sub);
+        $this->getJson($this->api($this->alpha, 'account'), ['Authorization' => "Bearer {$session}"])->assertOk();
 
         $failed = 'http://login-alpha.sellchase.com/login?google=failed';
         foreach ([['email_verified' => 'false'], ['aud' => 'someone-else'], ['nonce' => 'replayed'], ['iss' => 'https://evil.test'], ['exp' => (string) (time() - 10)]] as $bad) {

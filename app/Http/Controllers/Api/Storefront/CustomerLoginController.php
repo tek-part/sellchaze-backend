@@ -48,6 +48,24 @@ class CustomerLoginController extends Controller
         return response()->json(['data' => new StoreCustomerResource($result['customer']), 'token' => $result['token']], 200, self::NO_STORE, JSON_UNESCAPED_UNICODE);
     }
 
+    /** POST /storefront/account/phone/send (store.customer) — a code to confirm the customer's phone. */
+    public function sendAccountPhoneCode(Request $request, CustomerPhoneLogin $login): JsonResponse
+    {
+        $this->currentCustomer($request);
+        $data = $request->validate(['phone' => ['required', 'string', 'max:50'], 'token' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/']]);
+
+        return response()->json(['data' => $login->send($this->currentStore($request), $data['phone'], $data['token'], $request->ip() ?? '', CustomerPhoneLogin::VERIFY_PURPOSE)], 200, self::NO_STORE);
+    }
+
+    /** POST /storefront/account/phone/verify (store.customer) — the confirmed phone becomes a sign-in phone. */
+    public function verifyAccountPhone(Request $request, CustomerPhoneLogin $login): JsonResponse
+    {
+        $data = $request->validate(['token' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/'], 'code' => ['required', 'string', 'regex:/^[0-9]{6}$/']]);
+        $customer = $login->verifyPhone($this->currentStore($request), $this->currentCustomer($request), $data['token'], $data['code']);
+
+        return response()->json(['data' => new StoreCustomerResource($customer)], 200, self::NO_STORE, JSON_UNESCAPED_UNICODE);
+    }
+
     /** GET /storefront/auth/google/start?challenge= — the Google consent URL for this storefront. */
     public function startGoogle(Request $request, CustomerGoogleLogin $google, CustomerLoginMethods $methods): JsonResponse
     {

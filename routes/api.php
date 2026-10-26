@@ -425,6 +425,10 @@ Route::prefix('v1')->group(function () {
             Route::post('orders/{number}/cancel', [StoreOrderController::class, 'cancel'])->where('number', '[A-Za-z0-9\-]+');
             Route::post('orders/{number}/returns', [StoreOrderController::class, 'requestReturn'])->where('number', '[A-Za-z0-9\-]+')->middleware('throttle:10,1');
 
+            // ---- G2 Customer login: confirm the account phone with a WhatsApp code ----
+            Route::post('account/phone/send', [CustomerLoginController::class, 'sendAccountPhoneCode'])->middleware('throttle:10,1');
+            Route::post('account/phone/verify', [CustomerLoginController::class, 'verifyAccountPhone'])->middleware('throttle:30,1');
+
             // ---- Phase 6: account password, wishlist, review authoring ----
             Route::put('account/password', [CustomerAuthController::class, 'changePassword']);
             Route::get('wishlist', [WishlistController::class, 'index']);
