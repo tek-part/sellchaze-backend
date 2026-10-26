@@ -9,6 +9,7 @@ use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\StoreOrder;
 use App\Models\User;
+use App\Services\Commerce\CheckoutFields;
 use App\Services\Commerce\DiscountEngine;
 use App\Services\JwtTokenService;
 use App\Support\Tenancy\CurrentStore;
@@ -76,12 +77,22 @@ class StoreDiscountsTest extends TestCase
     }
 
     /** @param array<int, array{0: Product, 1: int}> $items */
-    private function quote(array $items, ?string $code = null): TestResponse
+    private function quote(array $items, ?string $code = null, array $extra = []): TestResponse
     {
         return $this->postJson('http://alpha.sellchase.com/api/v1/storefront/checkout/quote', [
             'items' => array_map(fn (array $item) => ['product_id' => $item[0]->id, 'quantity' => $item[1]], $items),
             'coupon_code' => $code,
-        ]);
+        ] + $extra);
+    }
+
+    /** Place a guest order for one tee (100.00 + 30.00 delivery) through a fresh cart. */
+    private function checkoutTee(array $extra = [], ?string $phone = '+201000000001'): TestResponse
+    {
+        $host = 'http://alpha.sellchase.com/api/v1/storefront';
+        $headers = ['X-Cart-Token' => $this->postJson("{$host}/cart/items", ['store_product_id' => $this->tee->id, 'quantity' => 1])->assertCreated()->json('data.token')];
+
+        return $this->postJson("{$host}/checkout", array_filter(['customer_name' => 'C', 'customer_email' => 'c@example.com', 'customer_phone' => $phone,
+            'shipping_address' => ['line1' => '1 Street', 'city' => 'Cairo', 'country' => 'EG']]) + $extra, $headers);
     }
 
     private function admin(): self
@@ -276,23 +287,68 @@ class StoreDiscountsTest extends TestCase
         $this->quote([[$odd, 6]], 'half')->assertOk()->assertJsonPath('data.totals.discount_total', '50.00');
     }
 
-    public function test_a_guest_who_used_up_an_automatic_discount_is_refused_instead_of_charged_more(): void
+    public function test_a_returning_guest_with_contact_is_quoted_and_charged_without_a_used_up_discount(): void
     {
         $this->discount(['method' => 'automatic', 'code' => null, 'title' => 'Once each', 'type' => 'percentage', 'value' => '10.00', 'max_uses_per_customer' => 1]);
-        $host = 'http://alpha.sellchase.com/api/v1/storefront';
-        $checkout = function () use ($host) {
-            $headers = ['X-Cart-Token' => $this->postJson("{$host}/cart/items", ['store_product_id' => $this->tee->id, 'quantity' => 1])->assertCreated()->json('data.token')];
+        $this->checkoutTee()->assertCreated()->assertJsonPath('data.discount_total', '10.00');
 
-            return $this->postJson("{$host}/checkout", ['customer_name' => 'C', 'customer_email' => 'c@example.com', 'customer_phone' => '+201000000001',
-                'shipping_address' => ['line1' => '1 Street', 'city' => 'Cairo', 'country' => 'EG']], $headers);
-        };
-
-        $checkout()->assertCreated()->assertJsonPath('data.discount_total', '10.00');
-        // The quote cannot know the guest yet, so it still shows the discount ...
+        // Without a contact the quote cannot tell; with it, the used-up discount is gone.
         $this->quote([[$this->tee, 1]])->assertOk()->assertJsonPath('data.totals.discount_total', '10.00');
-        // ... and placing the order refuses rather than silently charging the full price.
-        $checkout()->assertStatus(422)->assertJsonValidationErrors('coupon');
-        $this->assertSame(1, StoreOrder::withoutGlobalScopes()->count());
+        $this->quote([[$this->tee, 1]], null, ['customer_phone' => '+201000000001', 'customer_email' => 'C@example.com'])->assertOk()
+            ->assertJsonPath('data.totals.discount_total', '0.00')->assertJsonPath('data.totals.grand_total', '130.00');
+        // A half-typed contact never fails the quote.
+        $this->quote([[$this->tee, 1]], null, ['customer_phone' => '+20', 'customer_email' => 'c@'])->assertOk();
+
+        $this->checkoutTee(['expected_total' => '130.00'])->assertCreated()
+            ->assertJsonPath('data.discount_total', '0.00')->assertJsonPath('data.grand_total', '130.00');
+    }
+
+    public function test_a_used_up_automatic_discount_falls_back_to_the_next_best_one(): void
+    {
+        $this->discount(['method' => 'automatic', 'code' => null, 'title' => 'Once', 'type' => 'percentage', 'value' => '20.00', 'max_uses_per_customer' => 1]);
+        $this->discount(['method' => 'automatic', 'code' => null, 'title' => 'Always', 'type' => 'percentage', 'value' => '10.00']);
+
+        $this->checkoutTee()->assertCreated()->assertJsonPath('data.discount_total', '20.00');
+        $this->checkoutTee()->assertCreated()->assertJsonPath('data.discount_total', '10.00');
+    }
+
+    public function test_a_changed_total_is_answered_with_the_new_quote_and_nothing_is_written(): void
+    {
+        $auto = $this->discount(['method' => 'automatic', 'code' => null, 'title' => 'Once each', 'type' => 'percentage', 'value' => '10.00', 'max_uses_per_customer' => 1]);
+        // The merchant made the phone optional and does not ask for an e-mail.
+        $fields = app(CheckoutFields::class)->defaults();
+        foreach ($fields as &$field) {
+            $field['required'] = $field['key'] === 'phone' ? false : $field['required'];
+        }
+        unset($field);
+        $this->store->update(['checkout_fields' => $fields]);
+        $this->tee->update(['track_inventory' => true, 'stock_quantity' => 5]);
+
+        // A guest without contact cannot prove the limit, so the 120.00 it was shown no longer holds.
+        $this->quote([[$this->tee, 1]])->assertOk()->assertJsonPath('data.totals.grand_total', '120.00');
+        $conflict = $this->checkoutTee(['expected_total' => '120.00'], null);
+        $conflict->assertStatus(409)->assertJsonPath('code', 'total_changed')
+            ->assertJsonPath('quote.totals.discount_total', '0.00')->assertJsonPath('quote.totals.grand_total', '130.00')
+            ->assertJsonPath('quote.items.0.product_id', $this->tee->id);
+        $this->assertSame(0, StoreOrder::withoutGlobalScopes()->count());
+        $this->assertDatabaseMissing('coupon_usages', ['coupon_id' => $auto->id]);
+        $this->assertSame(0, (int) $this->tee->fresh()->reserved_quantity);
+
+        // Confirming the corrected total places the order.
+        $this->checkoutTee(['expected_total' => $conflict->json('quote.totals.grand_total')], null)->assertCreated()
+            ->assertJsonPath('data.grand_total', '130.00');
+        $this->assertSame(1, (int) $this->tee->fresh()->reserved_quantity);
+        // Without expected_total checkout behaves as before.
+        $this->checkoutTee([], null)->assertCreated();
+    }
+
+    public function test_a_matching_expected_total_places_the_order(): void
+    {
+        $this->discount(['method' => 'automatic', 'code' => null, 'title' => 'Ten', 'type' => 'fixed', 'value' => '10.00']);
+
+        $this->checkoutTee(['expected_total' => '120.00'])->assertCreated()->assertJsonPath('data.grand_total', '120.00');
+        $this->checkoutTee(['expected_total' => '125.00'])->assertStatus(409)->assertJsonPath('quote.totals.grand_total', '120.00');
+        $this->checkoutTee(['expected_total' => 'abc'])->assertStatus(422)->assertJsonValidationErrors('expected_total');
     }
 
     public function test_free_shipping_is_not_used_up_when_delivery_is_already_free(): void
@@ -342,5 +398,17 @@ class StoreDiscountsTest extends TestCase
         $this->assertSame('automatic', $coupon->method);
         $this->assertNull($coupon->code);
         $this->assertSame('15.00', (string) $coupon->value);
+    }
+
+    public function test_updating_targets_without_a_scope_checks_them_against_the_stored_scope(): void
+    {
+        $base = "/api/v1/stores/{$this->store->id}/coupons";
+        $id = $this->admin()->postJson($base, ['code' => 'tops', 'type' => 'fixed', 'value' => 5, 'applies_to' => 'categories', 'target_ids' => [$this->tops->id]])
+            ->assertCreated()->json('data.id');
+        $this->assertNull(Category::query()->withoutGlobalScopes()->find($this->cap->id), 'the cap id must not also be a category id');
+
+        $this->admin()->putJson("{$base}/{$id}", ['code' => 'tops', 'type' => 'fixed', 'value' => 5, 'target_ids' => [$this->cap->id]])
+            ->assertStatus(422)->assertJsonValidationErrors('target_ids.0');
+        $this->admin()->putJson("{$base}/{$id}", ['code' => 'tops', 'type' => 'fixed', 'value' => 5, 'target_ids' => [$this->tops->id]])->assertOk();
     }
 }

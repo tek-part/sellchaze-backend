@@ -2,6 +2,7 @@
 
 namespace App\Services\Commerce;
 
+use App\Exceptions\CheckoutTotalChanged;
 use App\Models\Cart;
 use App\Models\Coupon;
 use App\Models\Product;
@@ -31,7 +32,7 @@ class CheckoutService
     ) {}
 
     /**
-     * @param  array{name:string,email:string|null,phone?:string|null,notes?:string|null}  $contact
+     * @param  array{name:string,email:string|null,phone?:string|null,notes?:string|null,expected_total?:string|null}  $contact
      * @param  array<string,mixed>|null  $shippingAddress
      * @param  array<int, mixed>  $giftCards  codes; when they cover the total the order is paid by gift card
      */
@@ -120,12 +121,10 @@ class CheckoutService
             // usage-count check + insert is atomic — max_uses cannot be exceeded
             // under concurrent checkouts.
             $coupon = $cart->coupon_id ? Coupon::query()->lockForUpdate()->find($cart->coupon_id) : null;
-            $engine = app(DiscountEngine::class);
-            $discountLines = array_map(fn (array $line) => ['product_id' => (int) $line['store_product_id'], 'quantity' => (int) $line['quantity'], 'unit_price' => (string) $line['unit_price']], $lines);
-            $discounts = $engine->evaluate($store, $discountLines, $coupon, $customer, ['phone' => $phone, 'email' => $contact['email'] ?? null], true);
-            // The quote has no guest contact yet, so it can show an automatic discount this guest has
-            // already used up. Refuse rather than charge more than the shopper was shown.
-            $quoted = $customer === null ? $engine->evaluate($store, $discountLines, $coupon, null) : $discounts;
+            $guest = ['phone' => $phone, 'email' => $contact['email'] ?? null];
+            $discounts = app(DiscountEngine::class)->evaluate($store,
+                array_map(fn (array $line) => ['product_id' => (int) $line['store_product_id'], 'quantity' => (int) $line['quantity'], 'unit_price' => (string) $line['unit_price']], $lines),
+                $coupon, $customer, $guest, true);
             $discount = $discounts['discount'];
 
             if ($hasDigital && (! is_string($contact['email']) || ! filter_var($contact['email'], FILTER_VALIDATE_EMAIL))) {
@@ -153,11 +152,7 @@ class CheckoutService
             }
             // A free-shipping discount counts only when it lowers the delivery price.
             $shippingTotal = fn (bool $free) => $this->pricing->forStore($store, $subtotal, $discount, ['payment_method' => $paymentMethod] + $shippingSelection, true, $offerFreeShipping || $free, $productFreeShipping, $weightGrams)['shipping_total'];
-            $shippingWaived = $requiresShipping && ($discounts['free_shipping'] || $quoted['free_shipping']) && bccomp($shippingTotal(false), $shippingTotal(true), 2) > 0;
-            if (bccomp($quoted['discount'], $discount, 2) > 0 || ($quoted['free_shipping'] && ! $discounts['free_shipping'] && $shippingWaived)) {
-                throw ValidationException::withMessages(['coupon' => __('This discount has already been used by this customer.')]);
-            }
-            if ($discounts['free_shipping'] && ! $shippingWaived) {
+            if ($discounts['free_shipping'] && (! $requiresShipping || bccomp($shippingTotal(false), $shippingTotal(true), 2) <= 0)) {
                 $discounts = DiscountEngine::withoutFreeShipping($discounts);
             }
             $offerFreeShipping = $offerFreeShipping || $discounts['free_shipping'];
@@ -196,6 +191,18 @@ class CheckoutService
             // A payment method's adjustment applies to what that method collects.
             $adjustments = app(PaymentPriceAdjustment::class);
             $totals = $adjustments->forDue($store, $paymentMethod, $totals, $tender['amount_due'] ?? $totals['grand_total']);
+            // A confirmed total that no longer holds (e.g. a guest's used-up discount, which a quote
+            // without their contact still showed) gets a fresh quote instead of an order.
+            if (isset($contact['expected_total']) && bccomp((string) $contact['expected_total'], $totals['grand_total'], 2) !== 0) {
+                throw new CheckoutTotalChanged($items->map(fn ($item) => array_filter([
+                    'product_id' => (int) $item->store_product_id,
+                    'variant_id' => $item->variant_id === null ? null : (int) $item->variant_id,
+                    'quantity' => (int) $item->quantity,
+                    'quantity_offer_id' => $item->quantity_offer['id'] ?? null,
+                    'quantity_offer_version' => isset($item->quantity_offer['version']) ? (int) $item->quantity_offer['version'] : null,
+                    'personalization' => $item->personalization ?: null,
+                ], fn ($value) => $value !== null))->values()->all(), $coupon?->code, $guest);
+            }
             $adjustments->assertQuoted($store, $totals['payment_adjustment'], $contact['payment_adjustment_token'] ?? null);
             if ($requiresShipping) {
                 $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection, $offerFreeShipping, $productFreeShipping, $weightGrams);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Storefront;
 
+use App\Exceptions\CheckoutTotalChanged;
 use App\Http\Controllers\Concerns\ResolvesStorefront;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Storefront\ApplyCouponRequest;
@@ -32,6 +33,7 @@ use App\Services\Commerce\DiscountEngine;
 use App\Services\Commerce\GiftCards;
 use App\Services\Commerce\HostedPaymentGateways;
 use App\Services\Commerce\HostedPaymentReconciliation;
+use App\Services\Commerce\OrderLimits;
 use App\Services\Commerce\OrderReceipt;
 use App\Services\Commerce\PaymentGatewayCatalog;
 use App\Services\Commerce\PaymentRetryToken;
@@ -94,10 +96,26 @@ class CheckoutController extends Controller
     public function quote(CheckoutQuoteRequest $request, CheckoutQuote $quotes): JsonResponse
     {
         $data = $request->validated();
+        $store = $this->currentStore($request);
 
         return response()->json(['data' => $quotes->calculate(
-            $this->currentStore($request), $data['items'], $data['coupon_code'] ?? null, $this->auth->resolve($request), $data + ['client_ip' => $request->ip()], $data['gift_cards'] ?? [],
+            $store, $data['items'], $data['coupon_code'] ?? null, $this->auth->resolve($request), $data + ['client_ip' => $request->ip()], $data['gift_cards'] ?? [], $this->quoteContact($store, $data),
         )], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * The guest contact typed so far, normalized like checkout; a value that is not valid yet counts as
+     * not given, so a half-typed field never fails the quote.
+     *
+     * @return array{phone: ?string, email: ?string}|null
+     */
+    private function quoteContact(Store $store, array $data): ?array
+    {
+        $limits = app(OrderLimits::class);
+        $phone = $limits->normalizePhone($data['customer_phone'] ?? null, $limits->configured($store)['phone_country']);
+        $email = filter_var($data['customer_email'] ?? null, FILTER_VALIDATE_EMAIL) === false ? null : (string) $data['customer_email'];
+
+        return $phone === null && $email === null ? null : ['phone' => $phone, 'email' => $email];
     }
 
     /** POST /storefront/checkout/gift-card/check — masked balance; one generic error for every failure. */
@@ -166,79 +184,90 @@ class CheckoutController extends Controller
         $customer = $this->auth->resolve($request);
         // A funnel order has its own transient cart, even for a signed-in customer.
         // Do not merge, replace or convert their ordinary shopping cart.
-        $order = DB::transaction(function () use ($request, $store, $customer, $payment, $shippingSelection, $giftCards) {
-            $attempt = app(CheckoutAttempts::class)->lock($request);
-            $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
-            $cart = $request->input('cart_mode') === 'direct'
-                ? $this->carts->create($store, null)
-                : $this->carts->resolve($request, $store, $customer);
+        try {
+            $order = DB::transaction(function () use ($request, $store, $customer, $payment, $shippingSelection, $giftCards) {
+                $attempt = app(CheckoutAttempts::class)->lock($request);
+                $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
+                $cart = $request->input('cart_mode') === 'direct'
+                    ? $this->carts->create($store, null)
+                    : $this->carts->resolve($request, $store, $customer);
 
-            // The storefront cart lives on the client; sync the submitted line items into the server
-            // cart so checkout places exactly what the shopper sees, without a stateful cart round-trip.
-            $items = $request->input('items', []);
-            if (! empty($items) || $request->has('coupon_code')) {
-                DB::transaction(function () use ($cart, $items, $request, $customer) {
-                    Cart::query()->whereKey($cart->id)->lockForUpdate()->firstOrFail();
-                    if (! empty($items)) {
-                        $this->carts->clear($cart);
-                        foreach ($items as $line) {
-                            $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1), isset($line['variant_id']) ? (int) $line['variant_id'] : null, $line['personalization'] ?? [],
-                                $line['quantity_offer_id'] ?? null, isset($line['quantity_offer_version']) ? (int) $line['quantity_offer_version'] : null);
+                // The storefront cart lives on the client; sync the submitted line items into the server
+                // cart so checkout places exactly what the shopper sees, without a stateful cart round-trip.
+                $items = $request->input('items', []);
+                if (! empty($items) || $request->has('coupon_code')) {
+                    DB::transaction(function () use ($cart, $items, $request, $customer) {
+                        Cart::query()->whereKey($cart->id)->lockForUpdate()->firstOrFail();
+                        if (! empty($items)) {
+                            $this->carts->clear($cart);
+                            foreach ($items as $line) {
+                                $this->carts->addItem($cart, (int) $line['product_id'], (int) ($line['quantity'] ?? 1), isset($line['variant_id']) ? (int) $line['variant_id'] : null, $line['personalization'] ?? [],
+                                    $line['quantity_offer_id'] ?? null, isset($line['quantity_offer_version']) ? (int) $line['quantity_offer_version'] : null);
+                            }
                         }
-                    }
-                    if ($request->has('coupon_code')) {
-                        $coupon = $request->filled('coupon_code') ? $this->coupons->resolveActive($request->string('coupon_code')->toString()) : null;
-                        if ($request->filled('coupon_code') && $coupon === null) {
-                            throw ValidationException::withMessages(['coupon_code' => 'This coupon is not available.']);
+                        if ($request->has('coupon_code')) {
+                            $coupon = $request->filled('coupon_code') ? $this->coupons->resolveActive($request->string('coupon_code')->toString()) : null;
+                            if ($request->filled('coupon_code') && $coupon === null) {
+                                throw ValidationException::withMessages(['coupon_code' => 'This coupon is not available.']);
+                            }
+                            if ($coupon !== null) {
+                                $this->coupons->validate($coupon, $customer, $cart->load('items')->subtotal());
+                            }
+                            $cart->update(['coupon_id' => $coupon?->id]);
                         }
-                        if ($coupon !== null) {
-                            $this->coupons->validate($coupon, $customer, $cart->load('items')->subtotal());
-                        }
-                        $cart->update(['coupon_id' => $coupon?->id]);
-                    }
-                });
-                $cart->load('items');
-            }
+                    });
+                    $cart->load('items');
+                }
 
-            $validated = $request->validated();
+                $validated = $request->validated();
 
-            $order = $this->checkout->place(
-                $store,
-                $cart,
-                $customer,
-                [
-                    'name' => ($validated['customer_name'] ?? ''),
-                    'email' => ($validated['customer_email'] ?? null),
-                    'phone' => ($validated['customer_phone'] ?? null),
-                    'phone_verification' => ($validated['phone_verification'] ?? null),
-                    'bot_proof' => ($validated['bot_proof'] ?? null),
-                    'bot_ip' => ($request->ip() ?? ''),
-                    'notes' => ($validated['notes'] ?? null),
-                    'payment_adjustment_token' => ($validated['payment_adjustment_token'] ?? null),
-                ],
-                ($validated['shipping_address'] ?? null),
-                $payment->gateway,
-                $shippingSelection,
-                $giftCards,
-            );
-            $attempt?->update(['store_order_id' => $order->id]);
-            app(ProductAbTests::class)->attribute($store, $order, $validated['ab_token'] ?? null);
-            if ($order->wasRecentlyCreated && isset($validated['marketing_attribution'])) {
-                $order->update(['marketing_attribution' => app(CampaignAttribution::class)->snapshot($validated['marketing_attribution'])]);
-            }
-            if ($order->wasRecentlyCreated && isset($validated['referral_attribution'])) {
-                $order->update(['referral_attribution' => app(ReferralAttribution::class)->snapshot($validated['referral_attribution'])]);
-            }
-            if ($order->wasRecentlyCreated && isset($validated['analytics_session'])) {
-                $order->update(['analytics_session_hash' => app(StorefrontEvents::class)->orderSession($store, $validated['analytics_session'])]);
-            }
-            app(CheckoutLeads::class)->converted($store, $validated['lead_token'] ?? null, $order);
-            if ($order->wasRecentlyCreated) {
-                app(StoreTrackingEvents::class)->purchase($store, $order, $request);
-            }
+                $order = $this->checkout->place(
+                    $store,
+                    $cart,
+                    $customer,
+                    [
+                        'name' => ($validated['customer_name'] ?? ''),
+                        'email' => ($validated['customer_email'] ?? null),
+                        'phone' => ($validated['customer_phone'] ?? null),
+                        'phone_verification' => ($validated['phone_verification'] ?? null),
+                        'bot_proof' => ($validated['bot_proof'] ?? null),
+                        'bot_ip' => ($request->ip() ?? ''),
+                        'notes' => ($validated['notes'] ?? null),
+                        'payment_adjustment_token' => ($validated['payment_adjustment_token'] ?? null),
+                        'expected_total' => isset($validated['expected_total']) ? (string) $validated['expected_total'] : null,
+                    ],
+                    ($validated['shipping_address'] ?? null),
+                    $payment->gateway,
+                    $shippingSelection,
+                    $giftCards,
+                );
+                $attempt?->update(['store_order_id' => $order->id]);
+                app(ProductAbTests::class)->attribute($store, $order, $validated['ab_token'] ?? null);
+                if ($order->wasRecentlyCreated && isset($validated['marketing_attribution'])) {
+                    $order->update(['marketing_attribution' => app(CampaignAttribution::class)->snapshot($validated['marketing_attribution'])]);
+                }
+                if ($order->wasRecentlyCreated && isset($validated['referral_attribution'])) {
+                    $order->update(['referral_attribution' => app(ReferralAttribution::class)->snapshot($validated['referral_attribution'])]);
+                }
+                if ($order->wasRecentlyCreated && isset($validated['analytics_session'])) {
+                    $order->update(['analytics_session_hash' => app(StorefrontEvents::class)->orderSession($store, $validated['analytics_session'])]);
+                }
+                app(CheckoutLeads::class)->converted($store, $validated['lead_token'] ?? null, $order);
+                if ($order->wasRecentlyCreated) {
+                    app(StoreTrackingEvents::class)->purchase($store, $order, $request);
+                }
 
-            return $order;
-        });
+                return $order;
+            });
+        } catch (CheckoutTotalChanged $changed) {
+            // Nothing was placed. Answer with the quote the order would now be placed at.
+            return response()->json([
+                'message' => __('Your total was updated. Please review it and confirm your order.'),
+                'code' => 'total_changed',
+                'quote' => app(CheckoutQuote::class)->calculate($store, $changed->items, $changed->couponCode, $customer,
+                    $shippingSelection + ['payment_method' => $payment->gateway, 'client_ip' => $request->ip()], $giftCards, $changed->guest),
+            ], 409, [], JSON_UNESCAPED_UNICODE);
+        }
 
         if ($order->payment_method === GiftCards::METHOD) {
             return response()->json([

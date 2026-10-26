@@ -38,6 +38,8 @@ class CheckoutRequest extends FormRequest
             'phone_verification' => ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'bot_proof' => ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
+            // The grand total the shopper saw; a different total is answered with 409 total_changed.
+            'expected_total' => ['nullable', 'regex:/^\d{1,12}(?:\.\d{1,4})?$/'],
             'cart_mode' => ['sometimes', 'in:cart,direct'],
             'checkout_surface' => ['sometimes', 'in:product,storefront,funnel'],
             'funnel_path' => ['sometimes', 'string', 'max:512', 'regex:~^/(?:funnels|pages)/[a-z0-9]+(?:-[a-z0-9]+)*/?$~D'],

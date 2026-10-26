@@ -17,8 +17,12 @@ class CheckoutQuote
         private readonly DiscountEngine $discounts,
     ) {}
 
-    /** @param  array<int, mixed>  $giftCards  codes, applied in order after every other total */
-    public function calculate(Store $store, array $items, ?string $code, ?StoreCustomer $customer, array $shippingSelection = [], array $giftCards = []): array
+    /**
+     * @param  array<int, mixed>  $giftCards  codes, applied in order after every other total
+     * @param  array{phone: ?string, email: ?string}|null  $guest  a guest's contact once known (normalized phone),
+     *                                                             so per-customer discount limits apply as at checkout
+     */
+    public function calculate(Store $store, array $items, ?string $code, ?StoreCustomer $customer, array $shippingSelection = [], array $giftCards = [], ?array $guest = null): array
     {
         $subtotal = '0.00';
         $lines = [];
@@ -68,7 +72,7 @@ class CheckoutQuote
                 throw ValidationException::withMessages(['coupon_code' => 'This coupon is not available.']);
             }
         }
-        $discounts = $this->discounts->evaluate($store, array_map(fn (array $line) => ['product_id' => (int) $line['product_id'], 'quantity' => (int) $line['quantity'], 'unit_price' => (string) $line['unit_price']], $lines), $coupon, $customer);
+        $discounts = $this->discounts->evaluate($store, array_map(fn (array $line) => ['product_id' => (int) $line['product_id'], 'quantity' => (int) $line['quantity'], 'unit_price' => (string) $line['unit_price']], $lines), $coupon, $customer, $guest ?? []);
         $discount = $discounts['discount'];
         $productFreeShipping = $requiresShipping && $allPhysicalFree;
         // A free-shipping discount is reported only when it lowers the delivery price.
