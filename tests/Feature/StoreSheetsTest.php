@@ -129,10 +129,10 @@ class StoreSheetsTest extends TestCase
 
     public function test_apps_registry_is_real_scoped_metadata_without_secret_or_subscription_side_effects(): void
     {
-        $this->getJson('/api/v1/my-store/apps', $this->auth)->assertOk()->assertJsonCount(32, 'data')->assertJsonCount(9, 'categories');
+        $this->getJson('/api/v1/my-store/apps', $this->auth)->assertOk()->assertJsonCount(31, 'data')->assertJsonCount(9, 'categories');
         $before = $this->getJson('/api/v1/my-store/apps', $this->auth)->json('data');
         $this->assertFalse(collect($before)->firstWhere('key', 'sheets')['configured']);
-        $this->assertCount(12, array_filter($before, fn ($app) => $app['included']));
+        $this->assertCount(18, array_filter($before, fn ($app) => $app['included']));
         $this->createConnection();
         $response = $this->getJson('/api/v1/my-store/apps', $this->auth)->assertOk();
         $this->assertTrue(collect($response->json('data'))->firstWhere('key', 'sheets')['configured']);

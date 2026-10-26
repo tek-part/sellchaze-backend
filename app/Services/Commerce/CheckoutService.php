@@ -8,6 +8,8 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreCustomer;
 use App\Models\StoreOrder;
+use App\Services\Commerce\Apps\CountryRestriction;
+use App\Services\Commerce\Apps\OrderProtection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -39,6 +41,7 @@ class CheckoutService
             $botProof = app(CheckoutBotProtection::class)->consume($store, $contact['bot_proof'] ?? null, $contact['bot_ip'] ?? null);
             $phone = app(OrderLimits::class)->assertPhone($store, $contact['phone'] ?? null);
             $phoneProof = app(CheckoutPhoneVerification::class)->consume($store, $phone, $contact['phone_verification'] ?? null);
+            app(CountryRestriction::class)->assertVisitor($store, $contact['bot_ip'] ?? null);
             $cart = Cart::query()->where('store_id', $store->id)->whereKey($cart->id)->lockForUpdate()->firstOrFail();
             if ($cart->status !== 'active') {
                 throw ValidationException::withMessages(['cart' => 'This cart is no longer active.']);
@@ -161,6 +164,11 @@ class CheckoutService
             } else {
                 $shippingAddress = null;
             }
+            app(CountryRestriction::class)->assertDelivery($store, $shippingAddress['country'] ?? null, $requiresShipping);
+            $protection = app(OrderProtection::class);
+            $signals = $protection->evaluate($store, ['phone' => $phone, 'payment_method' => $paymentMethod, 'name' => $contact['name'] ?? null,
+                'address' => $shippingAddress, 'units' => (int) array_sum(array_column($lines, 'quantity'))]);
+            $protection->assertNotBlocked($store, $signals);
 
             $order = new StoreOrder([
                 'store_customer_id' => $customer?->id,
@@ -194,6 +202,7 @@ class CheckoutService
                 app(DigitalProducts::class)->reserve($digitalProduct, $item);
             }
 
+            $protection->record($order, $store, $signals);
             $phoneProof?->update(['store_order_id' => $order->id]);
             $botProof?->update(['store_order_id' => $order->id]);
 

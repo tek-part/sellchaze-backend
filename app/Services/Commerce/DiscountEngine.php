@@ -5,6 +5,7 @@ namespace App\Services\Commerce;
 use App\Models\Coupon;
 use App\Models\Store;
 use App\Models\StoreCustomer;
+use App\Services\Commerce\Apps\ProductBundles;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -23,7 +24,7 @@ class DiscountEngine
     /**
      * @param  list<array{product_id: int, quantity: int, unit_price: string}>  $lines
      * @param  array{phone?: ?string, email?: ?string}  $guest  contact of a guest checkout
-     * @return array{discount: string, free_shipping: bool, coupon: ?Coupon, applied: list<array{id: int, title: string, code: ?string, method: string, type: string, amount: string}>, usages: list<array{coupon: Coupon, amount: string}>}
+     * @return array{discount: string, free_shipping: bool, coupon: ?Coupon, applied: list<array{id: int, title: string, code: ?string, method: string, type: string, amount: string, bundle_id?: string}>, usages: list<array{coupon: Coupon, amount: string}>}
      */
     public function evaluate(Store $store, array $lines, ?Coupon $coupon, ?StoreCustomer $customer, array $guest = [], bool $lock = false): array
     {
@@ -70,24 +71,41 @@ class DiscountEngine
             }
         }
 
-        $usages = array_values(array_filter([$order, $shipping]));
+        // A complete product bundle competes with automatic discounts; an entered code still wins.
+        if ($coupon === null || $coupon->type === 'free_shipping') {
+            $bundle = app(ProductBundles::class)->discount($store, $lines);
+            if ($bundle !== null && ($order === null || bccomp($bundle['amount'], $order['amount'], 2) > 0)) {
+                $order = ['bundle' => $bundle, 'amount' => $bundle['amount']];
+            }
+        }
+
+        $entries = array_values(array_filter([$order, $shipping]));
         $discount = $order === null ? '0.00' : (bccomp($order['amount'], $subtotal, 2) > 0 ? $subtotal : $order['amount']);
         if ($order !== null) {
-            $usages[0]['amount'] = $discount;
+            $entries[0]['amount'] = $discount;
         }
+        $usages = array_values(array_filter($entries, fn (array $entry) => isset($entry['coupon'])));
 
         return [
             'discount' => $discount,
             'free_shipping' => $shipping !== null,
             'coupon' => $coupon,
-            'applied' => array_map(fn (array $entry) => [
+            'applied' => array_map(fn (array $entry) => isset($entry['bundle']) ? [
+                'id' => 0,
+                'bundle_id' => $entry['bundle']['id'],
+                'title' => $entry['bundle']['title'],
+                'code' => null,
+                'method' => 'automatic',
+                'type' => 'bundle',
+                'amount' => $entry['amount'],
+            ] : [
                 'id' => (int) $entry['coupon']->id,
                 'title' => $entry['coupon']->label(),
                 'code' => $entry['coupon']->method === 'code' ? $entry['coupon']->code : null,
                 'method' => (string) $entry['coupon']->method,
                 'type' => (string) $entry['coupon']->type,
                 'amount' => $entry['amount'],
-            ], $usages),
+            ], $entries),
             'usages' => $usages,
         ];
     }

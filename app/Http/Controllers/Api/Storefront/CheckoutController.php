@@ -14,6 +14,7 @@ use App\Models\Store;
 use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
+use App\Services\Commerce\Apps\CountryRestriction;
 use App\Services\Commerce\BankTransferInstructions;
 use App\Services\Commerce\CampaignAttribution;
 use App\Services\Commerce\CartService;
@@ -76,11 +77,17 @@ class CheckoutController extends Controller
         // The address picks the zone, so the storefront refetches this when country or region changes.
         $shipping = $basket['requires_shipping'] ? app(StoreShipping::class)->publicConfiguration($store, ['country' => $data['shipping_country'] ?? null, 'region_id' => $data['shipping_region_id'] ?? null])
             : ['enabled' => false, 'regions_enabled' => false, 'auto_select_region' => false, 'currency' => $store->currency ?: 'USD', 'flat_rate' => '0.00', 'free_over' => null, 'regions' => [], 'options' => [], 'zones_enabled' => false];
+        $restriction = app(CountryRestriction::class);
+        if ($restriction->enabled($store)) {
+            // Regions in a refused country are not offered; placement enforces the same policy.
+            $shipping['regions'] = array_values(array_filter($shipping['regions'], fn (array $region) => $restriction->allows($store, (string) ($region['country'] ?? ''))));
+        }
 
         return response()->json(['data' => $fields->effective($store, $data['payment_method'] ?? null, $basket['requires_shipping'], $basket['has_digital'], $basket['requires_whatsapp']),
             'shipping' => $shipping, 'requires_shipping' => $basket['requires_shipping'], 'has_digital' => $basket['has_digital'],
             'phone_verification' => app(CheckoutPhoneVerification::class)->publicConfiguration($store),
-            'bot_protection' => app(CheckoutBotProtection::class)->publicConfiguration($store)]);
+            'bot_protection' => app(CheckoutBotProtection::class)->publicConfiguration($store),
+            'country_restriction' => $basket['requires_shipping'] ? $restriction->publicConfiguration($store) : null]);
     }
 
     public function quote(CheckoutQuoteRequest $request, CheckoutQuote $quotes): JsonResponse
@@ -88,7 +95,7 @@ class CheckoutController extends Controller
         $data = $request->validated();
 
         return response()->json(['data' => $quotes->calculate(
-            $this->currentStore($request), $data['items'], $data['coupon_code'] ?? null, $this->auth->resolve($request), $data,
+            $this->currentStore($request), $data['items'], $data['coupon_code'] ?? null, $this->auth->resolve($request), $data + ['client_ip' => $request->ip()],
         )], 200, [], JSON_UNESCAPED_UNICODE);
     }
 

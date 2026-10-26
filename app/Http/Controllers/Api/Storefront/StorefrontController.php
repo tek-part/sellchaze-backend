@@ -13,6 +13,8 @@ use App\Models\Store;
 use App\Models\StoreContentPage;
 use App\Models\StoreMenu;
 use App\Models\StorePaymentGateway;
+use App\Services\Commerce\Apps\ProductBundles;
+use App\Services\Commerce\Apps\SocialProof;
 use App\Services\Commerce\DownsellOffers;
 use App\Services\Commerce\GoogleMerchantSettings;
 use App\Services\Commerce\PaymentGatewayCatalog;
@@ -216,6 +218,8 @@ class StorefrontController extends Controller
             'auto_select_variants' => app(ShoppingPreferences::class)->configured($store)['auto_select_variants'],
             'tracking_enabled' => app(StoreTrackingSettings::class)->enabled($store),
             'downsell_enabled' => app(DownsellOffers::class)->enabled($store),
+            'social_proof_enabled' => app(SocialProof::class)->enabled($store),
+            'bundles_enabled' => app(ProductBundles::class)->enabled($store),
             'merchant_information' => app(GoogleMerchantSettings::class)->publicInformation($store),
             'supported_currencies' => array_keys($multipliers),
             'currency_multipliers' => $multipliers,
