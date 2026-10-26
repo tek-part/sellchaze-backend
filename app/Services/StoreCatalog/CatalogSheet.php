@@ -7,15 +7,16 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\User;
 use App\Services\Commerce\StoreInventory;
-use App\Services\Commerce\StoreOrderExports;
 use App\Support\ProductOptionDisplay;
+use App\Support\XlsxArchiveGuard;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
+use OpenSpout\Common\Entity\Cell;
+use OpenSpout\Common\Entity\Cell\StringCell;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Reader\XLSX\Reader;
 use OpenSpout\Writer\XLSX\Writer;
-use ZipArchive;
 
 /**
  * Flat product sheets (XLSX/CSV): one row per option with its option values, SKU, prices and stock.
@@ -24,7 +25,11 @@ use ZipArchive;
  */
 class CatalogSheet
 {
-    public const PRODUCT_HEADERS = ['product_id', 'variant_id', 'slug', 'name', 'status', 'categories', 'price', 'compare_price', 'sku', 'stock', 'track_inventory'];
+    /** `categories` is a readable copy of `category_ids` and is ignored on import; ids are authoritative. */
+    public const PRODUCT_HEADERS = ['product_id', 'variant_id', 'slug', 'name', 'status', 'category_ids', 'categories', 'price', 'compare_price', 'sku', 'stock', 'track_inventory'];
+
+    /** A blank cell keeps the current value; this token clears an optional value (compare-at price, SKU, option price, categories). */
+    public const CLEAR = '[clear]';
 
     public const VARIANT_HEADERS = ['variant_sku', 'variant_price', 'variant_compare_price', 'variant_status'];
 
@@ -39,47 +44,68 @@ class CatalogSheet
     /** @return array{0: string, 1: string} temporary file path and download name */
     public function export(?array $productIds, ?int $categoryId, string $format): array
     {
-        $products = Product::query()->with(['variants', 'category', 'additionalCategories'])
+        $products = fn () => Product::query()
             ->when($productIds !== null, fn ($q) => $q->whereIn('id', $productIds))
-            ->when($categoryId !== null, fn ($q) => $q->inCategories([$categoryId]))
-            ->orderBy('id')->get();
-        if ($productIds !== null && $products->count() !== count(array_unique($productIds))) {
+            ->when($categoryId !== null, fn ($q) => $q->inCategories([$categoryId]));
+        // Count rows in SQL before loading anything: one row per option, or one row for a product without options.
+        $productCount = $products()->count();
+        if ($productIds !== null && $productCount !== count(array_unique($productIds))) {
             throw ValidationException::withMessages(['products' => 'Refresh the list: a selected product is unavailable.']);
         }
-        if ($products->sum(fn ($product) => max(1, $product->variants->count())) > self::MAX_EXPORT_ROWS) {
+        $variants = fn () => ProductVariant::query()->whereIn('store_product_id', $products()->select('id'));
+        $rowCount = $productCount - $variants()->distinct()->count('store_product_id') + $variants()->count();
+        if ($rowCount > self::MAX_EXPORT_ROWS) {
             throw ValidationException::withMessages(['products' => 'Sheet exports support at most '.self::MAX_EXPORT_ROWS.' rows. Export one category or a smaller selection.']);
         }
-        $axes = max(3, min(10, (int) $products->flatMap(fn ($product) => $product->variants->map(fn ($variant) => count($variant->options ?? [])))->max()));
+        $axes = 3;
+        foreach ($variants()->select(['id', 'options'])->lazyById(1000) as $variant) {
+            $axes = max($axes, min(10, count($variant->options ?? [])));
+        }
         $headers = $this->headers($axes);
         $path = tempnam(sys_get_temp_dir(), 'catalog-sheet-');
+        $stream = $writer = null;
         try {
             if ($format === 'csv') {
                 $stream = fopen($path, 'w');
                 fwrite($stream, "\xEF\xBB\xBF");
                 fputcsv($stream, $headers, ',', '"', '');
-                foreach ($products as $product) {
-                    foreach ($this->rows($product, $axes) as $row) {
-                        fputcsv($stream, array_map(fn ($value) => is_string($value) ? StoreOrderExports::cell($value) : (string) ($value ?? ''), $row), ',', '"', '');
-                    }
-                }
-                fclose($stream);
             } else {
                 $writer = new Writer;
                 $writer->openToFile($path);
-                $writer->addRow(Row::fromValues($headers));
-                foreach ($products as $product) {
-                    foreach ($this->rows($product, $axes) as $row) {
-                        $writer->addRow(Row::fromValues($row));
-                    }
-                }
-                $writer->close();
+                $writer->addRow($this->xlsxRow($headers));
             }
+            foreach ($products()->with(['variants', 'category', 'additionalCategories'])->lazyById(200) as $product) {
+                foreach ($this->rows($product, $axes) as $row) {
+                    $stream ? fputcsv($stream, array_map(fn ($value) => is_string($value) ? self::escapeCsv($value) : (string) ($value ?? ''), $row), ',', '"', '')
+                        : $writer->addRow($this->xlsxRow($row));
+                }
+            }
+            $stream ? fclose($stream) : $writer->close();
         } catch (\Throwable $error) {
             @unlink($path);
             throw $error;
         }
 
         return [$path, 'sellchaze-products-'.now()->format('Y-m-d').'.'.$format];
+    }
+
+    /** Text cells are always written as strings, so "=..." can never become a spreadsheet formula. */
+    private function xlsxRow(array $values): Row
+    {
+        return new Row(array_map(fn ($value) => is_string($value) ? new StringCell($value, null) : Cell::fromValue($value), $values));
+    }
+
+    /** CSV formula guard: a leading quote is added to risky text (and to text that already starts with one) and removed on import. */
+    public static function escapeCsv(string $value): string
+    {
+        $value = str_replace("\0", '', $value);
+
+        return preg_match("/^\\s*[=+\\-@\\t\\r']/u", $value) ? "'".$value : $value;
+    }
+
+    public static function unescapeCsv(string $value): string
+    {
+        return preg_match("/^'\\s*[=+\\-@\\t\\r']/u", $value) ? substr($value, 1) : $value;
     }
 
     private function headers(int $axes): array
@@ -97,8 +123,9 @@ class CatalogSheet
     private function rows(Product $product, int $axes): array
     {
         $digital = in_array($product->digital_type, ['codes', 'link'], true);
-        $categories = collect([$product->category])->merge($product->additionalCategories)->filter()->unique('id')->pluck('name')->implode(', ');
-        $base = [$product->id, null, $product->slug, $product->name, $product->is_active ? 'active' : 'draft', $categories,
+        $categories = collect([$product->category])->merge($product->additionalCategories)->filter()->unique('id')->values();
+        $base = [$product->id, null, $product->slug, $product->name, $product->is_active ? 'active' : 'draft',
+            $categories->pluck('id')->implode(','), $categories->pluck('name')->implode(' | '),
             (float) $product->price, $product->compare_price === null ? null : (float) $product->compare_price, $product->sku];
         if ($product->variants->isEmpty()) {
             return [array_merge($base, [$digital ? null : $product->stock_quantity, $digital ? null : ($product->track_inventory ? 1 : 0)],
@@ -207,7 +234,7 @@ class CatalogSheet
                 if (! mb_check_encoding(implode('', array_map('strval', $values)), 'UTF-8')) {
                     $this->fail('Save the CSV file with UTF-8 encoding.');
                 }
-                yield $number => $values;
+                yield $number => array_map(fn ($value) => is_string($value) ? self::unescapeCsv($value) : $value, $values);
             }
         } finally {
             fclose($stream);
@@ -217,24 +244,8 @@ class CatalogSheet
     /** @return \Generator<int, list<mixed>> */
     private function xlsx(string $path): \Generator
     {
-        $zip = new ZipArchive;
-        if ($zip->open($path) !== true) {
-            $this->fail('The XLSX archive is invalid.');
-        }
-        try {
-            $size = 0;
-            if ($zip->numFiles > 1000) {
-                $this->fail('The workbook contains too many archive entries.');
-            }
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $entry = $zip->statIndex($i);
-                $size += $entry === false ? PHP_INT_MAX : $entry['size'];
-                if ($size > 40 * 1024 * 1024) {
-                    $this->fail('The expanded workbook is larger than 40 MiB.');
-                }
-            }
-        } finally {
-            $zip->close();
+        if ($problem = XlsxArchiveGuard::problem($path)) {
+            $this->fail($problem);
         }
         $reader = new Reader;
         try {
@@ -273,10 +284,8 @@ class CatalogSheet
         if ($value instanceof \DateTimeInterface) {
             return $value->format('Y-m-d');
         }
-        $text = trim(str_replace("\0", '', (string) $value));
 
-        // Undo the spreadsheet-formula guard applied by our CSV exports.
-        return preg_match("/^'[\\s]*[=+\\-@]/u", $text) ? substr($text, 1) : $text;
+        return trim(str_replace("\0", '', (string) $value));
     }
 
     // ---------------------------------------------------------------- planning
@@ -327,10 +336,9 @@ class CatalogSheet
         foreach ($groups as $rows) {
             $first = $rows[0];
             $errors = [];
-            $product = $this->productFields($first['cells'], $headers, $errors, false);
-            $this->categoryPermission($product['categories'] ?? [], $actor, $errors);
+            $product = $this->productFields($first['cells'], $headers, $errors);
             foreach (array_slice($rows, 1) as $row) {
-                $this->conflicts($product, $this->productFields($row['cells'], $headers, $report[$row['row']]['errors'], false), $first['row'], $report[$row['row']]['errors']);
+                $this->conflicts($product, $this->productFields($row['cells'], $headers, $report[$row['row']]['errors']), $first['row'], $report[$row['row']]['errors']);
             }
             if (($product['name'] ?? '') === '') {
                 $errors[] = $this->error('required', 'name', 'Enter the product name.');
@@ -341,7 +349,7 @@ class CatalogSheet
             $optioned = array_filter($rows, fn ($row) => $this->options($row['cells']) !== []);
             $plan = ['data' => ['name' => $product['name'] ?? '', 'price' => $product['price'] ?? '0', 'compare_price' => $product['compare_price'] ?? null,
                 'is_active' => $product['is_active'] ?? true, 'personalization_fields' => []],
-                'currency' => null, 'categories' => array_map(fn ($name) => ['name' => $name], $product['categories'] ?? []), 'images' => [],
+                'currency' => null, 'categories' => array_map(fn ($category) => ['id' => $category->id, 'name' => $category->name], $product['categories'] ?? []), 'images' => [],
                 'axes' => [], 'variants' => [], 'stock_quantity' => 0, 'track_inventory' => false, 'warnings' => []];
             if (($product['sku'] ?? null) !== null) {
                 $plan['data']['sku'] = $product['sku'];
@@ -514,7 +522,7 @@ class CatalogSheet
             $updates[$product->id] ??= ['product_id' => $product->id, 'rows' => [], 'product_changes' => [], 'categories' => null, 'stock' => null, 'variants' => [], 'first_row' => $row['row'], 'fields' => []];
             $update = &$updates[$product->id];
             $update['rows'][] = $row['row'];
-            $fields = $this->productFields($c, $headers, $errors, $isFirst);
+            $fields = $this->productFields($c, $headers, $errors);
             if ($isFirst) {
                 $update['fields'] = $fields;
                 $this->productChanges($product, $update, $fields, $report[$row['row']], $fileSkus, $actor);
@@ -581,13 +589,12 @@ class CatalogSheet
     {
         foreach ($fields as $field => $value) {
             if ($field === 'categories') {
-                $current = collect([$product->category_id])->merge($product->additionalCategories()->pluck('categories.id'))->filter()->unique()->values();
-                $names = Category::query()->whereIn('id', $current->all() ?: [0])->pluck('name', 'id');
-                $currentNames = $current->map(fn ($id) => $names[$id] ?? '')->all();
-                if (array_map('mb_strtolower', $currentNames) !== array_map('mb_strtolower', $value)) {
-                    $this->categoryPermission($value, $actor, $entry['errors']);
-                    $update['categories'] = $value;
-                    $entry['changes'][] = ['field' => 'categories', 'from' => implode(', ', $currentNames), 'to' => implode(', ', $value)];
+                $current = collect([$product->category_id])->merge($product->additionalCategories()->pluck('categories.id'))->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+                $next = array_map(fn ($category) => (int) $category->id, $value ?? []);
+                if ($current !== $next) {
+                    $names = Category::query()->whereIn('id', array_merge($current, $next) ?: [0])->pluck('name', 'id');
+                    $update['categories'] = $next;
+                    $entry['changes'][] = ['field' => 'categories', 'from' => implode(' | ', array_map(fn ($id) => $names[$id] ?? '#'.$id, $current)), 'to' => implode(' | ', array_map(fn ($id) => $names[$id] ?? '#'.$id, $next))];
                 }
 
                 continue;
@@ -616,25 +623,46 @@ class CatalogSheet
     private function conflicts(array $first, array $fields, int $firstRow, array &$errors): void
     {
         foreach ($fields as $field => $value) {
-            if ($value === null || (array_key_exists($field, $first) && $first[$field] == $value)) {
+            if (array_key_exists($field, $first) && $this->sameValue($first[$field], $value)) {
                 continue;
             }
             $errors[] = $this->error('product_conflict', $field === 'is_active' ? 'status' : $field, 'This product value differs from row '.$firstRow.'. Use the same product values on every row, or fill them on the first row only.');
         }
     }
 
-    /** Product-level values present in the sheet. */
-    private function productFields(array $cells, array $headers, array &$errors, bool $requireName): array
+    private function sameValue(mixed $left, mixed $right): bool
+    {
+        if (is_array($left) || is_array($right)) {
+            return is_array($left) && is_array($right) && array_map(fn ($item) => $item->id ?? $item, $left) === array_map(fn ($item) => $item->id ?? $item, $right);
+        }
+
+        return $left === null || $right === null ? $left === $right : (string) $left === (string) $right;
+    }
+
+    private function cleared(string $value): bool
+    {
+        return mb_strtolower($value) === self::CLEAR;
+    }
+
+    /**
+     * Product-level values present in the sheet. A blank cell keeps the current value (it is left out);
+     * the clear token sets an optional value to empty and is refused for required values.
+     */
+    private function productFields(array $cells, array $headers, array &$errors): array
     {
         $fields = [];
+        foreach (['name', 'status', 'price'] as $required) {
+            if (isset($headers[$required]) && $this->cleared($cells[$required])) {
+                $errors[] = $this->error('required', $required, 'This value cannot be cleared.');
+                $cells[$required] = '';
+            }
+        }
         if (isset($headers['name']) && $cells['name'] !== '') {
             if (mb_strlen($cells['name']) > 255) {
                 $errors[] = $this->error('too_long', 'name', 'Use at most 255 characters for the product name.');
             } else {
                 $fields['name'] = $cells['name'];
             }
-        } elseif (isset($headers['name']) && $requireName) {
-            $errors[] = $this->error('required', 'name', 'The product name cannot be empty.');
         }
         if (isset($headers['status']) && $cells['status'] !== '') {
             $status = $this->status($cells['status']);
@@ -644,27 +672,32 @@ class CatalogSheet
             $price = $this->price($cells['price']);
             $price === null ? $errors[] = $this->error('invalid_price', 'price', 'Use a price between 0 and 999999999.99 with at most two decimals.') : $fields['price'] = $price;
         }
-        if (isset($headers['compare_price'])) {
-            if ($cells['compare_price'] === '') {
-                $fields['compare_price'] = null;
-            } else {
-                $price = $this->price($cells['compare_price']);
-                $price === null ? $errors[] = $this->error('invalid_price', 'compare_price', 'Use a compare-at price between 0 and 999999999.99 with at most two decimals.') : $fields['compare_price'] = $price;
-            }
+        if (isset($headers['compare_price']) && $cells['compare_price'] !== '') {
+            $price = $this->cleared($cells['compare_price']) ? null : $this->price($cells['compare_price']);
+            $price === null && ! $this->cleared($cells['compare_price'])
+                ? $errors[] = $this->error('invalid_price', 'compare_price', 'Use a compare-at price between 0 and 999999999.99 with at most two decimals.')
+                : $fields['compare_price'] = $price;
         }
-        if (isset($headers['sku'])) {
+        if (isset($headers['sku']) && $cells['sku'] !== '') {
             if (mb_strlen($cells['sku']) > 120) {
                 $errors[] = $this->error('too_long', 'sku', 'Use at most 120 characters for the SKU.');
             } else {
-                $fields['sku'] = $cells['sku'] === '' ? null : $cells['sku'];
+                $fields['sku'] = $this->cleared($cells['sku']) ? null : $cells['sku'];
             }
         }
-        if (isset($headers['categories']) && $cells['categories'] !== '') {
-            $names = array_values(array_unique(array_filter(array_map('trim', preg_split('/\s*[,،]\s*/u', $cells['categories']) ?: []), fn ($name) => $name !== '')));
-            if (count($names) > 20 || array_filter($names, fn ($name) => mb_strlen($name) > 255)) {
-                $errors[] = $this->error('invalid', 'categories', 'Use at most 20 category names of up to 255 characters.');
+        if (isset($headers['category_ids']) && $cells['category_ids'] !== '') {
+            if ($this->cleared($cells['category_ids'])) {
+                $fields['categories'] = [];
+            } elseif (! preg_match('/^\d+(\s*,\s*\d+)*$/', $cells['category_ids'])) {
+                $errors[] = $this->error('invalid', 'category_ids', 'List category IDs separated by commas, for example 3,7.');
             } else {
-                $fields['categories'] = $names;
+                $ids = array_values(array_unique(array_map('intval', preg_split('/\s*,\s*/', $cells['category_ids']) ?: [])));
+                $found = Category::query()->whereIn('id', $ids)->get(['id', 'name'])->keyBy('id');
+                if (count($ids) > 20 || $found->count() !== count($ids)) {
+                    $errors[] = $this->error('category_not_found', 'category_ids', 'Use up to 20 category IDs that exist in this store.');
+                } else {
+                    $fields['categories'] = array_map(fn ($id) => $found[$id], $ids);
+                }
             }
         }
 
@@ -674,17 +707,17 @@ class CatalogSheet
     private function variantFields(array $cells, array $headers, array &$errors): array
     {
         $fields = [];
-        if (isset($headers['variant_sku'])) {
+        if (isset($headers['variant_sku']) && $cells['variant_sku'] !== '') {
             if (mb_strlen($cells['variant_sku']) > 120) {
                 $errors[] = $this->error('too_long', 'variant_sku', 'Use at most 120 characters for the option SKU.');
             } else {
-                $fields['sku'] = $cells['variant_sku'] === '' ? null : $cells['variant_sku'];
+                $fields['sku'] = $this->cleared($cells['variant_sku']) ? null : $cells['variant_sku'];
             }
         }
         foreach (['variant_price' => 'price_override', 'variant_compare_price' => 'compare_price'] as $column => $field) {
-            if (isset($headers[$column])) {
-                $price = $cells[$column] === '' ? null : $this->price($cells[$column]);
-                if ($cells[$column] !== '' && $price === null) {
+            if (isset($headers[$column]) && $cells[$column] !== '') {
+                $price = $this->cleared($cells[$column]) ? null : $this->price($cells[$column]);
+                if ($price === null && ! $this->cleared($cells[$column])) {
                     $errors[] = $this->error('invalid_price', $column, 'Use a price between 0 and 999999999.99 with at most two decimals.');
                 } else {
                     $fields[$field] = $price;
@@ -692,7 +725,7 @@ class CatalogSheet
             }
         }
         if (isset($headers['variant_status']) && $cells['variant_status'] !== '') {
-            $status = $this->status($cells['variant_status']);
+            $status = $this->cleared($cells['variant_status']) ? null : $this->status($cells['variant_status']);
             $status === null ? $errors[] = $this->error('invalid_status', 'variant_status', 'Use active or draft.') : $fields['is_active'] = $status;
         }
 
@@ -777,14 +810,6 @@ class CatalogSheet
         return null;
     }
 
-    private function categoryPermission(array $names, User $actor, array &$errors): void
-    {
-        $existing = Category::query()->whereIn('name', $names)->pluck('name')->map(fn ($name) => mb_strtolower($name))->all();
-        if (array_diff(array_map('mb_strtolower', $names), $existing) !== [] && ! $actor->can('categories-create')) {
-            $errors[] = $this->error('category_permission', 'categories', 'Creating new categories requires the categories-create permission.');
-        }
-    }
-
     private function error(string $code, string $field, string $message): array
     {
         return ['code' => $code, 'field' => $field, 'message' => $message];
@@ -810,10 +835,8 @@ class CatalogSheet
                 $product->fill($update['product_changes']);
             }
             if ($update['categories'] !== null) {
-                $ids = [];
-                foreach ($update['categories'] as $name) {
-                    $ids[] = (Category::query()->where('name', $name)->first() ?? app(StorefrontCategoryService::class)->create(['name' => $name, 'is_active' => true]))->id;
-                }
+                $ids = Category::query()->whereIn('id', $update['categories'] ?: [0])->pluck('id')->all();
+                $ids = array_values(array_filter($update['categories'], fn ($id) => in_array($id, $ids, false)));
                 $product->category_id = $ids[0] ?? null;
                 $product->additionalCategories()->sync(array_fill_keys($ids, ['store_id' => $product->store_id]));
             }

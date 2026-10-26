@@ -6,7 +6,7 @@ use App\Services\Commerce\PhoneBlockImports;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
-/** Starts an uploaded blocked-phone import; the scheduler resumes it if this worker stops early. */
+/** Starts an uploaded blocked-phone import right after the upload; the scheduler continues or resumes it. */
 class ProcessStorePhoneBlockImport implements ShouldQueue
 {
     use Queueable;
@@ -19,6 +19,6 @@ class ProcessStorePhoneBlockImport implements ShouldQueue
 
     public function handle(PhoneBlockImports $imports): void
     {
-        $imports->run($this->importId);
+        $imports->run($this->importId, PhoneBlockImports::ROWS_PER_TICK * 2);
     }
 }

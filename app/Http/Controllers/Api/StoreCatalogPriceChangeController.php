@@ -28,7 +28,7 @@ class StoreCatalogPriceChangeController extends Controller
 
     public function apply(Request $request, Store $store): JsonResponse
     {
-        $data = $this->validated($request, ['fingerprint' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/'], 'idempotency_key' => ['required', 'uuid']]);
+        $data = $this->validated($request, ['fingerprint' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/'], 'idempotency_key' => ['required', 'uuid'], 'confirm_zero' => ['sometimes', 'boolean']]);
 
         return response()->json(['data' => $this->changes->present($this->changes->apply($data, $store, $request->user()))], 201, [], JSON_UNESCAPED_UNICODE);
     }

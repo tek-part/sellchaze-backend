@@ -210,8 +210,9 @@ class CatalogTransfer
     {
         $ids = [];
         foreach ($plan['categories'] as $category) {
-            $ids[] = (Category::query()->where('name', $category['name'])->first()
-                ?? app(StorefrontCategoryService::class)->create($category + ['is_active' => true]))->id;
+            // Sheet imports reference categories by id; portable documents by name.
+            $ids[] = ((isset($category['id']) ? Category::query()->find($category['id']) : null) ?? Category::query()->where('name', $category['name'])->first()
+                ?? app(StorefrontCategoryService::class)->create(Arr::except($category, ['id']) + ['is_active' => true]))->id;
         }
         $data = $plan['data'];
         // Explicit canonical copy must win over stale default-locale translations in edited exports.

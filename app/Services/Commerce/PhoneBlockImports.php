@@ -6,16 +6,18 @@ use App\Models\Store;
 use App\Models\StorePhoneBlock;
 use App\Models\StorePhoneBlockImport;
 use App\Models\User;
+use App\Support\XlsxArchiveGuard;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use OpenSpout\Reader\XLSX\Reader;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Bulk blocked-phone imports. The upload is stored encrypted and processed in the background in
+ * Bulk blocked-phone imports. The upload is streamed to a private (non-public) path and read back with
+ * streaming readers, so memory stays flat for 20 MiB files. It is processed in the background in
  * chunks: each chunk normalizes numbers with the store's phone country, skips duplicates and existing
  * entries, inserts new blocks with their audit events, and records progress in the same transaction,
  * so an interrupted import resumes exactly where it stopped.
@@ -28,6 +30,13 @@ class PhoneBlockImports
 
     private const CHUNK = 500;
 
+    /** Rows one scheduler tick processes per import before yielding to other stores. */
+    public const ROWS_PER_TICK = 50000;
+
+    private const MAX_EXPANDED_BYTES = 256 * 1024 * 1024;
+
+    public function __construct(private readonly int $maxRows = self::MAX_ROWS, private readonly int $rowsPerTick = self::ROWS_PER_TICK) {}
+
     private const SAMPLES = 50;
 
     private const HEADERS = ['phone', 'phones', 'mobile', 'number', 'phone number', 'phone_number', 'telephone', 'tel', 'رقم', 'الرقم', 'رقم الهاتف', 'الهاتف', 'هاتف', 'موبايل', 'الموبايل', 'جوال', 'الجوال'];
@@ -36,7 +45,12 @@ class PhoneBlockImports
 
     public function request(Store $store, User $actor, UploadedFile $file, string $scope, string $key): StorePhoneBlockImport
     {
-        return DB::transaction(function () use ($store, $actor, $file, $scope, $key) {
+        $format = strtolower($file->getClientOriginalExtension()) === 'xlsx' ? 'xlsx' : 'csv';
+        if ($format === 'xlsx' && ($problem = XlsxArchiveGuard::problem($file->getRealPath(), self::MAX_EXPANDED_BYTES))) {
+            throw ValidationException::withMessages(['file' => $problem]);
+        }
+
+        return DB::transaction(function () use ($store, $actor, $file, $scope, $key, $format) {
             Store::query()->whereKey($store->id)->lockForUpdate()->firstOrFail();
             $existing = StorePhoneBlockImport::query()->where('store_id', $store->id)->where('request_key', $key)->first();
             if ($existing) {
@@ -47,10 +61,9 @@ class PhoneBlockImports
             abort_if(StorePhoneBlockImport::query()->where('store_id', $store->id)->where('scope', $scope)->whereIn('status', ['queued', 'processing'])->exists(),
                 409, 'Another import of this list is still running. Wait for it to finish before uploading a new file.');
             $id = (string) Str::uuid();
-            $format = strtolower($file->getClientOriginalExtension()) === 'xlsx' ? 'xlsx' : 'csv';
-            $path = 'store-phone-imports/'.$id.'.enc';
-            $contents = file_get_contents($file->getRealPath());
-            if ($contents === false || ! Storage::disk('local')->put($path, Crypt::encryptString($contents), 'private')) {
+            // Streamed copy: the file is never loaded into memory as one string.
+            $path = Storage::disk('local')->putFileAs('store-phone-imports', $file, $id.'.'.$format, 'private');
+            if ($path === false) {
                 abort(500, 'The file could not be stored. Try again.');
             }
             DB::afterRollBack(fn () => Storage::disk('local')->delete($path));
@@ -68,21 +81,26 @@ class PhoneBlockImports
             'created_at' => $row->created_at, 'completed_at' => $row->completed_at];
     }
 
-    /** Scheduler entry point: resumes queued imports and imports whose worker stopped. */
+    /**
+     * Scheduler entry point: one import per store per tick (round-robin, oldest waiting store first),
+     * each bounded to ROWS_PER_TICK rows, so a large import never starves other stores.
+     */
     public function process(int $limit = 3): int
     {
         $ids = StorePhoneBlockImport::query()->where(fn ($q) => $q->where('status', 'queued')
             ->orWhere(fn ($q) => $q->where('status', 'processing')->where('lease_until', '<=', now())))
-            ->orderBy('created_at')->limit(max(1, min(10, $limit)))->pluck('id');
+            ->orderBy('updated_at')->orderBy('processed_rows')->orderBy('created_at')->limit(500)->get(['id', 'store_id'])
+            ->unique('store_id')->take(max(1, min(10, $limit)))->pluck('id');
         $processed = 0;
         foreach ($ids as $id) {
-            $processed += (int) $this->run((string) $id);
+            $processed += (int) $this->run((string) $id, $this->rowsPerTick);
         }
 
         return $processed;
     }
 
-    public function run(string $id): bool
+    /** Processes up to $budget rows; an unfinished import is queued again for the next tick. */
+    public function run(string $id, int $budget = PHP_INT_MAX): bool
     {
         $claim = DB::transaction(function () use ($id) {
             $row = StorePhoneBlockImport::query()->whereKey($id)->lockForUpdate()->first();
@@ -102,45 +120,51 @@ class PhoneBlockImports
         if (! $claim) {
             return false;
         }
-        $temp = null;
         try {
             $store = Store::query()->find($claim->store_id);
             $actor = $claim->user_id ? User::query()->find($claim->user_id) : null;
             if (! $store || ! $actor || ! ((int) $store->owner_user_id === (int) $actor->id || $actor->can('store.orders.manage') || $actor->can('stores-edit'))) {
                 return $this->finish($claim, ['status' => 'failed', 'error_code' => 'access_revoked']);
             }
-            $temp = tempnam(sys_get_temp_dir(), 'phone-import-');
-            file_put_contents($temp, Crypt::decryptString((string) Storage::disk('local')->get((string) $claim->file_path)));
+            $path = Storage::disk('local')->path((string) $claim->file_path);
+            if (! is_file($path) || ($claim->format === 'xlsx' && XlsxArchiveGuard::problem($path, self::MAX_EXPANDED_BYTES))) {
+                return $this->finish($claim, ['status' => 'failed', 'error_code' => 'processing_failed']);
+            }
             $country = app(OrderLimits::class)->configured($store)['phone_country'];
+            $columns = $this->columns($path, $claim->format);
             if ($claim->total_rows === null) {
-                $total = 0;
-                foreach ($this->records($temp, $claim->format) as $record) {
-                    $total++;
-                    if ($total > self::MAX_ROWS + 1) {
+                // Every physical row counts against the cap, blank ones included; the lease is renewed while counting.
+                $raw = $total = 0;
+                foreach ($this->records($path, $claim->format, true) as $values) {
+                    $raw++;
+                    $total += (int) ($values !== null);
+                    if ($raw > $this->maxRows + 1) {
                         return $this->finish($claim, ['status' => 'failed', 'error_code' => 'too_many_rows']);
                     }
+                    if ($raw % 5000 === 0 && ! $this->renew($claim)) {
+                        return false;
+                    }
                 }
-                $columns = $this->columns($temp, $claim->format);
                 $total -= $columns['header'] ? 1 : 0;
-                if ($total > self::MAX_ROWS) {
-                    return $this->finish($claim, ['status' => 'failed', 'error_code' => 'too_many_rows']);
-                }
-                $claim->forceFill(['total_rows' => $total]);
-                StorePhoneBlockImport::query()->whereKey($claim->id)->where('lease_token', $claim->lease_token)->update(['total_rows' => $total]);
+                $claim->total_rows = $total;
+                StorePhoneBlockImport::query()->whereKey($claim->id)->where('lease_token', $claim->lease_token)->update(['total_rows' => $total, 'lease_until' => now()->addMinutes(5)]);
             }
-            $columns = $this->columns($temp, $claim->format);
             $skip = $claim->processed_rows + ($columns['header'] ? 1 : 0);
             $chunk = [];
-            $index = 0;
-            foreach ($this->records($temp, $claim->format) as $values) {
+            $index = $done = 0;
+            foreach ($this->records($path, $claim->format) as $values) {
                 if ($index++ < $skip) {
                     continue;
                 }
-                $chunk[] = ['row' => $index, 'phone' => $this->text($values[$columns['phone']] ?? null), 'note' => $columns['note'] === null ? null : $this->text($values[$columns['note']] ?? null)];
-                if (count($chunk) >= self::CHUNK && ! $this->chunk($claim, $store, $actor, $country, $chunk)) {
-                    return false;
+                if ($done >= $budget) {
+                    return $this->release($claim);
                 }
+                $chunk[] = ['row' => $index, 'phone' => $this->text($values[$columns['phone']] ?? null), 'note' => $columns['note'] === null ? null : $this->text($values[$columns['note']] ?? null)];
+                $done++;
                 if (count($chunk) >= self::CHUNK) {
+                    if (! $this->chunk($claim, $store, $actor, $country, $chunk)) {
+                        return false;
+                    }
                     $chunk = [];
                 }
             }
@@ -153,11 +177,20 @@ class PhoneBlockImports
             report($error);
 
             return $this->finish($claim, ['status' => 'failed', 'error_code' => 'processing_failed']);
-        } finally {
-            if ($temp !== null) {
-                @unlink($temp);
-            }
         }
+    }
+
+    private function renew(StorePhoneBlockImport $claim): bool
+    {
+        return StorePhoneBlockImport::query()->whereKey($claim->id)->where('status', 'processing')->where('lease_token', $claim->lease_token)
+            ->update(['lease_until' => now()->addMinutes(5)]) === 1;
+    }
+
+    /** Hands an unfinished import back to the queue; progress already committed is kept and attempts reset. */
+    private function release(StorePhoneBlockImport $claim): bool
+    {
+        return StorePhoneBlockImport::query()->whereKey($claim->id)->where('status', 'processing')->where('lease_token', $claim->lease_token)
+            ->update(['status' => 'queued', 'lease_token' => null, 'lease_until' => null, 'attempts' => 0, 'updated_at' => now()]) === 1;
     }
 
     /** One chunk under the store lock, which checkout also takes, so a number is never half-blocked. */
@@ -233,8 +266,11 @@ class PhoneBlockImports
         return ['header' => false, 'phone' => 0, 'note' => null];
     }
 
-    /** Streams non-empty rows without loading the file into memory. @return \Generator<int, list<mixed>> */
-    private function records(string $path, string $format): \Generator
+    /**
+     * Streams rows without loading the file into memory. Blank rows are skipped, or yielded as null when
+     * $blank is true (for counting). @return \Generator<int, list<mixed>|null>
+     */
+    private function records(string $path, string $format, bool $blank = false): \Generator
     {
         if ($format === 'xlsx') {
             $reader = new Reader;
@@ -245,6 +281,8 @@ class PhoneBlockImports
                         $values = array_map(fn ($cell) => $cell->getValue(), $row->getCells());
                         if (array_filter($values, fn ($value) => $this->text($value) !== '') !== []) {
                             yield $values;
+                        } elseif ($blank) {
+                            yield null;
                         }
                     }
                     break;
@@ -263,6 +301,8 @@ class PhoneBlockImports
             while (($values = fgetcsv($stream, null, $delimiter, '"', '')) !== false) {
                 if (array_filter($values, fn ($value) => $this->text($value) !== '') !== []) {
                     yield $values;
+                } elseif ($blank) {
+                    yield null;
                 }
             }
         } finally {

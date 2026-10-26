@@ -72,8 +72,7 @@ class PhoneBlockImportTest extends TestCase
         $this->assertSame('queued', $import['status']);
         Bus::assertDispatchedAfterResponse(ProcessStorePhoneBlockImport::class, fn ($job) => $job->importId === $import['id']);
         $this->assertCount(1, Storage::disk('local')->allFiles('store-phone-imports'));
-        $stored = Storage::disk('local')->get(Storage::disk('local')->allFiles('store-phone-imports')[0]);
-        $this->assertStringNotContainsString('01001234567', $stored);
+        $this->assertStringStartsWith('store-phone-imports/', Storage::disk('local')->allFiles('store-phone-imports')[0]);
 
         $this->artisan('store-phone-blocks:import')->assertSuccessful();
         $done = $this->getJson($this->endpoint.'/imports/'.$import['id'], $this->auth)->assertOk()->json('data');
@@ -145,6 +144,78 @@ class PhoneBlockImportTest extends TestCase
             'scope' => 'checkout', 'status' => 'processing', 'file_name' => 'x.csv', 'format' => 'csv', 'lease_until' => now()->addMinutes(5)]);
         $this->post($this->endpoint.'/imports', ['file' => $this->csv('01001234567'), 'request_key' => (string) Str::uuid()], $this->auth)->assertStatus(409);
         $this->post($this->endpoint.'/imports', ['file' => UploadedFile::fake()->create('phones.pdf', 10), 'request_key' => (string) Str::uuid()], $this->auth)->assertJsonValidationErrors('file');
+    }
+
+    public function test_a_20_mib_file_is_streamed_with_flat_memory(): void
+    {
+        Bus::fake([ProcessStorePhoneBlockImport::class]);
+        $path = tempnam(sys_get_temp_dir(), 'phones-big-').'.csv';
+        $stream = fopen($path, 'w');
+        fwrite($stream, "phone,note\n");
+        $note = str_repeat('n', 330);
+        for ($i = 0; $i < 61000; $i++) {
+            fwrite($stream, '012'.str_pad((string) (30000000 + $i), 8, '0', STR_PAD_LEFT).','.$note."\n");
+        }
+        fclose($stream);
+        $this->assertGreaterThan(20000000, filesize($path));
+        $import = $this->upload(new UploadedFile($path, 'phones.csv', 'text/csv', null, true));
+        $limit = ini_get('memory_limit');
+        // Only 64 MiB of headroom: whole-file reads plus encryption of this file needed about 120 MiB.
+        ini_set('memory_limit', (string) (memory_get_usage(true) + 64 * 1024 * 1024));
+        memory_reset_peak_usage();
+        $before = memory_get_usage();
+        try {
+            app(PhoneBlockImports::class)->run($import['id']);
+        } finally {
+            $peak = memory_get_peak_usage() - $before;
+            ini_set('memory_limit', $limit);
+        }
+        $this->assertLessThan(32 * 1024 * 1024, $peak);
+        $row = StorePhoneBlockImport::query()->findOrFail($import['id']);
+        $this->assertSame(['completed', 61000, 61000], [$row->status, $row->processed_rows, $row->imported]);
+        $this->assertSame([], Storage::disk('local')->allFiles('store-phone-imports'));
+    }
+
+    public function test_row_cap_counts_blank_rows_xlsx_archives_are_guarded_and_ticks_are_fair_across_stores(): void
+    {
+        Bus::fake([ProcessStorePhoneBlockImport::class]);
+        $capped = $this->upload($this->csv("01001234567\n\n\n\n\n\n\n\n\n\n01001234568"));
+        (new PhoneBlockImports(5))->run($capped['id']);
+        $this->assertSame(['failed', 'too_many_rows'], [StorePhoneBlockImport::query()->findOrFail($capped['id'])->status, StorePhoneBlockImport::query()->findOrFail($capped['id'])->error_code]);
+        $this->assertSame(0, StorePhoneBlock::withoutGlobalScopes()->count());
+
+        $zip = new \ZipArchive;
+        $bomb = tempnam(sys_get_temp_dir(), 'bomb-').'.xlsx';
+        $zip->open($bomb, \ZipArchive::CREATE);
+        for ($i = 0; $i < 1001; $i++) {
+            $zip->addFromString('x'.$i.'.xml', 'x');
+        }
+        $zip->close();
+        $this->post($this->endpoint.'/imports', ['file' => new UploadedFile($bomb, 'phones.xlsx', null, null, true), 'request_key' => (string) Str::uuid()], $this->auth)->assertJsonValidationErrors('file');
+
+        $lines = [];
+        for ($i = 0; $i < 1200; $i++) {
+            $lines[] = '015'.str_pad((string) (40000000 + $i), 8, '0', STR_PAD_LEFT);
+        }
+        $this->travel(-10)->minutes();
+        $large = $this->upload($this->csv(implode("\n", $lines)));
+        $this->travelBack();
+        app(CurrentStore::class)->forget();
+        $other = Store::create(['owner_user_id' => $this->owner->id, 'owner_type' => 'merchant', 'name' => 'Second', 'slug' => 'second-phones', 'currency' => 'EGP', 'status' => 'active']);
+        $small = app(PhoneBlockImports::class)->request($other, $this->owner, $this->csv("01001234567\n01001234568"), 'checkout', (string) Str::uuid());
+        $imports = new PhoneBlockImports(500000, 500);
+        $imports->process(1);
+        $this->assertSame(['queued', 500], [StorePhoneBlockImport::query()->findOrFail($large['id'])->status, StorePhoneBlockImport::query()->findOrFail($large['id'])->processed_rows]);
+        $this->travel(1)->seconds();
+        $imports->process(1);
+        $this->assertSame('completed', $small->fresh()->status);
+        $this->assertSame(500, StorePhoneBlockImport::query()->findOrFail($large['id'])->processed_rows);
+        $this->travel(1)->seconds();
+        $imports->process(3);
+        $this->travel(1)->seconds();
+        $imports->process(3);
+        $done = StorePhoneBlockImport::query()->findOrFail($large['id']);
+        $this->assertSame(['completed', 1200, 1200, 1], [$done->status, $done->imported, $done->processed_rows, $done->attempts]);
     }
 
     public function test_imports_are_tenant_isolated_and_require_order_management_access(): void

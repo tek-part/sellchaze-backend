@@ -34,7 +34,7 @@ class CatalogPriceChanges
         $plan = $this->plan($input, false);
 
         return ['product_count' => $plan['product_count'], 'variant_count' => $plan['variant_count'],
-            'out_of_range' => $plan['out_of_range'], 'compare_below_price' => $plan['compare_below_price'],
+            'out_of_range' => $plan['out_of_range'], 'option_compare_below_price' => $plan['option_compare_below_price'], 'zero_prices' => $plan['zero_prices'], 'compare_below_price' => $plan['compare_below_price'],
             'fingerprint' => $plan['fingerprint'], 'samples' => array_slice($plan['samples'], 0, 25)];
     }
 
@@ -57,7 +57,10 @@ class CatalogPriceChanges
                 throw ValidationException::withMessages(['scope' => 'No products match this price change.']);
             }
             if ($plan['out_of_range'] > 0) {
-                throw ValidationException::withMessages(['value' => 'Some prices would fall below zero or exceed the maximum price. Adjust the change and preview again.']);
+                throw ValidationException::withMessages(['value' => 'Some prices would fall below zero, exceed the maximum price, or leave an option compare-at price below its price. Adjust the change and preview again.']);
+            }
+            if ($plan['zero_prices'] > 0 && ! ($input['confirm_zero'] ?? false)) {
+                throw ValidationException::withMessages(['confirm_zero' => 'Some prices would become 0.00. Confirm that these products should be free before applying.']);
             }
             $change = StorePriceChange::create(['store_id' => $store->id, 'actor_id' => $actor->id, 'idempotency_key' => $input['idempotency_key'], 'status' => 'applied',
                 'scope' => $plan['scope'], 'operation' => $this->operation($input) + ['fingerprint' => $plan['fingerprint']],
@@ -136,8 +139,11 @@ class CatalogPriceChanges
         }
         $applyCompare = (bool) ($input['apply_compare'] ?? false);
         $applyVariants = (bool) ($input['apply_variants'] ?? false);
-        $variants = $applyVariants && $products->isNotEmpty()
-            ? ProductVariant::query()->whereIn('store_product_id', $products->modelKeys())->where(fn ($q) => $q->whereNotNull('price_override')->orWhereNotNull('compare_price'))
+        // Options with their own prices (when adjusted) and every option with a compare-at price, whose
+        // inherited price moves with the product even when option prices are left alone.
+        $variants = $products->isNotEmpty()
+            ? ProductVariant::query()->whereIn('store_product_id', $products->modelKeys())
+                ->where(fn ($q) => $q->whereNotNull('compare_price')->when($applyVariants, fn ($q) => $q->orWhereNotNull('price_override')))
                 ->orderBy('id')->when($lock, fn ($q) => $q->lockForUpdate())->get()->groupBy('store_product_id')
             : collect();
         if ($variants->sum(fn ($rows) => $rows->count()) > self::MAX_VARIANTS) {
@@ -145,29 +151,43 @@ class CatalogPriceChanges
         }
         $writes = $samples = [];
         $fingerprint = [$this->operation($input), $scope];
-        $outOfRange = $compareBelow = $variantCount = 0;
+        $outOfRange = $compareBelow = $variantCount = $zero = $optionCompare = 0;
         foreach ($products as $product) {
             $price = $this->money($product->price) ?? '0.00';
             $compare = $this->money($product->compare_price);
             $newPrice = $this->adjust($price, $input);
             $newCompare = $applyCompare && $compare !== null ? $this->adjust($compare, $input) : $compare;
             $outOfRange += (int) ($newPrice === null) + (int) ($applyCompare && $compare !== null && $newCompare === null);
+            $zero += (int) ($newPrice !== null && bccomp($newPrice, '0', 2) === 0 && bccomp($price, '0', 2) > 0);
             if ($newPrice !== null && $newCompare !== null && bccomp($newCompare, $newPrice, 2) <= 0 && ($compare === null || bccomp($compare, $price, 2) > 0)) {
                 $compareBelow++;
             }
-            $entry = [$product->id, $price, $compare, []];
+            $entry = [$product->id, $price, $compare, [], []];
             $writes[] = ['product_id' => $product->id, 'variant_id' => null, 'old_price' => $price, 'new_price' => $newPrice ?? $price,
                 'old_compare_price' => $compare, 'new_compare_price' => $newCompare ?? $compare];
             $changedVariants = 0;
             foreach ($variants->get($product->id, collect()) as $variant) {
                 $override = $this->money($variant->price_override);
                 $variantCompare = $this->money($variant->compare_price);
+                if ($override === null && $variantCompare !== null && $newPrice !== null) {
+                    // The option inherits the product price: its compare-at must stay at or above the new price.
+                    $effective = $applyVariants && $applyCompare ? $this->adjust($variantCompare, $input) : $variantCompare;
+                    if ($effective !== null && bccomp($effective, $newPrice, 2) < 0 && bccomp($variantCompare, $price, 2) >= 0) {
+                        $outOfRange++;
+                        $optionCompare++;
+                    }
+                    $entry[4][] = [$variant->id, $variantCompare];
+                }
+                if (! $applyVariants) {
+                    continue;
+                }
                 $nextOverride = $override !== null ? $this->adjust($override, $input) : null;
                 $nextCompare = $applyCompare && $variantCompare !== null ? $this->adjust($variantCompare, $input) : $variantCompare;
                 if ($override === null && ! ($applyCompare && $variantCompare !== null)) {
                     continue;
                 }
                 $outOfRange += (int) ($override !== null && $nextOverride === null) + (int) ($applyCompare && $variantCompare !== null && $nextCompare === null);
+                $zero += (int) ($override !== null && $nextOverride !== null && bccomp($nextOverride, '0', 2) === 0 && bccomp($override, '0', 2) > 0);
                 $entry[3][] = [$variant->id, $override, $variantCompare];
                 $writes[] = ['product_id' => $product->id, 'variant_id' => $variant->id, 'old_price' => $override, 'new_price' => $override === null ? null : ($nextOverride ?? $override),
                     'old_compare_price' => $variantCompare, 'new_compare_price' => $nextCompare ?? $variantCompare];
@@ -182,6 +202,7 @@ class CatalogPriceChanges
         }
 
         return ['product_count' => $products->count(), 'variant_count' => $variantCount, 'out_of_range' => $outOfRange, 'compare_below_price' => $compareBelow,
+            'zero_prices' => $zero, 'option_compare_below_price' => $optionCompare,
             'fingerprint' => hash('sha256', json_encode($fingerprint, JSON_THROW_ON_ERROR)), 'samples' => $samples, 'writes' => $writes, 'scope' => $scope];
     }
 

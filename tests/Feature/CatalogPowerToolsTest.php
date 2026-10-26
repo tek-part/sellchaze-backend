@@ -212,6 +212,26 @@ class CatalogPowerToolsTest extends TestCase
         $this->assertDatabaseCount('store_price_changes', 0);
     }
 
+    public function test_zero_prices_need_confirmation_and_option_compare_below_inherited_price_blocks_apply(): void
+    {
+        $a = $this->product(['price' => '10.00']);
+        $b = $this->product(['price' => '0.40']);
+        $selected = ['scope' => ['type' => 'products', 'product_ids' => [$a->id, $b->id]]];
+        $free = $this->priceInput($selected + ['direction' => 'decrease', 'value' => 100]);
+        $preview = $this->postJson($this->base.'/price-changes/preview', $free, $this->auth)->assertOk()->assertJsonPath('data.zero_prices', 2)->assertJsonPath('data.out_of_range', 0)->json('data');
+        $this->postJson($this->base.'/price-changes', $free + ['fingerprint' => $preview['fingerprint'], 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertJsonValidationErrors('confirm_zero');
+        $floor = $this->priceInput($selected + ['direction' => 'decrease', 'kind' => 'amount', 'value' => '0.10', 'rounding' => 'floor']);
+        $this->postJson($this->base.'/price-changes/preview', $floor, $this->auth)->assertOk()->assertJsonPath('data.zero_prices', 1);
+        $this->postJson($this->base.'/price-changes', $free + ['fingerprint' => $preview['fingerprint'], 'idempotency_key' => (string) Str::uuid(), 'confirm_zero' => true], $this->auth)->assertCreated();
+        $this->assertEquals('0.00', $a->fresh()->price);
+
+        $shirt = $this->product(['price' => '100.00']);
+        $this->variant($shirt, ['Size' => 'M'], ['compare_price' => '110.00']);
+        $raise = $this->priceInput(['scope' => ['type' => 'products', 'product_ids' => [$shirt->id]], 'value' => 20, 'apply_variants' => false]);
+        $this->postJson($this->base.'/price-changes/preview', $raise, $this->auth)->assertOk()->assertJsonPath('data.out_of_range', 1)->assertJsonPath('data.option_compare_below_price', 1);
+        $this->postJson($this->base.'/price-changes/preview', array_merge($raise, ['apply_variants' => true]), $this->auth)->assertOk()->assertJsonPath('data.out_of_range', 0);
+    }
+
     public function test_price_changes_are_tenant_isolated_and_permission_gated(): void
     {
         $mine = $this->category('Mine');
@@ -299,7 +319,7 @@ class CatalogPowerToolsTest extends TestCase
         $rows = $this->readExport($csv, 'csv');
         $this->assertCount(3, $rows);
         $this->assertSame(['Color', 'Red', 'Size', 'M'], [$rows[0]['option1_name'], $rows[0]['option1_value'], $rows[0]['option2_name'], $rows[0]['option2_value']]);
-        $this->assertSame(['SHIRT-RED', '210', '5', 'Shoes'], [$rows[0]['variant_sku'], $rows[0]['variant_price'], $rows[0]['stock'], $rows[0]['categories']]);
+        $this->assertSame(['SHIRT-RED', '210', '5', 'Shoes', (string) $shoes->id], [$rows[0]['variant_sku'], $rows[0]['variant_price'], $rows[0]['stock'], $rows[0]['categories'], $rows[0]['category_ids']]);
         $this->assertSame((string) $blue->id, $rows[1]['variant_id']);
         $this->assertSame(['', '9'], [$rows[2]['variant_id'], $rows[2]['stock']]);
         $xlsx = $this->readExport($this->post($this->base.'/sheet-export', ['format' => 'xlsx', 'category_id' => $shoes->id], $this->auth)->assertOk()->streamedContent(), 'xlsx');
@@ -333,6 +353,57 @@ class CatalogPowerToolsTest extends TestCase
         $this->assertFalse($mug->fresh()->is_active);
         $this->assertDatabaseHas('store_inventory_movements', ['product_id' => $mug->id, 'stock_delta' => 3]);
         $this->assertSame([$shoes->id], $shirt->fresh()->additionalCategories->pluck('id')->all());
+    }
+
+    public function test_unchanged_export_reimports_with_zero_changes_and_never_writes_formulas(): void
+    {
+        $kids = $this->category('Shoes, kids');
+        $sale = $this->category('=Sale, 2026');
+        $risky = $this->product(['name' => '=HYPERLINK("http://x","y")', 'sku' => '+SKU-1', 'price' => '99.90', 'compare_price' => '120.00', 'category_id' => $sale->id, 'stock_quantity' => 3, 'track_inventory' => true]);
+        $risky->additionalCategories()->sync([$sale->id => ['store_id' => $this->store->id], $kids->id => ['store_id' => $this->store->id]]);
+        $quoted = $this->product(['name' => "'quoted name", 'price' => '999999999.99']);
+        $sized = $this->product(['name' => '@sized', 'price' => 10, 'category_id' => $kids->id]);
+        $sized->additionalCategories()->sync([$kids->id => ['store_id' => $this->store->id]]);
+        $this->variant($sized, ['Size' => '-1', 'Fit' => 'Slim, tall'], ['sku' => '-V1', 'price_override' => '12.50', 'compare_price' => '15.00', 'stock_quantity' => 2, 'track_inventory' => true]);
+        $this->variant($sized, ['Size' => '+2', 'Fit' => 'Slim, tall'], ['is_active' => false, 'position' => 1]);
+        $ids = [$risky->id, $quoted->id, $sized->id];
+
+        $csv = $this->post($this->base.'/sheet-export', ['format' => 'csv', 'product_ids' => $ids], $this->auth)->assertOk()->streamedContent();
+        $this->assertStringContainsString("'=HYPERLINK", $csv);
+        $this->assertStringContainsString("''quoted name", $csv);
+        $xlsx = $this->post($this->base.'/sheet-export', ['format' => 'xlsx', 'product_ids' => $ids], $this->auth)->assertOk()->streamedContent();
+        $path = tempnam(sys_get_temp_dir(), 'sheet-xml-');
+        file_put_contents($path, $xlsx);
+        $zip = new \ZipArchive;
+        $zip->open($path);
+        $xml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+        $this->assertStringNotContainsString('<f>', $xml);
+        $this->assertSame('=HYPERLINK("http://x","y")', $this->readExport($xlsx, 'xlsx')[0]['name']);
+
+        foreach (['csv' => UploadedFile::fake()->createWithContent('products.csv', $csv), 'xlsx' => new UploadedFile($path, 'products.xlsx', null, null, true)] as $format => $file) {
+            $preview = $this->post($this->base.'/sheet-import/update/preview', ['file' => $file], $this->auth)->assertOk()->json('data');
+            $this->assertSame(['rows' => 4, 'errors' => 0, 'unchanged' => 4, 'create_products' => 0, 'create_variants' => 0, 'update_products' => 0, 'update_variants' => 0], $preview['summary'], $format);
+            $this->assertSame([[], [], [], []], array_column($preview['rows'], 'changes'), $format);
+        }
+        $this->assertDatabaseCount('categories', 2);
+    }
+
+    public function test_blank_cells_keep_values_and_the_clear_token_clears_optional_values(): void
+    {
+        $shoes = $this->category('Shoes');
+        $product = $this->product(['name' => 'Boot', 'sku' => 'BOOT', 'price' => 80, 'compare_price' => 100, 'category_id' => $shoes->id]);
+        $product->additionalCategories()->sync([$shoes->id => ['store_id' => $this->store->id]]);
+        $header = ['product_id', 'name', 'status', 'price', 'compare_price', 'sku', 'category_ids'];
+        $blank = $this->post($this->base.'/sheet-import/update/preview', ['file' => $this->csv([$header, [$product->id, '', '', '', '', '', '']])], $this->auth)->assertOk();
+        $blank->assertJsonPath('data.summary.unchanged', 1)->assertJsonPath('data.rows.0.changes', []);
+        $sheet = [$header, [$product->id, '', '', '', '[clear]', '[CLEAR]', '[clear]']];
+        $this->post($this->base.'/sheet-import/update', ['file' => $this->csv($sheet), 'idempotency_key' => (string) Str::uuid()], $this->auth)->assertCreated()->assertJsonPath('meta.updated', 1);
+        $fresh = $product->fresh();
+        $this->assertSame(['Boot', null, '80.00', null, null], [$fresh->name, $fresh->sku, (string) $fresh->price, $fresh->compare_price, $fresh->category_id]);
+        $this->assertCount(0, $fresh->additionalCategories);
+        $errors = $this->post($this->base.'/sheet-import/update/preview', ['file' => $this->csv([$header, [$product->id, '[clear]', '', '[clear]', '', '', '999']])], $this->auth)->assertOk()->json('data.rows.0.errors');
+        $this->assertSame(['required', 'required', 'category_not_found'], array_column($errors, 'code'));
     }
 
     public function test_sheet_dry_run_reports_per_row_errors_and_apply_is_all_or_nothing(): void
@@ -371,8 +442,9 @@ class CatalogPowerToolsTest extends TestCase
 
     public function test_sheet_create_mode_builds_products_with_ordered_options_and_variant_prices(): void
     {
-        $sheet = [['name', 'price', 'compare_price', 'categories', 'option1_name', 'option1_value', 'option2_name', 'option2_value', 'variant_sku', 'variant_price', 'stock', 'track_inventory'],
-            ['Dress', '500', '600', 'Women', 'Size', 'M', 'Color', 'Red', 'DR-M-R', '520', '4', '1'],
+        $women = $this->category('Women, dresses');
+        $sheet = [['name', 'price', 'compare_price', 'category_ids', 'option1_name', 'option1_value', 'option2_name', 'option2_value', 'variant_sku', 'variant_price', 'stock', 'track_inventory'],
+            ['Dress', '500', '600', (string) $women->id, 'Size', 'M', 'Color', 'Red', 'DR-M-R', '520', '4', '1'],
             ['Dress', '', '', '', 'Size', 'L', 'Color', 'Red', 'DR-L-R', '', '2', '1'],
             ['Dress', '', '', '', 'Size', 'M', 'Color', 'Black', 'DR-M-B', '510', '0', '1'],
             ['Belt', '80', '', '', '', '', '', '', '', '', '7', '1']];
@@ -389,7 +461,8 @@ class CatalogPowerToolsTest extends TestCase
         $this->assertSame(4, $dress->variants[0]->stock_quantity);
         $this->assertSame(['Size', 'Color'], array_column($dress->option_display, 'name'));
         $this->assertSame(['M', 'L'], array_column($dress->option_display[0]['values'], 'value'));
-        $this->assertSame('Women', $dress->category->name);
+        $this->assertSame('Women, dresses', $dress->category->name);
+        $this->assertDatabaseCount('categories', 1);
         $this->assertSame(7, Product::query()->findOrFail($ids[1])->stock_quantity);
         // Re-importing the same SKUs as new products is refused per row; update mode is the way to change them.
         $again = $this->post($this->base.'/sheet-import/create/preview', ['file' => $this->csv($sheet)], $this->auth)->assertOk()->json('data.rows');
