@@ -3,13 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessStorePhoneBlockImport;
 use App\Models\Store;
 use App\Models\StorePhoneBlock;
 use App\Models\StorePhoneBlockEvent;
+use App\Models\StorePhoneBlockImport;
 use App\Services\Commerce\OrderLimits;
+use App\Services\Commerce\PhoneBlockImports;
 use App\Services\Commerce\PhoneBlocking;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StorePhoneBlockController extends Controller
 {
@@ -78,5 +82,42 @@ class StorePhoneBlockController extends Controller
 
         return response()->json(['data' => collect($page->items())->map(fn ($event) => ['id' => $event->id, 'action' => $event->action, 'note' => $event->note, 'version' => $event->version,
             'actor' => $event->actor?->name, 'created_at' => $event->created_at])->all(), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]], 200, ['Cache-Control' => 'private, no-store']);
+    }
+
+    /** CSV/XLSX import of many numbers (100k+ rows), processed in the background with progress. */
+    public function import(Request $request, PhoneBlockImports $imports): JsonResponse
+    {
+        $store = $this->store($request);
+        $data = $request->validate(['file' => ['required', 'file', 'extensions:csv,txt,xlsx', 'max:'.PhoneBlockImports::MAX_KILOBYTES], 'request_key' => ['required', 'uuid']]);
+        $row = $imports->request($store, $request->user(), $request->file('file'), $this->scope($request), $data['request_key']);
+        if ($row->wasRecentlyCreated) {
+            ProcessStorePhoneBlockImport::dispatchAfterResponse($row->id);
+        }
+
+        return response()->json(['data' => $imports->present($row)], 202, ['Cache-Control' => 'private, no-store']);
+    }
+
+    public function imports(Request $request, PhoneBlockImports $imports): JsonResponse
+    {
+        $store = $this->store($request);
+        $rows = StorePhoneBlockImport::query()->where('store_id', $store->id)->where('scope', $this->scope($request))->orderByDesc('created_at')->limit(10)->get();
+
+        return response()->json(['data' => $rows->map(fn ($row) => $imports->present($row))->all()], 200, ['Cache-Control' => 'private, no-store']);
+    }
+
+    public function showImport(Request $request, Store $store, string $import, PhoneBlockImports $imports): JsonResponse
+    {
+        $store = $this->store($request);
+        $row = StorePhoneBlockImport::query()->where('store_id', $store->id)->where('scope', $this->scope($request))->findOrFail($import);
+
+        return response()->json(['data' => $imports->present($row)], 200, ['Cache-Control' => 'private, no-store']);
+    }
+
+    public function export(Request $request, PhoneBlockImports $imports): StreamedResponse
+    {
+        $store = $this->store($request);
+        $data = $request->validate(['status' => ['nullable', 'in:active,inactive,all']]);
+
+        return $imports->export($store, $this->scope($request), $data['status'] ?? 'all');
     }
 }

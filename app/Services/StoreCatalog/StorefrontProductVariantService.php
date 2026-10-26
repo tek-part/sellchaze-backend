@@ -139,6 +139,34 @@ class StorefrontProductVariantService
         return $count;
     }
 
+    /** Reorders every option of the product at once; identities, prices and inventory never change. */
+    public function reorder(Product $product, array $targets): int
+    {
+        $count = DB::transaction(function () use ($product, $targets) {
+            $current = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $variants = $current->variants()->lockForUpdate()->get()->keyBy('id');
+            $ids = array_map('intval', array_column($targets, 'id'));
+            if ($variants->count() !== count($ids) || $variants->keys()->diff($ids)->isNotEmpty()) {
+                throw ValidationException::withMessages(['variants' => 'Order every option of this product. Refresh the list and try again.']);
+            }
+            foreach ($targets as $target) {
+                $this->assertVersion($variants->get((int) $target['id']), $target['version']);
+            }
+            foreach ($ids as $position => $id) {
+                $variant = $variants->get($id);
+                if ($variant->position !== $position) {
+                    $variant->position = $position;
+                    $variant->save();
+                }
+            }
+
+            return count($ids);
+        });
+        $this->flush($product);
+
+        return $count;
+    }
+
     private function assertVersion(ProductVariant $variant, ?string $version): void
     {
         if ($version !== null && ! hash_equals($variant->editVersion(), $version)) {

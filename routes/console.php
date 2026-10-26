@@ -16,3 +16,4 @@ Schedule::command('store:tracking-deliver --prune')->daily()->withoutOverlapping
 Schedule::command('store-orders:export')->everyMinute()->withoutOverlapping();
 Schedule::command('store-orders:export --prune')->daily()->withoutOverlapping();
 Schedule::command('email-campaigns:dispatch')->everyMinute()->withoutOverlapping();
+Schedule::command('store-phone-blocks:import')->everyMinute()->withoutOverlapping();

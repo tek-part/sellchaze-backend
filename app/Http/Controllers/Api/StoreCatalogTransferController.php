@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Services\StoreCatalog\CatalogExchangeReader;
+use App\Services\StoreCatalog\CatalogSheet;
 use App\Services\StoreCatalog\CatalogTransfer;
 use Illuminate\Http\Request;
 use OpenSpout\Common\Entity\Row;
@@ -44,6 +45,32 @@ class StoreCatalogTransferController extends Controller
             @unlink($path);
             throw $error;
         }
+    }
+
+    /** Flat XLSX/CSV sheet with one row per option, for editing and re-importing. */
+    public function sheetExport(Request $request, Store $store, CatalogSheet $sheet)
+    {
+        $data = $request->validate(['format' => ['required', 'in:xlsx,csv'], 'product_ids' => ['sometimes', 'array', 'list', 'min:1', 'max:'.CatalogSheet::MAX_EXPORT_ROWS],
+            'product_ids.*' => ['integer', 'min:1', 'distinct'], 'category_id' => ['sometimes', 'nullable', 'integer', 'min:1']]);
+        [$path, $name] = $sheet->export($data['product_ids'] ?? null, $data['category_id'] ?? null, $data['format']);
+
+        return response()->download($path, $name, ['Content-Type' => $data['format'] === 'csv' ? 'text/csv; charset=UTF-8' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff'])->deleteFileAfterSend();
+    }
+
+    /** Dry run of an XLSX/CSV sheet. The route's permission depends on the mode (update or create). */
+    public function sheetPreview(Request $request, Store $store, string $mode)
+    {
+        $request->validate(['file' => ['required', 'file', 'extensions:csv,xlsx', 'max:8192']]);
+
+        return response()->json(['data' => $this->transfer->sheetPreview($request->file('file'), $mode, $store, $request->user())], 200, ['Cache-Control' => 'private, no-store'], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function sheetImport(Request $request, Store $store, string $mode)
+    {
+        $request->validate(['file' => ['required', 'file', 'extensions:csv,xlsx', 'max:8192'], 'idempotency_key' => ['required', 'uuid']]);
+
+        return response()->json(['meta' => $this->transfer->sheetImport($request->file('file'), $mode, $request->input('idempotency_key'), $store, $request->user())], 201, [], JSON_UNESCAPED_UNICODE);
     }
 
     public function export(Request $request, Store $store)

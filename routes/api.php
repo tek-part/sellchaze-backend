@@ -74,6 +74,7 @@ use App\Http\Controllers\Api\StoreAppSettingsController;
 use App\Http\Controllers\Api\StoreArticlesApiController;
 use App\Http\Controllers\Api\StoreBotProtectionController;
 use App\Http\Controllers\Api\StoreCarrierController;
+use App\Http\Controllers\Api\StoreCatalogPriceChangeController;
 use App\Http\Controllers\Api\StoreCatalogTransferController;
 use App\Http\Controllers\Api\StoreCategoriesApiController;
 use App\Http\Controllers\Api\StoreCheckoutFieldsController;
@@ -812,6 +813,26 @@ Route::prefix('v1')->group(function () {
                 Route::middleware('store.catalog.permission:products-edit')->put('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'update'])->whereNumber(['product', 'variant']);
                 Route::middleware('store.catalog.permission:products-delete')->delete('{product}/variants/{variant}', [StorefrontProductVariantsApiController::class, 'destroy'])->whereNumber(['product', 'variant']);
             });
+            // ---- G3 Catalog power tools (TAR-036): option order, bulk prices, category membership, sheets, phone imports ----
+            Route::prefix('catalog/products')->group(function () {
+                Route::middleware('store.catalog.permission:products-edit')->put('{product}/variants/order', [StorefrontProductVariantsApiController::class, 'reorder'])->whereNumber('product');
+                Route::middleware('store.catalog.permission:products-list')->get('price-changes', [StoreCatalogPriceChangeController::class, 'index']);
+                Route::middleware(['store.catalog.permission:products-edit', 'throttle:60,1'])->post('price-changes/preview', [StoreCatalogPriceChangeController::class, 'preview']);
+                Route::middleware(['store.catalog.permission:products-edit', 'throttle:20,1'])->post('price-changes', [StoreCatalogPriceChangeController::class, 'apply']);
+                Route::middleware(['store.catalog.permission:products-edit', 'throttle:20,1'])->post('price-changes/{change}/revert', [StoreCatalogPriceChangeController::class, 'revert'])->whereNumber('change');
+                Route::middleware(['store.catalog.permission:products-list', 'throttle:20,1'])->post('sheet-export', [StoreCatalogTransferController::class, 'sheetExport']);
+                Route::middleware(['store.catalog.permission:products-edit', 'throttle:30,1'])->post('sheet-import/update/preview', [StoreCatalogTransferController::class, 'sheetPreview'])->defaults('mode', 'update');
+                Route::middleware(['store.catalog.permission:products-edit', 'throttle:20,1'])->post('sheet-import/update', [StoreCatalogTransferController::class, 'sheetImport'])->defaults('mode', 'update');
+                Route::middleware(['store.catalog.permission:products-create', 'throttle:30,1'])->post('sheet-import/create/preview', [StoreCatalogTransferController::class, 'sheetPreview'])->defaults('mode', 'create');
+                Route::middleware(['store.catalog.permission:products-create', 'throttle:20,1'])->post('sheet-import/create', [StoreCatalogTransferController::class, 'sheetImport'])->defaults('mode', 'create');
+            });
+            foreach (['blocked-phone-numbers', 'blocked-phones'] as $phoneList) {
+                Route::get($phoneList.'/imports', [StorePhoneBlockController::class, 'imports']);
+                Route::post($phoneList.'/imports', [StorePhoneBlockController::class, 'import'])->middleware('throttle:10,1');
+                Route::get($phoneList.'/imports/{import}', [StorePhoneBlockController::class, 'showImport'])->whereUuid('import');
+                Route::get($phoneList.'/export', [StorePhoneBlockController::class, 'export'])->middleware('throttle:10,1');
+            }
+            // ---- end G3 Catalog power tools ----
             Route::middleware('store.catalog.permission:products-list')->get('catalog/inventory', [StoreInventoryController::class, 'index']);
             Route::middleware('store.catalog.permission:products-list')->get('catalog/inventory/{product}/history', [StoreInventoryController::class, 'history'])->whereNumber('product');
             Route::middleware('store.catalog.permission:products-edit')->put('catalog/inventory/{product}', [StoreInventoryController::class, 'update'])->whereNumber('product');
