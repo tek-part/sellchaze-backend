@@ -49,7 +49,7 @@ class StoreGeneralSettingsTest extends TestCase
     private function payload(array $changes = []): array
     {
         $data = app(MerchantGeneralSettings::class)->data($this->store->fresh());
-        unset($data['logo_url'], $data['favicon_url'], $data['bot_credentials_configured']);
+        unset($data['logo_url'], $data['banner_url'], $data['favicon_url'], $data['bot_credentials_configured']);
 
         return array_replace($data, $changes);
     }
@@ -190,5 +190,47 @@ class StoreGeneralSettingsTest extends TestCase
         $this->assertSame('EGP', $this->store->fresh()->currency);
         $this->putJson($this->endpoint, $this->payload(['currency' => 'XYZ']))->assertUnprocessable()->assertJsonValidationErrors('currency');
         $this->assertFalse(CurrencyRate::where('currency_code', 'EGP')->exists());
+    }
+
+    public function test_header_mode_can_be_chosen_including_back_to_the_theme_header(): void
+    {
+        $this->getJson($this->endpoint)->assertOk()->assertJsonPath('data.header_mode', 'theme');
+
+        $this->putJson($this->endpoint, $this->payload(['header_mode' => 'custom', 'header_text' => 'Free delivery today']))->assertOk()
+            ->assertJsonPath('data.header_mode', 'custom')->assertJsonPath('data.header_text', 'Free delivery today');
+
+        // Back to the theme's own header: the text is kept for later but no longer shown.
+        $this->putJson($this->endpoint, $this->payload(['header_mode' => 'theme']))->assertOk()->assertJsonPath('data.header_mode', 'theme');
+        $saved = $this->store->fresh();
+        $this->assertSame('theme', $saved->header_mode);
+        $this->assertSame('Free delivery today', $saved->header_text);
+        $this->assertSame('theme', $saved->identity()['header_mode']);
+
+        $this->putJson($this->endpoint, $this->payload(['header_mode' => 'hidden']))->assertOk();
+        $this->assertSame('hidden', $this->store->fresh()->header_mode);
+
+        $this->putJson($this->endpoint, $this->payload(['header_mode' => 'banner']))->assertStatus(422)->assertJsonValidationErrors('header_mode');
+        $this->assertSame('hidden', $this->store->fresh()->header_mode);
+    }
+
+    public function test_banner_can_be_uploaded_replaced_and_removed(): void
+    {
+        $this->postJson($this->endpoint, ['_method' => 'PUT', ...$this->payload(['banner' => UploadedFile::fake()->image('hero.jpg', 1600, 600)])])->assertOk();
+        $first = $this->store->fresh()->banner;
+        $this->assertNotNull($first);
+        Storage::disk('public')->assertExists($first);
+        $this->getJson($this->endpoint)->assertOk()->assertJsonPath('data.banner_url', Storage::disk('public')->url($first));
+
+        $this->postJson($this->endpoint, ['_method' => 'PUT', ...$this->payload(['banner' => UploadedFile::fake()->image('hero2.webp', 1600, 600)])])->assertOk();
+        $second = $this->store->fresh()->banner;
+        $this->assertNotSame($first, $second);
+        Storage::disk('public')->assertMissing($first);
+
+        $this->postJson($this->endpoint, ['_method' => 'PUT', ...$this->payload(['banner' => UploadedFile::fake()->image('x.png'), 'remove_banner' => true])])->assertStatus(422);
+        $this->assertSame($second, $this->store->fresh()->banner);
+
+        $this->postJson($this->endpoint, ['_method' => 'PUT', ...$this->payload(['remove_banner' => true])])->assertOk()->assertJsonPath('data.banner_url', null);
+        $this->assertNull($this->store->fresh()->banner);
+        Storage::disk('public')->assertMissing($second);
     }
 }
