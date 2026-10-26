@@ -22,11 +22,12 @@ class StoreOrderService
         'confirmed' => ['processing', 'cancelled'],
         'processing' => ['waiting_for_pickup', 'shipped', 'cancelled'],
         'waiting_for_pickup' => ['shipped', 'cancelled'],
-        'shipped' => ['delivered', 'returning_from_delivery'],
-        'delivered' => ['request_refund'],
+        // `refunded` from shipped/delivered/request_refund lets a recorded full refund close the order.
+        'shipped' => ['delivered', 'returning_from_delivery', 'refunded'],
+        'delivered' => ['request_refund', 'refunded'],
         'cancelled' => [],
         'returning_from_delivery' => ['refunded'],
-        'request_refund' => ['refund_in_progress'],
+        'request_refund' => ['refund_in_progress', 'refunded'],
         'refund_in_progress' => ['refunded'],
         'refunded' => [],
     ];
@@ -71,11 +72,12 @@ class StoreOrderService
      * Apply a status transition and record it in the order's timeline. The
      * single audit point for every status change — merchant-driven changes pass
      * the acting user and an optional internal note; customer self-service
-     * cancels pass neither (actor stays null = customer-initiated).
+     * cancels pass neither (actor stays null = customer-initiated). Recorded refunds pass
+     * `$notifyCustomer = false` when no money changed hands (a failed cash-on-delivery return).
      */
-    public function transition(StoreOrder $order, string $to, ?int $actorId = null, ?string $note = null, ?string $source = null): StoreOrder
+    public function transition(StoreOrder $order, string $to, ?int $actorId = null, ?string $note = null, ?string $source = null, bool $notifyCustomer = true): StoreOrder
     {
-        return DB::transaction(function () use ($order, $to, $actorId, $note, $source) {
+        return DB::transaction(function () use ($order, $to, $actorId, $note, $source, $notifyCustomer) {
             $current = StoreOrder::query()->where('store_id', $order->store_id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
             $order->setRawAttributes($current->getAttributes(), true);
             if ($source === 'customer' && ! in_array($order->status, self::CUSTOMER_CANCELLABLE, true)) {
@@ -108,7 +110,9 @@ class StoreOrderService
             DB::afterCommit(fn () => StoreAnalyticsService::forget($order->store_id));
             $order->store?->owner?->notify(new StoreOrderActivity($order, 'status_changed'));
             app(StoreOrderWebhooks::class)->statusChanged($order, $from, (int) $change->id);
-            app(StoreNotificationSettings::class)->statusChanged($order, $to);
+            if ($notifyCustomer) {
+                app(StoreNotificationSettings::class)->statusChanged($order, $to);
+            }
 
             return $order;
         });

@@ -36,6 +36,7 @@ class StoreOrderLimitsController extends Controller
             'minimum_order_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'],
             'max_product_quantity' => ['required', 'integer', 'min:0', 'max:100000'],
             'max_orders_per_phone_24h' => ['required', 'integer', 'min:0', 'max:100000'],
+            'return_window_days' => ['sometimes', 'integer', 'min:0', 'max:365'],
             'phone_country' => ['required', 'string', Rule::in(PhoneNumberUtil::getInstance()->getSupportedRegions())]]);
         $config = ['max_product_quantity' => (int) $data['max_product_quantity'],
             'max_orders_per_phone_24h' => (int) $data['max_orders_per_phone_24h'], 'phone_country' => $data['phone_country']];
@@ -44,7 +45,8 @@ class StoreOrderLimitsController extends Controller
             $current = $limits->configured($locked);
             abort_if(isset($data['version']) && (int) $data['version'] !== $current['version'], 409, 'Order limits changed. Reload the current settings before saving.');
             $minimum = array_key_exists('minimum_order_amount', $data) ? bcadd((string) ($data['minimum_order_amount'] ?? '0'), '0', 2) : $current['minimum_order_amount'];
-            $locked->update(['order_limits' => $config + ['minimum_order_amount' => $minimum, 'version' => $current['version'] + 1]]);
+            $window = array_key_exists('return_window_days', $data) ? (int) $data['return_window_days'] : $current['return_window_days'];
+            $locked->update(['order_limits' => $config + ['minimum_order_amount' => $minimum, 'return_window_days' => $window, 'version' => $current['version'] + 1]]);
         });
         StorefrontService::forgetHomepage($store->id);
         $request->attributes->set('store', $store->fresh());

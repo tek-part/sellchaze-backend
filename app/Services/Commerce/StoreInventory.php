@@ -110,6 +110,31 @@ class StoreInventory
         }
     }
 
+    /**
+     * Put refunded units of a shipped (committed) physical line back on the shelf. The caller holds
+     * the order lock; this locks product then variant like settle(). Returns the units restocked:
+     * 0 when the line was never deducted, is digital, or its catalog row/tracking no longer exists.
+     */
+    public function restock(StoreOrderItem $item, int $quantity, ?int $actorId = null, ?string $note = null): int
+    {
+        if ($quantity < 1 || $item->inventory_status !== 'committed' || $item->digital_delivery !== null || $item->store_product_id === null) {
+            return 0;
+        }
+        $product = Product::query()->where('store_id', $item->store_id)->whereKey($item->store_product_id)->lockForUpdate()->first();
+        $stock = $item->variant_id === null ? $product : ProductVariant::query()->where('store_id', $item->store_id)
+            ->where('store_product_id', $item->store_product_id)->whereKey($item->variant_id)->lockForUpdate()->first();
+        // Deleted or untracked catalog rows cannot manufacture stock on a replacement product.
+        if ($stock === null || ! $stock->track_inventory) {
+            return 0;
+        }
+        $stock->stock_quantity += $quantity;
+        $stock->save();
+        $this->record($stock, 'refund_restock', $quantity, 0, $item->id, $actorId, $note);
+        $this->flushAfterCommit($item->store_id);
+
+        return $quantity;
+    }
+
     public function adjust(Product|ProductVariant $stock, array $input, int $actorId, bool $flush = true): void
     {
         // Caller locks product then variant. Reject stale stock forms instead of losing changes.
