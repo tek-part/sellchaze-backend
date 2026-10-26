@@ -35,14 +35,17 @@ class StoreCouponRequest extends FormRequest
             return $data;
         }
         $data['method'] ??= 'code';
-        $data['applies_to'] ??= 'all';
+        // An update that leaves out the scope keeps the stored one; an empty scope still means all.
+        if ($this->route('coupon') === null || array_key_exists('applies_to', $data)) {
+            $data['applies_to'] ??= 'all';
+        }
         if (! in_array($data['type'], ['fixed', 'percentage'], true)) {
             $data['value'] = 0;
         }
         if ($data['type'] !== 'buy_x_get_y') {
             $data['bxgy'] = null;
         }
-        if ($data['applies_to'] === 'all') {
+        if (($data['applies_to'] ?? null) === 'all') {
             $data['target_ids'] = null;
         }
         if ($data['method'] === 'automatic') {

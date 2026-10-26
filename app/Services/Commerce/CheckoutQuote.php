@@ -70,9 +70,14 @@ class CheckoutQuote
         }
         $discounts = $this->discounts->evaluate($store, array_map(fn (array $line) => ['product_id' => (int) $line['product_id'], 'quantity' => (int) $line['quantity'], 'unit_price' => (string) $line['unit_price']], $lines), $coupon, $customer);
         $discount = $discounts['discount'];
+        $productFreeShipping = $requiresShipping && $allPhysicalFree;
+        // A free-shipping discount is reported only when it lowers the delivery price.
+        $shippingTotal = fn (bool $free) => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, true, $offerFreeShipping || $free, $productFreeShipping, $weightGrams)['shipping_total'];
+        if ($discounts['free_shipping'] && (! $requiresShipping || bccomp($shippingTotal(false), $shippingTotal(true), 2) <= 0)) {
+            $discounts = DiscountEngine::withoutFreeShipping($discounts);
+        }
         $offerFreeShipping = $offerFreeShipping || $discounts['free_shipping'];
 
-        $productFreeShipping = $requiresShipping && $allPhysicalFree;
         $breakdown = $this->pricing->breakdown($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping, $weightGrams);
         $totals = $breakdown['totals'];
         $tender = app(GiftCards::class)->quote($store, $giftCards, $totals['grand_total'], $store->currency ?: 'USD');

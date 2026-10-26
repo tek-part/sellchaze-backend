@@ -9,7 +9,9 @@ use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\StoreOrder;
 use App\Models\User;
+use App\Services\Commerce\DiscountEngine;
 use App\Services\JwtTokenService;
+use App\Support\Tenancy\CurrentStore;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -224,5 +226,108 @@ class StoreDiscountsTest extends TestCase
             ->assertCreated()->assertJsonPath('data.bxgy.get_ids.0', $this->cap->id);
         $this->admin()->getJson("{$base}?method=automatic")->assertOk()->assertJsonPath('meta.total', 1);
         $this->admin()->getJson("{$base}?type=free_shipping")->assertOk()->assertJsonPath('meta.total', 1);
+    }
+
+    public function test_buy_x_get_y_on_a_huge_cart_is_evaluated_quickly(): void
+    {
+        $this->discount(['method' => 'automatic', 'code' => null, 'title' => 'B2G1', 'type' => 'buy_x_get_y', 'value' => 0, 'bxgy' => [
+            'buy_quantity' => 2, 'buy_applies_to' => 'all', 'get_quantity' => 1, 'get_applies_to' => 'all', 'get_percent' => 100,
+        ]]);
+        // 100 lines priced 1..100, 999 units each: 33,300 sets, the cheapest 33,300 units free.
+        $lines = array_map(fn (int $i) => ['product_id' => 100000 + $i, 'quantity' => 999, 'unit_price' => "{$i}.00"], range(1, 100));
+
+        app(CurrentStore::class)->set($this->store);
+        $started = microtime(true);
+        $result = app(DiscountEngine::class)->evaluate($this->store, $lines, null, null);
+        $this->assertLessThan(1.0, microtime(true) - $started);
+        app(CurrentStore::class)->forget();
+        $this->assertSame(bcadd(bcmul('999', (string) array_sum(range(1, 33)), 2), bcmul('333', '34', 2), 2), $result['discount']);
+    }
+
+    public function test_buy_x_get_y_discounts_an_item_in_both_scopes_when_the_rest_can_pay(): void
+    {
+        // Buy 2 of anything, get an accessory at half price: the watch is the discounted item.
+        $accessories = Category::create(['store_id' => $this->store->id, 'name' => 'Accessories', 'slug' => 'accessories']);
+        $watch = $this->product('watch', '200.00', $accessories->id);
+        $shirt = $this->product('shirt', '50.00');
+        $this->discount(['code' => 'ACC', 'type' => 'buy_x_get_y', 'value' => 0, 'bxgy' => [
+            'buy_quantity' => 2, 'buy_applies_to' => 'all', 'get_quantity' => 1, 'get_applies_to' => 'categories', 'get_ids' => [$accessories->id], 'get_percent' => 50,
+        ]]);
+
+        $this->quote([[$watch, 1], [$shirt, 2]], 'acc')->assertOk()->assertJsonPath('data.totals.discount_total', '100.00');
+        // An item that only qualifies to pay is never given away.
+        $this->discount(['code' => 'SHIRTS', 'type' => 'buy_x_get_y', 'value' => 0, 'bxgy' => [
+            'buy_quantity' => 1, 'buy_applies_to' => 'products', 'buy_ids' => [$shirt->id], 'get_quantity' => 1, 'get_applies_to' => 'all', 'get_percent' => 100,
+        ]]);
+        $this->quote([[$shirt, 1], [$this->cap, 1]], 'shirts')->assertOk()->assertJsonPath('data.totals.discount_total', '20.00');
+    }
+
+    public function test_percentage_amounts_round_half_up_to_cents(): void
+    {
+        $odd = $this->product('odd', '33.33');
+        $this->discount(['code' => 'FIFTEEN', 'type' => 'percentage', 'value' => '15.00']);
+        $this->discount(['code' => 'HALF', 'type' => 'buy_x_get_y', 'value' => 0, 'bxgy' => [
+            'buy_quantity' => 1, 'buy_applies_to' => 'all', 'get_quantity' => 1, 'get_applies_to' => 'all', 'get_percent' => 50,
+        ]]);
+
+        // 15% of 33.33 is 4.9995.
+        $this->quote([[$odd, 1]], 'fifteen')->assertOk()->assertJsonPath('data.totals.discount_total', '5.00');
+        // Half of three units is rounded on the line (49.995), not per unit (3 x 16.665).
+        $this->quote([[$odd, 6]], 'half')->assertOk()->assertJsonPath('data.totals.discount_total', '50.00');
+    }
+
+    public function test_a_guest_who_used_up_an_automatic_discount_is_refused_instead_of_charged_more(): void
+    {
+        $this->discount(['method' => 'automatic', 'code' => null, 'title' => 'Once each', 'type' => 'percentage', 'value' => '10.00', 'max_uses_per_customer' => 1]);
+        $host = 'http://alpha.sellchase.com/api/v1/storefront';
+        $checkout = function () use ($host) {
+            $headers = ['X-Cart-Token' => $this->postJson("{$host}/cart/items", ['store_product_id' => $this->tee->id, 'quantity' => 1])->assertCreated()->json('data.token')];
+
+            return $this->postJson("{$host}/checkout", ['customer_name' => 'C', 'customer_email' => 'c@example.com', 'customer_phone' => '+201000000001',
+                'shipping_address' => ['line1' => '1 Street', 'city' => 'Cairo', 'country' => 'EG']], $headers);
+        };
+
+        $checkout()->assertCreated()->assertJsonPath('data.discount_total', '10.00');
+        // The quote cannot know the guest yet, so it still shows the discount ...
+        $this->quote([[$this->tee, 1]])->assertOk()->assertJsonPath('data.totals.discount_total', '10.00');
+        // ... and placing the order refuses rather than silently charging the full price.
+        $checkout()->assertStatus(422)->assertJsonValidationErrors('coupon');
+        $this->assertSame(1, StoreOrder::withoutGlobalScopes()->count());
+    }
+
+    public function test_free_shipping_is_not_used_up_when_delivery_is_already_free(): void
+    {
+        $this->store->update(['shipping_free_over' => '50.00']);
+        $free = $this->discount(['method' => 'automatic', 'code' => null, 'title' => 'Free delivery', 'type' => 'free_shipping', 'value' => 0]);
+        $host = 'http://alpha.sellchase.com/api/v1/storefront';
+
+        $this->quote([[$this->tee, 1]])->assertOk()->assertJsonPath('data.totals.shipping_total', '0.00')->assertJsonCount(0, 'data.discounts');
+        $headers = ['X-Cart-Token' => $this->postJson("{$host}/cart/items", ['store_product_id' => $this->tee->id, 'quantity' => 1])->assertCreated()->json('data.token')];
+        $order = $this->postJson("{$host}/checkout", ['customer_name' => 'C', 'customer_email' => 'c@example.com', 'customer_phone' => '+201000000001',
+            'shipping_address' => ['line1' => '1 Street', 'city' => 'Cairo', 'country' => 'EG']], $headers);
+        $order->assertCreated()->assertJsonPath('data.shipping_total', '0.00');
+
+        $this->assertNull(StoreOrder::withoutGlobalScopes()->findOrFail($order->json('data.id'))->discount_details);
+        $this->assertDatabaseMissing('coupon_usages', ['coupon_id' => $free->id]);
+        // Below the threshold the discount waives the delivery price and is used.
+        $this->quote([[$this->cap, 1]])->assertOk()->assertJsonPath('data.totals.shipping_total', '0.00')->assertJsonPath('data.discounts.0.type', 'free_shipping');
+    }
+
+    public function test_updating_a_discount_without_a_scope_keeps_its_scope(): void
+    {
+        $base = "/api/v1/stores/{$this->store->id}/coupons";
+        $id = $this->admin()->postJson($base, ['code' => 'caps', 'type' => 'fixed', 'value' => 5, 'applies_to' => 'products', 'target_ids' => [$this->cap->id]])
+            ->assertCreated()->json('data.id');
+
+        $this->admin()->putJson("{$base}/{$id}", ['code' => 'caps', 'type' => 'fixed', 'value' => 7])->assertOk();
+        $coupon = Coupon::query()->withoutGlobalScopes()->findOrFail($id);
+        $this->assertSame('products', $coupon->applies_to);
+        $this->assertSame([$this->cap->id], array_map('intval', (array) $coupon->target_ids));
+        $this->assertSame('7.00', (string) $coupon->value);
+
+        // An explicitly empty scope still means the whole store.
+        $this->admin()->putJson("{$base}/{$id}", ['code' => 'caps', 'type' => 'fixed', 'value' => 7, 'applies_to' => null])->assertOk();
+        $this->assertSame('all', $coupon->fresh()->applies_to);
+        $this->assertNull($coupon->fresh()->target_ids);
     }
 }
