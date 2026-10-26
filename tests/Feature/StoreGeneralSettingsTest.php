@@ -159,6 +159,17 @@ class StoreGeneralSettingsTest extends TestCase
         $this->assertSame($path, $this->store->fresh()->banner);
     }
 
+    public function test_an_admin_reads_and_updates_general_settings_in_the_store_scope(): void
+    {
+        $admin = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
+        $admin->assignRole('Admin');
+        $this->withToken(JwtTokenService::fromConfig()->issueAccessToken($admin));
+        $endpoint = '/api/v1/stores/'.$this->store->id.'/general-settings';
+        $this->getJson($endpoint)->assertOk()->assertJsonStructure(['data' => ['revision', 'site_title'], 'choices' => ['currencies']]);
+        $this->putJson($endpoint, $this->payload(['site_title' => 'Admin title']))->assertOk()->assertJsonPath('data.site_title', 'Admin title');
+        $this->assertSame('Admin title', $this->store->fresh()->site_title);
+    }
+
     public function test_another_merchant_cannot_read_or_update_this_store(): void
     {
         $payload = $this->payload(['site_title' => 'Foreign overwrite']);
