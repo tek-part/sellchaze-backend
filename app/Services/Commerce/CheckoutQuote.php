@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Models\Store;
 use App\Models\StoreCustomer;
+use App\Services\Commerce\Apps\CountryRestriction;
 use Illuminate\Validation\ValidationException;
 
 /** Live prices and totals without creating or changing the shopper's cart. */
@@ -55,6 +56,10 @@ class CheckoutQuote
                 'personalization' => ProductPersonalization::present($custom['snapshot'], $store->id), 'personalization_key' => $custom['key'],
                 'name' => $selection['name'], 'unit_price' => $selection['price'], 'quantity' => $quantity, 'line_total' => $lineTotal];
         }
+        $restriction = app(CountryRestriction::class);
+        $restriction->assertVisitor($store, $shippingSelection['client_ip'] ?? null);
+        // A quote is computed before the shopper finishes the form: only a chosen country can be refused.
+        $restriction->assertDelivery($store, $restriction->deliveryCountry($store, $shippingSelection, $shippingSelection['shipping_country'] ?? null), $requiresShipping, false);
         $coupon = null;
         if ($code !== null && trim($code) !== '') {
             $coupon = $this->coupons->resolveActive($code);

@@ -17,6 +17,10 @@ use Illuminate\Support\Facades\Storage;
  * @property array<string,mixed>|null $head_code_configuration
  * @property array<string,mixed>|null $shipping_configuration
  * @property array<string,mixed>|null $downsell_configuration
+ * @property array<string,mixed>|null $social_proof_configuration
+ * @property array<string,mixed>|null $country_restriction_configuration
+ * @property array<string,mixed>|null $order_protection_configuration
+ * @property array<string,mixed>|null $bundles_configuration
  * @property array<string,mixed>|null $dashboard_preferences
  * @property array<string,mixed>|null $digital_delivery_configuration
  * @property array<string,mixed>|null $digital_delivery_credentials
@@ -58,6 +62,7 @@ class Store extends Model
         'tracking_configuration', 'tracking_credentials',
         'google_merchant_configuration',
         'social_links_configuration', 'head_code_configuration',
+        'social_proof_configuration', 'country_restriction_configuration', 'order_protection_configuration', 'bundles_configuration',
     ];
 
     protected $casts = [
@@ -82,6 +87,10 @@ class Store extends Model
         'checkout_fields' => 'array',
         'shipping_configuration' => 'array',
         'downsell_configuration' => 'array',
+        'social_proof_configuration' => 'array',
+        'country_restriction_configuration' => 'array',
+        'order_protection_configuration' => 'array',
+        'bundles_configuration' => 'array',
         'dashboard_preferences' => 'array',
         'is_primary' => 'boolean',
         'supported_locales' => 'array',
@@ -96,7 +105,7 @@ class Store extends Model
         'shipping_free_over' => 'decimal:2',
     ];
 
-    protected $hidden = ['digital_delivery_credentials', 'phone_otp_credentials', 'phone_otp_configuration', 'bot_protection_configuration', 'bot_protection_credentials', 'tracking_configuration', 'tracking_credentials', 'google_merchant_configuration', 'social_links_configuration', 'head_code_configuration'];
+    protected $hidden = ['digital_delivery_credentials', 'phone_otp_credentials', 'phone_otp_configuration', 'bot_protection_configuration', 'bot_protection_credentials', 'tracking_configuration', 'tracking_credentials', 'google_merchant_configuration', 'social_links_configuration', 'head_code_configuration', 'social_proof_configuration', 'country_restriction_configuration', 'order_protection_configuration', 'bundles_configuration'];
 
     /** Task 6: any store change (status, name, settings...) invalidates its page cache. */
     protected static function booted(): void

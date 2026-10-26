@@ -68,6 +68,7 @@ use App\Http\Controllers\Api\StoreAbTestsController;
 use App\Http\Controllers\Api\StoreAnalyticsController;
 use App\Http\Controllers\Api\StoreApiKeysController;
 use App\Http\Controllers\Api\StoreAppsController;
+use App\Http\Controllers\Api\StoreAppSettingsController;
 use App\Http\Controllers\Api\StoreArticlesApiController;
 use App\Http\Controllers\Api\StoreBotProtectionController;
 use App\Http\Controllers\Api\StoreCarrierController;
@@ -97,6 +98,7 @@ use App\Http\Controllers\Api\Storefront\PersonalizationUploadController;
 use App\Http\Controllers\Api\Storefront\PhoneVerificationController;
 use App\Http\Controllers\Api\Storefront\ProductFeedController;
 use App\Http\Controllers\Api\Storefront\ProductReviewController;
+use App\Http\Controllers\Api\Storefront\StorefrontAppsController;
 use App\Http\Controllers\Api\Storefront\StorefrontBrandController;
 use App\Http\Controllers\Api\Storefront\StorefrontCategoryController;
 use App\Http\Controllers\Api\Storefront\StorefrontCollectionController;
@@ -320,6 +322,8 @@ Route::prefix('v1')->group(function () {
         Route::get('brands', [StorefrontBrandController::class, 'index']);
         Route::get('coupons', [StorefrontCouponController::class, 'index']);
         Route::get('downsell', [DownsellController::class, 'index']);
+        Route::get('social-proof', [StorefrontAppsController::class, 'socialProof']);
+        Route::get('bundles', [StorefrontAppsController::class, 'bundles']);
 
         // ---- Engagement capture (newsletter opt-in / contact form) — guest-friendly ----
         Route::post('newsletter', [StorefrontEngagementController::class, 'subscribe']);
@@ -982,6 +986,10 @@ Route::prefix('v1')->group(function () {
             });
             Route::get('google-merchant', [GoogleMerchantController::class, 'show'])->middleware('permission:store.settings.manage');
             Route::get('apps', [StoreAppsController::class, 'index'])->middleware(['permission:store.settings.manage', 'throttle:tenant-read']);
+            Route::prefix('apps/{app}/settings')->where(['app' => 'social-proof|country-restriction|fake-orders|bundles'])->group(function () {
+                Route::get('/', [StoreAppSettingsController::class, 'show'])->middleware('throttle:tenant-read');
+                Route::put('/', [StoreAppSettingsController::class, 'update'])->middleware('throttle:30,1');
+            });
             Route::prefix('general-settings')->middleware('permission:store.settings.manage')->group(function () {
                 Route::get('/', [StoreGeneralSettingsController::class, 'index'])->middleware('throttle:tenant-read');
                 Route::put('/', [StoreGeneralSettingsController::class, 'update'])->middleware('throttle:30,1');

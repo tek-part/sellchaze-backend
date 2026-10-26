@@ -6,6 +6,8 @@ use App\Models\Store;
 use App\Models\StoreMenu;
 use App\Models\StorePage;
 use App\Models\StorePageSection;
+use App\Services\Commerce\Apps\ProductBundles;
+use App\Services\Commerce\Apps\SocialProof;
 use App\Services\Commerce\DownsellOffers;
 use App\Services\Commerce\GoogleMerchantSettings;
 use App\Services\PageBuilder\NativeFunnelTemplates;
@@ -272,6 +274,8 @@ class StorefrontContextBuilder
             'id' => $store->id,
             'identity' => $store->identity(),
             'downsell_enabled' => app(DownsellOffers::class)->enabled($store),
+            'social_proof_enabled' => app(SocialProof::class)->enabled($store),
+            'bundles_enabled' => app(ProductBundles::class)->enabled($store),
             'merchant_information' => app(GoogleMerchantSettings::class)->publicInformation($store),
             'ui_blocks' => app(UiBlocks::class)->publicConfiguration($store, $this->currentLocale($store)),
             'design_assets' => app(DesignAssets::class)->publicManifest($store),

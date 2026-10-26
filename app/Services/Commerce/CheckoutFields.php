@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Models\Store;
 use App\Models\StorePaymentGateway;
+use App\Services\Commerce\Apps\CountryRestriction;
 
 /** One field contract for the merchant editor, public form and checkout validation. */
 class CheckoutFields
@@ -67,20 +68,22 @@ class CheckoutFields
         $phoneRequired = app(OrderLimits::class)->configured($store)['max_orders_per_phone_24h'] > 0;
         $otpRequired = app(CheckoutPhoneVerification::class)->configuration($store)['enabled'];
         $blockPhoneRequired = app(PhoneBlocking::class)->hasActive($store);
+        $countryRequired = $requiresShipping && app(CountryRestriction::class)->enabled($store);
 
-        return collect($this->configured($store))->map(function (array $field) use ($online, $providerPhone, $regions, $zones, $requiresShipping, $hasDigital, $requiresWhatsapp, $phoneRequired, $phoneCountry, $blockPhoneRequired, $otpRequired) {
+        return collect($this->configured($store))->map(function (array $field) use ($online, $providerPhone, $regions, $zones, $requiresShipping, $hasDigital, $requiresWhatsapp, $phoneRequired, $phoneCountry, $blockPhoneRequired, $otpRequired, $countryRequired) {
             $field['payment_required'] = ($online && in_array($field['key'], ['name', 'email'], true)) || ($providerPhone && $field['key'] === 'phone');
             $field['digital_required'] = ($hasDigital && $field['key'] === 'email') || ($requiresWhatsapp && $field['key'] === 'phone');
             $field['order_limit_required'] = $phoneRequired && $field['key'] === 'phone';
             $field['phone_block_required'] = $blockPhoneRequired && $field['key'] === 'phone';
             $field['phone_verification_required'] = $otpRequired && $field['key'] === 'phone';
+            $field['country_restriction_required'] = $countryRequired && $field['key'] === 'country';
             if ($field['order_limit_required'] || $field['phone_block_required']) {
                 $field['hint'] = ['ar' => "أدخل رقمًا محليًا للدولة {$phoneCountry}، أو رقمًا دوليًا يبدأ بكود الدولة.", 'en' => "Enter a local number for {$phoneCountry}, or an international number with its country code."];
             }
             if (($requiresWhatsapp || $otpRequired) && $field['key'] === 'phone') {
                 $field['hint'] = ['ar' => 'أدخل رقم واتساب مع كود الدولة، مثل +201001234567.', 'en' => 'Enter your WhatsApp number with its country code, e.g. +201001234567.'];
             }
-            if ($field['payment_required'] || $field['digital_required'] || $field['order_limit_required'] || $field['phone_block_required'] || $field['phone_verification_required']) {
+            if ($field['payment_required'] || $field['digital_required'] || $field['order_limit_required'] || $field['phone_block_required'] || $field['phone_verification_required'] || $field['country_restriction_required']) {
                 $field['enabled'] = $field['required'] = true;
             }
 

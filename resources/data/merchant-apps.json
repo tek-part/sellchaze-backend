@@ -26,7 +26,6 @@
         "minimum-order",
         "whatsapp-official",
         "coupons",
-        "cloaking",
         "ai"
       ]
     },
@@ -59,8 +58,7 @@
       "app_keys": [
         "country-restriction",
         "otp",
-        "fake-orders",
-        "cloaking"
+        "fake-orders"
       ]
     },
     {
@@ -285,27 +283,27 @@
         "en": "Product bundles"
       },
       "description": {
-        "ar": "اجمع منتجات في عرض واحد وحدد المنتجات والكميات والسعر.",
-        "en": "Combine products, quantities and prices in one offer."
+        "ar": "اجمع من منتجين إلى أربعة منتجات في عرض \"يُشترى معًا\" بخصم على الحزمة.",
+        "en": "Combine two to four products in a \"frequently bought together\" offer with a bundle discount."
       },
       "categories": [
         "sales",
         "marketing-tools"
       ],
-      "route": null,
-      "available": false,
+      "route": "apps/bundles/settings",
+      "available": true,
       "reference_id": "e59dd5ad-37d9-4541-9f24-710426e69f1f",
       "icon": "/app-icons/bundles.png",
       "features": {
         "ar": [
-          "إنشاء عروض تضم عدة منتجات",
-          "اقتراح منتجات مكملة للشراء",
-          "عرض الحزمة أثناء إتمام الطلب"
+          "إنشاء عروض تضم من 2 إلى 4 منتجات",
+          "خصم الحزمة يُطبّق تلقائيًا عند وجود كل منتجاتها في السلة",
+          "عرض الحزمة في صفحة المنتج مع إضافة الكل للسلة بنقرة"
         ],
         "en": [
-          "Create offers containing multiple products",
-          "Suggest complementary products",
-          "Present bundles during checkout"
+          "Create offers of two to four products",
+          "The bundle discount applies automatically when all its products are in the cart",
+          "Show the bundle on the product page with one-click add to cart"
         ]
       },
       "gallery": [
@@ -324,27 +322,29 @@
         "en": "Sales notifications"
       },
       "description": {
-        "ar": "اعرض إشعارات المبيعات على واجهة المتجر.",
-        "en": "Show sales notifications in your storefront."
+        "ar": "اعرض إشعارات بمشتريات حقيقية حديثة من متجرك لزيادة ثقة الزوار.",
+        "en": "Show notifications of real recent purchases from your store to build visitor trust."
       },
       "categories": [
         "sales",
         "marketing-tools"
       ],
-      "route": null,
-      "available": false,
+      "route": "apps/social-proof/settings",
+      "available": true,
       "reference_id": "30f5e52d-0e3d-4054-bfee-6bed2534f24e",
       "icon": "/app-icons/social-proof.png",
       "features": {
         "ar": [
-          "إشعارات بعمليات الشراء الحديثة",
-          "تقديم دليل اجتماعي للزوار",
-          "عرض مناسب للهاتف والكمبيوتر"
+          "إشعارات مبنية على طلبات متجرك الحقيقية فقط",
+          "يظهر الحرف الأول من الاسم والمدينة فقط دون هاتف أو بريد",
+          "اختيار الصفحات والموضع وعدد مرات الظهور",
+          "يمكن للزائر إغلاق الإشعار وتحترم إعدادات تقليل الحركة"
         ],
         "en": [
-          "Notifications of recent purchases",
-          "Provide social proof to visitors",
-          "Layouts for phones and desktops"
+          "Notifications built only from your real orders",
+          "Shows a first initial and city only, never a phone or email",
+          "Choose pages, position and frequency",
+          "Visitors can dismiss it; reduced-motion preferences are respected"
         ]
       },
       "gallery": [
@@ -404,27 +404,27 @@
         "en": "Cross Selling"
       },
       "description": {
-        "ar": "اقترح منتجات إضافية مناسبة للطلب أثناء الشراء.",
-        "en": "Suggest additional products during checkout."
+        "ar": "اقترح منتجات مكملة في صفحة المنتج عبر عروض \"يُشترى معًا\".",
+        "en": "Suggest complementary products on the product page with \"frequently bought together\" offers."
       },
       "categories": [
         "sales",
         "marketing-tools"
       ],
-      "route": null,
-      "available": false,
+      "route": "apps/bundles/settings",
+      "available": true,
       "reference_id": "8e73fd5d-896c-44ef-86bb-785fb248810b",
       "icon": "/app-icons/cross-selling.png",
       "features": {
         "ar": [
-          "عرض منتجات تكمل اختيار العميل",
-          "اقتراح منتجات مرتبطة أثناء الشراء",
-          "إضافة المنتج المقترح إلى الطلب"
+          "عرض منتجات مكملة للمنتج الذي يشاهده العميل",
+          "إضافة المنتجات المقترحة إلى السلة بنقرة واحدة",
+          "تظهر المنتجات المشابهة تلقائيًا في صفحات المنتجات"
         ],
         "en": [
-          "Show products that complement the customer selection",
-          "Suggest related products while shopping",
-          "Add a suggested product to the order"
+          "Show products that complement the one being viewed",
+          "Add the suggested products to the cart in one click",
+          "Related products also appear automatically on product pages"
         ]
       },
       "gallery": [
@@ -664,45 +664,6 @@
         {
           "kind": "image",
           "src": "/app-previews/coupons-1.png",
-          "width": 752,
-          "height": 520
-        }
-      ]
-    },
-    {
-      "key": "cloaking",
-      "title": {
-        "ar": "خاصية التمويه",
-        "en": "Cloaking"
-      },
-      "description": {
-        "ar": "تحكم في المحتوى الذي يظهر للزوار والبوتات.",
-        "en": "Control content presented to visitors and bots."
-      },
-      "categories": [
-        "sales",
-        "protection"
-      ],
-      "route": null,
-      "available": false,
-      "reference_id": "d45473a9-bd4f-40bc-9b6e-3f5a6263ea1b",
-      "icon": "/app-icons/cloaking.png",
-      "features": {
-        "ar": [
-          "اختيار المحتوى الذي يظهر للزيارات الآلية",
-          "إدارة قواعد تصنيف الزوار",
-          "توجيه الزيارة وفق القواعد المحددة"
-        ],
-        "en": [
-          "Choose content presented to automated visitors",
-          "Manage visitor classification rules",
-          "Route visits according to the configured rules"
-        ]
-      },
-      "gallery": [
-        {
-          "kind": "image",
-          "src": "/app-previews/cloaking-1.png",
           "width": 752,
           "height": 520
         }
@@ -999,29 +960,33 @@
     {
       "key": "country-restriction",
       "title": {
-        "ar": "عدم استقبال طلبات من خارج دولة متجرك",
-        "en": "Restrict orders to the store country"
+        "ar": "تقييد الطلبات حسب الدولة",
+        "en": "Restrict orders by country"
       },
       "description": {
-        "ar": "حدد الدولة التي يسمح باستقبال الطلبات منها.",
-        "en": "Restrict orders to your chosen store country."
+        "ar": "اقبل الطلبات لدول التوصيل التي تختارها فقط، أو امنع دولًا محددة.",
+        "en": "Accept orders only for the delivery countries you choose, or block specific countries."
       },
       "categories": [
         "protection",
         "store-management"
       ],
-      "route": null,
-      "available": false,
+      "route": "apps/country-restriction/settings",
+      "available": true,
       "reference_id": "2748af01-d32a-4e23-a23b-09b3570458e2",
       "icon": "/app-icons/country-restriction.svg",
       "features": {
         "ar": [
-          "قبول الطلبات من دول المتجر المدعومة",
-          "تقليل الطلبات التي يتعذر شحنها"
+          "قائمة دول مسموحة أو قائمة دول ممنوعة",
+          "يُطبّق عند حساب الطلب وإتمامه حسب دولة التوصيل",
+          "فحص اختياري لدولة الزائر عند توفر قاعدة GeoIP على الخادم",
+          "رسالة واضحة للعميل في صفحة الدفع"
         ],
         "en": [
-          "Accept orders from supported store countries",
-          "Reduce orders that cannot be shipped"
+          "Allow-list or block-list of countries",
+          "Enforced at quote and placement by delivery country",
+          "Optional visitor IP country check when the server GeoIP database is available",
+          "A clear message for shoppers at checkout"
         ]
       },
       "gallery": [
@@ -1081,27 +1046,31 @@
         "en": "Fake order protection"
       },
       "description": {
-        "ar": "احم المتجر من الطلبات الوهمية وفق قواعد الحماية التي تختارها.",
-        "en": "Protect your store against fraudulent orders."
+        "ar": "قواعد تميّز الطلبات المشبوهة للمراجعة أو تمنعها برسالة لطيفة.",
+        "en": "Rules that flag suspicious orders for review or stop them with a polite message."
       },
       "categories": [
         "protection",
         "store-management"
       ],
-      "route": null,
-      "available": false,
+      "route": "apps/fake-orders/settings",
+      "available": true,
       "reference_id": "792d90ce-fb5f-4354-b3d6-cbda963874c6",
       "icon": "/app-icons/fake-orders.svg",
       "features": {
         "ar": [
-          "فحص أسماء وعناوين الطلبات آليًا",
-          "تمييز البيانات التي تحتاج مراجعة",
-          "تطبيق الفحص على نموذج الطلب"
+          "تكرار الطلبات من نفس الهاتف خلال عدد ساعات",
+          "عدد طلبات الدفع عند الاستلام المفتوحة لكل هاتف",
+          "كلمات ممنوعة في الاسم أو العنوان",
+          "كميات كبيرة بشكل غير معتاد",
+          "ترى في الطلب القاعدة التي تم تفعيلها"
         ],
         "en": [
-          "Automatically assess order names and addresses",
-          "Identify data that needs review",
-          "Apply checks to the order form"
+          "Repeated orders from the same phone within a number of hours",
+          "Open cash-on-delivery orders per phone",
+          "Blocked words in the name or address",
+          "Unusually large quantities",
+          "See which rule fired on the order"
         ]
       },
       "gallery": [
@@ -1316,8 +1285,8 @@
       "categories": [
         "store-management"
       ],
-      "route": null,
-      "available": false,
+      "route": "settings/managers",
+      "available": true,
       "reference_id": "609a1c52-e399-4079-8a99-fe7e18d29d24",
       "icon": "/app-icons/team.svg",
       "features": {
