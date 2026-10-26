@@ -61,12 +61,14 @@ class CheckoutFields
         $providerPhone = in_array($method, ['paylink', 'easykash', 'xpay'], true);
 
         $regions = $requiresShipping && app(StoreShipping::class)->regionsEnabled($store);
+        // Zones are matched from the address, so the shopper must always give a country.
+        $zones = $requiresShipping && $store->shipping_enabled && app(StoreShipping::class)->zonesEnabled($store);
         $phoneCountry = app(OrderLimits::class)->configured($store)['phone_country'];
         $phoneRequired = app(OrderLimits::class)->configured($store)['max_orders_per_phone_24h'] > 0;
         $otpRequired = app(CheckoutPhoneVerification::class)->configuration($store)['enabled'];
         $blockPhoneRequired = app(PhoneBlocking::class)->hasActive($store);
 
-        return collect($this->configured($store))->map(function (array $field) use ($online, $providerPhone, $regions, $requiresShipping, $hasDigital, $requiresWhatsapp, $phoneRequired, $phoneCountry, $blockPhoneRequired, $otpRequired) {
+        return collect($this->configured($store))->map(function (array $field) use ($online, $providerPhone, $regions, $zones, $requiresShipping, $hasDigital, $requiresWhatsapp, $phoneRequired, $phoneCountry, $blockPhoneRequired, $otpRequired) {
             $field['payment_required'] = ($online && in_array($field['key'], ['name', 'email'], true)) || ($providerPhone && $field['key'] === 'phone');
             $field['digital_required'] = ($hasDigital && $field['key'] === 'email') || ($requiresWhatsapp && $field['key'] === 'phone');
             $field['order_limit_required'] = $phoneRequired && $field['key'] === 'phone';
@@ -85,6 +87,9 @@ class CheckoutFields
             $field['shipping_region'] = $regions && $field['key'] === 'city';
             if ($regions && in_array($field['key'], ['country', 'city'], true)) {
                 $field['enabled'] = $field['required'] = $field['key'] === 'city';
+            }
+            if ($zones && $field['key'] === 'country') {
+                $field['enabled'] = $field['required'] = true;
             }
             if (! $requiresShipping && str_starts_with(self::PATHS[$field['key']], 'shipping_address.')) {
                 $field['enabled'] = $field['required'] = false;

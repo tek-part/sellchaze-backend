@@ -138,6 +138,7 @@ use App\Http\Controllers\Api\StoresApiController;
 use App\Http\Controllers\Api\StoreSheetsController;
 use App\Http\Controllers\Api\StoreShipmentController;
 use App\Http\Controllers\Api\StoreShippingController;
+use App\Http\Controllers\Api\StoreShippingZonesController;
 use App\Http\Controllers\Api\StoreShoppingPreferencesController;
 use App\Http\Controllers\Api\StoreSimplePagesController;
 use App\Http\Controllers\Api\StoreSocialLinksController;
@@ -904,6 +905,14 @@ Route::prefix('v1')->group(function () {
 
             Route::get('shipping', [StoreShippingController::class, 'index']);
             Route::put('shipping', [StoreShippingController::class, 'update']);
+            Route::get('shipping/zones', [StoreShippingZonesController::class, 'index']);
+            Route::post('shipping/zones', [StoreShippingZonesController::class, 'create']);
+            Route::put('shipping/zones/{zone}', [StoreShippingZonesController::class, 'update'])->whereUuid('zone');
+            Route::delete('shipping/zones/{zone}', [StoreShippingZonesController::class, 'destroy'])->whereUuid('zone');
+            Route::post('shipping/tax-overrides', [StoreShippingZonesController::class, 'storeOverride']);
+            Route::put('shipping/tax-overrides/{override}', [StoreShippingZonesController::class, 'updateOverride'])->whereUuid('override');
+            Route::delete('shipping/tax-overrides/{override}', [StoreShippingZonesController::class, 'destroyOverride'])->whereUuid('override');
+            Route::post('shipping/quote-preview', [StoreShippingZonesController::class, 'preview'])->middleware('throttle:60,1');
             Route::get('carriers/bosta', [StoreCarrierController::class, 'show']);
             Route::put('carriers/bosta', [StoreCarrierController::class, 'update']);
             Route::post('carriers/bosta/verify', [StoreCarrierController::class, 'verify'])->middleware('throttle:10,1');

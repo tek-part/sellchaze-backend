@@ -6,6 +6,7 @@ use App\Models\Store;
 use App\Models\StoreCheckoutLead;
 use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
+use App\Models\StoreShippingRate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -96,6 +97,14 @@ class CheckoutLeads
                     $selection[$type.'_id'] = $id;
                     $selection[$type.'_name'] = $item['name'][app()->getLocale()] ?? $item['name']['en'] ?? '';
                 }
+            }
+        }
+        $rateId = $data['shipping_rate_id'] ?? null;
+        if (is_string($rateId) && $rateId !== '') {
+            $rate = StoreShippingRate::query()->where('store_id', $store->id)->where('enabled', true)->whereKey($rateId)->first();
+            if ($rate !== null) {
+                $selection['rate_id'] = $rate->id;
+                $selection['rate_name'] = $rate->name[app()->getLocale()] ?? $rate->name['en'] ?? '';
             }
         }
 

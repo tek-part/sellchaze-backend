@@ -25,6 +25,7 @@ class CheckoutQuote
         $requiresShipping = false;
         $offerFreeShipping = false;
         $allPhysicalFree = true;
+        $weightGrams = 0;
         foreach ($items as $item) {
             $variantId = isset($item['variant_id']) ? (int) $item['variant_id'] : null;
             $selection = $this->selections->resolve($store, (int) $item['product_id'], $variantId, false,
@@ -46,6 +47,7 @@ class CheckoutQuote
             $digitalCounts[$digitalId] = ($digitalCounts[$digitalId] ?? 0) + $quantity;
             app(OrderLimits::class)->assertQuantity($store, $digitalCounts[$digitalId]);
             app(DigitalProducts::class)->assertAvailable($selection['product'], $digitalCounts[$digitalId]);
+            $weightGrams += StoreShipping::lineWeightGrams($selection['product'], $selection['variant'] ?? null, $quantity);
             $lineTotal = bcmul($selection['price'], (string) $quantity, 2);
             $subtotal = bcadd($subtotal, $lineTotal, 2);
             $lines[] = ['product_id' => $selection['product']->id, 'variant_id' => $variantId,
@@ -65,13 +67,33 @@ class CheckoutQuote
         $offerFreeShipping = $offerFreeShipping || $discounts['free_shipping'];
 
         $productFreeShipping = $requiresShipping && $allPhysicalFree;
-        $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping);
+        $breakdown = $this->pricing->breakdown($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping, $weightGrams);
+        $totals = $breakdown['totals'];
         $adjustments = app(PaymentPriceAdjustment::class);
         $totals = $adjustments->forMethod($store, $shippingSelection['payment_method'] ?? '', $totals);
 
         return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'discounts' => $discounts['applied'], 'requires_shipping' => $requiresShipping, 'offer_free_shipping' => $offerFreeShipping, 'product_free_shipping' => $productFreeShipping,
             'payment_adjustment_token' => $adjustments->token($store, $totals['payment_adjustment']),
             'order_minimum' => app(OrderLimits::class)->minimum($store, $subtotal, $discount),
+            'shipping' => $this->shipping($breakdown['shipping']), 'tax' => $this->tax($breakdown['tax']),
             'totals' => $totals];
+    }
+
+    /** What the shopper can choose for this cart and address (zones), and what was applied. */
+    private function shipping(?array $delivery): ?array
+    {
+        if ($delivery === null) {
+            return null;
+        }
+        $details = $delivery['details'];
+
+        return ['mode' => $details['mode'], 'zone' => $details['zone'] ?? null, 'rate_id' => $details['rate']['id'] ?? null,
+            'rates' => $delivery['rates'] ?? [], 'free_shipping_applied' => $details['free_shipping_applied'], 'cod_fee' => $details['cod_fee'] ?? '0.00',
+            'weight_grams' => $details['weight_grams'] ?? null];
+    }
+
+    private function tax(?array $rule): ?array
+    {
+        return $rule === null ? null : ['name' => $rule['name'], 'rate' => $rule['rate'], 'included' => $rule['included'], 'shipping' => $rule['shipping'], 'source' => $rule['source'], 'amount' => $rule['amount']];
     }
 }

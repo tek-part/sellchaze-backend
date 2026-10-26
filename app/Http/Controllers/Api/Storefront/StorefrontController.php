@@ -18,6 +18,7 @@ use App\Services\Commerce\GoogleMerchantSettings;
 use App\Services\Commerce\PaymentGatewayCatalog;
 use App\Services\Commerce\ShoppingPreferences;
 use App\Services\Commerce\StoreHeadCode;
+use App\Services\Commerce\StoreShipping;
 use App\Services\Commerce\StoreTrackingSettings;
 use App\Services\CurrencyRateService;
 use App\Services\PageBuilder\StoreMenuService;
@@ -218,7 +219,7 @@ class StorefrontController extends Controller
             'merchant_information' => app(GoogleMerchantSettings::class)->publicInformation($store),
             'supported_currencies' => array_keys($multipliers),
             'currency_multipliers' => $multipliers,
-            'shipping' => ['enabled' => (bool) $store->shipping_enabled, 'free_over' => $store->shipping_free_over, 'currency' => $baseCurrency],
+            'shipping' => ['enabled' => (bool) $store->shipping_enabled, 'free_over' => app(StoreShipping::class)->zonesEnabled($store) ? null : $store->shipping_free_over, 'currency' => $baseCurrency],
             'default_locale' => $store->default_locale,
             'supported_locales' => $store->supported_locales ?? [$store->default_locale ?: 'en'],
             'timezone' => $store->timezone,
