@@ -44,6 +44,16 @@ return new class extends Migration
             $table->unique(['store_id', 'session_key', 'kind', 'product_id'], 'sf_session_products_unique');
             $table->index('created_at', 'sf_session_products_created');
         });
+        // At most ProductAnalytics::MAX_SEGMENTS rows per store and day: counting it is cheap and bounded.
+        Schema::create('store_campaign_segments', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('store_id')->constrained('stores')->cascadeOnDelete();
+            $table->date('day');
+            $table->char('segment', 40);
+            $table->timestamp('created_at');
+            $table->unique(['store_id', 'day', 'segment'], 'store_campaign_segments_unique');
+            $table->index('day', 'store_campaign_segments_day');
+        });
         Schema::create('store_product_daily_metrics', function (Blueprint $table) {
             $table->id();
             $table->foreignId('store_id')->constrained('stores')->cascadeOnDelete();
@@ -60,7 +70,6 @@ return new class extends Migration
             $table->unsignedInteger('checkouts')->default(0);
             $table->timestamp('updated_at')->nullable();
             $table->unique(['store_id', 'day', 'product_id', 'segment'], 'sp_daily_metrics_unique');
-            $table->index(['store_id', 'day', 'segment'], 'sp_daily_metrics_day_segment');
             $table->index(['store_id', 'product_id', 'day'], 'sp_daily_metrics_product_day');
         });
         // Session-campaign retention keeps rows that attribute an order; this makes that check an index probe.
@@ -75,6 +84,7 @@ return new class extends Migration
         }
         Schema::table('store_orders', fn (Blueprint $table) => $table->dropIndex('store_orders_analytics_session'));
         Schema::dropIfExists('store_product_daily_metrics');
+        Schema::dropIfExists('store_campaign_segments');
         Schema::dropIfExists('storefront_session_products');
         Schema::dropIfExists('storefront_session_campaigns');
         Schema::table('storefront_events', fn (Blueprint $table) => $table->dropColumn(['utm_source', 'utm_medium', 'utm_campaign']));

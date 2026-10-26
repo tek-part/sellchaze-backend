@@ -120,7 +120,8 @@ class ProductAnalyticsTest extends TestCase
         $this->send($session, 'product_view', ['utm_source' => 'tiktok', 'utm_medium' => 'video', 'utm_campaign' => 'launch'])->assertStatus(202);
         $hash = app(StorefrontEvents::class)->sessionKey($this->store, $session);
         $this->order('F-1', 'pending', [['quantity' => 2, 'line_total' => 600], ['store_product_id' => $this->other->id, 'name' => 'Canvas bag', 'quantity' => 1, 'line_total' => 100]], ['analytics_session_hash' => $hash]);
-        $this->order('F-2', 'delivered', [['quantity' => 1, 'line_total' => 300]], ['marketing_attribution' => ['source' => 'google', 'campaign' => 'search']]);
+        // Order labels keep the visitor's casing; filters match them case-insensitively.
+        $this->order('F-2', 'delivered', [['quantity' => 1, 'line_total' => 300]], ['marketing_attribution' => ['source' => 'Google', 'campaign' => 'Search']]);
         $this->order('F-3', 'cancelled', [['quantity' => 5, 'line_total' => 1500]]);
         $this->order('F-4', 'pending', [['quantity' => 7, 'line_total' => 2100]])->delete();
         $this->order('F-5', 'pending', [['quantity' => 9, 'line_total' => 2700, 'superseded_at' => now()]]);
@@ -130,7 +131,7 @@ class ProductAnalyticsTest extends TestCase
             ->assertJsonPath('data.totals.orders', 3)->assertJsonPath('data.totals.revenue', '1000.00');
         $this->funnel('&utm_source=tiktok&utm_medium=video')->assertOk()->assertJsonPath('data.totals.orders', 1)->assertJsonPath('data.products.0.units', 2);
         // Orders from before session campaigns existed keep their own source/campaign labels.
-        $this->funnel('&utm_source=google&utm_campaign=search')->assertOk()->assertJsonPath('data.totals.orders', 1)->assertJsonPath('data.products.0.revenue', '300.00');
+        $this->funnel('&utm_source=GOOGLE&utm_campaign=search')->assertOk()->assertJsonPath('data.totals.orders', 1)->assertJsonPath('data.products.0.revenue', '300.00');
         $this->funnel('&utm_source=google&utm_medium=cpc')->assertOk()->assertJsonPath('data.totals.orders', 0);
     }
 
@@ -227,6 +228,9 @@ class ProductAnalyticsTest extends TestCase
             $events->capture($this->store, ['event_id' => (string) Str::uuid(), 'session_id' => (string) Str::uuid(), 'kind' => 'product_view', 'product_id' => $this->product->id, 'utm_source' => 'ad', 'utm_campaign' => 'c'.$index]);
         }
         $this->assertSame(ProductAnalytics::MAX_SEGMENTS + 1, DB::table('store_product_daily_metrics')->distinct()->count('segment'));
+        // The cap is decided from a small registry, not the store's daily rollup rows.
+        $this->assertSame(ProductAnalytics::MAX_SEGMENTS, DB::table('store_campaign_segments')->where('store_id', $this->store->id)->count());
+        $this->assertSame(0, DB::table('store_campaign_segments')->where('segment', sha1("(other)\n\n"))->count());
         $this->assertSame(5, (int) DB::table('store_product_daily_metrics')->where('utm_source', '(other)')->value('views'));
         $this->funnel('&utm_source=(other)')->assertOk()->assertJsonPath('data.totals.views', 5);
         // A known campaign keeps counting under its own segment after the cap is reached.
@@ -250,7 +254,7 @@ class ProductAnalyticsTest extends TestCase
         $this->travel(61)->seconds();
         $this->send((string) Str::uuid(), 'product_view')->assertStatus(202);
         $this->assertSame(32, DB::table('storefront_events')->where('kind', 'product_view')->count());
-        RateLimiter::clear('sf-product-views:'.$this->store->id.':'.hash('sha256', '127.0.0.1').':day');
+        RateLimiter::clear('sf-events:product_view:'.$this->store->id.':'.hash('sha256', '127.0.0.1').':day');
 
         $before = DB::table('storefront_events')->count();
         $this->send((string) Str::uuid(), 'visit', [], ['DNT' => '1'])->assertStatus(202);
@@ -311,5 +315,32 @@ class ProductAnalyticsTest extends TestCase
         $this->assertSame(1, DB::table('storefront_session_products')->count());
         // The order placed in September keeps its campaign in reports.
         $this->getJson('/api/v1/my-store/analytics/product-funnel?from=2026-09-01&to=2026-09-01&utm_source=meta', $this->auth)->assertOk()->assertJsonPath('data.totals.orders', 1);
+    }
+
+    public function test_cart_and_checkout_events_also_have_per_ip_budgets(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 12)->setTime(10, 0));
+        for ($index = 0; $index < 33; $index++) {
+            $this->send((string) Str::uuid(), 'add_to_cart')->assertStatus(202);
+        }
+        for ($index = 0; $index < 23; $index++) {
+            $this->send((string) Str::uuid(), 'checkout_started')->assertStatus(202);
+        }
+        $this->assertSame(30, DB::table('storefront_events')->where('kind', 'add_to_cart')->count());
+        $this->assertSame(20, DB::table('storefront_events')->where('kind', 'checkout_started')->count());
+        $row = DB::table('store_product_daily_metrics')->first();
+        $this->assertSame([30, 20], [(int) $row->carts, (int) $row->checkouts]);
+        // Visits keep only the route throttle, so ordinary browsing is unaffected.
+        $this->send((string) Str::uuid(), 'visit')->assertStatus(202);
+        $this->assertSame(1, DB::table('storefront_events')->where('kind', 'visit')->count());
+        // The daily budget still applies once the minute window has reset: 20 used, 79 more fill it to 99.
+        $this->travel(61)->seconds();
+        $day = 'sf-events:checkout_started:'.$this->store->id.':'.hash('sha256', '127.0.0.1').':day';
+        for ($index = 0; $index < 79; $index++) {
+            RateLimiter::hit($day, 86400);
+        }
+        $this->send((string) Str::uuid(), 'checkout_started')->assertStatus(202);
+        $this->send((string) Str::uuid(), 'checkout_started')->assertStatus(202);
+        $this->assertSame(21, DB::table('storefront_events')->where('kind', 'checkout_started')->count());
     }
 }

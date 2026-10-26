@@ -55,8 +55,9 @@ class ProductAnalytics
     }
 
     /**
-     * A store keeps at most MAX_SEGMENTS distinct campaigns per day; further campaigns
-     * that day are counted under OTHER ("(other)" cannot come from a normalised label).
+     * A store keeps at most MAX_SEGMENTS distinct campaigns per day, registered in
+     * store_campaign_segments; further campaigns that day are counted under OTHER
+     * ("(other)" cannot come from a normalised label).
      *
      * @param  array{utm_source:?string,utm_medium:?string,utm_campaign:?string}  $campaign
      * @return array{utm_source:?string,utm_medium:?string,utm_campaign:?string}
@@ -66,13 +67,19 @@ class ProductAnalytics
         if (! array_filter($campaign)) {
             return $campaign;
         }
-        $day = now($this->timezone($store))->toDateString();
-        $rows = DB::table('store_product_daily_metrics')->where('store_id', $store->id)->where('day', $day);
-        if ((clone $rows)->where('segment', $this->segment($campaign))->exists()) {
+        $key = ['store_id' => $store->id, 'day' => now($this->timezone($store))->toDateString()];
+        $segment = $this->segment($campaign);
+        $registry = DB::table('store_campaign_segments')->where($key);
+        if ((clone $registry)->where('segment', $segment)->exists()) {
             return $campaign;
         }
+        // The registry never holds more than a few rows past the cap, so this count stays tiny.
+        if ((clone $registry)->count() >= self::MAX_SEGMENTS) {
+            return self::OTHER;
+        }
+        DB::table('store_campaign_segments')->insertOrIgnore($key + ['segment' => $segment, 'created_at' => now()]);
 
-        return (clone $rows)->distinct()->count('segment') >= self::MAX_SEGMENTS ? self::OTHER : $campaign;
+        return $campaign;
     }
 
     /** @param array{utm_source:?string,utm_medium:?string,utm_campaign:?string} $campaign */
@@ -231,9 +238,13 @@ class ProductAnalytics
             if (! isset($filters['utm_medium'])) {
                 $query->orWhere(function (Builder $order) use ($filters) {
                     $order->whereNull('sc.id');
+                    // Order labels keep the visitor's casing; filters are lowercase.
+                    $json = fn (string $key) => DB::connection()->getDriverName() === 'sqlite'
+                        ? "LOWER(JSON_EXTRACT(o.marketing_attribution, '$.{$key}'))"
+                        : "LOWER(JSON_UNQUOTE(JSON_EXTRACT(o.marketing_attribution, '$.{$key}')))";
                     foreach (['utm_source' => 'source', 'utm_campaign' => 'campaign'] as $column => $key) {
                         if (isset($filters[$column])) {
-                            $order->where('o.marketing_attribution->'.$key, $filters[$column]);
+                            $order->whereRaw($json($key).' = ?', [$filters[$column]]);
                         }
                     }
                 });

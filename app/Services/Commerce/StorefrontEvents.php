@@ -59,7 +59,7 @@ class StorefrontEvents
             if ($product) {
                 $analytics->increment($store, $product->id, $session, $data['kind'], (int) ($data['quantity'] ?? 0), $campaign);
             }
-        });
+        }, 3);
     }
 
     /** Analytics failure/absence must never prevent checkout or assign a fabricated visit. */

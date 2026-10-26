@@ -12,6 +12,8 @@ class ApplyDataRetention extends Command
 
     protected $description = 'Apply configured retention windows to operational and audit data';
 
+    private const BATCH = 5000;
+
     public function handle(): int
     {
         $days = (int) config('operations.retention.audit_logs_days', 365);
@@ -24,13 +26,23 @@ class ApplyDataRetention extends Command
                 ->whereNotExists(fn ($orders) => $orders->selectRaw('1')->from('store_orders')->whereColumn('store_orders.store_id', 'storefront_session_campaigns.store_id')
                     ->whereColumn('store_orders.analytics_session_hash', 'storefront_session_campaigns.session_key')),
             'storefront_session_products' => DB::table('storefront_session_products')->where('created_at', '<', $sessions),
+            'store_campaign_segments' => DB::table('store_campaign_segments')->where('day', '<', $sessions->toDateString()),
         ];
         foreach ($targets as $name => $query) {
-            $count = (clone $query)->count();
-            if (! $this->option('pretend') && $count > 0) {
-                $query->delete();
+            if ($this->option('pretend')) {
+                $this->line("{$name}: ".(clone $query)->count().' eligible');
+
+                continue;
             }
-            $this->line("{$name}: {$count}".($this->option('pretend') ? ' eligible' : ' deleted'));
+            // Bounded batches keep each DELETE short on large tables.
+            $deleted = 0;
+            do {
+                $ids = (clone $query)->limit(self::BATCH)->pluck('id')->all();
+                if ($ids) {
+                    $deleted += (clone $query)->whereIn('id', $ids)->delete();
+                }
+            } while (count($ids) === self::BATCH);
+            $this->line("{$name}: {$deleted} deleted");
         }
 
         return self::SUCCESS;

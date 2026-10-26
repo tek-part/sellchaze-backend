@@ -16,9 +16,8 @@ class StorefrontEventsController extends Controller
     /** Crawlers, link previewers, headless browsers and HTTP libraries never count as product views. */
     private const BOT = '/bot\b|bot\/|crawl|spider|slurp|preview|facebookexternalhit|whatsapp\/|headless|lighthouse|pingdom|curl\/|wget\/|python-requests|python-urllib|go-http-client|okhttp|java\//i';
 
-    public const VIEWS_PER_MINUTE = 30;
-
-    public const VIEWS_PER_DAY = 500;
+    /** Per IP and store, on top of the route throttle: [per minute, per day]. Visits keep the route limit only. */
+    public const BUDGETS = ['product_view' => [30, 500], 'add_to_cart' => [30, 300], 'checkout_started' => [20, 100]];
 
     public function store(Request $request, StorefrontEvents $events): JsonResponse
     {
@@ -39,8 +38,8 @@ class StorefrontEventsController extends Controller
         }
         $agent = (string) $request->userAgent();
         $bot = $agent === '' || preg_match(self::BOT, $agent) === 1;
-        // Views get their own per-IP budget for this store on top of the route throttle; extra views are dropped quietly.
-        if ($data['kind'] === 'product_view' && ($bot || ! $this->viewAllowed($store->id, (string) $request->ip()))) {
+        // Bots never count as product views; funnel events past their per-IP budget are dropped quietly.
+        if (($data['kind'] === 'product_view' && $bot) || ! $this->withinBudget($data['kind'], $store->id, (string) $request->ip())) {
             return $this->accepted();
         }
         $events->capture($store, $data, ! $bot);
@@ -48,10 +47,14 @@ class StorefrontEventsController extends Controller
         return $this->accepted();
     }
 
-    private function viewAllowed(int $store, string $ip): bool
+    private function withinBudget(string $kind, int $store, string $ip): bool
     {
-        $key = 'sf-product-views:'.$store.':'.hash('sha256', $ip);
-        if (RateLimiter::tooManyAttempts($key.':minute', self::VIEWS_PER_MINUTE) || RateLimiter::tooManyAttempts($key.':day', self::VIEWS_PER_DAY)) {
+        if (! isset(self::BUDGETS[$kind])) {
+            return true;
+        }
+        [$minute, $day] = self::BUDGETS[$kind];
+        $key = 'sf-events:'.$kind.':'.$store.':'.hash('sha256', $ip);
+        if (RateLimiter::tooManyAttempts($key.':minute', $minute) || RateLimiter::tooManyAttempts($key.':day', $day)) {
             return false;
         }
         RateLimiter::hit($key.':minute', 60);
