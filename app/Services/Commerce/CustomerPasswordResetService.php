@@ -84,8 +84,14 @@ class CustomerPasswordResetService
         }
 
         DB::transaction(function () use ($customer, $reset, $password) {
+            // Claim the link before changing anything: of two concurrent requests only one marks it used.
+            $claimed = StoreCustomerPasswordReset::query()->whereKey($reset->id)->whereNull('used_at')->where('expires_at', '>', now())->update(['used_at' => now()]);
+            if ($claimed !== 1) {
+                throw ValidationException::withMessages([
+                    'token' => 'This password reset link is invalid or has expired.',
+                ]);
+            }
             $customer->forceFill(['password' => Hash::make($password)])->save();
-            $reset->forceFill(['used_at' => now()])->save();
             StoreCustomerPasswordReset::query()->where('store_customer_id', $customer->id)->whereKeyNot($reset->id)->delete();
             // The old password may be compromised: end every session.
             StoreCustomerToken::query()->where('store_customer_id', $customer->id)->delete();

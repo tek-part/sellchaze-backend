@@ -126,6 +126,22 @@ class DiscountEngine
         return $lines;
     }
 
+    /**
+     * An evaluation without its free-shipping discount, for an order whose delivery costs nothing
+     * anyway: nothing was waived, so the discount is neither reported nor used up.
+     *
+     * @param  array{discount: string, free_shipping: bool, coupon: ?Coupon, applied: list<array<string, mixed>>, usages: list<array{coupon: Coupon, amount: string}>}  $result
+     * @return array{discount: string, free_shipping: bool, coupon: ?Coupon, applied: list<array<string, mixed>>, usages: list<array{coupon: Coupon, amount: string}>}
+     */
+    public static function withoutFreeShipping(array $result): array
+    {
+        $result['free_shipping'] = false;
+        $result['applied'] = array_values(array_filter($result['applied'], fn (array $entry) => $entry['type'] !== 'free_shipping'));
+        $result['usages'] = array_values(array_filter($result['usages'], fn (array $usage) => $usage['coupon']->type !== 'free_shipping'));
+
+        return $result;
+    }
+
     /** The discount amount for one discount on these lines (0.00 for free shipping). */
     public function amount(Coupon $coupon, array $lines, array $categories): string
     {
@@ -137,7 +153,7 @@ class DiscountEngine
         }
         $eligible = $this->scopedSubtotal($coupon->applies_to, $coupon->target_ids, $lines, $categories);
         $raw = $coupon->type === 'percentage'
-            ? bcdiv(bcmul($eligible, (string) $coupon->value, 4), '100', 2)
+            ? $this->percentOf($eligible, (string) $coupon->value)
             : (string) $coupon->value;
 
         return bccomp($raw, $eligible, 2) > 0 ? $eligible : $raw;
@@ -194,8 +210,11 @@ class DiscountEngine
 
     /**
      * Buy X items from one scope, get Y items from another at a percentage off (100 = free).
-     * The most expensive qualifying items pay; the cheapest eligible items are discounted; a unit
-     * is never counted on both sides.
+     * As many sets apply as the cart can fill (up to the per-order limit). The cheapest eligible
+     * items are discounted, chosen first; each set's paid items come from what is left, so a unit
+     * is never counted on both sides and an item in both scopes is given away only while enough
+     * remain to pay for every set. Works on whole lines rather than single units, so a large cart
+     * costs no more than a small one.
      */
     private function buyXGetY(array $config, array $lines, array $categories): string
     {
@@ -204,38 +223,70 @@ class DiscountEngine
         $percent = min(100, max(1, (int) ($config['get_percent'] ?? 100)));
         $maxSets = isset($config['max_uses_per_order']) ? max(1, (int) $config['max_uses_per_order']) : PHP_INT_MAX;
 
-        $units = [];
-        foreach ($lines as $index => $line) {
-            for ($i = 0; $i < min(999, (int) $line['quantity']); $i++) {
-                $units[] = ['key' => $index.':'.$i, 'price' => (string) $line['unit_price'], 'product_id' => (int) $line['product_id']];
+        // Get-eligible lines, split by whether they could also pay; buy-only units are just counted.
+        $getOnly = [];
+        $both = [];
+        $buyOnlyUnits = 0;
+        foreach ($lines as $line) {
+            $quantity = min(999, (int) $line['quantity']);
+            if ($quantity < 1) {
+                continue;
+            }
+            $buys = $this->inScope((string) ($config['buy_applies_to'] ?? 'all'), (array) ($config['buy_ids'] ?? []), (int) $line['product_id'], $categories);
+            $gets = $this->inScope((string) ($config['get_applies_to'] ?? 'all'), (array) ($config['get_ids'] ?? []), (int) $line['product_id'], $categories);
+            $bucket = ['price' => (string) $line['unit_price'], 'quantity' => $quantity];
+            if ($gets && $buys) {
+                $both[] = $bucket;
+            } elseif ($gets) {
+                $getOnly[] = $bucket;
+            } elseif ($buys) {
+                $buyOnlyUnits += $quantity;
             }
         }
-        $buyUnits = array_values(array_filter($units, fn (array $unit) => $this->inScope((string) ($config['buy_applies_to'] ?? 'all'), (array) ($config['buy_ids'] ?? []), $unit['product_id'], $categories)));
-        $getUnits = array_values(array_filter($units, fn (array $unit) => $this->inScope((string) ($config['get_applies_to'] ?? 'all'), (array) ($config['get_ids'] ?? []), $unit['product_id'], $categories)));
-        usort($buyUnits, fn (array $a, array $b) => bccomp($b['price'], $a['price'], 2));
-        usort($getUnits, fn (array $a, array $b) => bccomp($a['price'], $b['price'], 2));
+        $getOnlyUnits = array_sum(array_column($getOnly, 'quantity'));
+        $bothUnits = array_sum(array_column($both, 'quantity'));
 
-        $used = [];
+        $sets = min($maxSets,
+            intdiv($getOnlyUnits + $bothUnits, $getQuantity),
+            intdiv($buyOnlyUnits + $bothUnits, $buyQuantity),
+            intdiv($getOnlyUnits + $buyOnlyUnits + $bothUnits, $buyQuantity + $getQuantity));
+        if ($sets < 1) {
+            return '0.00';
+        }
+        $cheapestFirst = fn (array $a, array $b) => bccomp($a['price'], $b['price'], 2);
+        usort($getOnly, $cheapestFirst);
+        usort($both, $cheapestFirst);
+
+        $needed = $sets * $getQuantity;
+        // Units in both scopes that can be discounted while every set still has enough units to pay.
+        $bothSpare = $buyOnlyUnits + $bothUnits - $sets * $buyQuantity;
         $discount = '0.00';
-        for ($set = 0; $set < $maxSets; $set++) {
-            $paid = array_slice(array_values(array_filter($buyUnits, fn (array $unit) => ! isset($used[$unit['key']]))), 0, $buyQuantity);
-            if (count($paid) < $buyQuantity) {
+        $i = 0;
+        $j = 0;
+        while ($needed > 0) {
+            $takeBoth = $j < count($both) && $bothSpare > 0
+                && ($i >= count($getOnly) || bccomp($both[$j]['price'], $getOnly[$i]['price'], 2) < 0);
+            if ($takeBoth) {
+                $take = min($needed, $both[$j]['quantity'], $bothSpare);
+                $price = $both[$j++]['price'];
+                $bothSpare -= $take;
+            } elseif ($i < count($getOnly)) {
+                $take = min($needed, $getOnly[$i]['quantity']);
+                $price = $getOnly[$i++]['price'];
+            } else {
                 break;
             }
-            $paidKeys = array_fill_keys(array_column($paid, 'key'), true);
-            $free = array_slice(array_values(array_filter($getUnits, fn (array $unit) => ! isset($used[$unit['key']]) && ! isset($paidKeys[$unit['key']]))), 0, $getQuantity);
-            if (count($free) < $getQuantity) {
-                break;
-            }
-            foreach ([...$paid, ...$free] as $unit) {
-                $used[$unit['key']] = true;
-            }
-            foreach ($free as $unit) {
-                $discount = bcadd($discount, bcdiv(bcmul($unit['price'], (string) $percent, 4), '100', 2), 2);
-            }
+            $needed -= $take;
+            $discount = bcadd($discount, $this->percentOf(bcmul($price, (string) $take, 2), (string) $percent), 2);
         }
 
         return $discount;
+    }
+
+    /** A percentage of an amount, rounded half-up to cents (bcmath alone would truncate 4.9995 to 4.99). */
+    private function percentOf(string $amount, string $percent): string
+    {
+        return bcadd(bcdiv(bcmul($amount, $percent, 6), '100', 6), '0.005', 2);
     }
 
     private function inScope(string $scope, array $ids, int $productId, array $categories): bool

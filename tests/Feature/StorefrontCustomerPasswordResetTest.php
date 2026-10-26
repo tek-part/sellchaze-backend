@@ -4,11 +4,17 @@ namespace Tests\Feature;
 
 use App\Mail\StoreCustomerPasswordResetMail;
 use App\Models\Store;
+use App\Models\StoreCustomer;
 use App\Models\StoreCustomerPasswordReset;
 use App\Models\StoreDomain;
 use App\Models\User;
+use App\Services\Commerce\CustomerPasswordResetService;
+use App\Support\Tenancy\CurrentStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 /**
@@ -164,5 +170,26 @@ class StorefrontCustomerPasswordResetTest extends TestCase
         $row = StoreCustomerPasswordReset::withoutGlobalScopes()->firstOrFail();
         $this->assertSame(hash('sha256', $token), $row->token_hash);
         $this->assertSame($this->alpha->id, $row->store_id);
+    }
+
+    public function test_a_link_claimed_by_a_concurrent_request_cannot_be_used_again(): void
+    {
+        $this->register($this->alpha);
+        $token = $this->requestLink($this->alpha);
+        app(CurrentStore::class)->set($this->alpha);
+        // Another request uses the link right after this one looked it up.
+        Event::listen('eloquent.retrieved: '.StoreCustomerPasswordReset::class, function (StoreCustomerPasswordReset $reset) {
+            StoreCustomerPasswordReset::query()->whereKey($reset->id)->update(['used_at' => now()]);
+        });
+
+        try {
+            app(CustomerPasswordResetService::class)->reset('ada@example.com', $token, 'brand-new-password');
+            $this->fail('A claimed link reset the password.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('token', $e->errors());
+        }
+        $customer = StoreCustomer::query()->where('email', 'ada@example.com')->firstOrFail();
+        $this->assertTrue(Hash::check('password123', $customer->password));
+        app(CurrentStore::class)->forget();
     }
 }

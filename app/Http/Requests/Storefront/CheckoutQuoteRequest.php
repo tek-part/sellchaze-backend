@@ -24,6 +24,9 @@ class CheckoutQuoteRequest extends FormRequest
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'payment_method' => ['nullable', 'string', 'max:80'],
+            // Optional guest contact, as on the checkout form; it only decides per-customer discount limits.
+            'customer_phone' => ['nullable', 'string', 'max:50'],
+            'customer_email' => ['nullable', 'string', 'max:255'],
         ] + GiftCards::inputRules();
     }
 }

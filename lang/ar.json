@@ -472,5 +472,6 @@
     "The note must be :max characters or fewer.": "يجب ألا تزيد الملاحظة عن :max حرف.",
     "Enter a valid e-mail address.": "أدخل بريدًا إلكترونيًا صالحًا.",
     "Enter a valid phone number, including the country code for a foreign number.": "أدخل رقم هاتف صالحًا مع كود الدولة للأرقام الأجنبية.",
-    "Add an e-mail address or phone number before subscribing this customer to marketing.": "أضف بريدًا إلكترونيًا أو رقم هاتف قبل اشتراك هذا العميل في التسويق."
+    "Add an e-mail address or phone number before subscribing this customer to marketing.": "أضف بريدًا إلكترونيًا أو رقم هاتف قبل اشتراك هذا العميل في التسويق.",
+    "Your total was updated. Please review it and confirm your order.": "تم تحديث الإجمالي. يرجى مراجعته ثم تأكيد طلبك."
 }

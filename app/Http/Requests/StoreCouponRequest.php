@@ -34,15 +34,18 @@ class StoreCouponRequest extends FormRequest
         if ($key !== null || ! is_array($data)) {
             return $data;
         }
-        $data['method'] ??= 'code';
-        $data['applies_to'] ??= 'all';
+        $data['method'] ??= $this->effectiveMethod();
+        // An update that leaves out the scope keeps the stored one; an empty scope still means all.
+        if ($this->route('coupon') === null || array_key_exists('applies_to', $data)) {
+            $data['applies_to'] ??= 'all';
+        }
         if (! in_array($data['type'], ['fixed', 'percentage'], true)) {
             $data['value'] = 0;
         }
         if ($data['type'] !== 'buy_x_get_y') {
             $data['bxgy'] = null;
         }
-        if ($data['applies_to'] === 'all') {
+        if (($data['applies_to'] ?? null) === 'all') {
             $data['target_ids'] = null;
         }
         if ($data['method'] === 'automatic') {
@@ -50,6 +53,42 @@ class StoreCouponRequest extends FormRequest
         }
 
         return $data;
+    }
+
+    /** An update that leaves out the method keeps the stored one. */
+    private function effectiveMethod(): string
+    {
+        if ($this->filled('method')) {
+            return (string) $this->input('method');
+        }
+        $couponId = $this->route('coupon');
+        $store = $this->route('store');
+        if ($couponId !== null && $store instanceof Store) {
+            $stored = Coupon::query()->withoutGlobalScopes()->where('store_id', $store->id)->whereKey($couponId)->value('method');
+            if (is_string($stored) && $stored !== '') {
+                return $stored;
+            }
+        }
+
+        return 'code';
+    }
+
+    /** The scope the targets belong to: the submitted one (empty means all), else the stored one on update. */
+    private function effectiveScope(): string
+    {
+        if ($this->has('applies_to')) {
+            return (string) ($this->input('applies_to') ?: 'all');
+        }
+        $couponId = $this->route('coupon');
+        $store = $this->route('store');
+        if ($couponId !== null && $store instanceof Store) {
+            $stored = Coupon::query()->withoutGlobalScopes()->where('store_id', $store->id)->whereKey($couponId)->value('applies_to');
+            if (is_string($stored) && $stored !== '') {
+                return $stored;
+            }
+        }
+
+        return 'all';
     }
 
     /** @return array<string, mixed> */
@@ -60,7 +99,7 @@ class StoreCouponRequest extends FormRequest
         $couponId = $this->route('coupon');
 
         $valueMax = $this->input('type') === 'percentage' ? 100 : 99999999;
-        $automatic = $this->input('method') === 'automatic';
+        $automatic = $this->effectiveMethod() === 'automatic';
         $valued = in_array($this->input('type'), ['fixed', 'percentage'], true);
         $products = Rule::exists('products', 'id')->where('store_id', $storeId);
         $categories = Rule::exists('categories', 'id')->where('store_id', $storeId);
@@ -79,7 +118,7 @@ class StoreCouponRequest extends FormRequest
             'value' => [$valued ? 'required' : 'nullable', 'numeric', 'min:0.01', "max:{$valueMax}"],
             'applies_to' => ['nullable', Rule::in(Coupon::SCOPES)],
             'target_ids' => [Rule::requiredIf(in_array($this->input('applies_to'), ['products', 'categories'], true)), 'nullable', 'array', 'max:500'],
-            'target_ids.*' => ['integer', $targetRule('applies_to')],
+            'target_ids.*' => ['integer', $this->effectiveScope() === 'categories' ? $categories : $products],
             'minimum_quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
             'bxgy' => [Rule::requiredIf($this->input('type') === 'buy_x_get_y'), 'nullable', 'array:buy_quantity,buy_applies_to,buy_ids,get_quantity,get_applies_to,get_ids,get_percent,max_uses_per_order'],
             'bxgy.buy_quantity' => ['required_with:bxgy', 'integer', 'min:1', 'max:99'],

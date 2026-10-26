@@ -17,8 +17,12 @@ class CheckoutQuote
         private readonly DiscountEngine $discounts,
     ) {}
 
-    /** @param  array<int, mixed>  $giftCards  codes, applied in order after every other total */
-    public function calculate(Store $store, array $items, ?string $code, ?StoreCustomer $customer, array $shippingSelection = [], array $giftCards = []): array
+    /**
+     * @param  array<int, mixed>  $giftCards  codes, applied in order after every other total
+     * @param  array{phone: ?string, email: ?string}|null  $guest  a guest's contact once known (normalized phone),
+     *                                                             so per-customer discount limits apply as at checkout
+     */
+    public function calculate(Store $store, array $items, ?string $code, ?StoreCustomer $customer, array $shippingSelection = [], array $giftCards = [], ?array $guest = null): array
     {
         $subtotal = '0.00';
         $lines = [];
@@ -68,11 +72,16 @@ class CheckoutQuote
                 throw ValidationException::withMessages(['coupon_code' => 'This coupon is not available.']);
             }
         }
-        $discounts = $this->discounts->evaluate($store, array_map(fn (array $line) => ['product_id' => (int) $line['product_id'], 'quantity' => (int) $line['quantity'], 'unit_price' => (string) $line['unit_price']], $lines), $coupon, $customer);
+        $discounts = $this->discounts->evaluate($store, array_map(fn (array $line) => ['product_id' => (int) $line['product_id'], 'quantity' => (int) $line['quantity'], 'unit_price' => (string) $line['unit_price']], $lines), $coupon, $customer, $guest ?? []);
         $discount = $discounts['discount'];
+        $productFreeShipping = $requiresShipping && $allPhysicalFree;
+        // A free-shipping discount is reported only when it lowers the delivery price.
+        $shippingTotal = fn (bool $free) => $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, true, $offerFreeShipping || $free, $productFreeShipping, $weightGrams)['shipping_total'];
+        if ($discounts['free_shipping'] && (! $requiresShipping || bccomp($shippingTotal(false), $shippingTotal(true), 2) <= 0)) {
+            $discounts = DiscountEngine::withoutFreeShipping($discounts);
+        }
         $offerFreeShipping = $offerFreeShipping || $discounts['free_shipping'];
 
-        $productFreeShipping = $requiresShipping && $allPhysicalFree;
         $breakdown = $this->pricing->breakdown($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping, $weightGrams);
         $totals = $breakdown['totals'];
         $tender = app(GiftCards::class)->quote($store, $giftCards, $totals['grand_total'], $store->currency ?: 'USD');
