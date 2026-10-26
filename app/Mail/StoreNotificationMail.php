@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\Store;
 use App\Models\StoreOrder;
+use App\Models\StoreOrderFulfillment;
 use App\Services\Notifications\StoreNotificationSettings;
 use Illuminate\Mail\Mailable;
 use Symfony\Component\Mime\Email;
@@ -19,6 +20,7 @@ class StoreNotificationMail extends Mailable
         private array $template,
         private ?string $deliveryId = null,
         private bool $test = false,
+        public ?StoreOrderFulfillment $fulfillment = null,
     ) {}
 
     public function build(): static
@@ -27,11 +29,10 @@ class StoreNotificationMail extends Mailable
         $settings = $notifications->configured($this->store);
         $definition = StoreNotificationSettings::events()[$this->event];
         $staff = $definition['audience'] === 'staff';
-        $variables = $notifications->variables($this->store, $this->order, $staff);
+        $variables = $notifications->variables($this->store, $this->order, $staff, $this->fulfillment);
         $subject = StoreNotificationSettings::render($this->template['subject'], $variables);
         $subject = mb_substr(trim(preg_replace('/[\x00-\x1f\x7f]+/u', ' ', ($this->test ? '[TEST] ' : '').$subject)), 0, 200);
         $ar = $this->store->default_locale === 'ar';
-        $shipment = $notifications->shipment($this->order);
         $items = $this->order->relationLoaded('items') ? $this->order->items : $this->order->items()->get();
 
         $mail = $this->from(config('mail.from.address'), $settings['sender_name'] ?: $this->store->name)->subject($subject)
@@ -47,7 +48,7 @@ class StoreNotificationMail extends Mailable
                 'orderUrl' => $variables['order_url'],
                 'address' => $variables['shipping_address'],
                 'payment' => $variables['payment_method'],
-                'tracking' => $variables['tracking_number'] !== '' ? ['number' => $variables['tracking_number'], 'carrier' => $variables['carrier'], 'url' => $notifications->trackingUrl($shipment)] : null,
+                'tracking' => $notifications->tracking($this->order, $this->fulfillment),
                 'money' => fn ($amount) => StoreNotificationSettings::money($amount, $this->order->currency),
             ])
             ->text('emails.store-notification-text', ['body' => StoreNotificationSettings::render($this->template['body'], $variables), 'orderUrl' => $variables['order_url'], 'ar' => $ar]);

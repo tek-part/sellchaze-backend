@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Models\StoreOrder;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\ProductPersonalization;
+use App\Services\Commerce\StoreInventory;
 use App\Services\Commerce\StoreOrderService;
 use App\Services\PlatformWallet;
 use Illuminate\Http\Request;
@@ -53,6 +54,7 @@ class MerchantOrderResource extends JsonResource
             'payment_method' => $this->payment_method,
             'payment_status' => $this->payment_status,
             'payment_reference' => $this->payment_reference,
+            'fulfillment_status' => $this->fulfillment_status ?? 'unfulfilled',
             'fulfillment' => $this->whenLoaded('items', fn () => $this->resource->fulfillment()),
             'next_statuses' => $this->whenLoaded('items', fn () => app(StoreOrderService::class)->nextStatuses($this->resource)),
             'grand_total' => $this->grand_total,
@@ -84,6 +86,8 @@ class MerchantOrderResource extends JsonResource
                 'name' => $item->name,
                 'unit_price' => $item->unit_price,
                 'quantity' => $item->quantity,
+                'fulfilled_quantity' => StoreInventory::shippedUnits($item),
+                'unfulfilled_quantity' => StoreInventory::unfulfilled($item),
                 'line_total' => $item->line_total,
             ])->values()->all()),
             'timeline' => $this->whenLoaded('statusChanges', fn () => $this->statusChanges->map(fn ($change) => [

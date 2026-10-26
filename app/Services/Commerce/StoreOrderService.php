@@ -74,10 +74,15 @@ class StoreOrderService
      * the acting user and an optional internal note; customer self-service
      * cancels pass neither (actor stays null = customer-initiated). Recorded refunds pass
      * `$notifyCustomer = false` when no money changed hands (a failed cash-on-delivery return).
+     *
+     * Physical units ship through fulfillments. Marking a shipping order shipped (or delivered) here fulfils
+     * whatever is still unshipped in one fulfillment; StoreFulfillments passes `$viaFulfillment` when it
+     * drives the status itself, so only its own units move. Ending an order in a return/refund releases
+     * units that never shipped.
      */
-    public function transition(StoreOrder $order, string $to, ?int $actorId = null, ?string $note = null, ?string $source = null, bool $notifyCustomer = true): StoreOrder
+    public function transition(StoreOrder $order, string $to, ?int $actorId = null, ?string $note = null, ?string $source = null, bool $notifyCustomer = true, bool $viaFulfillment = false): StoreOrder
     {
-        return DB::transaction(function () use ($order, $to, $actorId, $note, $source, $notifyCustomer) {
+        return DB::transaction(function () use ($order, $to, $actorId, $note, $source, $notifyCustomer, $viaFulfillment) {
             $current = StoreOrder::query()->where('store_id', $order->store_id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
             $order->setRawAttributes($current->getAttributes(), true);
             if ($source === 'customer' && ! in_array($order->status, self::CUSTOMER_CANCELLABLE, true)) {
@@ -93,9 +98,22 @@ class StoreOrderService
             }
 
             $from = $order->status;
-            $digitalCompletion = $to === 'delivered' && ! $order->requiresShipping();
-            if (in_array($to, ['cancelled', 'shipped'], true) || $digitalCompletion) {
+            $shipping = $order->requiresShipping();
+            $digitalCompletion = $to === 'delivered' && ! $shipping;
+            $fulfillments = app(StoreFulfillments::class);
+            if ($shipping && ! $viaFulfillment && in_array($to, ['shipped', 'delivered'], true)) {
+                $fulfillments->fulfilRemaining($order, $actorId, $source, $notifyCustomer);
+                if ($to === 'delivered') {
+                    $fulfillments->markAllDelivered($order);
+                }
+            }
+            if ($to === 'shipped' && $shipping) {
+                // Physical lines shipped through fulfillments; digital lines of a mixed order are handed over now.
+                app(StoreInventory::class)->settle($order, true, true);
+            } elseif (in_array($to, ['cancelled', 'shipped'], true) || $digitalCompletion) {
                 app(StoreInventory::class)->settle($order, $to === 'shipped' || $digitalCompletion);
+            } elseif (in_array($to, ['returning_from_delivery', 'refunded'], true)) {
+                app(StoreInventory::class)->settle($order, false);
             }
             $order->status = $to;
             if ($to === 'cancelled') {
@@ -114,6 +132,7 @@ class StoreOrderService
                     $order->forceFill(['payment_status' => 'refunded'])->save();
                 }
             }
+            $fulfillments->recompute($order);
 
             $change = $order->statusChanges()->create([
                 'from_status' => $from,
@@ -126,7 +145,8 @@ class StoreOrderService
             DB::afterCommit(fn () => StoreAnalyticsService::forget($order->store_id));
             $order->store?->owner?->notify(new StoreOrderActivity($order, 'status_changed'));
             app(StoreOrderWebhooks::class)->statusChanged($order, $from, (int) $change->id);
-            if ($notifyCustomer) {
+            // Shipping confirmations go out per fulfillment, with that parcel's tracking.
+            if ($notifyCustomer && ! ($to === 'shipped' && $shipping)) {
                 app(StoreNotificationSettings::class)->statusChanged($order, $to);
             }
 

@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property string $refunded_total
  * @property string $gift_card_total
  * @property list<array{gift_card_id:int,last4:string,amount:string}>|null $gift_card_details
+ * @property string $fulfillment_status
  * @property array{version:int,gateway:string,currency:string,rule:array,base_total:string,amount:string}|null $payment_adjustment
  * @property array{source:string,campaign:string}|null $marketing_attribution
  * @property array{code:string,product_id:int}|null $referral_attribution
@@ -38,6 +39,9 @@ class StoreOrder extends Model
     /** Physical return tracking; payment refunds and stock reconciliation are separate operations. */
     public const RETURN_STATUSES = ['returning_from_delivery', 'request_refund', 'refund_in_progress', 'refunded'];
 
+    /** Shipping progress over physical lines; digital-only orders are fulfilled once delivered. */
+    public const FULFILLMENT_STATUSES = ['unfulfilled', 'partial', 'fulfilled'];
+
     /** Payment states. Refund states are only ever set by StoreOrderRefunds (recorded money, never a gateway call). */
     public const PAYMENT_STATUSES = ['pending', 'paid', 'failed', 'partially_refunded', 'refunded'];
 
@@ -49,7 +53,7 @@ class StoreOrder extends Model
         'payment_adjustment',
         'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'refunded_total', 'gift_card_total', 'gift_card_details', 'notes',
         'placed_at', 'cancelled_at', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'coupon_code',
-        'discount_details', 'manual_actor_id', 'manual_owner_id', 'manual_request_key', 'manual_request_hash', 'manual_adjustment_total', 'manual_tax_included',
+        'discount_details', 'fulfillment_status', 'manual_actor_id', 'manual_owner_id', 'manual_request_key', 'manual_request_hash', 'manual_adjustment_total', 'manual_tax_included',
     ];
 
     protected $hidden = ['customer_phone_normalized', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'manual_request_key', 'manual_request_hash', 'manual_owner_id', 'checkout_bot_verified', 'retained_bot_verified', 'protection_signals'];
@@ -156,6 +160,12 @@ class StoreOrder extends Model
     public function refunds(): HasMany
     {
         return $this->hasMany(StoreOrderRefund::class)->orderBy('id');
+    }
+
+    /** @return HasMany<StoreOrderFulfillment, $this> */
+    public function fulfillments(): HasMany
+    {
+        return $this->hasMany(StoreOrderFulfillment::class)->orderBy('id');
     }
 
     /** @return HasMany<StoreOrderReturn, $this> */

@@ -3,7 +3,9 @@ Merchant order webhooks
 Owner or global stores-edit administration configures /api/v1/my-store/webhooks
 or /api/v1/stores/{store}/webhooks. General employee settings/order permissions
 cannot configure destinations. GET lists20 rows per page. POST accepts url,
-description, type (orders or order-status-update), enabled and a UUID request_key.
+description, type (orders, order-status-update or order-fulfillment), enabled
+and a UUID request_key. order-fulfillment payloads are described in
+ORDER-FULFILLMENTS.txt.
 The same unchanged creation request returns the same configuration and secret;
 an altered, edited or deleted request conflicts. GET /{webhook} includes the
 last20 delivery metadata rows. PUT and DELETE require the current version.

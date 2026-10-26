@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Models\Store;
 use App\Models\StoreOrder;
+use App\Models\StoreOrderFulfillment;
 use App\Models\StoreOrderWebhook;
 use App\Models\StoreOrderWebhookDelivery;
 use App\Services\PlatformWallet;
@@ -53,6 +54,17 @@ class StoreOrderWebhooks
     {
         $this->record($order, 'order-status-update', 'status:'.$changeId, ['event_type' => 'order-status-update',
             'order_id' => $order->id, 'old_status' => $oldStatus, 'new_status' => $order->status, 'payment_ref_id' => $order->payment_reference]);
+    }
+
+    /** `order-fulfillment` destinations: one event per fulfillment version (created, updated, cancelled). */
+    public function fulfillmentChanged(StoreOrder $order, StoreOrderFulfillment $fulfillment, string $action): void
+    {
+        $this->record($order, 'order-fulfillment', 'fulfillment:'.$fulfillment->id.':v'.$fulfillment->version, ['event_type' => 'order-fulfillment',
+            'action' => $action, 'order_id' => $order->id, 'order_status' => $order->status, 'fulfillment_status' => $order->fulfillment_status,
+            'fulfillment' => ['id' => $fulfillment->id, 'status' => $fulfillment->status, 'carrier' => $fulfillment->carrier,
+                'carrier_name' => $fulfillment->carrierLabel(), 'tracking_number' => $fulfillment->tracking_number, 'tracking_url' => $fulfillment->trackingUrl(),
+                'items' => $fulfillment->items, 'shipped_at' => $fulfillment->shipped_at?->toIso8601String(),
+                'delivered_at' => $fulfillment->delivered_at?->toIso8601String(), 'cancelled_at' => $fulfillment->cancelled_at?->toIso8601String()]]);
     }
 
     private function record(StoreOrder $order, string $type, string $eventKey, array $payload, bool $created = false): void

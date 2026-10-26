@@ -41,9 +41,10 @@ class MerchantOrderController extends Controller
         $perPage = min(max((int) $request->get('per_page', 25), 1), 100);
         $sort = $filters['sort'] ?? 'created_at';
         $dir = $filters['dir'] ?? 'desc';
-        $base = $query->build($store, array_diff_key($filters, array_flip(['status', 'payment_status', 'sort', 'dir'])));
+        $base = $query->build($store, array_diff_key($filters, array_flip(['status', 'payment_status', 'fulfillment_status', 'sort', 'dir'])));
         $counts = (clone $base)->select('status')->selectRaw('COUNT(*) AS total')->groupBy('status')->pluck('total', 'status');
         $paymentCounts = (clone $base)->select('payment_status')->selectRaw('COUNT(*) AS total')->groupBy('payment_status')->pluck('total', 'payment_status');
+        $fulfillmentCounts = (clone $base)->select('fulfillment_status')->selectRaw('COUNT(*) AS total')->groupBy('fulfillment_status')->pluck('total', 'fulfillment_status');
         $locked = $store->owner && app(PlatformWallet::class)->ordersLocked($store->owner);
         $charged = DB::table('platform_wallet_entries')->where('type', 'order_fee')->whereNotNull('store_order_id')->select('store_order_id');
         $lockedCount = $locked ? StoreOrder::forStore($store)->whereIn('id', $charged)->count() : 0;
@@ -51,7 +52,7 @@ class MerchantOrderController extends Controller
 
         return response()->json([
             'data' => MerchantOrderResource::collection($paginator->getCollection()),
-            'counts' => $counts, 'payment_counts' => $paymentCounts,
+            'counts' => $counts, 'payment_counts' => $paymentCounts, 'fulfillment_counts' => $fulfillmentCounts,
             'meta' => ['current_page' => $paginator->currentPage(), 'last_page' => $paginator->lastPage(),
                 'per_page' => $paginator->perPage(), 'total' => $paginator->total(), 'locked_orders' => $lockedCount],
         ]);

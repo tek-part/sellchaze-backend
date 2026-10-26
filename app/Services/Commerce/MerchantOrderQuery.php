@@ -20,6 +20,7 @@ class MerchantOrderQuery
         return $request->validate([
             'status' => ['nullable', Rule::in(StoreOrder::STATUSES)],
             'payment_status' => ['nullable', Rule::in(StoreOrder::PAYMENT_STATUSES)],
+            'fulfillment_status' => ['nullable', Rule::in(StoreOrder::FULFILLMENT_STATUSES)],
             'classification' => ['nullable', Rule::in(['high_risk', 'moderate_risk', 'spam'])],
             'order_id' => ['nullable', 'integer', 'min:1'],
             'order_number' => ['nullable', 'string', 'max:200'],
@@ -47,7 +48,7 @@ class MerchantOrderQuery
         if ($store->owner && app(PlatformWallet::class)->ordersLocked($store->owner)) {
             $query->whereNotIn('store_orders.id', DB::table('platform_wallet_entries')->where('type', 'order_fee')->whereNotNull('store_order_id')->select('store_order_id'));
         }
-        foreach (['status', 'payment_status', 'order_id'] as $key) {
+        foreach (['status', 'payment_status', 'fulfillment_status', 'order_id'] as $key) {
             if (isset($filters[$key]) && $filters[$key] !== '') {
                 $query->where($key === 'order_id' ? 'store_orders.id' : $key, $filters[$key]);
             }

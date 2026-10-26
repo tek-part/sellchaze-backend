@@ -29,7 +29,7 @@ class MerchantOrderEditing
             && bccomp((string) ($order->gift_card_total ?? '0'), '0', 2) === 0
             && ! StorePaymentTransaction::where('store_id', $store->id)->where('store_order_id', $order->id)
                 ->where(fn ($query) => $query->whereNotIn('status', ['created', 'pending', 'failed'])->orWhereNotIn('gateway', ['cod', 'bank_transfer']))->exists()
-            && ! $order->items()->whereIn('inventory_status', ['committed', 'released'])->exists();
+            && ! $order->items()->where(fn ($query) => $query->whereIn('inventory_status', ['committed', 'released'])->orWhere('fulfilled_quantity', '>', 0))->exists();
 
         return ['contact' => $contact, 'financial' => $financial,
             'reason' => $shipment ? 'shipment_exists' : (! $contact ? 'order_closed' : (! $financial ? 'payment_or_inventory_locked' : null))];

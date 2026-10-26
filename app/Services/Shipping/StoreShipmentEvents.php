@@ -4,6 +4,7 @@ namespace App\Services\Shipping;
 
 use App\Models\Store;
 use App\Models\StoreOrder;
+use App\Models\StoreOrderFulfillment;
 use App\Models\StoreShipment;
 use App\Models\StoreShipmentEvent;
 use App\Services\Commerce\StoreOrderService;
@@ -64,6 +65,9 @@ class StoreShipmentEvents
             $current->update(['status' => 'created', 'external_id' => $externalId, 'tracking_number' => $tracking, 'carrier_state' => $state,
                 'carrier_state_label' => self::STATES[$state] ?? 'Carrier state '.$state, 'last_event_at_ms' => $timeMs,
                 'carrier_revision' => $current->carrier_revision + 1, 'error_code' => null, 'synced_at' => now()]);
+            // A fulfillment created before Bosta assigned the tracking number picks it up now.
+            StoreOrderFulfillment::withoutGlobalScopes()->where('store_id', $current->store_id)->where('store_shipment_id', $current->id)
+                ->whereNull('tracking_number')->update(['tracking_number' => $tracking, 'carrier' => 'bosta']);
             $this->advanceOrder($order, $state);
 
             return $current;

@@ -86,7 +86,9 @@ class StoreOrderRefunds
                 'allocated_amount' => $this->money($line['allocated']),
                 'refunded_amount' => $this->money($line['refunded_amount']),
                 'refundable_amount' => $this->money($line['remaining_amount']),
-                'restockable' => $line['item']->inventory_status === 'committed' && $line['item']->digital_delivery === null,
+                'restockable' => StoreInventory::shippedUnits($line['item']) > 0 && in_array($line['item']->inventory_status, ['reserved', 'committed'], true) && $line['item']->digital_delivery === null,
+                'fulfilled_quantity' => StoreInventory::shippedUnits($line['item']),
+                'unfulfilled_quantity' => StoreInventory::unfulfilled($line['item']),
                 'digital' => $line['item']->digital_delivery !== null,
             ])->values()->all(),
             'refunds' => $state['refunds']->map(fn (StoreOrderRefund $refund) => $this->present($refund, $state['lines']))->values()->all(),
@@ -156,10 +158,18 @@ class StoreOrderRefunds
             $restock = (bool) ($data['restock'] ?? false);
             $restocked = 0;
             $items = [];
+            $alreadyRestocked = [];
+            foreach ($state['refunds'] as $previous) {
+                foreach ($previous->items ?? [] as $row) {
+                    $alreadyRestocked[(int) $row['store_order_item_id']] = ($alreadyRestocked[(int) $row['store_order_item_id']] ?? 0) + (int) ($row['restocked_quantity'] ?? 0);
+                }
+            }
             foreach ($records as $record) {
                 /** @var StoreOrderItem $item */
                 $item = $record['line']['item'];
-                $units = $restock ? app(StoreInventory::class)->restock($item, $record['quantity'], $actorId, 'Refund on order '.$order->order_number) : 0;
+                // Units that never shipped are released first; shipped units are restocked only up to what left the shelf.
+                $restockable = StoreInventory::shippedUnits($item) - ($alreadyRestocked[$item->id] ?? 0);
+                $units = app(StoreInventory::class)->refundUnits($item, $record['quantity'], $restock, $restockable, $actorId, 'Refund on order '.$order->order_number);
                 $restocked += $units;
                 $items[] = ['store_order_item_id' => $item->id, 'quantity' => $record['quantity'], 'amount' => $this->money($record['cents']), 'restocked_quantity' => $units];
             }
@@ -202,6 +212,7 @@ class StoreOrderRefunds
                     app(StoreNotificationSettings::class)->schedule($order, 'order_refunded');
                 }
             }
+            app(StoreFulfillments::class)->recompute($order);
             DB::afterCommit(fn () => StoreAnalyticsService::forget($order->store_id));
 
             return $refund;
