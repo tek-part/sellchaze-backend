@@ -8,6 +8,7 @@ use App\Models\StoreDomain;
 use App\Models\StoreOrder;
 use App\Models\StoreOrderItem;
 use App\Models\User;
+use App\Services\Commerce\ProductAnalytics;
 use App\Services\Commerce\StorefrontEvents;
 use App\Services\JwtTokenService;
 use Database\Seeders\PermissionTableSeeder;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -210,5 +212,104 @@ class ProductAnalyticsTest extends TestCase
             $this->assertStringContainsString('Preserve', $error->getMessage());
         }
         $this->assertTrue(Schema::hasTable('store_product_daily_metrics'));
+    }
+
+    public function test_campaign_labels_are_normalised_and_each_store_day_keeps_a_bounded_number_of_segments(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 12)->setTime(10, 0));
+        $this->send((string) Str::uuid(), 'product_view', ['utm_source' => '  FaceBook   Ads!!', 'utm_medium' => 'CPC', 'utm_campaign' => str_repeat('x', 150)])->assertStatus(202);
+        $row = DB::table('store_product_daily_metrics')->first();
+        $this->assertSame(['facebook ads', 'cpc', str_repeat('x', 64)], [$row->utm_source, $row->utm_medium, $row->utm_campaign]);
+        $this->funnel('&utm_source=Facebook%20Ads')->assertOk()->assertJsonPath('data.totals.views', 1);
+
+        $events = app(StorefrontEvents::class);
+        for ($index = 2; $index <= ProductAnalytics::MAX_SEGMENTS + 5; $index++) {
+            $events->capture($this->store, ['event_id' => (string) Str::uuid(), 'session_id' => (string) Str::uuid(), 'kind' => 'product_view', 'product_id' => $this->product->id, 'utm_source' => 'ad', 'utm_campaign' => 'c'.$index]);
+        }
+        $this->assertSame(ProductAnalytics::MAX_SEGMENTS + 1, DB::table('store_product_daily_metrics')->distinct()->count('segment'));
+        $this->assertSame(5, (int) DB::table('store_product_daily_metrics')->where('utm_source', '(other)')->value('views'));
+        $this->funnel('&utm_source=(other)')->assertOk()->assertJsonPath('data.totals.views', 5);
+        // A known campaign keeps counting under its own segment after the cap is reached.
+        $events->capture($this->store, ['event_id' => (string) Str::uuid(), 'session_id' => (string) Str::uuid(), 'kind' => 'product_view', 'product_id' => $this->product->id, 'utm_source' => 'ad', 'utm_campaign' => 'c2']);
+        $this->assertSame(2, (int) DB::table('store_product_daily_metrics')->where('utm_campaign', 'c2')->value('views'));
+        $this->assertSame(ProductAnalytics::MAX_SEGMENTS + 1, DB::table('store_product_daily_metrics')->distinct()->count('segment'));
+    }
+
+    public function test_product_views_have_a_per_ip_budget_and_privacy_signals_record_nothing(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 12)->setTime(10, 0));
+        for ($index = 0; $index < 35; $index++) {
+            $this->send((string) Str::uuid(), 'product_view')->assertStatus(202);
+        }
+        $this->assertSame(30, DB::table('storefront_events')->where('kind', 'product_view')->count());
+        // Another address still counts, and other event kinds are not limited by the view budget.
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])->send((string) Str::uuid(), 'product_view')->assertStatus(202);
+        $this->send((string) Str::uuid(), 'add_to_cart')->assertStatus(202);
+        $this->assertSame(31, DB::table('storefront_events')->where('kind', 'product_view')->count());
+        $this->assertSame(1, DB::table('storefront_events')->where('kind', 'add_to_cart')->count());
+        $this->travel(61)->seconds();
+        $this->send((string) Str::uuid(), 'product_view')->assertStatus(202);
+        $this->assertSame(32, DB::table('storefront_events')->where('kind', 'product_view')->count());
+        RateLimiter::clear('sf-product-views:'.$this->store->id.':'.hash('sha256', '127.0.0.1').':day');
+
+        $before = DB::table('storefront_events')->count();
+        $this->send((string) Str::uuid(), 'visit', [], ['DNT' => '1'])->assertStatus(202);
+        $this->send((string) Str::uuid(), 'add_to_cart', [], ['Sec-GPC' => '1'])->assertStatus(202);
+        $this->assertSame($before, DB::table('storefront_events')->count());
+    }
+
+    public function test_cart_sessions_are_counted_once_by_a_unique_key_and_a_failed_rollup_rolls_the_event_back(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 12)->setTime(10, 0));
+        $session = (string) Str::uuid();
+        $this->send($session, 'add_to_cart', ['quantity' => 2])->assertStatus(202);
+        $this->send($session, 'add_to_cart', ['quantity' => 3])->assertStatus(202);
+        $row = DB::table('store_product_daily_metrics')->first();
+        $this->assertSame([1, 5], [(int) $row->carts, (int) $row->cart_units]);
+        $this->assertSame(1, DB::table('storefront_session_products')->where('kind', 'add_to_cart')->count());
+
+        $real = app(ProductAnalytics::class);
+        $this->app->instance(ProductAnalytics::class, new class extends ProductAnalytics
+        {
+            public function increment(Store $store, int $productId, string $session, string $kind, int $quantity, array $campaign): void
+            {
+                throw new \RuntimeException('Rollup unavailable');
+            }
+        });
+        $retry = $this->event((string) Str::uuid(), 'checkout_started');
+        $this->withoutExceptionHandling();
+        try {
+            app(StorefrontEvents::class)->capture($this->store, $retry);
+            $this->fail('The rollup failure must surface');
+        } catch (\RuntimeException $error) {
+            $this->assertSame('Rollup unavailable', $error->getMessage());
+        }
+        $this->assertSame(0, DB::table('storefront_events')->where('kind', 'checkout_started')->count());
+        $this->assertSame(0, DB::table('storefront_session_products')->where('kind', 'checkout_started')->count());
+        $this->app->instance(ProductAnalytics::class, $real);
+        app(StorefrontEvents::class)->capture($this->store, $retry);
+        $this->assertSame(1, (int) DB::table('store_product_daily_metrics')->value('checkouts'));
+    }
+
+    public function test_retention_prunes_unconverted_session_campaigns_and_old_session_markers_but_keeps_order_attribution(): void
+    {
+        $this->travelTo(now()->setDate(2026, 9, 1)->setTime(10, 0));
+        $converted = (string) Str::uuid();
+        $abandoned = (string) Str::uuid();
+        foreach ([$converted, $abandoned] as $session) {
+            $this->send($session, 'add_to_cart', ['utm_source' => 'meta', 'utm_campaign' => 'sept'])->assertStatus(202);
+        }
+        $this->order('R-1', 'pending', [['quantity' => 1]], ['analytics_session_hash' => app(StorefrontEvents::class)->sessionKey($this->store, $converted)]);
+        $this->travelTo(now()->setDate(2026, 10, 12)->setTime(10, 0));
+        $recent = (string) Str::uuid();
+        $this->send($recent, 'add_to_cart', ['utm_source' => 'meta', 'utm_campaign' => 'oct'])->assertStatus(202);
+
+        $this->artisan('operations:retention')->expectsOutputToContain('storefront_session_campaigns: 1 deleted')->expectsOutputToContain('storefront_session_products: 2 deleted')->assertSuccessful();
+        $keys = DB::table('storefront_session_campaigns')->pluck('session_key')->all();
+        $events = app(StorefrontEvents::class);
+        $this->assertEqualsCanonicalizing([$events->sessionKey($this->store, $converted), $events->sessionKey($this->store, $recent)], $keys);
+        $this->assertSame(1, DB::table('storefront_session_products')->count());
+        // The order placed in September keeps its campaign in reports.
+        $this->getJson('/api/v1/my-store/analytics/product-funnel?from=2026-09-01&to=2026-09-01&utm_source=meta', $this->auth)->assertOk()->assertJsonPath('data.totals.orders', 1);
     }
 }

@@ -19,10 +19,12 @@ return new class extends Migration
             $table->foreignUuid('provider_id')->constrained('marketplace_service_providers')->cascadeOnDelete();
             $table->foreignUuid('service_id')->nullable()->constrained('marketplace_services')->nullOnDelete();
             $table->string('kind', 16);
-            // Service id, contact channel or '' for the profile; part of the dedupe key.
-            $table->string('target', 36)->default('');
+            // Service id, "channel:service id" for contact clicks, or '' for the profile; part of the dedupe key.
+            $table->string('target', 64)->default('');
             $table->char('viewer_hash', 64);
             $table->date('day');
+            // Quarter hour of the UTC day (0-95) so reports can group in SQL and still place rows in any timezone.
+            $table->unsignedTinyInteger('slot');
             $table->timestamp('occurred_at');
             $table->unique(['provider_id', 'kind', 'target', 'viewer_hash', 'day'], 'mkt_engagements_unique');
             $table->index(['provider_id', 'occurred_at'], 'mkt_engagements_provider_time');

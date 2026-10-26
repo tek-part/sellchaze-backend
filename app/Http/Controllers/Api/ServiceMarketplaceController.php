@@ -68,7 +68,7 @@ class ServiceMarketplaceController extends Controller
     public function show(Request $request, string $service): JsonResponse
     {
         $row = $this->market->visible()->with('provider')->whereKey($service)->firstOrFail();
-        app(MarketplaceAnalytics::class)->record($row->provider, $request->user(), 'service_view', $row);
+        app(MarketplaceAnalytics::class)->record($request, $row->provider, $request->user(), 'service_view', $row);
         $related = $this->market->visible()->with('provider')->where('category', $row->category)->whereKeyNot($row->id)->orderBy('ratings_count')->orderBy('rating')->orderBy('id')->limit(16)->get();
 
         return response()->json(['data' => $this->market->service($row, true), 'related' => $related->map(fn ($item) => $this->market->service($item)),
@@ -79,7 +79,7 @@ class ServiceMarketplaceController extends Controller
     public function provider(Request $request, string $provider): JsonResponse
     {
         $row = MarketplaceServiceProvider::where('published', true)->whereHas('owner', fn ($q) => $q->where('is_active', true)->where('pending_approval', false))->whereKey($provider)->firstOrFail();
-        app(MarketplaceAnalytics::class)->record($row, $request->user(), 'profile_view');
+        app(MarketplaceAnalytics::class)->record($request, $row, $request->user(), 'profile_view');
 
         return response()->json(['data' => $this->market->provider($row), 'services_count' => $this->market->visible()->where('provider_id', $row->id)->count()]);
     }
@@ -91,7 +91,7 @@ class ServiceMarketplaceController extends Controller
         $row = MarketplaceServiceProvider::where('published', true)->where('contacts_public', true)->whereHas('owner', fn ($q) => $q->where('is_active', true)->where('pending_approval', false))->whereKey($provider)->firstOrFail();
         abort_if(empty(($row->contacts ?? [])[$data['channel']]), 422, 'This contact channel is not published.');
         $service = isset($data['service_id']) ? $this->market->visible()->where('provider_id', $row->id)->whereKey($data['service_id'])->firstOrFail() : null;
-        $analytics->record($row, $request->user(), 'contact_click', $service, $data['channel']);
+        $analytics->record($request, $row, $request->user(), 'contact_click', $service, $data['channel']);
 
         return response()->json(['message' => 'Recorded.'], 202, ['Cache-Control' => 'private, no-store']);
     }

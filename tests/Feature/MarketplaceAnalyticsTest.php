@@ -73,6 +73,8 @@ class MarketplaceAnalyticsTest extends TestCase
         $this->getJson('/api/v1/service-marketplace/services/'.$service['id'], $this->auth($this->owner))->assertOk();
         $this->getJson('/api/v1/service-marketplace/providers/'.$provider, $this->auth($this->viewer))->assertOk();
         $this->postJson('/api/v1/service-marketplace/providers/'.$provider.'/contact-clicks', ['channel' => 'whatsapp', 'service_id' => $service['id']], $this->auth($this->viewer))->assertStatus(202);
+        $this->postJson('/api/v1/service-marketplace/providers/'.$provider.'/contact-clicks', ['channel' => 'whatsapp', 'service_id' => $service['id']], $this->auth($this->viewer))->assertStatus(202);
+        // The same channel opened from the profile page is a different target and counts on its own.
         $this->postJson('/api/v1/service-marketplace/providers/'.$provider.'/contact-clicks', ['channel' => 'whatsapp'], $this->auth($this->viewer))->assertStatus(202);
         $this->travelTo(now()->setDate(2026, 10, 21)->setTime(9, 0));
         $second = $this->merchant();
@@ -82,8 +84,8 @@ class MarketplaceAnalyticsTest extends TestCase
         $this->assertFalse(Schema::hasColumn('marketplace_engagements', 'user_id'));
         $this->assertNotContains((string) $this->viewer->id, DB::table('marketplace_engagements')->pluck('viewer_hash')->all());
         $this->report($this->owner, 'from=2026-10-20&to=2026-10-21')->assertOk()
-            ->assertJsonPath('data.summary', ['service_views' => 3, 'profile_views' => 1, 'contact_clicks' => 1, 'unique_visitors' => 2])
-            ->assertJsonPath('data.contact_channels.whatsapp', 1)->assertJsonPath('data.daily.0.service_views', 1)->assertJsonPath('data.daily.1.service_views', 2)
+            ->assertJsonPath('data.summary', ['service_views' => 3, 'profile_views' => 1, 'contact_clicks' => 2, 'unique_visitors' => 2])
+            ->assertJsonPath('data.contact_channels.whatsapp', 2)->assertJsonPath('data.daily.0.service_views', 1)->assertJsonPath('data.daily.1.service_views', 2)
             ->assertJsonPath('data.services.0.title', 'Landing page build')->assertJsonPath('data.services.0.views', 3)->assertJsonPath('data.services.0.contact_clicks', 1);
         $this->report($this->owner, 'from=2026-10-21&to=2026-10-21')->assertOk()->assertJsonPath('data.summary.service_views', 2)->assertJsonCount(1, 'data.daily');
     }
@@ -128,5 +130,29 @@ class MarketplaceAnalyticsTest extends TestCase
             $this->assertStringContainsString('Preserve', $error->getMessage());
         }
         $this->assertTrue(Schema::hasTable('marketplace_engagements'));
+    }
+
+    public function test_contact_clicks_count_per_service_and_recording_never_breaks_pages_or_ignores_privacy_signals(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 20)->setTime(9, 0));
+        $first = $this->publish($this->owner);
+        $second = $this->postJson('/api/v1/me/service-marketplace/services', ['request_key' => (string) Str::uuid(), 'title' => 'Store setup', 'description' => 'Details',
+            'category' => 'store-setup', 'price_minor' => 1000, 'currency' => 'EGP', 'images' => [], 'published' => true], $this->auth($this->owner))->assertCreated()->json('data');
+        $provider = $first['provider']['id'];
+        foreach ([$first['id'], $second['id']] as $service) {
+            $this->postJson('/api/v1/service-marketplace/providers/'.$provider.'/contact-clicks', ['channel' => 'whatsapp', 'service_id' => $service], $this->auth($this->viewer))->assertStatus(202);
+        }
+        $this->report($this->owner, 'from=2026-10-20&to=2026-10-20')->assertOk()->assertJsonPath('data.summary.contact_clicks', 2)
+            ->assertJsonPath('data.services.0.contact_clicks', 1)->assertJsonPath('data.services.1.contact_clicks', 1);
+
+        $other = $this->merchant();
+        $this->getJson('/api/v1/service-marketplace/services/'.$first['id'], $this->auth($other) + ['DNT' => '1'])->assertOk();
+        $this->getJson('/api/v1/service-marketplace/providers/'.$provider, $this->auth($other) + ['Sec-GPC' => '1'])->assertOk();
+        $this->assertSame(0, DB::table('marketplace_engagements')->whereIn('kind', ['service_view', 'profile_view'])->count());
+
+        // A broken analytics table is reported but never turns the public pages into errors.
+        Schema::drop('marketplace_engagements');
+        $this->getJson('/api/v1/service-marketplace/services/'.$first['id'], $this->auth($other))->assertOk()->assertJsonPath('data.id', $first['id']);
+        $this->getJson('/api/v1/service-marketplace/providers/'.$provider, $this->auth($other))->assertOk();
     }
 }

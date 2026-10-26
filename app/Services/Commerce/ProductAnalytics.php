@@ -19,11 +19,60 @@ class ProductAnalytics
 {
     public const MAX_PRODUCTS = 500;
 
+    public const MAX_SEGMENTS = 50;
+
+    public const OTHER = ['utm_source' => '(other)', 'utm_medium' => null, 'utm_campaign' => null];
+
     public function timezone(Store $store): string
     {
         $zone = (string) ($store->timezone ?: config('app.timezone'));
 
         return in_array($zone, timezone_identifiers_list(), true) ? $zone : (string) config('app.timezone');
+    }
+
+    /**
+     * Campaign labels are stored lowercase, at most 64 characters, letters/digits and
+     * " _ . + -" only, so arbitrary visitor text cannot multiply segments.
+     *
+     * @return array{utm_source:?string,utm_medium:?string,utm_campaign:?string}
+     */
+    public function normaliseCampaign(array $data): array
+    {
+        $clean = function (mixed $value): ?string {
+            if (! is_string($value)) {
+                return null;
+            }
+            $value = mb_strtolower(trim($value));
+            $value = (string) preg_replace('/[^\p{L}\p{N} _.+-]+/u', '-', $value);
+            $value = trim((string) preg_replace(['/\s+/u', '/-{2,}/'], [' ', '-'], $value), ' -');
+
+            $value = rtrim(mb_substr($value, 0, 64), ' -');
+
+            return $value === '' ? null : $value;
+        };
+
+        return ['utm_source' => $clean($data['utm_source'] ?? null), 'utm_medium' => $clean($data['utm_medium'] ?? null), 'utm_campaign' => $clean($data['utm_campaign'] ?? null)];
+    }
+
+    /**
+     * A store keeps at most MAX_SEGMENTS distinct campaigns per day; further campaigns
+     * that day are counted under OTHER ("(other)" cannot come from a normalised label).
+     *
+     * @param  array{utm_source:?string,utm_medium:?string,utm_campaign:?string}  $campaign
+     * @return array{utm_source:?string,utm_medium:?string,utm_campaign:?string}
+     */
+    public function boundedCampaign(Store $store, array $campaign): array
+    {
+        if (! array_filter($campaign)) {
+            return $campaign;
+        }
+        $day = now($this->timezone($store))->toDateString();
+        $rows = DB::table('store_product_daily_metrics')->where('store_id', $store->id)->where('day', $day);
+        if ((clone $rows)->where('segment', $this->segment($campaign))->exists()) {
+            return $campaign;
+        }
+
+        return (clone $rows)->distinct()->count('segment') >= self::MAX_SEGMENTS ? self::OTHER : $campaign;
     }
 
     /** @param array{utm_source:?string,utm_medium:?string,utm_campaign:?string} $campaign */
@@ -33,29 +82,41 @@ class ProductAnalytics
         if ($column === null) {
             return;
         }
+        // Views are already unique per session and product; carts and checkouts count the session once
+        // through a unique (session, step, product) row, while repeated adds still add units.
+        $first = $kind === 'product_view' || DB::table('storefront_session_products')->insertOrIgnore([
+            'store_id' => $store->id, 'session_key' => $session, 'kind' => $kind, 'product_id' => $productId, 'created_at' => now(),
+        ]) === 1;
+        $units = $kind === 'add_to_cart' ? max(0, $quantity) : 0;
+        $counts = ['views' => 0, 'carts' => 0, 'cart_units' => $units, 'checkouts' => 0];
         $updates = [];
-        // Repeated adds/checkouts in one session still add units but count the session once.
-        $first = $kind === 'product_view' || DB::table('storefront_events')->where('store_id', $store->id)->where('session_key', $session)
-            ->where('kind', $kind)->where('product_id', $productId)->count() === 1;
         if ($first) {
+            $counts[$column] = 1;
             $updates[$column] = DB::raw($column.' + 1');
         }
-        if ($kind === 'add_to_cart') {
-            $updates['cart_units'] = DB::raw('cart_units + '.max(0, $quantity));
+        if ($units) {
+            $updates['cart_units'] = DB::raw('cart_units + '.$units);
         }
         if (! $updates) {
             return;
         }
-        $key = ['store_id' => $store->id, 'day' => now($this->timezone($store))->toDateString(), 'product_id' => $productId,
-            'segment' => sha1(implode("\n", [$campaign['utm_source'] ?? '', $campaign['utm_medium'] ?? '', $campaign['utm_campaign'] ?? '']))];
-        DB::table('store_product_daily_metrics')->insertOrIgnore($key + $campaign + ['updated_at' => now()]);
-        DB::table('store_product_daily_metrics')->where($key)->update($updates + ['updated_at' => now()]);
+        DB::table('store_product_daily_metrics')->upsert([[
+            'store_id' => $store->id, 'day' => now($this->timezone($store))->toDateString(), 'product_id' => $productId, 'segment' => $this->segment($campaign),
+        ] + $campaign + $counts + ['updated_at' => now()]], ['store_id', 'day', 'product_id', 'segment'], $updates + ['updated_at' => now()]);
+    }
+
+    /** @param array{utm_source:?string,utm_medium:?string,utm_campaign:?string} $campaign */
+    private function segment(array $campaign): string
+    {
+        return sha1(implode("\n", [$campaign['utm_source'] ?? '', $campaign['utm_medium'] ?? '', $campaign['utm_campaign'] ?? '']));
     }
 
     /** @param array{utm_source?:?string,utm_medium?:?string,utm_campaign?:?string} $filters */
     public function funnel(Store $store, string $from, string $to, array $filters = []): array
     {
-        $filters = array_filter(array_intersect_key($filters, array_flip(['utm_source', 'utm_medium', 'utm_campaign'])), fn ($value) => $value !== null && $value !== '');
+        // Filters match the stored labels, which are normalised; "(other)" is the overflow segment.
+        $filters = array_filter(array_map(fn ($value) => $value === self::OTHER['utm_source'] ? $value : $this->normaliseCampaign(['utm_source' => $value])['utm_source'],
+            array_intersect_key($filters, array_flip(['utm_source', 'utm_medium', 'utm_campaign']))), fn ($value) => $value !== null && $value !== '');
         $traffic = DB::table('store_product_daily_metrics')->where('store_id', $store->id)->whereBetween('day', [$from, $to]);
         foreach ($filters as $column => $value) {
             $traffic->where($column, $value);
