@@ -57,6 +57,9 @@ class RouteServiceProvider extends ServiceProvider
             ];
         });
 
+        // Campaign open pixels / click redirects: mailbox image proxies fetch from few addresses.
+        RateLimiter::for('email-tracking', fn (Request $request) => Limit::perMinute(600)->by('email-track:'.$request->ip()));
+
         // Only cache misses reach PHP (rendering a new image size); hits are static files.
         RateLimiter::for('media-derivatives', fn (Request $request) => Limit::perMinute(600)->by('img:'.$request->ip()));
 

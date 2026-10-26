@@ -63,7 +63,7 @@ class StoreManagerPermissions
         }
 
         return match ($root) {
-            'orders', 'customers', 'missed-orders', 'newsletter', 'blocked-phone-numbers', 'blocked-phones' => ['store.orders.manage'],
+            'orders', 'customers', 'missed-orders', 'newsletter', 'email-campaigns', 'blocked-phone-numbers', 'blocked-phones' => ['store.orders.manage'],
             'ab-tests' => ['store.products.manage'],
             'reviews' => ['store.reviews.manage'],
             'coupons' => ['store.coupons.manage'],
