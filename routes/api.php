@@ -377,7 +377,7 @@ Route::prefix('v1')->group(function () {
         Route::post('checkout/phone/send', [PhoneVerificationController::class, 'send'])->middleware('throttle:10,1');
         Route::post('checkout/phone/verify', [PhoneVerificationController::class, 'verify'])->middleware('throttle:30,1');
         Route::post('checkout/bot/verify', BotVerificationController::class)->middleware('throttle:10,1');
-        Route::post('checkout/quote', [CheckoutController::class, 'quote']);
+        Route::post('checkout/quote', [CheckoutController::class, 'quote'])->middleware('throttle:120,1');
         Route::post('checkout/gift-card/check', [CheckoutController::class, 'checkGiftCard'])->middleware('throttle:10,1');
         Route::post('checkout/payment/retry', [CheckoutController::class, 'retryPayment']);
         // Draft-order invoices: the random token is the capability; foreign/expired tokens 404.
