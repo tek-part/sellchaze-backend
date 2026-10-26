@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\CommunitySearchController;
 use App\Http\Controllers\Api\CouponsApiController;
 use App\Http\Controllers\Api\CurrencySettingsApiController;
 use App\Http\Controllers\Api\DomainMetricsApiController;
+use App\Http\Controllers\Api\EmailCampaignTrackingController;
 use App\Http\Controllers\Api\EmailLogsApiController;
 use App\Http\Controllers\Api\EmailSettingsApiController;
 use App\Http\Controllers\Api\EmailTemplatesApiController;
@@ -85,6 +86,7 @@ use App\Http\Controllers\Api\StoreDigitalDeliveryController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
 use App\Http\Controllers\Api\StoreDownsellController;
 use App\Http\Controllers\Api\StoreDraftOrderController;
+use App\Http\Controllers\Api\StoreEmailCampaignsController;
 use App\Http\Controllers\Api\Storefront\AbTestController;
 use App\Http\Controllers\Api\Storefront\BotVerificationController;
 use App\Http\Controllers\Api\Storefront\CartController;
@@ -284,6 +286,15 @@ Route::prefix('v1')->group(function () {
     Route::get('/public/articles/feed.xml', [ArticlesApiController::class, 'publicFeed']);
     Route::get('/public/articles/{slug}', [ArticlesApiController::class, 'publicShow'])
         ->where('slug', '[A-Za-z0-9\-_]+');
+
+    // E-mail campaign links (public, token-identified, no login): unsubscribe page + RFC 8058 one-click
+    // POST, open pixel and the click redirect (only to URLs of the sent content).
+    Route::prefix('email')->group(function () {
+        Route::get('unsubscribe/{token}', [EmailCampaignTrackingController::class, 'unsubscribePage'])->where('token', '[A-Za-z0-9]{1,64}')->middleware('throttle:60,1')->name('email-campaigns.unsubscribe');
+        Route::post('unsubscribe/{token}', [EmailCampaignTrackingController::class, 'unsubscribe'])->where('token', '[A-Za-z0-9]{1,64}')->middleware('throttle:60,1')->name('email-campaigns.unsubscribe.confirm');
+        Route::get('open/{token}', [EmailCampaignTrackingController::class, 'open'])->where('token', '[A-Za-z0-9]{1,64}')->middleware('throttle:email-tracking')->name('email-campaigns.open');
+        Route::get('click/{token}', [EmailCampaignTrackingController::class, 'click'])->where('token', '[A-Za-z0-9]{1,64}')->middleware('throttle:email-tracking')->name('email-campaigns.click');
+    });
 
     // Phase 2: resolve the current Host to a store (subdomain-based). Storefront
     // rendering itself is Phase 3 — this only proves/exposes host resolution.
@@ -705,6 +716,23 @@ Route::prefix('v1')->group(function () {
                 Route::post('bulk-status', [StoreMissedOrdersController::class, 'bulkStatus']);
             });
             Route::middleware('permission:store.orders.manage')->get('newsletter', [StoreNewsletterController::class, 'index']);
+            // ---- Marketing > Email campaigns (newsletter subscribers only; sending is queued and throttled) ----
+            Route::middleware('permission:store.orders.manage')->prefix('email-campaigns')->group(function () {
+                Route::get('/', [StoreEmailCampaignsController::class, 'index']);
+                Route::post('/', [StoreEmailCampaignsController::class, 'store'])->middleware('throttle:60,1');
+                Route::get('options', [StoreEmailCampaignsController::class, 'options'])->middleware('throttle:tenant-read');
+                Route::post('preview', [StoreEmailCampaignsController::class, 'preview'])->middleware('throttle:120,1');
+                Route::post('audience-count', [StoreEmailCampaignsController::class, 'audienceCount'])->middleware('throttle:60,1');
+                Route::get('{campaign}', [StoreEmailCampaignsController::class, 'show'])->whereNumber('campaign');
+                Route::match(['put', 'patch'], '{campaign}', [StoreEmailCampaignsController::class, 'update'])->whereNumber('campaign')->middleware('throttle:120,1');
+                Route::delete('{campaign}', [StoreEmailCampaignsController::class, 'destroy'])->whereNumber('campaign');
+                Route::post('{campaign}/preview', [StoreEmailCampaignsController::class, 'preview'])->whereNumber('campaign')->middleware('throttle:120,1');
+                Route::post('{campaign}/test', [StoreEmailCampaignsController::class, 'test'])->whereNumber('campaign')->middleware('throttle:5,1');
+                Route::post('{campaign}/audience-count', [StoreEmailCampaignsController::class, 'audienceCount'])->whereNumber('campaign')->middleware('throttle:60,1');
+                Route::post('{campaign}/schedule', [StoreEmailCampaignsController::class, 'schedule'])->whereNumber('campaign')->middleware('throttle:20,1');
+                Route::post('{campaign}/cancel', [StoreEmailCampaignsController::class, 'cancel'])->whereNumber('campaign')->middleware('throttle:20,1');
+                Route::get('{campaign}/report', [StoreEmailCampaignsController::class, 'report'])->whereNumber('campaign');
+            });
             Route::get('funnels/templates', [StoreFunnelsApiController::class, 'templates']);
             Route::get('funnels/products', [StoreFunnelsApiController::class, 'products']);
             Route::get('funnels/by-code/{code}', [StoreFunnelsApiController::class, 'byCode'])->whereUuid('code');

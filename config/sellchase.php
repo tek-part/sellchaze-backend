@@ -19,6 +19,18 @@ return [
         'refresh_ttl_hours' => (int) env('JWT_REFRESH_TTL_HOURS', 2400),
     ],
 
+    /*
+     | Merchant e-mail campaigns: delivery is queued and throttled. The caps are messages per minute
+     | for one store and for the whole platform (the shared SMTP account); batch_size is recipients
+     | per queued job; queue is the queue name (empty = the default queue).
+     */
+    'email_campaigns' => [
+        'per_store_per_minute' => (int) env('EMAIL_CAMPAIGNS_PER_STORE_PER_MINUTE', 60),
+        'platform_per_minute' => (int) env('EMAIL_CAMPAIGNS_PLATFORM_PER_MINUTE', 300),
+        'batch_size' => (int) env('EMAIL_CAMPAIGNS_BATCH_SIZE', 50),
+        'queue' => env('EMAIL_CAMPAIGNS_QUEUE', ''),
+    ],
+
     /**
      * Storefront (Phase 2): base domain used to build store subdomains,
      * e.g. base_domain "sellchase.com" => "nike.sellchase.com".
