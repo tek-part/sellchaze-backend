@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $store_order_id
  * @property string $amount
  * @property string $shipping_amount
+ * @property string $gift_card_amount part of `amount` returned to gift cards; the rest is money
  * @property string|null $reason
  * @property string|null $note
  * @property string $method
@@ -30,11 +31,12 @@ class StoreOrderRefund extends Model
 
     public const REASONS = ['customer_request', 'returned', 'damaged', 'wrong_item', 'not_delivered', 'order_cancelled', 'other'];
 
-    protected $fillable = ['store_id', 'store_order_id', 'amount', 'shipping_amount', 'reason', 'note', 'method', 'restocked', 'items', 'actor_id'];
+    protected $fillable = ['store_id', 'store_order_id', 'amount', 'shipping_amount', 'gift_card_amount', 'reason', 'note', 'method', 'restocked', 'items', 'actor_id'];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'shipping_amount' => 'decimal:2',
+        'gift_card_amount' => 'decimal:2',
         'restocked' => 'boolean',
         'items' => 'array',
     ];

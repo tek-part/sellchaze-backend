@@ -67,6 +67,8 @@ class StoreManagerPermissions
             'ab-tests' => ['store.products.manage'],
             'reviews' => ['store.reviews.manage'],
             'coupons' => ['store.coupons.manage'],
+            // Discount managers may look up gift cards; issuing, adjusting and disabling needs its own grant.
+            'gift-cards' => $read ? ['store.gift_cards.manage', 'store.coupons.manage'] : ['store.gift_cards.manage'],
             'analytics' => ['store.analytics.view'],
             'themes', 'design-assets' => ['store.themes.manage'],
             'pages', 'simple-pages', 'articles', 'content', 'reusable-sections', 'funnels', 'ui-blocks' => ['store.pages.manage'],

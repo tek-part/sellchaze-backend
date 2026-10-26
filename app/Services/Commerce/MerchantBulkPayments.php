@@ -24,7 +24,7 @@ class MerchantBulkPayments
 
                 return ['id' => $row->id, 'order_number' => $row->order_number, 'customer_name' => $row->customer_name,
                     'status' => $row->status, 'payment_status' => $row->payment_status, 'payment_method' => $row->payment_method,
-                    'amount' => $row->grand_total, 'currency' => $row->currency, 'transaction_id' => $transaction?->id,
+                    'amount' => $row->amountDue(), 'currency' => $row->currency, 'transaction_id' => $transaction?->id,
                     'state' => $state, 'reason' => $reason, 'version' => $this->version($context, $target),
                     'receipt' => $receipt ? ['id' => $receipt->id, 'mime' => $receipt->mime, 'reference' => $receipt->reference] : null];
             }, $this->contexts($store, $ids, false));
@@ -163,7 +163,7 @@ class MerchantBulkPayments
         if ($transaction === null) {
             return ['skipped', 'missing_transaction'];
         }
-        if (bccomp((string) $transaction->amount, (string) $row->grand_total, 2) !== 0 || strtoupper($transaction->currency) !== strtoupper($row->currency)) {
+        if (bccomp((string) $transaction->amount, $row->amountDue(), 2) !== 0 || strtoupper($transaction->currency) !== strtoupper($row->currency)) {
             return ['skipped', 'amount_changed'];
         }
         if (! in_array($transaction->status, ['pending', 'failed'], true) || ! in_array($row->payment_status, ['pending', 'unpaid', 'failed'], true)) {
@@ -194,7 +194,7 @@ class MerchantBulkPayments
         $key = 'orders.'.$row->id;
         if ($target === 'paid') {
             if (! ($input['acknowledged'] ?? false) || trim((string) ($input['reference'] ?? '')) === ''
-                || ! isset($input['amount'], $input['currency']) || bccomp((string) $input['amount'], (string) $row->grand_total, 2) !== 0
+                || ! isset($input['amount'], $input['currency']) || bccomp((string) $input['amount'], $row->amountDue(), 2) !== 0
                 || strtoupper($input['currency']) !== strtoupper($row->currency)) {
                 throw ValidationException::withMessages([$key => 'Confirm receipt of the full amount and currency, with a reference for each eligible order.']);
             }

@@ -16,7 +16,7 @@ class ManualBankPayment
                 ->where('gateway', $order->payment_method)->latest('id')->lockForUpdate()->first();
             $current = StoreOrder::forStore($order->store_id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
             if (in_array($current->status, ['cancelled', ...StoreOrder::RETURN_STATUSES], true) || ! in_array($current->payment_method, ['bank_transfer', 'transfer_receipt'], true) || $transaction === null
-                || bccomp((string) $transaction->amount, (string) $current->grand_total, 2) !== 0 || strtoupper($transaction->currency) !== strtoupper($current->currency)) {
+                || bccomp((string) $transaction->amount, $current->amountDue(), 2) !== 0 || strtoupper($transaction->currency) !== strtoupper($current->currency)) {
                 throw ValidationException::withMessages(['payment' => 'This bank payment cannot be confirmed.']);
             }
             if ($current->payment_status === 'paid' || $transaction->status === 'paid') {

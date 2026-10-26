@@ -44,7 +44,7 @@ class StoreShipmentService
             if ($order->payment_status !== 'paid' && ($order->payment_method !== 'cod' || ! in_array($order->payment_status, ['pending', 'unpaid'], true))) {
                 throw ValidationException::withMessages(['order' => 'The order must be paid or awaiting cash on delivery.']);
             }
-            $cod = $order->payment_status === 'paid' ? '0.00' : $order->grand_total;
+            $cod = $order->payment_status === 'paid' ? '0.00' : $order->amountDue();
             if (bccomp($cod, '30000', 2) > 0 || bccomp($cod, '0', 2) < 0 || ! $order->items()->exists()) {
                 throw ValidationException::withMessages(['order' => 'Check the order items and cash collection amount (maximum EGP 30,000).']);
             }

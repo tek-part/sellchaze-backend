@@ -5,6 +5,7 @@ namespace App\Http\Requests\Storefront;
 use App\Services\Commerce\CampaignAttribution;
 use App\Services\Commerce\CheckoutBasket;
 use App\Services\Commerce\CheckoutFields;
+use App\Services\Commerce\GiftCards;
 use App\Services\Commerce\ProductPersonalization;
 use App\Services\Commerce\QuantityOffers;
 use App\Services\Commerce\ReferralAttribution;
@@ -46,6 +47,6 @@ class CheckoutRequest extends FormRequest
             'items.*.product_id' => ['required_with:items', 'integer'],
             'items.*.variant_id' => ['nullable', 'integer', 'min:1'],
             'items.*.quantity' => ['required_with:items', 'integer', 'min:1', 'max:999'],
-        ] + CampaignAttribution::RULES + ReferralAttribution::rules($store);
+        ] + GiftCards::inputRules() + CampaignAttribution::RULES + ReferralAttribution::rules($store);
     }
 }

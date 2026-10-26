@@ -100,6 +100,13 @@ class DigitalProducts
     }
 
     /** Paid codes are never resold, including after a refund or cancellation. */
+    /** Whether the order has digital lines (released to the shopper once the order is paid). */
+    public static function hasDigitalItems(StoreOrder $order): bool
+    {
+        return StoreOrderItem::query()->withoutGlobalScopes()->where('store_id', $order->store_id)->where('store_order_id', $order->id)
+            ->whereNotNull('digital_delivery')->exists();
+    }
+
     public function cancel(StoreOrder $order): void
     {
         if ($order->payment_status === 'paid') {

@@ -118,6 +118,7 @@ use App\Http\Controllers\Api\StorefrontProductsApiController;
 use App\Http\Controllers\Api\StorefrontProductVariantsApiController;
 use App\Http\Controllers\Api\StoreFunnelsApiController;
 use App\Http\Controllers\Api\StoreGeneralSettingsController;
+use App\Http\Controllers\Api\StoreGiftCardsController;
 use App\Http\Controllers\Api\StoreHeadCodeController;
 use App\Http\Controllers\Api\StoreInventoryController;
 use App\Http\Controllers\Api\StoreManagersController;
@@ -365,6 +366,7 @@ Route::prefix('v1')->group(function () {
         Route::post('checkout/phone/verify', [PhoneVerificationController::class, 'verify'])->middleware('throttle:30,1');
         Route::post('checkout/bot/verify', BotVerificationController::class)->middleware('throttle:10,1');
         Route::post('checkout/quote', [CheckoutController::class, 'quote']);
+        Route::post('checkout/gift-card/check', [CheckoutController::class, 'checkGiftCard'])->middleware('throttle:10,1');
         Route::post('checkout/payment/retry', [CheckoutController::class, 'retryPayment']);
         // Draft-order invoices: the random token is the capability; foreign/expired tokens 404.
         Route::get('invoices/{token}', [StorefrontInvoiceController::class, 'show'])->where('token', '[A-Za-z0-9]{1,128}')->middleware('throttle:60,1');
@@ -815,6 +817,15 @@ Route::prefix('v1')->group(function () {
                 Route::get('{coupon}', [CouponsApiController::class, 'show'])->whereNumber('coupon');
                 Route::match(['put', 'post'], '{coupon}', [CouponsApiController::class, 'update'])->whereNumber('coupon');
                 Route::delete('{coupon}', [CouponsApiController::class, 'destroy'])->whereNumber('coupon');
+            });
+
+            // ---- Gift cards: a tender managed with discounts (store.coupons.manage) ----
+            Route::prefix('gift-cards')->group(function () {
+                Route::get('/', [StoreGiftCardsController::class, 'index']);
+                Route::post('/', [StoreGiftCardsController::class, 'store'])->middleware('throttle:30,1');
+                Route::get('{giftCard}', [StoreGiftCardsController::class, 'show'])->whereNumber('giftCard');
+                Route::match(['put', 'patch'], '{giftCard}', [StoreGiftCardsController::class, 'update'])->whereNumber('giftCard');
+                Route::post('{giftCard}/adjust', [StoreGiftCardsController::class, 'adjust'])->whereNumber('giftCard');
             });
 
             // ---- Analytics (Phase 6F, read-only) ----

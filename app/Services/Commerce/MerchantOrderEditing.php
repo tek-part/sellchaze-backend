@@ -25,6 +25,8 @@ class MerchantOrderEditing
         $contact = ! $order->trashed() && ! in_array($order->status, ['cancelled', 'delivered', ...StoreOrder::RETURN_STATUSES], true) && ! $shipment;
         $financial = $contact && in_array($order->status, ['pending', 'confirmed'], true) && $order->payment_status === 'pending'
             && in_array($order->payment_method, ['cod', 'bank_transfer'], true) && strtoupper($order->currency) === strtoupper($store->currency ?: 'USD')
+            // Gift card redemptions are fixed amounts; repricing them needs a refund flow, not an edit.
+            && bccomp((string) ($order->gift_card_total ?? '0'), '0', 2) === 0
             && ! StorePaymentTransaction::where('store_id', $store->id)->where('store_order_id', $order->id)
                 ->where(fn ($query) => $query->whereNotIn('status', ['created', 'pending', 'failed'])->orWhereNotIn('gateway', ['cod', 'bank_transfer']))->exists()
             && ! $order->items()->whereIn('inventory_status', ['committed', 'released'])->exists();

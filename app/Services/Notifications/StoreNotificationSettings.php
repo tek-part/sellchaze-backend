@@ -22,8 +22,13 @@ use Illuminate\Support\Collection;
  */
 class StoreNotificationSettings
 {
+    /**
+     * `order_total` is the order total; `gift_card_total` is what gift cards paid (empty when none);
+     * `amount_due` is what is still to pay — the cash to collect on delivery — and is empty once paid,
+     * so a line that only shows it disappears.
+     */
     public const VARIABLES = ['customer_name', 'order_number', 'order_total', 'store_name', 'order_url', 'items',
-        'payment_method', 'shipping_address', 'tracking_number', 'carrier'];
+        'payment_method', 'shipping_address', 'tracking_number', 'carrier', 'amount_due', 'gift_card_total'];
 
     /** Outbox event type per channel. */
     public const MESSAGE_TYPES = ['email' => 'StoreNotificationEmail', 'whatsapp' => 'StoreNotificationWhatsapp'];
@@ -73,8 +78,8 @@ class StoreNotificationSettings
     {
         $t = [
             'order_confirmation' => $ar
-                ? ['تم استلام طلبك {order_number}', "مرحبًا {customer_name}،\nشكرًا لطلبك من {store_name}. استلمنا طلبك رقم {order_number} وسنبدأ في تجهيزه.", "مرحبًا {customer_name} 👋\nاستلمنا طلبك رقم {order_number} من {store_name}.\nالإجمالي: {order_total}\nتفاصيل الطلب: {order_url}"]
-                : ['Order {order_number} received', "Hi {customer_name},\nThank you for shopping with {store_name}. We've received order {order_number} and will start preparing it.", "Hi {customer_name} 👋\nWe've received your order {order_number} from {store_name}.\nTotal: {order_total}\nOrder details: {order_url}"],
+                ? ['تم استلام طلبك {order_number}', "مرحبًا {customer_name}،\nشكرًا لطلبك من {store_name}. استلمنا طلبك رقم {order_number} وسنبدأ في تجهيزه.", "مرحبًا {customer_name} 👋\nاستلمنا طلبك رقم {order_number} من {store_name}.\nالإجمالي: {order_total}\nمدفوع ببطاقات الهدايا: {gift_card_total}\nالمبلغ المطلوب دفعه: {amount_due}\nتفاصيل الطلب: {order_url}"]
+                : ['Order {order_number} received', "Hi {customer_name},\nThank you for shopping with {store_name}. We've received order {order_number} and will start preparing it.", "Hi {customer_name} 👋\nWe've received your order {order_number} from {store_name}.\nTotal: {order_total}\nPaid with gift cards: {gift_card_total}\nAmount to pay: {amount_due}\nOrder details: {order_url}"],
             'order_confirmed' => $ar
                 ? ['تم تأكيد طلبك {order_number}', "مرحبًا {customer_name}،\nتم تأكيد طلبك رقم {order_number} وجارٍ تجهيزه للشحن.", "مرحبًا {customer_name}\nتم تأكيد طلبك رقم {order_number} من {store_name} وجارٍ تجهيزه.\n{order_url}"]
                 : ['Order {order_number} confirmed', "Hi {customer_name},\nYour order {order_number} is confirmed and being prepared for shipping.", "Hi {customer_name}\nYour order {order_number} from {store_name} is confirmed and being prepared.\n{order_url}"],
@@ -91,8 +96,8 @@ class StoreNotificationSettings
                 ? ['تم توصيل طلبك {order_number}', "مرحبًا {customer_name}،\nتم توصيل طلبك رقم {order_number}. نتمنى أن ينال إعجابك!", "مرحبًا {customer_name}\nتم توصيل طلبك رقم {order_number} من {store_name}. شكرًا لثقتك بنا 🌟"]
                 : ['Order {order_number} delivered', "Hi {customer_name},\nYour order {order_number} has been delivered. We hope you love it!", "Hi {customer_name}\nYour order {order_number} from {store_name} has been delivered. Thank you for shopping with us 🌟"],
             'staff_new_order' => $ar
-                ? ['طلب جديد {order_number} — {order_total}', "طلب جديد في {store_name} من {customer_name}.\nالدفع: {payment_method}"]
-                : ['New order {order_number} — {order_total}', "New order on {store_name} from {customer_name}.\nPayment: {payment_method}"],
+                ? ['طلب جديد {order_number} — {order_total}', "طلب جديد في {store_name} من {customer_name}.\nالدفع: {payment_method}\nبطاقات الهدايا: {gift_card_total}\nالمطلوب تحصيله: {amount_due}"]
+                : ['New order {order_number} — {order_total}', "New order on {store_name} from {customer_name}.\nPayment: {payment_method}\nGift cards: {gift_card_total}\nTo collect: {amount_due}"],
         ][$event];
 
         return array_filter(['email_subject' => $t[0], 'email_body' => $t[1], 'whatsapp_body' => $t[2] ?? null], fn ($value) => $value !== null);
@@ -199,6 +204,8 @@ class StoreNotificationSettings
             'customer_name' => trim((string) ($order->customer_name ?: ($store->default_locale === 'ar' ? 'عميلنا العزيز' : 'there'))),
             'order_number' => (string) $order->order_number,
             'order_total' => self::money($order->grand_total, $order->currency),
+            'gift_card_total' => bccomp((string) ($order->gift_card_total ?? '0'), '0', 2) > 0 ? self::money($order->gift_card_total, $order->currency) : '',
+            'amount_due' => $order->payment_status !== 'paid' && bccomp($order->amountDue(), '0', 2) > 0 ? self::money($order->amountDue(), $order->currency) : '',
             'store_name' => (string) $store->name,
             'order_url' => $staff ? $this->dashboardUrl($order) : $this->orderUrl($store, $order),
             'items' => $items->map(fn ($item) => '• '.$item->name.($item->variant_name ? ' ('.$item->variant_name.')' : '').' × '.$item->quantity)->implode("\n"),
@@ -214,6 +221,7 @@ class StoreNotificationSettings
         return match ($method) {
             'cod' => $ar ? 'الدفع عند الاستلام' : 'Cash on delivery',
             'bank_transfer', 'transfer_receipt' => $ar ? 'تحويل بنكي' : 'Bank transfer',
+            'gift_card' => $ar ? 'بطاقة هدية' : 'Gift card',
             '' => '',
             default => ucwords(str_replace(['_', '-'], ' ', $method)),
         };
@@ -244,7 +252,7 @@ class StoreNotificationSettings
     /** True when the order is real for the customer: offline payment, or an online payment that succeeded. */
     public static function confirmable(StoreOrder $order): bool
     {
-        return $order->payment_status === 'paid' || in_array($order->payment_method, self::OFFLINE_METHODS, true) || (float) $order->grand_total <= 0;
+        return $order->payment_status === 'paid' || in_array($order->payment_method, self::OFFLINE_METHODS, true) || (float) $order->amountDue() <= 0;
     }
 
     /**

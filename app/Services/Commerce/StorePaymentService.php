@@ -38,7 +38,7 @@ class StorePaymentService
                 'gateway' => $setting->gateway,
                 'idempotency_key' => (string) Str::uuid(),
                 'status' => 'created',
-                'amount' => $order->grand_total,
+                'amount' => $order->amountDue(),
                 'currency' => strtoupper($order->currency),
                 'metadata' => ['presentation' => PaymentGatewayCatalog::presentation($setting)]
                     + (in_array($setting->gateway, ['bank_transfer', 'transfer_receipt'], true) ? ['bank_transfer' => BankTransferInstructions::snapshot($setting)] : []),
@@ -72,7 +72,7 @@ class StorePaymentService
         if ((int) $transaction->store_id !== (int) $store->id
             || (int) $transaction->store_order_id !== (int) $order->id
             || $transaction->gateway !== $setting->gateway
-            || bccomp((string) $transaction->amount, (string) $order->grand_total, 2) !== 0
+            || bccomp((string) $transaction->amount, $order->amountDue(), 2) !== 0
             || strtoupper($transaction->currency) !== strtoupper($order->currency)) {
             throw ValidationException::withMessages(['payment' => 'The payment retry does not match this order.']);
         }
@@ -164,7 +164,7 @@ class StorePaymentService
                 'cancel_url' => $this->urls->publicUrl($store, '/checkout?payment=cancelled'),
                 'line_items' => [[
                     'price_data' => ['currency' => strtolower($order->currency),
-                        'unit_amount' => PaymentAmounts::minor($order->grand_total, $order->currency, true),
+                        'unit_amount' => PaymentAmounts::minor($order->amountDue(), $order->currency, true),
                         'product_data' => ['name' => 'Order '.$order->order_number]],
                     'quantity' => 1,
                 ]],
@@ -184,7 +184,7 @@ class StorePaymentService
                 'purchase_units' => [[
                     'reference_id' => (string) $transaction->id, 'custom_id' => (string) $transaction->id,
                     'invoice_id' => $order->order_number,
-                    'amount' => ['currency_code' => strtoupper($order->currency), 'value' => (string) $order->grand_total],
+                    'amount' => ['currency_code' => strtoupper($order->currency), 'value' => $order->amountDue()],
                 ]],
                 'payment_source' => ['paypal' => ['experience_context' => [
                     'return_url' => $this->successUrl($store, $order),
@@ -209,7 +209,7 @@ class StorePaymentService
         $base = strtoupper($order->currency) === 'SAR' ? 'https://api.tabby.sa' : 'https://api.tabby.ai';
         $response = Http::withToken($secret)->acceptJson()->post($base.'/api/v2/checkout', [
             'payment' => [
-                'amount' => (string) $order->grand_total,
+                'amount' => $order->amountDue(),
                 'currency' => strtoupper($order->currency),
                 'description' => 'Order '.$order->order_number,
                 'buyer' => ['name' => $order->customer_name, 'email' => $order->customer_email, 'phone' => $order->customer_phone],
@@ -224,7 +224,7 @@ class StorePaymentService
                     ]))->values()->all(),
                     'tax_amount' => (string) $order->tax_total,
                     'shipping_amount' => (string) $order->shipping_total,
-                    'discount_amount' => bcsub($order->discount_total, bccomp($order->payment_adjustment['amount'] ?? '0.00', '0', 2) < 0 ? $order->payment_adjustment['amount'] : '0', 2),
+                    'discount_amount' => bcadd(bcsub($order->discount_total, bccomp($order->payment_adjustment['amount'] ?? '0.00', '0', 2) < 0 ? $order->payment_adjustment['amount'] : '0', 2), (string) ($order->gift_card_total ?? '0.00'), 2),
                 ],
                 'meta' => ['transaction_id' => (string) $transaction->id, 'order_id' => (string) $order->id],
             ],
@@ -254,12 +254,12 @@ class StorePaymentService
         $money = fn ($amount) => ['amount' => (float) $amount, 'currency' => $currency];
         $base = $setting->test_mode ? 'https://api-sandbox.tamara.co' : 'https://api.tamara.co';
         $response = Http::withToken($token)->acceptJson()->post($base.'/checkout', [
-            'total_amount' => $money($order->grand_total),
+            'total_amount' => $money($order->amountDue()),
             'shipping_amount' => $money($order->shipping_total),
             'tax_amount' => $money($order->tax_total),
             'order_reference_id' => (string) $transaction->id,
             'order_number' => $order->order_number,
-            'discount' => ['name' => 'Store discount', 'amount' => $money(bcsub($order->discount_total, bccomp($order->payment_adjustment['amount'] ?? '0.00', '0', 2) < 0 ? $order->payment_adjustment['amount'] : '0', 2))],
+            'discount' => ['name' => 'Store discount', 'amount' => $money(bcadd(bcsub($order->discount_total, bccomp($order->payment_adjustment['amount'] ?? '0.00', '0', 2) < 0 ? $order->payment_adjustment['amount'] : '0', 2), (string) ($order->gift_card_total ?? '0.00'), 2))],
             'items' => $order->items()->forStore($order->store_id)->get()->map(fn ($item) => [
                 'name' => $item->name, 'quantity' => $item->quantity, 'reference_id' => (string) $item->store_product_id,
                 'type' => 'Physical', 'sku' => (string) $item->store_product_id,
@@ -310,7 +310,7 @@ class StorePaymentService
         $base = $this->paymobBase((string) data_get($setting->credentials, 'region'));
         $name = preg_split('/\s+/', trim($order->customer_name), 2) ?: [];
         $shipping = $order->shipping_address ?? [];
-        $amount = $this->minorAmount($order->grand_total, $order->currency);
+        $amount = $this->minorAmount($order->amountDue(), $order->currency);
         $response = Http::withHeaders(['Authorization' => 'Token '.$secret])->acceptJson()
             ->post($base.'/v1/intention/', [
                 'amount' => $amount,
@@ -370,7 +370,7 @@ class StorePaymentService
                 'cart_id' => (string) $transaction->id,
                 'cart_description' => 'Order '.$order->order_number,
                 'cart_currency' => strtoupper($order->currency),
-                'cart_amount' => (float) $order->grand_total,
+                'cart_amount' => (float) $order->amountDue(),
                 'callback' => $this->webhookUrl($store, 'paytabs'),
                 'return' => $this->successUrl($store, $order),
             ])->throw()->json();
@@ -396,7 +396,7 @@ class StorePaymentService
         $response = Http::asForm()->withToken($accessToken)
             ->post($this->hyperpayBase($setting).'/v1/checkouts', [
                 'entityId' => $entityId,
-                'amount' => number_format((float) $order->grand_total, 2, '.', ''),
+                'amount' => number_format((float) $order->amountDue(), 2, '.', ''),
                 'currency' => strtoupper($order->currency),
                 'paymentType' => 'DB',
                 'merchantTransactionId' => (string) $transaction->id,
@@ -504,7 +504,7 @@ class StorePaymentService
         $this->requireCredential($merchantCode, 'Fawry merchant code');
         $this->requireCredential($securityKey, 'Fawry security key');
         $returnUrl = url('/api/v1/payment-returns/fawry/'.$transaction->id);
-        if (bccomp((string) $transaction->amount, (string) $order->grand_total, 2) !== 0
+        if (bccomp((string) $transaction->amount, $order->amountDue(), 2) !== 0
             || strtoupper($transaction->currency) !== strtoupper($order->currency)
             || bccomp((string) $transaction->amount, '0', 2) <= 0) {
             throw ValidationException::withMessages(['payment' => 'The payment amount does not match this order.']);
@@ -558,7 +558,7 @@ class StorePaymentService
         $this->requireCredential($secret, 'Tap secret key');
         $name = preg_split('/\s+/', trim($order->customer_name), 2) ?: [];
         $response = Http::withToken($secret)->acceptJson()->post('https://api.tap.company/v2/charges/', [
-            'amount' => (float) $order->grand_total,
+            'amount' => (float) $order->amountDue(),
             'currency' => strtoupper($order->currency),
             'customer_initiated' => true,
             'threeDSecure' => true,
@@ -584,7 +584,7 @@ class StorePaymentService
         $shipping = $order->shipping_address ?? [];
         $base = $setting->test_mode ? 'https://staging.fawaterk.com' : 'https://app.fawaterk.com';
         $response = Http::withToken($apiKey)->acceptJson()->post($base.'/api/v2/createInvoiceLink', [
-            'cartTotal' => (string) $order->grand_total,
+            'cartTotal' => $order->amountDue(),
             'currency' => strtoupper($order->currency),
             'customer' => [
                 'first_name' => $name[0] ?? $order->customer_name, 'last_name' => $name[1] ?? '-',
@@ -597,8 +597,8 @@ class StorePaymentService
                 'pendingUrl' => $this->urls->publicUrl($store, '/order/success?number='.rawurlencode($order->order_number).'&payment=pending'),
                 'webhookUrl' => $this->webhookUrl($store, 'fawaterak').'_json',
             ],
-            'cartItems' => $order->payment_adjustment !== null
-                ? [['name' => 'Order '.$order->order_number, 'price' => (string) $order->grand_total, 'quantity' => '1']]
+            'cartItems' => $order->payment_adjustment !== null || bccomp((string) ($order->gift_card_total ?? '0.00'), '0', 2) > 0
+                ? [['name' => 'Order '.$order->order_number, 'price' => $order->amountDue(), 'quantity' => '1']]
                 : $order->items()->forStore($order->store_id)->get()->map(fn ($item) => ['name' => $item->name, 'price' => (string) $item->unit_price, 'quantity' => (string) $item->quantity])->values()->all(),
             'payLoad' => ['transaction_id' => (string) $transaction->id, 'order_id' => (string) $order->id],
             'sendEmail' => true,

@@ -17,7 +17,8 @@ class CheckoutQuote
         private readonly DiscountEngine $discounts,
     ) {}
 
-    public function calculate(Store $store, array $items, ?string $code, ?StoreCustomer $customer, array $shippingSelection = []): array
+    /** @param  array<int, mixed>  $giftCards  codes, applied in order after every other total */
+    public function calculate(Store $store, array $items, ?string $code, ?StoreCustomer $customer, array $shippingSelection = [], array $giftCards = []): array
     {
         $subtotal = '0.00';
         $lines = [];
@@ -74,10 +75,21 @@ class CheckoutQuote
         $productFreeShipping = $requiresShipping && $allPhysicalFree;
         $breakdown = $this->pricing->breakdown($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping, $weightGrams);
         $totals = $breakdown['totals'];
+        $tender = app(GiftCards::class)->quote($store, $giftCards, $totals['grand_total'], $store->currency ?: 'USD');
+        if ($tender['gift_cards'] !== [] && ($shippingSelection['payment_method'] ?? '') !== GiftCards::METHOD) {
+            // Cards that pay everything leave nothing for a method to collect: no COD fee, no adjustment.
+            $uncharged = $this->pricing->breakdown($store, $subtotal, $discount, ['payment_method' => GiftCards::METHOD] + $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping, $weightGrams);
+            $covered = app(GiftCards::class)->quote($store, $giftCards, $uncharged['totals']['grand_total'], $store->currency ?: 'USD');
+            if (bccomp($covered['amount_due'], '0', 2) === 0) {
+                [$breakdown, $totals, $tender] = [$uncharged, $uncharged['totals'], $covered];
+            }
+        }
         $adjustments = app(PaymentPriceAdjustment::class);
-        $totals = $adjustments->forMethod($store, $shippingSelection['payment_method'] ?? '', $totals);
+        $totals = $adjustments->forDue($store, $shippingSelection['payment_method'] ?? '', $totals, $tender['amount_due']);
+        $totals['gift_card_total'] = $tender['gift_card_total'];
 
-        return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'discounts' => $discounts['applied'], 'requires_shipping' => $requiresShipping, 'offer_free_shipping' => $offerFreeShipping, 'product_free_shipping' => $productFreeShipping,
+        return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'gift_cards' => $tender['gift_cards'],
+            'amount_due' => bcadd($tender['amount_due'], $totals['payment_adjustment_total'], 2), 'discounts' => $discounts['applied'], 'requires_shipping' => $requiresShipping, 'offer_free_shipping' => $offerFreeShipping, 'product_free_shipping' => $productFreeShipping,
             'payment_adjustment_token' => $adjustments->token($store, $totals['payment_adjustment']),
             'order_minimum' => app(OrderLimits::class)->minimum($store, $subtotal, $discount),
             'shipping' => $this->shipping($breakdown['shipping']), 'tax' => $this->tax($breakdown['tax']),

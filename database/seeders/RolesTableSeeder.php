@@ -78,6 +78,7 @@ class RolesTableSeeder extends Seeder
             'store.categories.manage',
             'store.orders.manage',
             'store.coupons.manage',
+            'store.gift_cards.manage',
             'store.reviews.manage',
             'store.analytics.view',
             'store.themes.manage',

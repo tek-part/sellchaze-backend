@@ -39,6 +39,20 @@ class PaymentPriceAdjustment
         return $this->apply($totals, $store->currency ?: 'USD', $gateway, $rule);
     }
 
+    /**
+     * The rule applied to what the method collects: the total less gift cards. When gift cards pay
+     * everything no method is used, so no adjustment applies.
+     */
+    public function forDue(Store $store, string $gateway, array $totals, string $due): array
+    {
+        if (bccomp($due, '0', 2) <= 0 && bccomp($due, $totals['grand_total'], 2) !== 0) {
+            return $this->apply($totals, $store->currency ?: 'USD', $gateway, null);
+        }
+        $adjusted = $this->forMethod($store, $gateway, array_replace($totals, ['grand_total' => $due]));
+
+        return array_replace($adjusted, ['grand_total' => bcadd($totals['grand_total'], $adjusted['payment_adjustment_total'], 2)]);
+    }
+
     /** A percentage uses the final base total, including delivery and existing tax. */
     public function apply(array $totals, string $currency, string $gateway, ?array $rule): array
     {

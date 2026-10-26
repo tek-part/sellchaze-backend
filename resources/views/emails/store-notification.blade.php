@@ -49,6 +49,10 @@
                 <tr><td style="padding:2px 0;color:#6b7280;text-align:{{ $align }}">{{ $ar ? 'الضريبة' : 'Tax' }}</td><td style="padding:2px 0;text-align:{{ $opposite }}">{{ $money($order->tax_total) }}</td></tr>
             @endif
             <tr><td style="padding:10px 0;font-weight:700;font-size:16px;text-align:{{ $align }}">{{ $ar ? 'الإجمالي' : 'Total' }}</td><td style="padding:10px 0;font-weight:700;font-size:16px;text-align:{{ $opposite }}">{{ $money($order->grand_total) }}</td></tr>
+            @if (bccomp((string) ($order->gift_card_total ?? '0'), '0', 2) > 0)
+            <tr><td style="padding:4px 0;text-align:{{ $align }}">{{ $ar ? 'مدفوع ببطاقات الهدايا' : 'Paid with gift cards' }}</td><td style="padding:4px 0;text-align:{{ $opposite }}">−{{ $money($order->gift_card_total) }}</td></tr>
+            <tr><td style="padding:4px 0;font-weight:700;text-align:{{ $align }}">{{ $ar ? 'المبلغ المستحق' : 'Amount due' }}</td><td style="padding:4px 0;font-weight:700;text-align:{{ $opposite }}">{{ $money($order->payment_status === 'paid' ? '0.00' : $order->amountDue()) }}</td></tr>
+            @endif
         </table>
     </td></tr>
     @endif

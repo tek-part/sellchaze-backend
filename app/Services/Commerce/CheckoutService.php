@@ -33,10 +33,11 @@ class CheckoutService
     /**
      * @param  array{name:string,email:string|null,phone?:string|null,notes?:string|null}  $contact
      * @param  array<string,mixed>|null  $shippingAddress
+     * @param  array<int, mixed>  $giftCards  codes; when they cover the total the order is paid by gift card
      */
-    public function place(Store $store, Cart $cart, ?StoreCustomer $customer, array $contact, ?array $shippingAddress, string $paymentMethod, array $shippingSelection = []): StoreOrder
+    public function place(Store $store, Cart $cart, ?StoreCustomer $customer, array $contact, ?array $shippingAddress, string $paymentMethod, array $shippingSelection = [], array $giftCards = []): StoreOrder
     {
-        return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress, $paymentMethod, $shippingSelection) {
+        return DB::transaction(function () use ($store, $cart, $customer, $contact, $shippingAddress, $paymentMethod, $shippingSelection, $giftCards) {
             $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $botProof = app(CheckoutBotProtection::class)->consume($store, $contact['bot_proof'] ?? null, $contact['bot_ip'] ?? null);
             $phone = app(OrderLimits::class)->assertPhone($store, $contact['phone'] ?? null);
@@ -145,13 +146,44 @@ class CheckoutService
             $productFreeShipping = $requiresShipping && $allPhysicalFree;
             // The submitted address is authoritative for zones and tax overrides; the payment
             // method decides a zone rate's cash-on-delivery fee.
-            $shippingSelection['payment_method'] = $paymentMethod;
             if (is_string($shippingAddress['country'] ?? null) && $shippingAddress['country'] !== '') {
                 $shippingSelection['shipping_country'] = strtoupper($shippingAddress['country']);
             }
+            // Gift cards pay after discounts, delivery and tax. Rows stay locked until the order commits,
+            // so two checkouts with the same card serialize and the second sees the reduced balance.
+            // Cards that cover the order without a method's fee (e.g. a zone's COD fee) pay it all.
+            $currency = $cart->currency ?: ($store->currency ?: 'USD');
+            $giftCardService = app(GiftCards::class);
+            $cards = $giftCards === [] ? [] : $giftCardService->resolve($store, $giftCards, $currency, true);
+            $tender = null;
+            $paymentStatus = 'pending';
+            if ($cards !== []) {
+                $uncharged = $this->pricing->forStore($store, $subtotal, $discount, ['payment_method' => GiftCards::METHOD] + $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping, $weightGrams);
+                if (bccomp($uncharged['grand_total'], '0', 2) <= 0) {
+                    // Nothing is due: the cards are not used, and no payment method is needed.
+                    $cards = [];
+                    if ($paymentMethod === GiftCards::METHOD) {
+                        $paymentStatus = 'paid';
+                    }
+                } else {
+                    $tender = $giftCardService->allocate($cards, $uncharged['grand_total']);
+                    if (bccomp($tender['amount_due'], '0', 2) === 0) {
+                        $paymentMethod = GiftCards::METHOD;
+                        $paymentStatus = 'paid';
+                    }
+                }
+            }
+            if ($paymentStatus !== 'paid' && $paymentMethod === GiftCards::METHOD) {
+                throw ValidationException::withMessages(['payment_method' => 'Choose a payment method for the amount left after gift cards.']);
+            }
+            $shippingSelection['payment_method'] = $paymentMethod;
             $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping, $weightGrams);
+            if ($cards !== [] && $paymentStatus !== 'paid') {
+                $tender = $giftCardService->allocate($cards, $totals['grand_total']);
+            }
+            // A payment method's adjustment applies to what that method collects.
             $adjustments = app(PaymentPriceAdjustment::class);
-            $totals = $adjustments->forMethod($store, $paymentMethod, $totals);
+            $totals = $adjustments->forDue($store, $paymentMethod, $totals, $tender['amount_due'] ?? $totals['grand_total']);
             $adjustments->assertQuoted($store, $totals['payment_adjustment'], $contact['payment_adjustment_token'] ?? null);
             if ($requiresShipping) {
                 $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection, $offerFreeShipping, $productFreeShipping, $weightGrams);
@@ -174,14 +206,14 @@ class CheckoutService
                 'store_customer_id' => $customer?->id,
                 'order_number' => $this->orders->generateNumber(),
                 'status' => 'pending',
-                'currency' => $cart->currency ?: ($store->currency ?: 'USD'),
+                'currency' => $currency,
                 'customer_name' => $contact['name'],
                 'customer_email' => $contact['email'],
                 'customer_phone' => $contact['phone'] ?? null,
                 'customer_phone_normalized' => $phone,
                 'shipping_address' => $shippingAddress,
                 'payment_method' => $paymentMethod,
-                'payment_status' => 'pending',
+                'payment_status' => $paymentStatus,
                 'subtotal' => $totals['subtotal'],
                 'shipping_total' => $totals['shipping_total'],
                 'discount_total' => $totals['discount_total'],
@@ -189,6 +221,8 @@ class CheckoutService
                 'discount_details' => $discounts['applied'] ?: null,
                 'tax_total' => $totals['tax_total'],
                 'grand_total' => $totals['grand_total'],
+                'gift_card_total' => $tender['total'] ?? '0.00',
+                'gift_card_details' => $tender === null ? null : (GiftCards::details($tender) ?: null),
                 'payment_adjustment' => $totals['payment_adjustment'],
                 'notes' => $contact['notes'] ?? null,
                 'placed_at' => now(),
@@ -210,9 +244,16 @@ class CheckoutService
                 $this->coupons->recordUsage($usage['coupon'], $customer, $order, $usage['coupon']->type === 'free_shipping' ? '0.00' : $totals['discount_total']);
             }
 
+            if ($tender !== null) {
+                $giftCardService->redeem($order, $tender);
+            }
+
             $cart->update(['status' => 'converted', 'coupon_id' => null]);
 
             app(StoreOrderPlacement::class)->record($order);
+            if ($paymentStatus === 'paid') {
+                app(DigitalDelivery::class)->record($order);
+            }
 
             return $order->load('items');
         });

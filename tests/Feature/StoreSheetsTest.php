@@ -97,7 +97,7 @@ class StoreSheetsTest extends TestCase
                 return Http::response(['sheets' => $created ? [['properties' => ['sheetId' => $connection->sheet_id, 'title' => $connection->sheet_title, 'gridProperties' => ['rowCount' => 1000]], 'developerMetadata' => [['metadataKey' => 'sellchaze_connection', 'metadataValue' => $connection->id]]]] : []]);
             }
             $range = rawurldecode(explode('?', explode('/values/', $request->url())[1])[0]);
-            preg_match('/!A([0-9]+):Q[0-9]+$/', $range, $matches);
+            preg_match('/!A([0-9]+):[QS][0-9]+$/', $range, $matches);
             $row = (int) $matches[1];
             if ($request->method() === 'PUT') {
                 $this->assertStringContainsString('valueInputOption=RAW', $request->url());
@@ -106,7 +106,7 @@ class StoreSheetsTest extends TestCase
                     return Http::response(['error' => 'Synthetic network ambiguity'], 503);
                 }
 
-                return Http::response(['updatedRange' => $range, 'updatedRows' => 1, 'updatedColumns' => 17]);
+                return Http::response(['updatedRange' => $range, 'updatedRows' => 1, 'updatedColumns' => count($request['values'][0])]);
             }
 
             return Http::response(['values' => isset($cells[$row]) ? [$cells[$row]] : []]);
@@ -234,6 +234,30 @@ class StoreSheetsTest extends TestCase
         $this->assertCount(1, $writes);
         $this->assertSame('skipped', app(StoreSheetsDispatch::class)->deliver($delivery->id));
         Http::assertNotSent(fn ($request) => str_contains($request->url(), ':append') || str_starts_with($request->url(), 'http:'));
+    }
+
+    public function test_new_sheets_get_gift_card_columns_and_legacy_sheets_keep_their_seventeen(): void
+    {
+        $created = $this->createConnection();
+        $connection = StoreSheetConnection::forStore($this->store)->findOrFail($created['id']);
+        $order = $this->order();
+        $order->forceFill(['gift_card_total' => '75.00'])->save();
+        app(StoreSheets::class)->record($order);
+        $delivery = StoreSheetDelivery::forStore($this->store)->firstOrFail();
+        $cells = [];
+        $sheetCreated = false;
+        $this->mockGoogle($connection, $cells, $sheetCreated);
+        $this->assertSame('delivered', app(StoreSheetsDispatch::class)->deliver($delivery->id));
+        $this->assertSame(StoreSheets::HEADERS, $cells[1]);
+        $this->assertSame(['75.00', '200.00'], array_slice($cells[2], 17));
+
+        // A sheet connected before gift cards: same rows, still 17 columns ending with the reference.
+        $cells[1] = StoreSheets::LEGACY_HEADERS;
+        app(StoreSheets::class)->record($this->order());
+        $second = StoreSheetDelivery::forStore($this->store)->latest('id')->firstOrFail();
+        $this->assertSame('delivered', app(StoreSheetsDispatch::class)->deliver($second->id));
+        $this->assertCount(17, $cells[3]);
+        $this->assertSame($second->payload['values'][16], $cells[3][16]);
     }
 
     public function test_conflicting_user_rows_are_not_overwritten_and_disabled_connections_never_send(): void
