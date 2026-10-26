@@ -190,6 +190,29 @@ class StorefrontService
         return $collections;
     }
 
+    public static function hasCollectionsCacheKey(int $storeId): string
+    {
+        return "storefront:{$storeId}:has-collections";
+    }
+
+    public static function forgetCollections(int $storeId): void
+    {
+        Cache::forget(self::hasCollectionsCacheKey($storeId));
+    }
+
+    /**
+     * Whether the store has a published collection, i.e. whether `/collections/{slug}` can resolve
+     * to a collection at all. The storefront skips the collection lookup (and its 404) for plain
+     * category pages when this is false. Cached; collection writes forget it.
+     */
+    public function hasCollections(Store $store): bool
+    {
+        return (bool) Cache::remember(self::hasCollectionsCacheKey($store->id), 3600, fn (): bool => StoreCollection::withoutGlobalScopes()
+            ->where('store_id', $store->id)
+            ->where('is_active', true)
+            ->exists());
+    }
+
     public function collection(string $slug): ?StoreCollection
     {
         return StoreCollection::query()

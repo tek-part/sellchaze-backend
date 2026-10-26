@@ -74,6 +74,24 @@ class StoreCollectionsTest extends TestCase
             ->assertOk()->json('data.*.name');
     }
 
+    public function test_storefront_bootstrap_says_whether_the_store_has_published_collections(): void
+    {
+        $this->getJson($this->public)->assertOk()->assertJsonPath('store.has_collections', false);
+
+        // A draft collection cannot resolve on /collections/{slug}.
+        $draft = $this->create(['title' => 'Summer', 'published' => false]);
+        $this->getJson($this->public)->assertJsonPath('store.has_collections', false);
+        $this->getJson($this->public.'/collections/'.$draft['handle'])->assertNotFound();
+
+        $this->postJson($this->base.'/bulk-update', ['ids' => [$draft['id']], 'published' => true], $this->auth)->assertOk();
+        $this->getJson($this->public)->assertJsonPath('store.has_collections', true);
+
+        // Another store's collections do not count.
+        StoreCollection::withoutGlobalScopes()->create(['store_id' => $this->other->id, 'name' => 'Theirs', 'slug' => 'theirs', 'type' => 'manual', 'is_active' => true]);
+        $this->postJson($this->base.'/bulk-delete', ['ids' => [$draft['id']]], $this->auth)->assertOk();
+        $this->getJson($this->public)->assertJsonPath('store.has_collections', false);
+    }
+
     public function test_manual_collection_crud_sanitizes_description_and_keeps_product_order(): void
     {
         $a = $this->product('Alpha');
