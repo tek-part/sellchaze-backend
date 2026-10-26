@@ -138,6 +138,7 @@ use App\Http\Controllers\Api\StorePaymentsApiController;
 use App\Http\Controllers\Api\StorePhoneBlockController;
 use App\Http\Controllers\Api\StorePhoneVerificationController;
 use App\Http\Controllers\Api\StoreProductAiController;
+use App\Http\Controllers\Api\StoreProductAnalyticsController;
 use App\Http\Controllers\Api\StoreProductLandingController;
 use App\Http\Controllers\Api\StorePublishingApiController;
 use App\Http\Controllers\Api\StoreQuantityOffersController;
@@ -468,6 +469,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/me/service-marketplace/services', [ServiceMarketplaceController::class, 'store'])->middleware('throttle:20,1');
         Route::put('/me/service-marketplace/services/{service}', [ServiceMarketplaceController::class, 'update'])->whereUuid('service')->middleware('throttle:20,1');
         Route::delete('/me/service-marketplace/services/{service}', [ServiceMarketplaceController::class, 'destroy'])->whereUuid('service')->middleware('throttle:20,1');
+        // ---- G4 Product & marketplace analytics (#50 freelancer analytics) ----
+        Route::post('/service-marketplace/providers/{provider}/contact-clicks', [ServiceMarketplaceController::class, 'contactClick'])->whereUuid('provider')->middleware('throttle:60,1');
+        Route::get('/me/service-marketplace/analytics', [ServiceMarketplaceController::class, 'analytics'])->middleware('throttle:tenant-read');
+        // ---- end G4 ----
         Route::patch('/auth/me', [AuthController::class, 'updateMe']);
         Route::put('/auth/password', [AuthController::class, 'changePassword']);
         Route::post('/auth/me/avatar', [AuthController::class, 'uploadAvatar']);
@@ -865,6 +870,14 @@ Route::prefix('v1')->group(function () {
                 Route::get('categories', [StoreAnalyticsController::class, 'categories']);
                 Route::get('customers', [StoreAnalyticsController::class, 'customers']);
             });
+
+            // ---- G4 Product & marketplace analytics (#49 per-product funnel, #7 products ordered on a day) ----
+            Route::prefix('analytics')->middleware('permission:store.analytics.view')->group(function () {
+                Route::get('product-funnel', [StoreProductAnalyticsController::class, 'funnel'])->middleware('throttle:tenant-read');
+                Route::get('ordered-products', [StoreProductAnalyticsController::class, 'ordered'])->middleware('throttle:tenant-read');
+                Route::get('ordered-products/export', [StoreProductAnalyticsController::class, 'export'])->middleware('throttle:20,1');
+            });
+            // ---- end G4 ----
 
             Route::middleware('permission:store.orders.manage')->prefix('customers')->group(function () {
                 Route::get('/', [StoreCustomersApiController::class, 'index']);
