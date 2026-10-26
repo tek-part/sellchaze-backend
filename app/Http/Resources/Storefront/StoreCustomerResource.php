@@ -19,6 +19,10 @@ class StoreCustomerResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'email_verified_at' => $this->email_verified_at,
+            // G2: lets the account page offer "set a password" and show linked sign-in methods.
+            'has_password' => $this->password !== null,
+            'phone_verified' => $this->phone_normalized !== null,
+            'google_linked' => $this->google_sub !== null,
             'created_at' => $this->created_at,
         ];
     }

@@ -49,7 +49,7 @@ class CustomerAuthService
 
     public function changePassword(StoreCustomer $customer, string $current, string $new): void
     {
-        if (! Hash::check($current, $customer->password)) {
+        if ($customer->password !== null && ! Hash::check($current, $customer->password)) {
             throw ValidationException::withMessages([
                 'current_password' => 'The current password is incorrect.',
             ]);

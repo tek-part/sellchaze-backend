@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Phase 5: a retail customer of a single store. Not a platform User.
+ * G2: e-mail and password are optional for accounts created by WhatsApp code or Google; the
+ * verified phone (`phone_normalized`) and Google subject (`google_sub`) are unique per store.
  */
 class StoreCustomer extends Model
 {
@@ -15,10 +17,10 @@ class StoreCustomer extends Model
 
     protected $fillable = [
         'store_id', 'name', 'email', 'password', 'phone', 'is_active',
-        'email_verified_at', 'last_login_at',
+        'email_verified_at', 'last_login_at', 'phone_normalized', 'google_sub',
     ];
 
-    protected $hidden = ['password'];
+    protected $hidden = ['password', 'phone_normalized', 'google_sub'];
 
     protected $casts = [
         'is_active' => 'boolean',
