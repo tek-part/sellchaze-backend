@@ -36,12 +36,14 @@ class CustomerPhoneLogin
         abort_if(app(PhoneBlocking::class)->isBlocked($store, $phone, 'otp'), 422, $this->otp->message('تسجيل الدخول برمز واتساب غير متاح لهذا الرقم. تواصل مع المتجر.', 'WhatsApp sign-in is unavailable for this number. Contact the store.'));
     }
 
-    public function send(Store $store, string $rawPhone, string $token, string $ip, string $purpose = self::PURPOSE): array
+    public function send(Store $store, string $rawPhone, string $token, string $ip, string $purpose = self::PURPOSE, ?StoreCustomer $customer = null): array
     {
+        $customerId = $purpose === self::VERIFY_PURPOSE ? $customer?->id : null;
+        abort_if($purpose === self::VERIFY_PURPOSE && $customerId === null, 401, 'Unauthenticated.');
         abort_unless($this->methods->phoneEnabled($store), 422, $this->otp->message('تسجيل الدخول عبر واتساب غير متاح حاليًا.', 'WhatsApp sign-in is currently unavailable.'));
         $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         $tokenHash = $this->otp->hash($token);
-        [$challenge, $credentials, $dispatch] = DB::transaction(function () use ($store, $rawPhone, $code, $tokenHash, $ip, $purpose) {
+        [$challenge, $credentials, $dispatch] = DB::transaction(function () use ($store, $rawPhone, $code, $tokenHash, $ip, $purpose, $customerId) {
             $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $phone = app(OrderLimits::class)->normalizePhone($rawPhone, app(OrderLimits::class)->configured($store)['phone_country']);
             if ($phone === null) {
@@ -51,7 +53,7 @@ class CustomerPhoneLogin
             $query = StorePhoneChallenge::withoutGlobalScopes()->where('store_id', $store->id);
             $existing = (clone $query)->where('token_hash', $tokenHash)->lockForUpdate()->first();
             if ($existing) {
-                abort_unless($existing->purpose === $purpose && $existing->phone_normalized === $phone, 409, 'This verification request belongs to a different phone.');
+                abort_unless($existing->purpose === $purpose && $existing->phone_normalized === $phone && $existing->store_customer_id === $customerId, 409, 'This verification request belongs to a different phone.');
 
                 return [$existing, [], false];
             }
@@ -67,7 +69,7 @@ class CustomerPhoneLogin
                 || (clone $query)->where('created_at', '>', $hour)->count() >= 300,
                 429, $this->otp->message('تم بلوغ حد إرسال الرموز. حاول لاحقًا.', 'The verification send limit was reached. Try again later.'));
             (clone $phoneQuery)->where('purpose', $purpose)->whereIn('state', ['dispatching', 'sent', 'verified'])->update(['state' => 'superseded', 'code_hash' => null, 'updated_at' => now()]);
-            $challenge = StorePhoneChallenge::create(['store_id' => $store->id, 'purpose' => $purpose, 'phone_normalized' => $phone, 'token_hash' => $tokenHash,
+            $challenge = StorePhoneChallenge::create(['store_id' => $store->id, 'purpose' => $purpose, 'store_customer_id' => $customerId, 'phone_normalized' => $phone, 'token_hash' => $tokenHash,
                 'code_hash' => $this->otp->hash($tokenHash.':'.$code), 'ip_hash' => $ipHash, 'generation' => $this->otp->configuration($store)['generation'] ?? '',
                 'expires_at' => now()->addSeconds(CheckoutPhoneVerification::TTL), 'resend_at' => now()->addSeconds(CheckoutPhoneVerification::COOLDOWN), 'state' => 'dispatching']);
 
@@ -155,7 +157,7 @@ class CustomerPhoneLogin
         $result = DB::transaction(function () use ($store, $customer, $token, $code) {
             $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $challenge = StorePhoneChallenge::withoutGlobalScopes()->where('store_id', $store->id)->where('purpose', self::VERIFY_PURPOSE)
-                ->where('token_hash', $this->otp->hash($token))->lockForUpdate()->first();
+                ->where('store_customer_id', $customer->id)->where('token_hash', $this->otp->hash($token))->lockForUpdate()->first();
             if (! $challenge) {
                 return ['invalid' => true];
             }

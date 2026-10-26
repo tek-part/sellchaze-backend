@@ -51,10 +51,10 @@ class CustomerLoginController extends Controller
     /** POST /storefront/account/phone/send (store.customer) — a code to confirm the customer's phone. */
     public function sendAccountPhoneCode(Request $request, CustomerPhoneLogin $login): JsonResponse
     {
-        $this->currentCustomer($request);
+        $customer = $this->currentCustomer($request);
         $data = $request->validate(['phone' => ['required', 'string', 'max:50'], 'token' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/']]);
 
-        return response()->json(['data' => $login->send($this->currentStore($request), $data['phone'], $data['token'], $request->ip() ?? '', CustomerPhoneLogin::VERIFY_PURPOSE)], 200, self::NO_STORE);
+        return response()->json(['data' => $login->send($this->currentStore($request), $data['phone'], $data['token'], $request->ip() ?? '', CustomerPhoneLogin::VERIFY_PURPOSE, $customer)], 200, self::NO_STORE);
     }
 
     /** POST /storefront/account/phone/verify (store.customer) — the confirmed phone becomes a sign-in phone. */

@@ -27,6 +27,8 @@ return new class extends Migration
         });
         Schema::table('store_phone_challenges', function (Blueprint $table) {
             $table->string('purpose', 12)->default('checkout');
+            // Phone confirmation codes belong to the signed-in customer who asked for them.
+            $table->foreignId('store_customer_id')->nullable()->constrained('store_customers')->cascadeOnDelete();
         });
         Schema::create('store_customer_login_codes', function (Blueprint $table) {
             $table->id();
@@ -44,7 +46,10 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('store_customer_login_codes');
-        Schema::table('store_phone_challenges', fn (Blueprint $table) => $table->dropColumn('purpose'));
+        Schema::table('store_phone_challenges', function (Blueprint $table) {
+            $table->dropConstrainedForeignId('store_customer_id');
+            $table->dropColumn('purpose');
+        });
         // Accounts created without e-mail/password keep working rows; give them non-routable values first.
         DB::table('store_customers')->whereNull('email')->orderBy('id')->chunkById(500, function ($rows) {
             foreach ($rows as $row) {

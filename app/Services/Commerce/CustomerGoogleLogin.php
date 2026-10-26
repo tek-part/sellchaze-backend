@@ -7,6 +7,7 @@ use App\Models\StoreCustomer;
 use App\Models\StoreCustomerLoginCode;
 use App\Models\StoreCustomerPasswordReset;
 use App\Models\StoreCustomerToken;
+use App\Models\StorePhoneChallenge;
 use App\Services\Stores\StoreDomainResolver;
 use App\Support\Tenancy\CurrentStore;
 use Illuminate\Database\QueryException;
@@ -146,9 +147,10 @@ class CustomerGoogleLogin
      * Linked Google account, else the store account with that e-mail, else a new account.
      *
      * Registration never proves the inbox, so an account found only by an unverified e-mail may have
-     * been created by someone else with a password they know. Google proves the inbox: the account
-     * passes to its owner — every session token and pending reset link is revoked and the password
-     * removed (the owner can set one from the account page) before it is linked and marked verified.
+     * been created by someone else who added their own credentials. Google proves the inbox: the
+     * account passes to its owner — every credential another person could have added is revoked (see
+     * revokeCredentials; the owner can set a password and confirm a phone from the account page)
+     * before it is linked and marked verified.
      */
     private function customer(Store $store, array $identity): StoreCustomer
     {
@@ -172,9 +174,7 @@ class CustomerGoogleLogin
                     throw new RuntimeException('The account is inactive.');
                 }
                 if ($customer->email_verified_at === null) {
-                    StoreCustomerToken::query()->withoutGlobalScopes()->where('store_id', $store->id)->where('store_customer_id', $customer->id)->delete();
-                    StoreCustomerPasswordReset::query()->withoutGlobalScopes()->where('store_id', $store->id)->where('store_customer_id', $customer->id)->delete();
-                    $customer->password = null;
+                    $this->revokeCredentials($store, $customer);
                 }
                 $customer->forceFill(['google_sub' => $identity['sub'], 'email_verified_at' => $customer->email_verified_at ?? now()])->save();
 
@@ -187,6 +187,22 @@ class CustomerGoogleLogin
                 throw new RuntimeException('The account could not be created.');
             }
         });
+    }
+
+    /**
+     * Everything that could sign someone else in to this account: session tokens, reset links,
+     * unredeemed Google codes, the password, the WhatsApp sign-in phone and phone confirmations in
+     * flight. Profile data (addresses, orders, wishlist) stays with the account.
+     */
+    private function revokeCredentials(Store $store, StoreCustomer $customer): void
+    {
+        foreach ([StoreCustomerToken::class, StoreCustomerPasswordReset::class, StoreCustomerLoginCode::class] as $model) {
+            $model::query()->withoutGlobalScopes()->where('store_id', $store->id)->where('store_customer_id', $customer->id)->delete();
+        }
+        StorePhoneChallenge::query()->withoutGlobalScopes()->where('store_id', $store->id)->where('store_customer_id', $customer->id)
+            ->whereIn('state', ['dispatching', 'sent', 'verified'])->update(['state' => 'superseded', 'code_hash' => null, 'updated_at' => now()]);
+        $customer->password = null;
+        $customer->phone_normalized = null;
     }
 
     private function sign(array $payload): string

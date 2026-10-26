@@ -399,6 +399,59 @@ class StorefrontCustomerLoginTest extends TestCase
         $this->getJson($this->api($this->alpha, 'account'), ['Authorization' => "Bearer {$victim}"])->assertOk();
     }
 
+    public function test_google_takeover_also_removes_a_whatsapp_phone_the_registrant_confirmed(): void
+    {
+        $this->connect($this->alpha);
+        Setting::set(CustomerLoginMethods::GOOGLE_SETTING, '1');
+        $this->alpha->update(['customer_login_configuration' => ['phone_otp' => true, 'google' => true, 'version' => 3]]);
+        // Attacker registers the victim's address, then confirms their OWN WhatsApp number on that account.
+        $attacker = $this->postJson($this->api($this->alpha, 'auth/register'), ['name' => 'Attacker', 'email' => 'ada@example.test', 'password' => 'attacker-pass'])->assertCreated();
+        $headers = ['Authorization' => 'Bearer '.$attacker->json('token')];
+        $confirm = $this->token();
+        $this->postJson($this->api($this->alpha, 'account/phone/send'), ['phone' => '01001234567', 'token' => $confirm], $headers)->assertOk();
+        $this->postJson($this->api($this->alpha, 'account/phone/verify'), ['token' => $confirm, 'code' => end($this->codes)], $headers)->assertOk()->assertJsonPath('data.phone_verified', true);
+        // A second confirmation is left pending, to be finished after the takeover.
+        $this->travel(2)->minutes();
+        $pending = $this->token();
+        $this->postJson($this->api($this->alpha, 'account/phone/send'), ['phone' => '01001234568', 'token' => $pending], $headers)->assertOk();
+        $pendingCode = end($this->codes);
+        $account = StoreCustomer::withoutGlobalScopes()->findOrFail($attacker->json('data.id'));
+        $this->assertSame('+201001234567', $account->phone_normalized);
+        $this->assertNull($account->email_verified_at, 'verified phone, unverified e-mail: still taken back by Google');
+
+        [$verifier, $query] = $this->startGoogle($this->alpha);
+        $code = Str::after($this->googleReturn($query), '#code=');
+        $victim = $this->postJson($this->api($this->alpha, 'auth/google/exchange'), ['code' => $code, 'verifier' => $verifier])->assertOk()
+            ->assertJsonPath('data.id', $account->id)->assertJsonPath('data.phone_verified', false)->json('token');
+        $this->assertNull($account->fresh()->phone_normalized);
+
+        // The attacker's WhatsApp code no longer reaches the victim's account: it is a new phone sign-up.
+        $this->travel(2)->minutes();
+        $login = $this->send($this->alpha);
+        $this->postJson($this->api($this->alpha, 'auth/phone/verify'), ['token' => $login, 'code' => end($this->codes)])->assertOk()
+            ->assertJsonPath('data.status', 'name_required')->assertJsonMissingPath('token');
+        // The pending confirmation cannot be finished: the attacker's session is gone and the challenge superseded.
+        $this->postJson($this->api($this->alpha, 'account/phone/verify'), ['token' => $pending, 'code' => $pendingCode], $headers)->assertUnauthorized();
+        $this->postJson($this->api($this->alpha, 'account/phone/verify'), ['token' => $pending, 'code' => $pendingCode], ['Authorization' => "Bearer {$victim}"])->assertUnprocessable();
+        $this->assertNull($account->fresh()->phone_normalized);
+    }
+
+    public function test_a_phone_confirmation_belongs_to_the_customer_who_requested_it(): void
+    {
+        $this->connect($this->alpha);
+        $first = $this->postJson($this->api($this->alpha, 'auth/register'), ['name' => 'First', 'email' => 'first@example.test', 'password' => 'password123'])->assertCreated()->json('token');
+        $second = $this->postJson($this->api($this->alpha, 'auth/register'), ['name' => 'Second', 'email' => 'second@example.test', 'password' => 'password123'])->assertCreated()->json('token');
+        $token = $this->token();
+        $this->postJson($this->api($this->alpha, 'account/phone/send'), ['phone' => '01001234567', 'token' => $token], ['Authorization' => "Bearer {$first}"])->assertOk();
+        $this->assertNotNull(StorePhoneChallenge::withoutGlobalScopes()->latest('id')->value('store_customer_id'));
+        // Re-sending the same request from another account is refused, and so is verifying it.
+        $this->postJson($this->api($this->alpha, 'account/phone/send'), ['phone' => '01001234567', 'token' => $token], ['Authorization' => "Bearer {$second}"])->assertStatus(409);
+        $this->postJson($this->api($this->alpha, 'account/phone/verify'), ['token' => $token, 'code' => end($this->codes)], ['Authorization' => "Bearer {$second}"])->assertUnprocessable();
+        $this->assertSame(0, StoreCustomer::withoutGlobalScopes()->whereNotNull('phone_normalized')->count());
+        $this->postJson($this->api($this->alpha, 'account/phone/verify'), ['token' => $token, 'code' => end($this->codes)], ['Authorization' => "Bearer {$first}"])->assertOk()
+            ->assertJsonPath('data.email', 'first@example.test')->assertJsonPath('data.phone_verified', true);
+    }
+
     public function test_google_links_a_verified_email_account_and_rejects_bad_tokens(): void
     {
         $this->enableGoogle($this->alpha);
