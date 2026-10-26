@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\MarketplaceService;
 use App\Models\MarketplaceServiceProvider;
 use App\Models\User;
+use App\Services\MarketplaceAnalytics;
 use App\Services\ServiceMarketplace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -66,6 +68,7 @@ class ServiceMarketplaceController extends Controller
     public function show(Request $request, string $service): JsonResponse
     {
         $row = $this->market->visible()->with('provider')->whereKey($service)->firstOrFail();
+        app(MarketplaceAnalytics::class)->record($request, $row->provider, $request->user(), 'service_view', $row);
         $related = $this->market->visible()->with('provider')->where('category', $row->category)->whereKeyNot($row->id)->orderBy('ratings_count')->orderBy('rating')->orderBy('id')->limit(16)->get();
 
         return response()->json(['data' => $this->market->service($row, true), 'related' => $related->map(fn ($item) => $this->market->service($item)),
@@ -76,8 +79,32 @@ class ServiceMarketplaceController extends Controller
     public function provider(Request $request, string $provider): JsonResponse
     {
         $row = MarketplaceServiceProvider::where('published', true)->whereHas('owner', fn ($q) => $q->where('is_active', true)->where('pending_approval', false))->whereKey($provider)->firstOrFail();
+        app(MarketplaceAnalytics::class)->record($request, $row, $request->user(), 'profile_view');
 
         return response()->json(['data' => $this->market->provider($row), 'services_count' => $this->market->visible()->where('provider_id', $row->id)->count()]);
+    }
+
+    /** G4 (#50): a visitor opened one of the provider's published contact channels. */
+    public function contactClick(Request $request, string $provider, MarketplaceAnalytics $analytics): JsonResponse
+    {
+        $data = $request->validate(['channel' => ['required', Rule::in(MarketplaceAnalytics::CHANNELS)], 'service_id' => ['nullable', 'uuid']]);
+        $row = MarketplaceServiceProvider::where('published', true)->where('contacts_public', true)->whereHas('owner', fn ($q) => $q->where('is_active', true)->where('pending_approval', false))->whereKey($provider)->firstOrFail();
+        abort_if(empty(($row->contacts ?? [])[$data['channel']]), 422, 'This contact channel is not published.');
+        $service = isset($data['service_id']) ? $this->market->visible()->where('provider_id', $row->id)->whereKey($data['service_id'])->firstOrFail() : null;
+        $analytics->record($request, $row, $request->user(), 'contact_click', $service, $data['channel']);
+
+        return response()->json(['message' => 'Recorded.'], 202, ['Cache-Control' => 'private, no-store']);
+    }
+
+    /** G4 (#50): the signed-in freelancer's own views and contact clicks for an inclusive local date range. */
+    public function analytics(Request $request, MarketplaceAnalytics $analytics): JsonResponse
+    {
+        $data = $request->validate(['from' => ['required', 'date_format:Y-m-d'], 'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'], 'timezone' => ['nullable', 'timezone']]);
+        abort_if(Carbon::parse($data['from'])->diffInDays(Carbon::parse($data['to'])) > 365, 422, 'Choose an inclusive date range of at most 366 days.');
+        $provider = MarketplaceServiceProvider::where('user_id', $this->publisher($request)->id)->first();
+        $zone = $data['timezone'] ?? (string) config('app.timezone');
+
+        return response()->json(['data' => $provider ? $analytics->report($provider, $data['from'], $data['to'], $zone) : null], 200, ['Cache-Control' => 'private, no-store'], JSON_UNESCAPED_UNICODE);
     }
 
     public function mine(Request $request): JsonResponse
