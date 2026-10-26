@@ -20,8 +20,8 @@ class ManualCashPayment
                 ->where('gateway', 'cod')->latest('id')->lockForUpdate()->first();
             $current = StoreOrder::forStore($order->store_id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
             if ($reference === '' || in_array($current->status, ['cancelled', ...StoreOrder::RETURN_STATUSES], true) || $current->payment_method !== 'cod' || $transaction === null
-                || bccomp((string) $transaction->amount, (string) $current->grand_total, 2) !== 0 || strtoupper($transaction->currency) !== strtoupper($current->currency)
-                || bccomp($amount, (string) $current->grand_total, 2) !== 0 || strtoupper($currency) !== strtoupper($current->currency)) {
+                || bccomp((string) $transaction->amount, $current->amountDue(), 2) !== 0 || strtoupper($transaction->currency) !== strtoupper($current->currency)
+                || bccomp($amount, $current->amountDue(), 2) !== 0 || strtoupper($currency) !== strtoupper($current->currency)) {
                 throw ValidationException::withMessages(['payment' => 'Confirm the full collected amount and currency for this cash-on-delivery order.']);
             }
             $metadata = is_array($transaction->metadata) ? $transaction->metadata : [];
@@ -37,12 +37,12 @@ class ManualCashPayment
             if (! in_array($current->payment_status, ['pending', 'unpaid'], true) || $transaction->status !== 'pending') {
                 throw ValidationException::withMessages(['payment' => 'This cash payment is not awaiting collection.']);
             }
-            $metadata['cash_collection'] = ['reference' => $reference, 'amount' => (string) $current->grand_total, 'currency' => strtoupper($current->currency),
+            $metadata['cash_collection'] = ['reference' => $reference, 'amount' => $current->amountDue(), 'currency' => strtoupper($current->currency),
                 'actor_id' => $actorId, 'confirmed_at' => now()->toIso8601String(), 'note' => $note];
             $transaction->update(['status' => 'paid', 'provider_reference' => $reference, 'paid_at' => now(), 'failed_at' => null, 'metadata' => $metadata]);
             $current->update(['payment_status' => 'paid', 'payment_reference' => $reference]);
             $current->statusChanges()->create(['from_status' => $current->status, 'to_status' => $current->status, 'actor_id' => $actorId,
-                'source' => 'cash_payment', 'notes' => 'Full cash collection confirmed: '.$reference.' — '.$current->currency.' '.$current->grand_total.($note ? "\n".$note : '')]);
+                'source' => 'cash_payment', 'notes' => 'Full cash collection confirmed: '.$reference.' — '.$current->currency.' '.$current->amountDue().($note ? "\n".$note : '')]);
             app(DigitalDelivery::class)->record($current);
             DB::afterCommit(fn () => StoreAnalyticsService::forget($current->store_id));
 

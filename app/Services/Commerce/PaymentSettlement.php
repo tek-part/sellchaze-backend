@@ -19,7 +19,7 @@ class PaymentSettlement
             // Webhooks run without a host-resolved CurrentStore. Bind explicitly.
             $order = StoreOrder::forStore($locked->store_id)->whereKey($locked->store_order_id)->lockForUpdate()->firstOrFail();
             abort_unless($order->payment_method === $locked->gateway && strtoupper($order->currency) === strtoupper($locked->currency)
-                && bccomp((string) $order->grand_total, (string) $locked->amount, 2) === 0, 422, 'The payment no longer matches the order.');
+                && bccomp($order->amountDue(), (string) $locked->amount, 2) === 0, 422, 'The payment no longer matches the order.');
             $locked->update($status === 'paid'
                 ? ['status' => 'paid', 'provider_reference' => $reference, 'paid_at' => now(), 'failed_at' => null]
                 : ['status' => 'failed', 'failed_at' => now()]);

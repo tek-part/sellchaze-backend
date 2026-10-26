@@ -244,7 +244,7 @@ class StoreNotificationSettings
     /** True when the order is real for the customer: offline payment, or an online payment that succeeded. */
     public static function confirmable(StoreOrder $order): bool
     {
-        return $order->payment_status === 'paid' || in_array($order->payment_method, self::OFFLINE_METHODS, true) || (float) $order->grand_total <= 0;
+        return $order->payment_status === 'paid' || in_array($order->payment_method, self::OFFLINE_METHODS, true) || (float) $order->amountDue() <= 0;
     }
 
     /**

@@ -29,6 +29,7 @@ use App\Services\Commerce\CheckoutService;
 use App\Services\Commerce\CouponService;
 use App\Services\Commerce\CustomerAuthService;
 use App\Services\Commerce\DiscountEngine;
+use App\Services\Commerce\GiftCards;
 use App\Services\Commerce\HostedPaymentGateways;
 use App\Services\Commerce\HostedPaymentReconciliation;
 use App\Services\Commerce\OrderReceipt;
@@ -95,8 +96,22 @@ class CheckoutController extends Controller
         $data = $request->validated();
 
         return response()->json(['data' => $quotes->calculate(
-            $this->currentStore($request), $data['items'], $data['coupon_code'] ?? null, $this->auth->resolve($request), $data + ['client_ip' => $request->ip()],
+            $this->currentStore($request), $data['items'], $data['coupon_code'] ?? null, $this->auth->resolve($request), $data + ['client_ip' => $request->ip()], $data['gift_cards'] ?? [],
         )], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** POST /storefront/checkout/gift-card/check — masked balance; one generic error for every failure. */
+    public function checkGiftCard(Request $request, GiftCards $giftCards): JsonResponse
+    {
+        $data = $request->validate(['code' => ['required', 'string', 'max:40']]);
+        $store = $this->currentStore($request);
+        $card = $giftCards->lookup($store, $data['code']);
+        if ($card === null || ! $giftCards->usable($card, $store->currency ?: 'USD')) {
+            throw ValidationException::withMessages(['code' => GiftCards::INVALID]);
+        }
+
+        return response()->json(['data' => ['last4' => $card->last4, 'balance' => (string) $card->balance, 'currency' => $card->currency,
+            'expires_at' => $card->expires_at?->toIso8601String()]], 200, ['Cache-Control' => 'private, no-store']);
     }
 
     /** POST /storefront/checkout */
@@ -132,6 +147,13 @@ class CheckoutController extends Controller
             ]);
         }
 
+        $giftCards = $request->validated('gift_cards') ?? [];
+        // Nothing left to pay needs no gateway; placement rejects this when a balance remains.
+        if ($payment === null && $giftCards !== [] && (! $request->filled('payment_method') || $request->input('payment_method') === GiftCards::METHOD)) {
+            $payment = (new StorePaymentGateway)->forceFill(['store_id' => $store->id, 'gateway' => GiftCards::METHOD, 'enabled' => true,
+                'test_mode' => false, 'sort_order' => 0, 'credentials' => []]);
+        }
+
         if ($payment === null) {
             throw ValidationException::withMessages([
                 'payment_method' => 'The selected payment method is not available for this store.',
@@ -144,7 +166,7 @@ class CheckoutController extends Controller
         $customer = $this->auth->resolve($request);
         // A funnel order has its own transient cart, even for a signed-in customer.
         // Do not merge, replace or convert their ordinary shopping cart.
-        $order = DB::transaction(function () use ($request, $store, $customer, $payment, $shippingSelection) {
+        $order = DB::transaction(function () use ($request, $store, $customer, $payment, $shippingSelection, $giftCards) {
             $attempt = app(CheckoutAttempts::class)->lock($request);
             $store = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $cart = $request->input('cart_mode') === 'direct'
@@ -197,6 +219,7 @@ class CheckoutController extends Controller
                 ($validated['shipping_address'] ?? null),
                 $payment->gateway,
                 $shippingSelection,
+                $giftCards,
             );
             $attempt?->update(['store_order_id' => $order->id]);
             app(ProductAbTests::class)->attribute($store, $order, $validated['ab_token'] ?? null);
@@ -216,6 +239,14 @@ class CheckoutController extends Controller
 
             return $order;
         });
+
+        if ($order->payment_method === GiftCards::METHOD) {
+            return response()->json([
+                'data' => new StoreOrderResource($order),
+                'receipt' => app(OrderReceipt::class)->make($order),
+                'payment' => ['transaction_id' => null, 'status' => 'paid', 'redirect_url' => null],
+            ], 201, [], JSON_UNESCAPED_UNICODE);
+        }
 
         try {
             $paymentResult = $this->payments->start($store, $order, $payment);

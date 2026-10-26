@@ -66,7 +66,7 @@ class StoreManagerPermissions
             'orders', 'customers', 'missed-orders', 'newsletter', 'blocked-phone-numbers', 'blocked-phones' => ['store.orders.manage'],
             'ab-tests' => ['store.products.manage'],
             'reviews' => ['store.reviews.manage'],
-            'coupons' => ['store.coupons.manage'],
+            'coupons', 'gift-cards' => ['store.coupons.manage'],
             'analytics' => ['store.analytics.view'],
             'themes', 'design-assets' => ['store.themes.manage'],
             'pages', 'simple-pages', 'articles', 'content', 'reusable-sections', 'funnels', 'ui-blocks' => ['store.pages.manage'],

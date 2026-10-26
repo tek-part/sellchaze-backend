@@ -20,6 +20,8 @@ use Illuminate\Support\Carbon;
  * @property string $tax_total
  * @property string $grand_total
  * @property string $refunded_total
+ * @property string $gift_card_total
+ * @property list<array{gift_card_id:int,last4:string,amount:string}>|null $gift_card_details
  * @property array{version:int,gateway:string,currency:string,rule:array,base_total:string,amount:string}|null $payment_adjustment
  * @property array{source:string,campaign:string}|null $marketing_attribution
  * @property array{code:string,product_id:int}|null $referral_attribution
@@ -45,7 +47,7 @@ class StoreOrder extends Model
         'customer_phone_normalized',
         'payment_method', 'payment_status', 'payment_reference',
         'payment_adjustment',
-        'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'refunded_total', 'notes',
+        'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'refunded_total', 'gift_card_total', 'gift_card_details', 'notes',
         'placed_at', 'cancelled_at', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'coupon_code',
         'discount_details', 'manual_actor_id', 'manual_owner_id', 'manual_request_key', 'manual_request_hash', 'manual_adjustment_total', 'manual_tax_included',
     ];
@@ -65,12 +67,22 @@ class StoreOrder extends Model
         'tax_total' => 'decimal:2',
         'grand_total' => 'decimal:2',
         'refunded_total' => 'decimal:2',
+        'gift_card_total' => 'decimal:2',
+        'gift_card_details' => 'array',
         'manual_adjustment_total' => 'decimal:2',
         'manual_tax_included' => 'boolean',
         'checkout_bot_verified' => 'boolean',
         'placed_at' => 'datetime',
         'cancelled_at' => 'datetime',
     ];
+
+    /** What is left to pay after gift cards: grand_total stays the order total. */
+    public function amountDue(): string
+    {
+        $due = bcsub((string) $this->grand_total, (string) ($this->gift_card_total ?? '0.00'), 2);
+
+        return bccomp($due, '0', 2) < 0 ? '0.00' : $due;
+    }
 
     /** @return HasMany<StoreOrderItem, $this> */
     public function items(): HasMany

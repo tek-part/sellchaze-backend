@@ -98,6 +98,10 @@ class StoreOrderService
                 app(DigitalProducts::class)->cancel($order);
             }
             $order->save();
+            // Gift card amounts go back to their cards once, whoever cancels or refunds the order.
+            if (in_array($to, ['cancelled', 'refunded'], true)) {
+                app(GiftCards::class)->restore($order, $actorId);
+            }
 
             $change = $order->statusChanges()->create([
                 'from_status' => $from,

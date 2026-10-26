@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Storefront;
 
+use App\Services\Commerce\GiftCards;
 use App\Services\Commerce\ProductPersonalization;
 use App\Services\Commerce\QuantityOffers;
 use App\Services\Commerce\StoreShipping;
@@ -23,6 +24,6 @@ class CheckoutQuoteRequest extends FormRequest
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'payment_method' => ['nullable', 'string', 'max:80'],
-        ];
+        ] + GiftCards::inputRules();
     }
 }
