@@ -133,7 +133,6 @@ class WavexTemplatesApiController extends Controller
         return response()->json(['message' => 'OK']);
     }
 
-
     public function show(WavexTemplate $wavexTemplate): JsonResponse
     {
         return response()->json(['data' => $this->transformTemplate($wavexTemplate)]);

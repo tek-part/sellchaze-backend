@@ -1,34 +1,41 @@
 <?php
-  
+
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProductStoreRequest;
 use App\Http\Requests\UpdateProductRequest;
-use App\Models\User;
-use App\Models\Product;
-use App\Models\Category;
 use App\Models\Attribute;
-use Illuminate\Http\Request;
+use App\Models\Category;
+use App\Models\Product;
 use App\Models\ProductAttributes;
+use App\Models\User;
 use App\Notifications\ProductNotification;
-use Auth, Session, Image, File;
+use Auth;
+use File;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\View\View;
+use Image;
 
 class ProductController extends Controller
 {
-    function __construct()
+    public function __construct()
     {
-        //$this->middleware('permission:products-list|products-create|products-edit|products-delete', ['only' => ['index','show']]);
+        // $this->middleware('permission:products-list|products-create|products-edit|products-delete', ['only' => ['index','show']]);
         $this->middleware('permission:products-list', ['only' => ['index']]);
-        $this->middleware('permission:products-create', ['only' => ['create','store']]);
-        $this->middleware('permission:products-edit', ['only' => ['edit','update']]);
+        $this->middleware('permission:products-create', ['only' => ['create', 'store']]);
+        $this->middleware('permission:products-edit', ['only' => ['edit', 'update']]);
         $this->middleware('permission:products-delete', ['only' => ['destroy', 'bulkDestroy']]);
     }
-    
+
     /**
      * Display a listing of the resource.
      *
-     * @return \Illuminate\Http\Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     * @return Response
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function index(Request $request)
     {
@@ -46,45 +53,47 @@ class ProductController extends Controller
             ->with('title', __('Latest products'))
             ->with('breadcrumb', __('Latest products'));
     }
-     
+
     /**
      * Show the form for creating a new resource.
      *
-     * @return \Illuminate\Http\Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     * @return Response
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function create()
     {
         $attributes = Attribute::cachedAll();
         $categories = Category::cachedAll();
 
-        return view('pages.products.create',compact('categories','attributes'))->with('title' , 'Create new product')->with('breadcrumb' , 'New product');
+        return view('pages.products.create', compact('categories', 'attributes'))->with('title', 'Create new product')->with('breadcrumb', 'New product');
     }
-    
+
     /**
      * Store a newly created resource in storage.
      *
-     * @return \Illuminate\Http\Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     * @return Response
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function store(ProductStoreRequest $request)
     {
-    
-        $product                = new Product;
-        $product->name          = $request->name;
-        $product->description   = $request->description;
-        $product->user_id       = Auth::user()->id;
-        $product->category_id   = $request->category;
-        $product->created_at    = date("Y-m-d H:i:s");
-        $product->updated_at    = date("Y-m-d H:i:s");
+
+        $product = new Product;
+        $product->name = $request->name;
+        $product->description = $request->description;
+        $product->user_id = Auth::user()->id;
+        $product->category_id = $request->category;
+        $product->created_at = date('Y-m-d H:i:s');
+        $product->updated_at = date('Y-m-d H:i:s');
 
         if ($request->hasFile('image')) {
-            $image              = $request->file('image');
-            $input['image']     = md5($image->getClientOriginalName() . time()) . "." . $image->getClientOriginalExtension();
-            $destinationPath    = public_path('/storage/uploads/products/thumbnails');
-            $imgFile            = Image::make($image->getRealPath());
+            $image = $request->file('image');
+            $input['image'] = md5($image->getClientOriginalName().time()).'.'.$image->getClientOriginalExtension();
+            $destinationPath = public_path('/storage/uploads/products/thumbnails');
+            $imgFile = Image::make($image->getRealPath());
 
-            if (!file_exists($destinationPath)) {
+            if (! file_exists($destinationPath)) {
                 mkdir($destinationPath, 0755, true);
             }
 
@@ -94,7 +103,7 @@ class ProductController extends Controller
 
             $destinationPath = public_path('/storage/uploads/products/original');
 
-            if (!file_exists($destinationPath)) {
+            if (! file_exists($destinationPath)) {
                 mkdir($destinationPath, 0755, true);
             }
 
@@ -105,37 +114,37 @@ class ProductController extends Controller
 
         $product->save();
 
-        if($request->input('attributes')) {
-            foreach($request->input('attributes') as $attribute_input) {
+        if ($request->input('attributes')) {
+            foreach ($request->input('attributes') as $attribute_input) {
                 $product_attribute = new ProductAttributes;
 
-                $product_attribute->attribute_id   = $attribute_input;
-                $product_attribute->product_id     = $product->id;
-                $product_attribute->created_at     = date("Y-m-d H:i:s");
-                $product_attribute->updated_at     = date("Y-m-d H:i:s");
-            
+                $product_attribute->attribute_id = $attribute_input;
+                $product_attribute->product_id = $product->id;
+                $product_attribute->created_at = date('Y-m-d H:i:s');
+                $product_attribute->updated_at = date('Y-m-d H:i:s');
+
                 $product_attribute->save();
             }
         }
-        
+
         /*$user = User::first();
-  
+
         $data = [
             'user_id'       => Auth::user()->id,
             'product_id'    => $product->id
         ];
-  
+
         Notification::send($user, new ProductNotification($data));*/
 
-        return redirect()->route('products.index')->with('success','Product created successfully.');
+        return redirect()->route('products.index')->with('success', 'Product created successfully.');
     }
-     
+
     /**
      * Display the specified resource.
      *
-     * @param  $product_id
-     * @return \Illuminate\Http\Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     * @return Response
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     // public function show($product_id)
     // {
@@ -144,68 +153,68 @@ class ProductController extends Controller
     //     $attributes             = Attribute::whereIn('id', $product_attributes_ids)->get();
 
     //     return view('pages.products.show',compact('product', 'attributes'))->with('title' , 'Product details')->with('breadcrumb' , 'Product details');
-    // } 
-     
+    // }
+
     public function show($product_id)
     {
         $product = Product::findOrFail($product_id);
-    
+
         $product_attributes_ids = ProductAttributes::where(
             'product_id', $product_id
         )->pluck('attribute_id')->all();
-    
+
         $attributes = Attribute::whereIn('id', $product_attributes_ids)->get();
-    
+
         return view('pages.products.show', compact('product', 'attributes'))
             ->with('title', 'Product details')
             ->with('breadcrumb', 'Product details');
     }
-    
+
     /**
      * Show the form for editing the specified resource.
      *
-     * @param  $product_id
-     * @return \Illuminate\Http\Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     * @return Response
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function edit($product_id)
     {
-        $product    = Product::find(decrypt($product_id));
+        $product = Product::find(decrypt($product_id));
         $attributes = Attribute::cachedAll();
         $categories = Category::cachedAll();
 
-        return view('pages.products.edit',compact('product', 'categories', 'attributes'))->with('title' , 'Edit product')->with('breadcrumb' , 'Edit product');
+        return view('pages.products.edit', compact('product', 'categories', 'attributes'))->with('title', 'Edit product')->with('breadcrumb', 'Edit product');
     }
-    
+
     /**
      * Update the specified resource in storage.
      *
-     * @param  $product_id
-     * @return \Illuminate\Http\Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     * @return Response
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function update(UpdateProductRequest $request, $product_id)
     {
         $product = Product::findOrFail(decrypt($product_id));
 
-        $product->name          = $request->name;
-        $product->description   = $request->description;
-        $product->user_id       = Auth::user()->id;
-        $product->category_id   = $request->category;
-        $product->created_at    = date("Y-m-d H:i:s");
-        $product->updated_at    = date("Y-m-d H:i:s");
+        $product->name = $request->name;
+        $product->description = $request->description;
+        $product->user_id = Auth::user()->id;
+        $product->category_id = $request->category;
+        $product->created_at = date('Y-m-d H:i:s');
+        $product->updated_at = date('Y-m-d H:i:s');
 
         if ($request->hasFile('image')) {
-            $image              = $request->file('image');
-            $input['image']     = md5($image->getClientOriginalName() . time()) . "." . $image->getClientOriginalExtension();
-            $destinationPath    = public_path('/storage/uploads/products/thumbnails');
-            $imgFile            = Image::make($image->getRealPath());
+            $image = $request->file('image');
+            $input['image'] = md5($image->getClientOriginalName().time()).'.'.$image->getClientOriginalExtension();
+            $destinationPath = public_path('/storage/uploads/products/thumbnails');
+            $imgFile = Image::make($image->getRealPath());
 
-            if (!file_exists($destinationPath)) {
+            if (! file_exists($destinationPath)) {
                 mkdir($destinationPath, 0755, true);
             }
-            
-            if(File::exists($destinationPath.'/'.$product->image)) {
+
+            if (File::exists($destinationPath.'/'.$product->image)) {
                 File::delete($destinationPath.'/'.$product->image);
             }
 
@@ -215,11 +224,11 @@ class ProductController extends Controller
 
             $destinationPath = public_path('/storage/uploads/products/original');
 
-            if (!file_exists($destinationPath)) {
+            if (! file_exists($destinationPath)) {
                 mkdir($destinationPath, 0755, true);
             }
 
-            if(File::exists($destinationPath.'/'.$product->image)) {
+            if (File::exists($destinationPath.'/'.$product->image)) {
                 File::delete($destinationPath.'/'.$product->image);
             }
 
@@ -230,30 +239,30 @@ class ProductController extends Controller
 
         $product->save();
 
-        if($request->input('attributes')) {
+        if ($request->input('attributes')) {
             ProductAttributes::where('product_id', $product->id)->delete();
-            
-            foreach($request->input('attributes') as $attribute_input) {
+
+            foreach ($request->input('attributes') as $attribute_input) {
                 $product_attribute = new ProductAttributes;
 
-                $product_attribute->attribute_id  = $attribute_input;
-                $product_attribute->product_id    = $product->id;
-                $product_attribute->created_at    = date("Y-m-d H:i:s");
-                $product_attribute->updated_at    = date("Y-m-d H:i:s");
-            
+                $product_attribute->attribute_id = $attribute_input;
+                $product_attribute->product_id = $product->id;
+                $product_attribute->created_at = date('Y-m-d H:i:s');
+                $product_attribute->updated_at = date('Y-m-d H:i:s');
+
                 $product_attribute->save();
             }
         }
 
-        return redirect()->route('products.index')->with('success','Product updated successfully');
+        return redirect()->route('products.index')->with('success', 'Product updated successfully');
     }
-    
+
     /**
      * Remove the specified resource from storage.
      *
-     * @param  $product_id
-     * @return \Illuminate\Http\Response
-     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+     * @return Response
+     *
+     * @phpstan-return Response|View|RedirectResponse|JsonResponse
      */
     public function destroy($product_id)
     {
@@ -312,17 +321,18 @@ class ProductController extends Controller
         $product->delete();
     }
 
-    public function getproducts($category_id){
+    public function getproducts($category_id)
+    {
         $result = [];
-        
-        //Get products with it's values according to passed category ID
-        $products           = Product::where('category_id', $category_id)->get();
-        $products_select    = '';
 
-        if(count($products) > 0) {
+        // Get products with it's values according to passed category ID
+        $products = Product::where('category_id', $category_id)->get();
+        $products_select = '';
+
+        if (count($products) > 0) {
             $products_select .= '<select class="form-control" name="product" id="product" required><option value="">Please select product</option>';
 
-            foreach($products as $product) {
+            foreach ($products as $product) {
                 $products_select .= '<option value="'.$product->id.'">'.$product->name.'</option>';
             }
 
@@ -371,8 +381,7 @@ class ProductController extends Controller
                     }
                 });
             </script>";
-        }
-        else {
+        } else {
             $products_select .= 'There is no products for this category!';
         }
 
@@ -381,19 +390,19 @@ class ProductController extends Controller
         return response()->json($result);
     }
 
-    public function getmultiproducts($category_id){
+    public function getmultiproducts($category_id)
+    {
         $result = [];
-        
-        //Get products with it's values according to passed category ID
-        $products           = Product::where('category_id', $category_id)->get();
-        $products_select    = '';
 
-        if(count($products) > 0) {
-            foreach($products as $product) {
+        // Get products with it's values according to passed category ID
+        $products = Product::where('category_id', $category_id)->get();
+        $products_select = '';
+
+        if (count($products) > 0) {
+            foreach ($products as $product) {
                 $products_select .= '<div class="form-check"><input type="checkbox" name="products['.$category_id.']['.$product->id.']" class="form-check-input" id="product-'.$product->id.'" value="'.$product->id.'" /><label class="form-check-label" for="product-'.$product->id.'">'.$product->name.'</label></div>';
             }
-        }
-        else {
+        } else {
             $products_select .= 'There is no products for this category!';
         }
 

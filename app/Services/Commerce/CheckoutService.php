@@ -218,6 +218,11 @@ class CheckoutService
                 if ($freeProductIds !== []) {
                     $delivery['details']['free_shipping_product_ids'] = array_values(array_unique($freeProductIds));
                 }
+                // The tax basis is frozen so a later payment method change reprices a COD fee with the order's own rule.
+                $taxRule = app(StoreTaxes::class)->resolve($store, $shippingSelection);
+                if ($taxRule !== null) {
+                    $delivery['details']['tax'] = ['rate' => (string) $taxRule['rate'], 'shipping' => (bool) $taxRule['shipping'], 'included' => (bool) $store->tax_prices_include];
+                }
                 if ($shippingAddress !== null || $delivery['address'] !== []) {
                     $shippingAddress = array_merge($shippingAddress ?? [], $delivery['address'], ['shipping_details' => $delivery['details']]);
                 }

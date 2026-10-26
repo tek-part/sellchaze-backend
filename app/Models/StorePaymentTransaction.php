@@ -4,8 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
+ * @property Carbon|null $paid_at
+ * @property Carbon|null $failed_at
  * @property-read Store $store
  * @property-read StoreOrder $order
  */

@@ -25,7 +25,7 @@ class TasksApiController extends Controller
             $employeeIds = User::query()->where('parent_user_id', $user->id)->pluck('id')->all();
             $q->where(function ($w) use ($user, $employeeIds) {
                 $w->where('assigned_by_user_id', $user->id)
-                  ->orWhereIn('assigned_to_user_id', $employeeIds ?: [0]);
+                    ->orWhereIn('assigned_to_user_id', $employeeIds ?: [0]);
             });
         }
 
@@ -104,9 +104,15 @@ class TasksApiController extends Controller
 
     private function authorizeTask(User $user, Task $task): void
     {
-        if ($user->hasRole('Admin')) return;
-        if ((int) $task->assigned_by_user_id === (int) $user->id) return;
-        if ((int) $task->assigned_to_user_id === (int) $user->id) return;
+        if ($user->hasRole('Admin')) {
+            return;
+        }
+        if ((int) $task->assigned_by_user_id === (int) $user->id) {
+            return;
+        }
+        if ((int) $task->assigned_to_user_id === (int) $user->id) {
+            return;
+        }
         abort(403);
     }
 

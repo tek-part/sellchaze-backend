@@ -2,8 +2,8 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\ServiceProvider;
 
 class ViewServiceProvider extends ServiceProvider
 {
@@ -17,11 +17,11 @@ class ViewServiceProvider extends ServiceProvider
         });
 
         // Using class based composers...
-        //View::composer('profile', ProfileComposer::class);
+        // View::composer('profile', ProfileComposer::class);
 
         // Using closure based composers...
-       //View::composer('dashboard', function ($view) {
-            //
-        //});
+        // View::composer('dashboard', function ($view) {
+        //
+        // });
     }
 }

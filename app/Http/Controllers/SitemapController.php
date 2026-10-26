@@ -28,7 +28,7 @@ class SitemapController extends Controller
 
             foreach (Article::published()->get() as $article) {
                 $urls[] = [
-                    'loc' => url('/blog/' . $article->slug),
+                    'loc' => url('/blog/'.$article->slug),
                     'lastmod' => $article->updated_at->toW3cString(),
                     'changefreq' => 'monthly',
                     'priority' => '0.6',
@@ -36,16 +36,16 @@ class SitemapController extends Controller
             }
         }
 
-        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n";
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
 
         foreach ($urls as $u) {
-            $xml .= '  <url>' . "\n";
-            $xml .= '    <loc>' . htmlspecialchars($u['loc']) . '</loc>' . "\n";
-            $xml .= '    <lastmod>' . ($u['lastmod'] ?? now()->toW3cString()) . '</lastmod>' . "\n";
-            $xml .= '    <changefreq>' . ($u['changefreq'] ?? 'weekly') . '</changefreq>' . "\n";
-            $xml .= '    <priority>' . ($u['priority'] ?? '0.5') . '</priority>' . "\n";
-            $xml .= '  </url>' . "\n";
+            $xml .= '  <url>'."\n";
+            $xml .= '    <loc>'.htmlspecialchars($u['loc']).'</loc>'."\n";
+            $xml .= '    <lastmod>'.($u['lastmod'] ?? now()->toW3cString()).'</lastmod>'."\n";
+            $xml .= '    <changefreq>'.($u['changefreq'] ?? 'weekly').'</changefreq>'."\n";
+            $xml .= '    <priority>'.($u['priority'] ?? '0.5').'</priority>'."\n";
+            $xml .= '  </url>'."\n";
         }
 
         $xml .= '</urlset>';

@@ -21,6 +21,7 @@ class SettingsController extends Controller
     public function general()
     {
         $appName = Setting::get('app_name', config('app.name'));
+
         return view('pages.settings.general', [
             'title' => __('General settings'),
             'breadcrumb' => __('Settings'),
@@ -39,6 +40,7 @@ class SettingsController extends Controller
         if ($request->has('app_name')) {
             Setting::set('app_name', $request->app_name);
         }
+
         return redirect()->route('settings.general')
             ->with('success', __('Settings saved successfully.'));
     }
@@ -58,6 +60,7 @@ class SettingsController extends Controller
             'mail_from_address' => Setting::get('mail_from_address', config('mail.from.address', 'hello@example.com')),
             'mail_from_name' => Setting::get('mail_from_name', config('mail.from.name', config('app.name'))),
         ];
+
         return view('pages.settings.email', [
             'title' => __('Email settings'),
             'breadcrumb' => __('Settings'),
@@ -95,6 +98,7 @@ class SettingsController extends Controller
             Setting::set('mail_password', $request->mail_password);
         }
         Setting::clearCache();
+
         return redirect()->route('settings.email')
             ->with('success', __('Email settings saved successfully.'));
     }
@@ -138,11 +142,12 @@ class SettingsController extends Controller
                         ->subject(__('Test email from :app', ['app' => config('app.name')]));
                 }
             );
+
             return redirect()->route('settings.email')
                 ->with('success', __('Test email sent to :email.', ['email' => $to]));
         } catch (\Throwable $e) {
-        return redirect()->route('settings.email')
-            ->with('error', __('Failed to send test email: :message', ['message' => $e->getMessage()]));
+            return redirect()->route('settings.email')
+                ->with('error', __('Failed to send test email: :message', ['message' => $e->getMessage()]));
         }
     }
 
@@ -156,6 +161,7 @@ class SettingsController extends Controller
             'google_client_secret' => Setting::get('google_client_secret', config('services.google.client_secret', '')),
         ];
         $redirectUri = url('auth/google/callback');
+
         return view('pages.settings.google', [
             'title' => __('Google OAuth settings'),
             'breadcrumb' => __('Settings'),
@@ -176,6 +182,7 @@ class SettingsController extends Controller
         Setting::set('google_client_id', $request->input('google_client_id', ''));
         Setting::set('google_client_secret', $request->input('google_client_secret', ''));
         Setting::clearCache();
+
         return redirect()->route('settings.google')
             ->with('success', __('Google settings saved successfully.'));
     }
@@ -191,7 +198,7 @@ class SettingsController extends Controller
                 'name' => 'Order API v1',
                 'method' => 'POST',
                 'path' => '/api/v1/orders',
-                'url' => $baseUrl . '/api/v1/orders',
+                'url' => $baseUrl.'/api/v1/orders',
                 'description' => __('Receive orders from the store (recommended).'),
                 'auth' => 'X-API-Key',
                 'headers' => [
@@ -204,7 +211,7 @@ class SettingsController extends Controller
                 'name' => 'Order API',
                 'method' => 'POST',
                 'path' => '/api/orders',
-                'url' => $baseUrl . '/api/orders',
+                'url' => $baseUrl.'/api/orders',
                 'description' => __('Receive orders from the store (legacy).'),
                 'auth' => 'X-API-Key',
                 'headers' => [
@@ -214,6 +221,7 @@ class SettingsController extends Controller
                 ],
             ],
         ];
+
         return view('pages.settings.apis', [
             'title' => __('Store APIs'),
             'breadcrumb' => __('Settings'),
@@ -231,6 +239,7 @@ class SettingsController extends Controller
             'site_description' => Setting::get('site_description', ''),
             'site_logo' => Setting::get('site_logo', ''),
         ];
+
         return view('pages.settings.website', [
             'title' => __('Website settings'),
             'breadcrumb' => __('Settings'),
@@ -265,6 +274,7 @@ class SettingsController extends Controller
         }
 
         Setting::clearCache();
+
         return redirect()->route('settings.website')
             ->with('success', __('Settings saved successfully.'));
     }

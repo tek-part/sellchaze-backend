@@ -11,11 +11,13 @@ use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Models\User;
 use App\Services\Commerce\OrderReceipt;
+use App\Services\Commerce\PaymentSettlement;
 use App\Services\JwtTokenService;
 use App\Support\Tenancy\CurrentStore;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
@@ -200,5 +202,60 @@ class OrderPaymentMethodChangeTest extends TestCase
         $this->getJson('/api/v1/my-store/orders/print-data?ids[]='.$id, $this->headers())->assertOk()
             ->assertJsonPath('store.phone', '+201000000009')->assertJsonPath('store.website', 'https://switch.sellchase.com/')
             ->assertJsonPath('data.0.deposit.amount', '30.00')->assertJsonPath('data.0.deposit.remaining', '90.00');
+    }
+
+    public function test_a_switch_waits_for_an_open_provider_payment_or_a_receipt_under_review(): void
+    {
+        StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'cod', 'enabled' => true]);
+        $order = $this->failedOnlineOrder();
+        $hosted = StorePaymentTransaction::create(['store_id' => $this->store->id, 'store_order_id' => $order->id, 'gateway' => 'stripe', 'idempotency_key' => (string) Str::uuid(),
+            'status' => 'redirect_pending', 'amount' => '132.00', 'currency' => 'EGP']);
+        $this->getJson($this->url($order->id, 'methods'), $this->headers())->assertOk()->assertJsonPath('data.blocker', 'payment_pending')->assertJsonPath('data.methods', []);
+        $this->postJson($this->url($order->id, 'method'), ['payment_method' => 'cod'], $this->headers())->assertUnprocessable()->assertJsonPath('errors.reason.0', 'payment_pending');
+        // Past the abandoned-payment window the customer is no longer paying.
+        StorePaymentTransaction::whereKey($hosted->id)->update(['updated_at' => now()->subMinutes(121)]);
+        $this->getJson($this->url($order->id, 'methods'), $this->headers())->assertOk()->assertJsonPath('data.blocker', null);
+        DB::table('store_payment_proofs')->insert(['id' => (string) Str::uuid(), 'store_id' => $this->store->id, 'store_order_id' => $order->id, 'path' => 'proofs/x.png', 'mime' => 'image/png',
+            'size_bytes' => 10, 'status' => 'pending', 'created_at' => now(), 'updated_at' => now()]);
+        $this->postJson($this->url($order->id, 'method'), ['payment_method' => 'cod'], $this->headers())->assertUnprocessable()->assertJsonPath('errors.reason.0', 'receipt_pending');
+        $this->assertSame('stripe', StoreOrder::findOrFail($order->id)->payment_method);
+    }
+
+    public function test_a_late_provider_payment_after_a_switch_is_recorded_as_needing_a_refund(): void
+    {
+        StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'cod', 'enabled' => true]);
+        $order = $this->failedOnlineOrder();
+        $this->postJson($this->url($order->id, 'method'), ['payment_method' => 'cod'], $this->headers())->assertOk();
+        $old = StorePaymentTransaction::where('store_order_id', $order->id)->where('gateway', 'stripe')->firstOrFail();
+        app(PaymentSettlement::class)->transition($old, 'paid', 'pi_late');
+        $old->refresh();
+        $this->assertSame('paid', $old->status);
+        $this->assertTrue($old->metadata['unapplied']['needs_refund']);
+        $order->refresh();
+        $this->assertSame(['cod', 'pending'], [$order->payment_method, $order->payment_status]);
+        $this->assertDatabaseHas('store_order_status_changes', ['store_order_id' => $order->id, 'source' => 'unapplied_payment']);
+        $this->getJson('/api/v1/my-store/orders/'.$order->id, $this->headers())->assertOk()
+            ->assertJsonPath('data.unapplied_payments.0.amount', '132.00')->assertJsonPath('data.unapplied_payments.0.reference', 'pi_late');
+        // The recorded capture blocks further switches; a repeated confirmation changes nothing.
+        app(PaymentSettlement::class)->transition($old->fresh(), 'paid', 'pi_late');
+        $this->assertSame(1, $order->statusChanges()->where('source', 'unapplied_payment')->count());
+        $this->getJson($this->url($order->id, 'methods'), $this->headers())->assertOk()->assertJsonPath('data.blocker', 'payment_in_progress');
+    }
+
+    public function test_the_cod_fee_tax_uses_the_order_frozen_tax_basis(): void
+    {
+        $this->store->update(['tax_enabled' => true, 'tax_rate' => '10', 'tax_prices_include' => false, 'tax_shipping' => true]);
+        StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'cod', 'enabled' => true]);
+        StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'bank_transfer', 'enabled' => true]);
+        $this->postJson('/api/v1/my-store/shipping/zones', ['name' => ['ar' => 'مصر', 'en' => 'Egypt'], 'countries' => ['EG'], 'regions' => [], 'enabled' => true,
+            'rates' => [['name' => ['ar' => 'عادي', 'en' => 'Standard'], 'type' => 'flat', 'price' => '30.00', 'free_over' => null, 'delivery_time' => ['ar' => '', 'en' => ''], 'cod_fee' => '15.00', 'enabled' => true]]], $this->headers())->assertCreated();
+        $id = $this->postJson(self::HOST.'/checkout', ['cart_mode' => 'direct', 'items' => [['product_id' => $this->bag->id, 'quantity' => 1]], 'customer_name' => 'Buyer', 'customer_phone' => '01000000000', 'customer_email' => 'buyer@example.test',
+            'shipping_country' => 'EG', 'shipping_address' => ['line1' => 'Street', 'city' => 'Cairo', 'country' => 'EG'], 'payment_method' => 'cod'], ['Idempotency-Key' => (string) Str::uuid()])
+            ->assertCreated()->assertJsonPath('data.tax_total', '14.50')->assertJsonPath('data.grand_total', '159.50')->json('data.id');
+        $this->assertSame('10.000', StoreOrder::findOrFail($id)->shipping_address['shipping_details']['tax']['rate']);
+        // Today's rate changed; the order keeps its own.
+        $this->store->update(['tax_rate' => '20']);
+        $this->postJson($this->url($id, 'method'), ['payment_method' => 'bank_transfer', 'expected_grand_total' => '143.00'], $this->headers())->assertOk()
+            ->assertJsonPath('data.tax_total', '13.00')->assertJsonPath('data.shipping_total', '30.00')->assertJsonPath('data.grand_total', '143.00');
     }
 }

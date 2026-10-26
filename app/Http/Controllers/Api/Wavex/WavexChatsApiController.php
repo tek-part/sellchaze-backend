@@ -189,19 +189,19 @@ class WavexChatsApiController extends Controller
             $res = $client->sendImageData($chatId, $base64, $filenameForWawp, $mime, $caption);
         } elseif ($isVideo) {
             // Save video to public storage and send URL to Wawp (base64 causes 502)
-            $tempDir = 'wavex-chat-uploads/' . date('Y-m-d');
+            $tempDir = 'wavex-chat-uploads/'.date('Y-m-d');
             $storedPath = $upload->store($tempDir, 'public');
             $publicStorageUrl = config('services.wavex.public_storage_url');
             if ($publicStorageUrl) {
-                $videoUrl = $publicStorageUrl . '/' . $storedPath;
+                $videoUrl = $publicStorageUrl.'/'.$storedPath;
                 $res = $client->sendVideo($chatId, $videoUrl, $filenameForWawp, $mime, $caption);
             } else {
                 // Fallback: try APP_URL
                 $appUrl = rtrim(config('app.url'), '/');
-                $videoUrl = $appUrl . '/storage/' . $storedPath;
+                $videoUrl = $appUrl.'/storage/'.$storedPath;
                 // Check if URL is reachable by Wawp
                 $host = strtolower(parse_url($videoUrl, PHP_URL_HOST) ?: '');
-                if (!in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+                if (! in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
                     $res = $client->sendVideo($chatId, $videoUrl, $filenameForWawp, $mime, $caption);
                 } else {
                     // Last resort: base64

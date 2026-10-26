@@ -94,13 +94,16 @@ class StoreOrder extends Model
 
     /**
      * What the order's payment method collects now; grand_total stays the order total. Gift cards pay first.
-     * A deposit order charges its deposit until it is paid, then what remains is due on delivery.
+     * A deposit order charges its deposit until it is paid, then what remains is due on delivery, then nothing.
      */
     public function amountDue(): string
     {
         $due = $this->moneyDue();
         if ($this->deposit_total === null) {
             return $due;
+        }
+        if ($this->remainder_collected_at !== null) {
+            return '0.00';
         }
         $deposit = $this->depositAmount();
 

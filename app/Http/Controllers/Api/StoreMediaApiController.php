@@ -35,7 +35,10 @@ class StoreMediaApiController extends Controller
         $checksum = hash_file('sha256', $file->getRealPath());
         $existing = StoreMediaAsset::withTrashed()->where('store_id', $store->id)->where('checksum_sha256', $checksum)->first();
         if ($existing) {
-            if ($existing->trashed()) $existing->restore();
+            if ($existing->trashed()) {
+                $existing->restore();
+            }
+
             return response()->json(['data' => $this->asset($existing->fresh()), 'deduplicated' => true]);
         }
 
@@ -88,7 +91,9 @@ class StoreMediaApiController extends Controller
     private function asset(StoreMediaAsset $asset): array
     {
         $url = Storage::disk($asset->disk)->url($asset->path);
-        if (! str_starts_with($url, 'http')) $url = url($url);
+        if (! str_starts_with($url, 'http')) {
+            $url = url($url);
+        }
 
         return [
             'id' => $asset->id, 'url' => $url, 'name' => $asset->original_name,

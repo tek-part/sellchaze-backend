@@ -11,7 +11,9 @@ class ThemeLicenseService
 {
     public function isLicensed(Store $store, Theme $theme): bool
     {
-        if ((float) $theme->price <= 0 || $theme->license_type === 'free') return true;
+        if ((float) $theme->price <= 0 || $theme->license_type === 'free') {
+            return true;
+        }
         $license = StoreThemeLicense::query()->where('store_id', $store->id)->where('theme_id', $theme->id)->first();
 
         return $license?->isActive() ?? false;

@@ -265,4 +265,39 @@ class OrderDepositsTest extends TestCase
         $this->postJson('/api/v1/stores/'.$this->store->id.'/orders/'.$id.'/payment/collect-remainder', $payload, $this->headers($intruder))->assertForbidden();
         $this->assertSame('deposit_paid', StoreOrder::forStore($this->store)->findOrFail($id)->payment_status);
     }
+
+    public function test_a_store_without_a_method_that_can_collect_a_deposit_never_dead_ends_checkout(): void
+    {
+        StorePaymentGateway::where('store_id', $this->store->id)->where('gateway', '!=', 'cod')->update(['enabled' => false]);
+        $valid = ['enabled' => true, 'percentage' => '20', 'minimum' => '0', 'scope' => 'all', 'confirm_after_payment' => false, 'version' => 1];
+        $this->putJson('/api/v1/my-store/payments/deposit', $valid, $this->headers())->assertUnprocessable()->assertJsonValidationErrors('enabled');
+        $this->putJson('/api/v1/my-store/payments/deposit', ['enabled' => false] + $valid, $this->headers())->assertOk()->assertJsonPath('data.payable', false);
+        // Deposits left on while the last online method was disabled: checkout falls back to cash on delivery.
+        $this->enable();
+        $this->getJson('/api/v1/my-store/payments/deposit', $this->headers())->assertOk()->assertJsonPath('data.enabled', true)->assertJsonPath('data.payable', false);
+        $this->getJson(self::HOST.'/payment-methods?product_ids[]='.$this->bag->id)->assertOk()->assertJsonPath('deposit', null)->assertJsonPath('data.0.slug', 'cod');
+        $this->quote('cod')->assertOk()->assertJsonPath('data.deposit', null)->assertJsonPath('data.amount_due', '120.00');
+        $this->place('cod')->assertCreated()->assertJsonPath('data.deposit', null);
+    }
+
+    public function test_the_remainder_stays_collectible_after_the_deposit_was_refunded_and_nothing_is_due_after(): void
+    {
+        $this->enable();
+        // Two bags: 200 + 20 delivery; deposit 44, remainder 176.
+        $id = $this->place('bank_transfer', [], ['items' => [['product_id' => $this->bag->id, 'quantity' => 2]]])->assertCreated()->assertJsonPath('data.deposit.amount', '44.00')->json('data.id');
+        $this->postJson('/api/v1/my-store/orders/'.$id.'/payment/confirm-bank', ['reference' => 'TRF-9'], $this->headers())->assertOk();
+        $order = StoreOrder::findOrFail($id);
+        foreach (['confirmed', 'processing', 'shipped'] as $status) {
+            app(StoreOrderService::class)->transition($order, $status);
+        }
+        $item = $order->items()->firstOrFail();
+        // Part of the deposit back, then all of it: the remainder is still collected on delivery.
+        $this->postJson('/api/v1/my-store/orders/'.$id.'/refunds', ['shipping_amount' => '10.00', 'reason' => 'other', 'method' => 'bank_transfer'], $this->headers())->assertCreated();
+        $this->assertSame(['partially_refunded', '176.00', '176.00'], [$order->fresh()->payment_status, $order->fresh()->collectOnDelivery(), $order->fresh()->amountDue()]);
+        $this->postJson('/api/v1/my-store/orders/'.$id.'/refunds', ['items' => [['store_order_item_id' => $item->id, 'quantity' => 1]], 'amount' => '34.00', 'reason' => 'other', 'method' => 'bank_transfer'], $this->headers())->assertCreated();
+        $this->assertSame(['refunded', 'shipped', '176.00'], [$order->fresh()->payment_status, $order->fresh()->status, $order->fresh()->collectOnDelivery()]);
+        $this->postJson('/api/v1/my-store/orders/'.$id.'/payment/collect-remainder', ['reference' => 'CASH-9', 'amount' => '176.00', 'currency' => 'EGP', 'collected' => true], $this->headers())->assertOk()
+            ->assertJsonPath('data.payment_status', 'partially_refunded')->assertJsonPath('data.amount_due', '0.00')->assertJsonPath('data.deposit.remainder_collected', true);
+        $this->assertSame('0.00', $order->fresh()->collectOnDelivery());
+    }
 }

@@ -13,7 +13,7 @@ class StorePaymentDepositController extends Controller
 {
     public function index(Request $request, OrderDeposits $deposits): JsonResponse
     {
-        return response()->json(['data' => $deposits->configured($this->store($request))]);
+        return response()->json(['data' => $deposits->status($this->store($request))]);
     }
 
     public function update(Request $request, OrderDeposits $deposits): JsonResponse

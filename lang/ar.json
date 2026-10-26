@@ -477,5 +477,6 @@
     "This order needs a deposit paid now. Choose an online payment method or a transfer; the rest is paid on delivery.": "هذا الطلب يتطلب دفع عربون الآن. اختر طريقة دفع إلكترونية أو تحويلًا؛ ويُدفع الباقي عند الاستلام.",
     "This order is confirmed once its deposit is paid.": "يُؤكَّد هذا الطلب بعد دفع العربون.",
     "The payment method of this order can no longer change.": "لم يعد من الممكن تغيير طريقة دفع هذا الطلب.",
-    "Choose another available payment method.": "اختر طريقة دفع أخرى متاحة."
+    "Choose another available payment method.": "اختر طريقة دفع أخرى متاحة.",
+    "Enable an online payment method or a transfer first: cash on delivery cannot collect a deposit.": "فعّل طريقة دفع إلكترونية أو تحويلًا أولًا: لا يمكن تحصيل العربون بالدفع عند الاستلام."
 }

@@ -5,6 +5,7 @@ namespace App\Services\Commerce;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreOrder;
+use App\Models\StorePaymentGateway;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -37,6 +38,19 @@ class OrderDeposits
             'version' => max(1, (int) ($config['version'] ?? 1))];
     }
 
+    /** The settings plus whether a method that can collect the deposit is offered (without one, no deposit applies). */
+    public function status(Store $store): array
+    {
+        return $this->configured($store) + ['payable' => $this->payable($store)];
+    }
+
+    /** An enabled, connected method other than cash on delivery can collect a deposit. */
+    public function payable(Store $store): bool
+    {
+        return StorePaymentGateway::where('store_id', $store->id)->where('enabled', true)->whereNotIn('gateway', self::UNPAYABLE_METHODS)->get()
+            ->contains(fn (StorePaymentGateway $setting) => PaymentGatewayCatalog::offered($setting, $store->currency));
+    }
+
     public static function rules(): array
     {
         return ['enabled' => ['required', 'boolean'],
@@ -55,6 +69,9 @@ class OrderDeposits
         if ($data['enabled'] && bccomp($percentage, '0', 2) === 0 && bccomp($minimum, '0', 2) === 0) {
             throw ValidationException::withMessages(['percentage' => 'Enter a deposit percentage, a minimum amount, or both.']);
         }
+        if ($data['enabled'] && ! $this->payable($store)) {
+            throw ValidationException::withMessages(['enabled' => __('Enable an online payment method or a transfer first: cash on delivery cannot collect a deposit.')]);
+        }
 
         return DB::transaction(function () use ($store, $data, $percentage, $minimum) {
             $locked = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
@@ -62,7 +79,7 @@ class OrderDeposits
             $locked->update(['deposit_configuration' => ['enabled' => (bool) $data['enabled'], 'percentage' => $percentage, 'minimum' => $minimum,
                 'scope' => $data['scope'], 'confirm_after_payment' => (bool) $data['confirm_after_payment'], 'version' => (int) $data['version'] + 1]]);
 
-            return $this->configured($locked);
+            return $this->status($locked);
         });
     }
 
@@ -80,7 +97,8 @@ class OrderDeposits
     public function required(Store $store, iterable $products, bool $requiresShipping): bool
     {
         $config = $this->configured($store);
-        if (! $config['enabled'] || ! $requiresShipping) {
+        // Without a method that can collect it, checkout falls back to no deposit instead of a dead end.
+        if (! $config['enabled'] || ! $requiresShipping || ! $this->payable($store)) {
             return false;
         }
         if ($config['scope'] === 'all') {
@@ -184,7 +202,11 @@ class OrderDeposits
         return true;
     }
 
-    /** The merchant records the cash collected on delivery after a paid deposit. */
+    /**
+     * The merchant records the cash collected on delivery after a paid deposit. Refunds recorded from the deposit
+     * before delivery do not change the remainder: it stays collectible on delivery (the refund is money already
+     * given back); a merchant who will not deliver cancels the order instead.
+     */
     public function collectRemainder(StoreOrder $order, string $reference, string $amount, string $currency, int $actorId, ?string $note = null): StoreOrder
     {
         $reference = trim($reference);
@@ -202,7 +224,7 @@ class OrderDeposits
             $remaining = $current->remainderDue();
             if ($reference === '' || $current->deposit_total === null || $current->deposit_paid_at === null
                 || in_array($current->status, ['cancelled', ...StoreOrder::RETURN_STATUSES], true)
-                || ! in_array($current->payment_status, ['deposit_paid', 'partially_refunded'], true) || bccomp($remaining, '0', 2) <= 0
+                || ! in_array($current->payment_status, ['deposit_paid', 'partially_refunded', 'refunded'], true) || bccomp($remaining, '0', 2) <= 0
                 || bccomp($amount, $remaining, 2) !== 0 || strtoupper($currency) !== strtoupper($current->currency)) {
                 throw ValidationException::withMessages(['payment' => 'Confirm the full remaining amount and currency collected on delivery for this order.']);
             }
@@ -210,7 +232,8 @@ class OrderDeposits
             $details['remainder'] = ['reference' => $reference, 'amount' => $remaining, 'currency' => strtoupper($current->currency),
                 'actor_id' => $actorId, 'collected_at' => now()->toIso8601String(), 'note' => $note];
             $current->forceFill(['deposit_details' => $details, 'remainder_collected_at' => now(),
-                'payment_status' => $current->payment_status === 'deposit_paid' ? 'paid' : $current->payment_status])->save();
+                // A refund recorded from the deposit stays a partial refund of the order once the rest is collected.
+                'payment_status' => $current->payment_status === 'deposit_paid' ? 'paid' : 'partially_refunded'])->save();
             $current->statusChanges()->create(['store_id' => $current->store_id, 'from_status' => $current->status, 'to_status' => $current->status, 'actor_id' => $actorId,
                 'source' => 'deposit_remainder', 'notes' => 'Remaining amount collected on delivery: '.$reference.' — '.$current->currency.' '.$remaining.($note ? "\n".$note : '')]);
             if ($current->payment_status === 'paid') {

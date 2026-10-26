@@ -3,14 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Article;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\App;
+use Illuminate\View\View;
 
 class LandingController extends Controller
 {
     /**
      * Show the landing page for guests; redirect authenticated users to dashboard.
      *
-     * @return \Illuminate\View\View|\Illuminate\Http\RedirectResponse
+     * @return View|RedirectResponse
      */
     public function index()
     {
@@ -18,7 +20,7 @@ class LandingController extends Controller
             return redirect()->route('dashboard');
         }
 
-        if (!session()->has('locale')) {
+        if (! session()->has('locale')) {
             session(['locale' => 'en']);
             App::setLocale('en');
         }

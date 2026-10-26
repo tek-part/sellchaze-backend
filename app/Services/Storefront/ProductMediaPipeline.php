@@ -26,8 +26,7 @@ class ProductMediaPipeline
         private readonly int $maxWidth = 1200,
         private readonly int $thumbSize = 400,
         private readonly int $quality = 82,
-    ) {
-    }
+    ) {}
 
     /**
      * Fetch + optimise + store an image under `$dir/$base.*`. Returns the media metadata array, or null

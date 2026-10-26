@@ -10,7 +10,6 @@ class CreateCategoryAction
      * Create a category from validated data.
      *
      * @param  array<string, mixed>  $data
-     * @return Category
      */
     public function __invoke(array $data): Category
     {

@@ -8,7 +8,7 @@ class RobotsController extends Controller
 {
     public function index(): Response
     {
-        $content = "User-agent: *\nDisallow:\n\nSitemap: " . url('/sitemap.xml') . "\n";
+        $content = "User-agent: *\nDisallow:\n\nSitemap: ".url('/sitemap.xml')."\n";
 
         return response($content, 200, [
             'Content-Type' => 'text/plain',

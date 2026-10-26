@@ -45,6 +45,16 @@ class OrderPaymentMethods
             ->where(fn ($query) => $query->whereIn('status', ['paid', 'processing'])->orWhereNotNull('paid_at'))->exists()) {
             return 'payment_in_progress';
         }
+        // A customer may still be on a provider's payment page: wait until it is abandoned (the same window
+        // that releases abandoned online payments) so an online payment and cash are never both collected.
+        $window = now()->subMinutes((int) config('sellchase.gift_cards.abandoned_payment_minutes', 120));
+        if (StorePaymentTransaction::where('store_id', $store->id)->where('store_order_id', $order->id)->where('status', 'redirect_pending')
+            ->where('updated_at', '>=', $window)->exists()) {
+            return 'payment_pending';
+        }
+        if (DB::table('store_payment_proofs')->where('store_id', $store->id)->where('store_order_id', $order->id)->where('status', 'pending')->exists()) {
+            return 'receipt_pending';
+        }
 
         return null;
     }
@@ -164,15 +174,19 @@ class OrderPaymentMethods
         $shipping = bcadd(bcsub((string) $order->shipping_total, $oldFee, 2), $newFee, 2);
         $shipping = bccomp($shipping, '0', 2) < 0 ? '0.00' : $shipping;
         $tax = bcadd((string) $order->tax_total, '0', 2);
+        // The order's frozen tax basis (orders placed since deposits shipped); older orders use the destination's current rule.
+        $frozen = is_array($details['tax'] ?? null) ? $details['tax'] : null;
+        $included = $frozen !== null ? (bool) ($frozen['included'] ?? false) : (bool) $store->tax_prices_include;
         if (bccomp($oldFee, $newFee, 2) !== 0 && bccomp($tax, '0', 2) > 0) {
-            $rule = app(StoreTaxes::class)->resolve($store, ['shipping_country' => $details['country'] ?? ($address['country'] ?? null),
+            $rule = $frozen ?? app(StoreTaxes::class)->resolve($store, ['shipping_country' => $details['country'] ?? ($address['country'] ?? null),
                 'shipping_region_id' => $details['region']['id'] ?? null]);
-            if ($rule !== null && $rule['shipping'] && bccomp($rule['rate'], '0', 3) > 0) {
+            if ($rule !== null && ($rule['shipping'] ?? false) && bccomp((string) $rule['rate'], '0', 3) > 0) {
+                $rate = (string) $rule['rate'];
                 $base = bcadd(bcsub((string) $order->subtotal, (string) $order->discount_total, 2), $shipping, 2);
-                $tax = $store->tax_prices_include ? bcdiv(bcmul($base, $rule['rate'], 5), bcadd('100', $rule['rate'], 3), 2) : bcdiv(bcmul($base, $rule['rate'], 5), '100', 2);
+                $tax = $included ? bcdiv(bcmul($base, $rate, 5), bcadd('100', $rate, 3), 2) : bcdiv(bcmul($base, $rate, 5), '100', 2);
             }
         }
-        $exclusiveTax = $store->tax_prices_include ? '0.00' : bcsub($tax, (string) $order->tax_total, 2);
+        $exclusiveTax = $included ? '0.00' : bcsub($tax, (string) $order->tax_total, 2);
         $base = bcadd(bcadd(bcsub((string) $order->grand_total, (string) ($order->payment_adjustment['amount'] ?? '0.00'), 2),
             bcsub($shipping, (string) $order->shipping_total, 2), 2), $exclusiveTax, 2);
         $base = bccomp($base, '0', 2) < 0 ? '0.00' : $base;

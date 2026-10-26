@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\StoreOrder;
+use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\OrderDeposits;
 use App\Services\Commerce\ProductPersonalization;
@@ -65,6 +66,11 @@ class MerchantOrderResource extends JsonResource
             'amount_due' => $this->resource->amountDue(),
             // Deposit orders: paid online first, `remaining` is due on delivery (null without a deposit).
             'deposit' => OrderDeposits::present($this->resource),
+            // Money a provider captured on an attempt the merchant had replaced: shown so it is refunded, never lost.
+            'unapplied_payments' => $this->whenLoaded('statusChanges', fn () => StorePaymentTransaction::where('store_id', $this->store_id)->where('store_order_id', $this->id)
+                ->where('status', 'paid')->get()->filter(fn (StorePaymentTransaction $row) => isset($row->metadata['unapplied']))
+                ->map(fn (StorePaymentTransaction $row) => ['gateway' => $row->gateway, 'amount' => (string) $row->amount, 'currency' => $row->currency,
+                    'reference' => $row->provider_reference, 'paid_at' => $row->paid_at?->toIso8601String()])->values()->all()),
             'payment_adjustment' => $this->payment_adjustment,
             'payment_adjustment_total' => $this->payment_adjustment['amount'] ?? '0.00',
             'manual_adjustment_total' => $this->manual_adjustment_total ?? '0.00',

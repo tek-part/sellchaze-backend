@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Models\Theme;
 use App\Models\ThemeLicensePurchase;
-use App\Services\Themes\ThemeLicenseService;
 use App\Services\Themes\ThemeLicensePurchaseService;
+use App\Services\Themes\ThemeLicenseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

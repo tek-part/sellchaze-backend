@@ -11,7 +11,7 @@ class EnsureUserApproved
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             return $next($request);
         }
 
@@ -20,10 +20,10 @@ class EnsureUserApproved
         }
 
         $profile = $user->profile;
-        $isApproved = $profile && !empty($profile->active);
+        $isApproved = $profile && ! empty($profile->active);
 
         $excluded = ['pending-approval', 'pending-approval.status', 'logout', 'profile.complete', 'profile.complete.store'];
-        if (!$isApproved && !$request->routeIs($excluded)) {
+        if (! $isApproved && ! $request->routeIs($excluded)) {
             return redirect()->route('pending-approval');
         }
 

@@ -11,7 +11,6 @@ class CreateAttributeAction
      * Create an attribute with optional values from validated data.
      *
      * @param  array<string, mixed>  $data  Must include 'name', optionally 'type' and 'attribute_values'
-     * @return Attribute
      */
     public function __invoke(array $data): Attribute
     {

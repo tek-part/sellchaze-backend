@@ -135,7 +135,7 @@ class ProcessWavexCampaignStepJob implements ShouldQueue
             'status' => $hasQueued ? 'paused' : 'completed',
             'completed_at' => $hasQueued ? null : now(),
             'last_error' => $hasQueued
-                ? 'Sending finished but ' . $campaign->recipients()->where('status', 'queued')->count() . ' recipients are still queued on Wawp. They may be delivered later.'
+                ? 'Sending finished but '.$campaign->recipients()->where('status', 'queued')->count().' recipients are still queued on Wawp. They may be delivered later.'
                 : null,
         ]);
     }
