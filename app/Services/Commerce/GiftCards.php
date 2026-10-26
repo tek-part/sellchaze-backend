@@ -6,6 +6,7 @@ use App\Models\Store;
 use App\Models\StoreGiftCard;
 use App\Models\StoreGiftCardTransaction;
 use App\Models\StoreOrder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
@@ -16,7 +17,9 @@ use Illuminate\Validation\ValidationException;
  * secrets here), so the code itself is shown once at issue and never stored or logged.
  *
  * Balances move only through {@see StoreGiftCardTransaction} rows written under a row lock: the
- * quote reads, placement redeems, cancellation or refund restores (once per card and order).
+ * quote reads, placement redeems; cancellation before fulfilment restores what is left, and recorded
+ * refunds return their gift card share ({@see StoreOrderRefunds}). The order's card ledger decides
+ * what can still go back, so the two paths can never return the same amount twice.
  */
 class GiftCards
 {
@@ -28,6 +31,17 @@ class GiftCards
 
     /** One message for unknown, foreign, disabled, expired, empty and other-currency cards. */
     public const INVALID = 'This gift card is invalid, expired or has no balance.';
+
+    /** Draft orders and invoice links carry a fixed, merchant-quoted total and their own payment step. */
+    public const NOT_FOR_DRAFTS = 'Gift cards cannot pay draft orders or invoices. Pay the invoice with one of the listed payment methods.';
+
+    /** Refuse gift cards on flows that do not support them, instead of silently ignoring them. */
+    public static function rejectOn(Request $request): void
+    {
+        if ($request->has('gift_cards') || $request->has('gift_card')) {
+            throw ValidationException::withMessages(['gift_cards' => self::NOT_FOR_DRAFTS]);
+        }
+    }
 
     /** Failed lookups allowed per IP and minute across check, quote and checkout. */
     public const MISS_LIMIT = 10;
@@ -212,33 +226,81 @@ class GiftCards
             /** @var StoreGiftCard $card */
             $card = $row['card'];
             $card->forceFill(['balance' => $row['balance_after']])->save();
-            $this->log($card, $order->id, bcsub('0', $row['applied'], 2), 'redeemed', null, null);
+            $this->log($card, $order->id, bcsub('0', $row['applied'], 2), 'redeemed', null, null, 'redeem:'.$order->id.':'.$card->id);
         }
     }
 
-    /** Put redeemed amounts back once per card and order (cancellation before fulfilment, refund). */
+    /**
+     * Per card on this order: what was redeemed and what already went back (cancellation or refunds).
+     * The ledger is the only source of truth, so cancellation and refunds can never both return it.
+     *
+     * @return array<int, array{redeemed:string, returned:string}>
+     */
+    public function orderLedger(StoreOrder $order): array
+    {
+        $ledger = [];
+        $rows = StoreGiftCardTransaction::forStore($order->store_id)->where('store_order_id', $order->id)
+            ->whereIn('reason', ['redeemed', 'restored', 'refunded'])->orderBy('id')->get(['gift_card_id', 'amount', 'reason']);
+        foreach ($rows as $row) {
+            $entry = $ledger[$row->gift_card_id] ?? ['redeemed' => '0.00', 'returned' => '0.00'];
+            if ($row->reason === 'redeemed') {
+                $entry['redeemed'] = bcadd($entry['redeemed'], bcsub('0', (string) $row->amount, 2), 2);
+            } else {
+                $entry['returned'] = bcadd($entry['returned'], (string) $row->amount, 2);
+            }
+            $ledger[$row->gift_card_id] = $entry;
+        }
+
+        return $ledger;
+    }
+
+    /** Total already returned to gift cards for this order. */
+    public function returnedTotal(StoreOrder $order): string
+    {
+        return array_reduce($this->orderLedger($order), fn (string $sum, array $entry) => bcadd($sum, $entry['returned'], 2), '0.00');
+    }
+
+    /** Cancellation before fulfilment: everything not yet returned goes back, once per card and order. */
     public function restore(StoreOrder $order, ?int $actorId = null): void
     {
-        DB::transaction(function () use ($order, $actorId) {
-            $redemptions = StoreGiftCardTransaction::forStore($order->store_id)->where('store_order_id', $order->id)
-                ->where('reason', 'redeemed')->orderBy('gift_card_id')->get();
-            if ($redemptions->isEmpty()) {
-                return;
+        DB::transaction(fn () => $this->giveBack($order, null, null, $actorId, 'restored', 'Order '.$order->order_number.' '.$order->status));
+    }
+
+    /**
+     * A recorded refund's gift card part, spread over the order's cards in redemption order. Returns
+     * the amount actually put back (never more than what is left on the order's cards).
+     */
+    public function refund(StoreOrder $order, int $refundId, string $amount, ?int $actorId): string
+    {
+        return $this->giveBack($order, $refundId, bcadd($amount, '0', 2), $actorId, 'refunded', 'Refund on order '.$order->order_number);
+    }
+
+    private function giveBack(StoreOrder $order, ?int $refundId, ?string $limit, ?int $actorId, string $reason, string $note): string
+    {
+        $ledger = $this->orderLedger($order);
+        if ($ledger === [] || ($limit !== null && bccomp($limit, '0', 2) <= 0)) {
+            return '0.00';
+        }
+        $cards = StoreGiftCard::forStore($order->store_id)->whereIn('id', array_keys($ledger))->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+        $ledger = $this->orderLedger($order); // re-read under the card locks
+        $given = '0.00';
+        foreach ($ledger as $cardId => $entry) {
+            $card = $cards->get($cardId);
+            $open = bcsub($entry['redeemed'], $entry['returned'], 2);
+            if ($card === null || bccomp($open, '0', 2) <= 0) {
+                continue;
             }
-            $cards = StoreGiftCard::forStore($order->store_id)->whereIn('id', $redemptions->pluck('gift_card_id'))
-                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
-            foreach ($redemptions as $redemption) {
-                $card = $cards->get($redemption->gift_card_id);
-                $done = StoreGiftCardTransaction::forStore($order->store_id)->where('gift_card_id', $redemption->gift_card_id)
-                    ->where('store_order_id', $order->id)->where('reason', 'restored')->exists();
-                if ($card === null || $done) {
-                    continue;
-                }
-                $amount = bcsub('0', (string) $redemption->amount, 2);
-                $card->forceFill(['balance' => bcadd((string) $card->balance, $amount, 2)])->save();
-                $this->log($card, $order->id, $amount, 'restored', $actorId, 'Order '.$order->order_number.' '.$order->status);
+            $amount = $limit === null ? $open : (bccomp($open, bcsub($limit, $given, 2), 2) > 0 ? bcsub($limit, $given, 2) : $open);
+            if (bccomp($amount, '0', 2) <= 0) {
+                break;
             }
-        });
+            $card->forceFill(['balance' => bcadd((string) $card->balance, $amount, 2)])->save();
+            $key = $refundId === null ? 'cancel:'.$order->id.':'.$card->id : 'refund:'.$refundId.':'.$card->id;
+            $this->log($card, $order->id, $amount, $reason, $actorId, $note, $key, $refundId);
+            $given = bcadd($given, $amount, 2);
+        }
+
+        return $given;
     }
 
     /** A merchant correction with a reason; the balance never goes below zero. */
@@ -258,11 +320,11 @@ class GiftCards
         });
     }
 
-    private function log(StoreGiftCard $card, ?int $orderId, string $amount, string $reason, ?int $actorId, ?string $note): void
+    private function log(StoreGiftCard $card, ?int $orderId, string $amount, string $reason, ?int $actorId, ?string $note, ?string $key = null, ?int $refundId = null): void
     {
         $row = new StoreGiftCardTransaction([
-            'store_id' => $card->store_id, 'gift_card_id' => $card->id, 'store_order_id' => $orderId, 'amount' => $amount,
-            'balance_after' => (string) $card->balance, 'reason' => $reason, 'note' => $note, 'actor_id' => $actorId,
+            'store_id' => $card->store_id, 'gift_card_id' => $card->id, 'store_order_id' => $orderId, 'store_order_refund_id' => $refundId, 'amount' => $amount,
+            'balance_after' => (string) $card->balance, 'reason' => $reason, 'note' => $note, 'actor_id' => $actorId, 'idempotency_key' => $key,
         ]);
         $row->save();
     }

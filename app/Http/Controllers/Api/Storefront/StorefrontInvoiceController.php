@@ -10,6 +10,7 @@ use App\Models\StoreDraftOrder;
 use App\Models\StorePaymentGateway;
 use App\Services\Commerce\CheckoutFields;
 use App\Services\Commerce\DraftOrderConversion;
+use App\Services\Commerce\GiftCards;
 use App\Services\Commerce\HostedPaymentGateways;
 use App\Services\Commerce\OrderReceipt;
 use App\Services\Commerce\PaymentGatewayCatalog;
@@ -67,6 +68,7 @@ class StorefrontInvoiceController extends Controller
 
     public function checkout(Request $request, string $token, DraftOrderConversion $conversion, StorePaymentService $payments, PaymentRetryToken $retryTokens): JsonResponse
     {
+        GiftCards::rejectOn($request);
         $store = $this->currentStore($request);
         $draft = $this->find($store, $token, true);
         $totals = $draft->totals ?? [];

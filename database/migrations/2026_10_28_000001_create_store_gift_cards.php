@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Gift cards are a tender, not a discount. Only a keyed HMAC of the code is stored (with its last
+ * Gift cards are a tender, not a discount. Runs after store_order_refunds (refund restores link to it). Only a keyed HMAC of the code is stored (with its last
  * four characters for display), so a database copy alone cannot redeem a card. Every balance change
  * is an append-only transaction; an order keeps the amount paid by gift cards next to its total.
  */
@@ -41,26 +41,38 @@ return new class extends Migration
             $table->foreignId('store_id')->constrained('stores')->cascadeOnDelete();
             $table->foreignId('gift_card_id')->constrained('store_gift_cards')->cascadeOnDelete();
             $table->foreignId('store_order_id')->nullable()->constrained('store_orders')->nullOnDelete();
+            $table->foreignId('store_order_refund_id')->nullable()->constrained('store_order_refunds')->nullOnDelete();
             $table->decimal('amount', 12, 2);
             $table->decimal('balance_after', 12, 2);
             $table->string('reason', 20);
             $table->string('note', 500)->nullable();
             $table->foreignId('actor_id')->nullable()->constrained('users')->nullOnDelete();
+            // redeem:{order}:{card}, cancel:{order}:{card}, refund:{refund}:{card}; null for issue/adjust.
+            // The unique key makes every order-driven balance change happen at most once.
+            $table->string('idempotency_key', 80)->nullable();
             $table->timestamps();
 
-            // One redemption and one restoration per card and order; manual rows have no order.
-            $table->unique(['gift_card_id', 'store_order_id', 'reason'], 'gift_card_tx_card_order_reason_unique');
+            $table->unique(['store_id', 'idempotency_key'], 'gift_card_tx_store_key_unique');
             $table->index(['store_id', 'store_order_id']);
+            $table->index(['gift_card_id', 'id']);
         });
 
         Schema::table('store_orders', function (Blueprint $table) {
             $table->decimal('gift_card_total', 12, 2)->default(0)->after('grand_total');
             $table->json('gift_card_details')->nullable()->after('gift_card_total');
         });
+
+        // The part of a refund's amount that went back to gift cards (the rest is money).
+        Schema::table('store_order_refunds', function (Blueprint $table) {
+            $table->decimal('gift_card_amount', 12, 2)->default(0)->after('shipping_amount');
+        });
     }
 
     public function down(): void
     {
+        Schema::table('store_order_refunds', function (Blueprint $table) {
+            $table->dropColumn('gift_card_amount');
+        });
         Schema::table('store_orders', function (Blueprint $table) {
             $table->dropColumn(['gift_card_total', 'gift_card_details']);
         });

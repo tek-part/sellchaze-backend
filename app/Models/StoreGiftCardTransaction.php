@@ -20,9 +20,12 @@ class StoreGiftCardTransaction extends Model
 {
     use BelongsToStore;
 
-    public const REASONS = ['issued', 'redeemed', 'restored', 'adjusted'];
+    /** restored = cancellation before fulfilment; refunded = a recorded refund's gift card part. */
+    public const REASONS = ['issued', 'redeemed', 'restored', 'refunded', 'adjusted'];
 
-    protected $fillable = ['store_id', 'gift_card_id', 'store_order_id', 'amount', 'balance_after', 'reason', 'note', 'actor_id'];
+    protected $fillable = ['store_id', 'gift_card_id', 'store_order_id', 'store_order_refund_id', 'amount', 'balance_after', 'reason', 'note', 'actor_id', 'idempotency_key'];
+
+    protected $hidden = ['idempotency_key'];
 
     protected $casts = ['amount' => 'decimal:2', 'balance_after' => 'decimal:2'];
 

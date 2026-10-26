@@ -7,6 +7,7 @@ use App\Models\Store;
 use App\Models\StoreDraftOrder;
 use App\Services\Commerce\DraftOrderConversion;
 use App\Services\Commerce\DraftOrders;
+use App\Services\Commerce\GiftCards;
 use App\Services\Commerce\ManualStoreOrders;
 use App\Services\Commerce\StoreDigitalWhatsappClient;
 use App\Services\Commerce\StoreShipping;
@@ -133,6 +134,7 @@ class StoreDraftOrderController extends Controller
     /** Convert into a real order exactly once; repeating returns the same order. */
     public function complete(Request $request, Store $store, int $draft, DraftOrderConversion $conversion, ManualStoreOrders $manual): JsonResponse
     {
+        GiftCards::rejectOn($request);
         $data = $request->validate(['payment_status' => ['required', 'in:pending,paid'], 'payment_method' => ['nullable', 'in:cod,bank_transfer']]);
         abort_unless($manual->authorized($store, $request->user()), 403);
         $result = $conversion->complete($store, $draft, ['source' => 'merchant', 'payment_status' => $data['payment_status'],

@@ -20,6 +20,13 @@ use Illuminate\Validation\ValidationException;
  * the order total minus shipping is spread over the lines by line total, the last line absorbing
  * rounding, and the last unit refunded on a line returns whatever is left of that line's share.
  *
+ * Gift cards: a refund's amount is the value given back. Its gift card share is proportional to the
+ * part of the order paid by gift cards (cumulatively, so the last refund settles rounding) and goes back
+ * to the cards as `refunded` ledger rows; the rest is money, never more than money methods collected.
+ * When money was never collected (cash on delivery returned undelivered) only the gift card part can be
+ * returned. Cancellation before fulfilment restores cards in StoreOrderService; both read the card
+ * ledger, so the same amount can never go back twice.
+ *
  * @phpstan-type RefundLine array{item: StoreOrderItem, allocated: string, refunded_quantity: int, refundable_quantity: int, refunded_amount: string, remaining_amount: string}
  */
 class StoreOrderRefunds
@@ -57,6 +64,12 @@ class StoreOrderRefunds
             'grand_total' => $this->money($state['grand']),
             'refunded_total' => $this->money($state['refunded']),
             'refundable_total' => $this->money($state['remaining']),
+            'gift_card_total' => $this->money($state['gift_card']),
+            'money_collected' => $this->money($state['collected'] ? bcsub($state['grand'], $state['gift_card'], 0) : '0'),
+            'refunded_money' => $this->money($state['money_refunded']),
+            'refunded_to_gift_cards' => $this->money($state['card_returned']),
+            'refundable_money' => $this->money($state['money_remaining']),
+            'refundable_to_gift_cards' => $this->money($state['card_remaining']),
             'fully_refunded' => $state['fully'],
             'shipping' => ['total' => $this->money($state['shipping_cap']), 'refunded' => $this->money($state['shipping_refunded']),
                 'refundable' => $this->money($state['shipping_remaining'])],
@@ -121,12 +134,12 @@ class StoreOrderRefunds
                 if ($quantity < 1 || $quantity > $line['refundable_quantity']) {
                     throw ValidationException::withMessages(['items' => "You can refund at most {$line['refundable_quantity']} of {$line['item']->name}."]);
                 }
-                $cents = $state['collected'] ? $this->lineAmount($line, $quantity) : '0';
+                $cents = $state['valued'] ? $this->lineAmount($line, $quantity) : '0';
                 $itemsCents = bcadd($itemsCents, $cents, 0);
                 $records[] = ['line' => $line, 'quantity' => $quantity, 'cents' => $cents];
             }
             $shipping = $this->cents($data['shipping_amount'] ?? '0');
-            $shippingLimit = $state['collected'] ? $state['shipping_remaining'] : '0';
+            $shippingLimit = $state['valued'] ? $state['shipping_remaining'] : '0';
             if (bccomp($shipping, $shippingLimit, 0) > 0) {
                 throw ValidationException::withMessages(['shipping_amount' => 'The shipping refund cannot exceed '.$this->money($shippingLimit).' '.$order->currency.'.']);
             }
@@ -151,17 +164,27 @@ class StoreOrderRefunds
                 $items[] = ['store_order_item_id' => $item->id, 'quantity' => $record['quantity'], 'amount' => $this->money($record['cents']), 'restocked_quantity' => $units];
             }
 
+            [$card, $money] = $this->split($state, $amount);
             $refund = StoreOrderRefund::query()->create([
                 'store_id' => $order->store_id, 'store_order_id' => $order->id, 'amount' => $this->money($amount), 'shipping_amount' => $this->money($shipping),
+                'gift_card_amount' => $this->money($card),
                 'reason' => $data['reason'] ?? null, 'note' => $data['note'] ?? null, 'method' => $data['method'], 'restocked' => $restocked > 0,
                 'items' => $items, 'actor_id' => $actorId,
             ]);
 
+            if (bccomp($card, '0', 0) > 0) {
+                $given = app(GiftCards::class)->refund($order, $refund->id, $this->money($card), $actorId);
+                if (bccomp($this->cents($given), $card, 0) !== 0) {
+                    throw new \RuntimeException('Gift card refund mismatch on order '.$order->id.'.');
+                }
+            }
+
             $refundedTotal = bcadd($state['refunded'], $amount, 0);
-            $moneyDone = ! $state['collected'] || bccomp($refundedTotal, $state['grand'], 0) >= 0;
+            $moneyDone = bccomp(bcsub($state['remaining'], $amount, 0), '0', 0) <= 0;
             $unitsLeft = $state['lines']->sum('refundable_quantity') - array_sum(array_column($records, 'quantity'));
             $fully = $moneyDone && $unitsLeft <= 0;
             $order->refunded_total = $this->money($refundedTotal);
+            $customerRefunded = ($state['collected'] && bccomp($refundedTotal, '0', 0) > 0) || bccomp($card, '0', 0) > 0;
             if ($state['collected'] && bccomp($refundedTotal, '0', 0) > 0) {
                 $order->payment_status = $moneyDone ? 'refunded' : 'partially_refunded';
             }
@@ -170,11 +193,11 @@ class StoreOrderRefunds
             $note = $this->note($order, $refund, $restocked);
             if ($fully && $order->status !== 'refunded' && $this->orders->canTransition($order, 'refunded')) {
                 // The lifecycle owns the status change, its timeline entry, webhooks and the (deduplicated) customer email.
-                $this->orders->transition($order, 'refunded', $actorId, $note, $source, $state['collected'] && bccomp($refundedTotal, '0', 0) > 0);
+                $this->orders->transition($order, 'refunded', $actorId, $note, $source, $customerRefunded);
             } else {
                 $order->statusChanges()->create(['store_id' => $order->store_id, 'from_status' => $order->status, 'to_status' => $order->status,
                     'actor_id' => $actorId, 'notes' => $note, 'source' => $source]);
-                if ($fully && $state['collected'] && bccomp($refundedTotal, '0', 0) > 0) {
+                if ($fully && $customerRefunded) {
                     // Outbox deduplication keeps this to one message per channel even if the status was set to refunded earlier.
                     app(StoreNotificationSettings::class)->schedule($order, 'order_refunded');
                 }
@@ -186,7 +209,8 @@ class StoreOrderRefunds
     }
 
     /**
-     * @return array{collected:bool, open:bool, fully:bool, grand:string, refunded:string, remaining:string, shipping_cap:string,
+     * @return array{collected:bool, valued:bool, open:bool, fully:bool, grand:string, refunded:string, remaining:string, gift_card:string,
+     *     card_returned:string, card_remaining:string, money_refunded:string, money_remaining:string, shipping_cap:string,
      *     shipping_refunded:string, shipping_remaining:string, lines:Collection<int, RefundLine>, refunds:Collection<int, StoreOrderRefund>}
      */
     private function state(StoreOrder $order): array
@@ -227,9 +251,11 @@ class StoreOrderRefunds
         $refundedQuantities = [];
         $refundedAmounts = [];
         $refunded = '0';
+        $moneyRefunded = '0';
         $shippingRefunded = '0';
         foreach ($refunds as $refund) {
             $refunded = bcadd($refunded, $this->cents($refund->amount), 0);
+            $moneyRefunded = bcadd($moneyRefunded, bcsub($this->cents($refund->amount), $this->cents($refund->gift_card_amount ?? '0'), 0), 0);
             $shippingRefunded = bcadd($shippingRefunded, $this->cents($refund->shipping_amount), 0);
             foreach ($refund->items ?? [] as $row) {
                 $id = (int) $row['store_order_item_id'];
@@ -249,17 +275,55 @@ class StoreOrderRefunds
         })->values();
 
         $collected = self::paymentCollected($order);
-        $remaining = $collected ? $this->positive(bcsub($grand, $refunded, 0)) : '0';
+        // Money methods collected grand - gift cards; the gift card part is "collected" at placement.
+        $giftCard = $this->positive($this->cents($order->gift_card_total ?? '0'));
+        $giftCard = bccomp($giftCard, $grand, 0) > 0 ? $grand : $giftCard;
+        $cardReturned = bccomp($giftCard, '0', 0) > 0 ? $this->cents(app(GiftCards::class)->returnedTotal($order)) : '0';
+        $cardRemaining = $this->positive(bcsub($giftCard, $cardReturned, 0));
+        $moneyRemaining = $collected ? $this->positive(bcsub(bcsub($grand, $giftCard, 0), $moneyRefunded, 0)) : '0';
+        $remaining = bcadd($moneyRemaining, $cardRemaining, 0);
+        $valued = $collected || bccomp($cardRemaining, '0', 0) > 0;
         $shippingRemaining = $this->positive(bcsub($shippingCap, $shippingRefunded, 0));
         $unitsLeft = $lines->sum('refundable_quantity');
         $fully = $unitsLeft === 0 && $refunds->isNotEmpty() && bccomp($remaining, '0', 0) === 0;
-        // A cancelled order only needs a refund when money was actually taken.
-        $open = in_array($order->status, self::REFUNDABLE_STATUSES, true) && ($collected || $order->status !== 'cancelled')
-            && ($unitsLeft > 0 || bccomp($collected ? $shippingRemaining : '0', '0', 0) > 0);
+        // A cancelled order only needs a refund when money (or a gift card not yet restored) was taken.
+        $open = in_array($order->status, self::REFUNDABLE_STATUSES, true) && ($valued || $order->status !== 'cancelled')
+            && ($unitsLeft > 0 || bccomp($valued ? $shippingRemaining : '0', '0', 0) > 0);
 
-        return ['collected' => $collected, 'open' => $open, 'fully' => $fully, 'grand' => $grand, 'refunded' => $refunded, 'remaining' => $remaining,
-            'shipping_cap' => $shippingCap, 'shipping_refunded' => $shippingRefunded, 'shipping_remaining' => $collected ? $shippingRemaining : '0',
+        return ['collected' => $collected, 'valued' => $valued, 'open' => $open, 'fully' => $fully, 'grand' => $grand, 'refunded' => $refunded, 'remaining' => $remaining,
+            'gift_card' => $giftCard, 'card_returned' => $cardReturned, 'card_remaining' => $cardRemaining, 'money_refunded' => $moneyRefunded, 'money_remaining' => $moneyRemaining,
+            'shipping_cap' => $shippingCap, 'shipping_refunded' => $shippingRefunded, 'shipping_remaining' => $valued ? $shippingRemaining : '0',
             'lines' => $lines, 'refunds' => $refunds];
+    }
+
+    /**
+     * Split a refund's value (cents) into [gift card, money]. The gift card share keeps the order's
+     * card/total ratio over all value returned so far; uncollected money can never be refunded.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function split(array $state, string $amount): array
+    {
+        $card = '0';
+        if (bccomp($state['card_remaining'], '0', 0) > 0) {
+            $cap = bccomp($amount, $state['card_remaining'], 0) > 0 ? $state['card_remaining'] : $amount;
+            if (! $state['collected']) {
+                $card = $cap;
+            } else {
+                $after = bcadd(bcadd($state['money_refunded'], $state['card_returned'], 0), $amount, 0);
+                $target = bccomp($after, $state['grand'], 0) >= 0 ? $state['gift_card'] : bcdiv(bcmul($after, $state['gift_card'], 0), $state['grand'], 0);
+                $card = $this->positive(bcsub($target, $state['card_returned'], 0));
+                $card = bccomp($card, $cap, 0) > 0 ? $cap : $card;
+            }
+        }
+        $money = bcsub($amount, $card, 0);
+        if (bccomp($money, $state['money_remaining'], 0) > 0) {
+            $card = bcadd($card, bcsub($money, $state['money_remaining'], 0), 0);
+            $card = bccomp($card, $state['card_remaining'], 0) > 0 ? $state['card_remaining'] : $card;
+            $money = bcsub($amount, $card, 0);
+        }
+
+        return [$card, $money];
     }
 
     /**
@@ -282,7 +346,8 @@ class StoreOrderRefunds
     {
         $names = $lines->mapWithKeys(fn (array $line) => [$line['item']->id => $line['item']->name]);
 
-        return ['id' => $refund->id, 'amount' => $refund->amount, 'shipping_amount' => $refund->shipping_amount, 'reason' => $refund->reason,
+        return ['id' => $refund->id, 'amount' => $refund->amount, 'shipping_amount' => $refund->shipping_amount,
+            'gift_card_amount' => $refund->gift_card_amount ?? '0.00', 'money_amount' => bcsub((string) $refund->amount, (string) ($refund->gift_card_amount ?? '0.00'), 2), 'reason' => $refund->reason,
             'note' => $refund->note, 'method' => $refund->method, 'restocked' => $refund->restocked,
             'items' => collect($refund->items ?? [])->map(fn (array $row) => ['store_order_item_id' => (int) $row['store_order_item_id'],
                 'name' => $names[(int) $row['store_order_item_id']] ?? null, 'quantity' => (int) $row['quantity'], 'amount' => $row['amount'] ?? '0.00',
@@ -294,6 +359,9 @@ class StoreOrderRefunds
     {
         $units = array_sum(array_column($refund->items, 'quantity'));
         $parts = ['Refund recorded: '.$refund->amount.' '.$order->currency.' via '.str_replace('_', ' ', $refund->method)];
+        if (bccomp((string) $refund->gift_card_amount, '0', 2) > 0) {
+            $parts[] = $refund->gift_card_amount.' back to gift cards';
+        }
         if ($units > 0) {
             $parts[] = $units.' item(s)';
         }

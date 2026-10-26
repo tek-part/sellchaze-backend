@@ -329,6 +329,130 @@ class StoreGiftCardsTest extends TestCase
         $this->as($this->owner)->putJson($this->url("/{$id}"), ['status' => 'active'])->assertOk()->assertJsonPath('data.state', 'active');
     }
 
+    /** Merchant status changes through the dashboard API. */
+    private function move(int $orderId, string ...$statuses): void
+    {
+        foreach ($statuses as $status) {
+            $this->as($this->owner)->patchJson("/api/v1/my-store/orders/{$orderId}/status", ['status' => $status])->assertOk()->assertJsonPath('data.status', $status);
+        }
+    }
+
+    private function refunds(int $orderId): string
+    {
+        return "/api/v1/stores/{$this->store->id}/orders/{$orderId}/refunds";
+    }
+
+    public function test_partial_refunds_on_a_card_and_cash_on_delivery_order_never_pay_back_twice(): void
+    {
+        [$card, $code] = $this->card('78.00');
+        // 130.00 = 78.00 (60%) by gift card + 52.00 (40%) cash on delivery.
+        $id = $this->place($this->tee, [$code])->assertCreated()->assertJsonPath('data.payment_method', 'cod')
+            ->assertJsonPath('data.gift_card_total', '78.00')->assertJsonPath('data.amount_due', '52.00')->json('data.id');
+        $this->move($id, 'confirmed', 'processing', 'shipped', 'delivered');
+        $item = StoreOrder::forStore($this->store)->findOrFail($id)->items()->firstOrFail();
+
+        $this->as($this->owner)->getJson($this->refunds($id))->assertOk()
+            ->assertJsonPath('data.refundable_total', '130.00')->assertJsonPath('data.gift_card_total', '78.00')
+            ->assertJsonPath('data.money_collected', '52.00')->assertJsonPath('data.refundable_money', '52.00')
+            ->assertJsonPath('data.refundable_to_gift_cards', '78.00');
+
+        // The item's 100.00 goes back 60% to the card and 40% as money.
+        $this->as($this->owner)->postJson($this->refunds($id), ['items' => [['store_order_item_id' => $item->id, 'quantity' => 1]], 'method' => 'cash', 'reason' => 'customer_request'])->assertCreated()
+            ->assertJsonPath('data.refunds.0.amount', '100.00')->assertJsonPath('data.refunds.0.gift_card_amount', '60.00')->assertJsonPath('data.refunds.0.money_amount', '40.00')
+            ->assertJsonPath('data.refunded_total', '100.00')->assertJsonPath('data.refunded_money', '40.00')->assertJsonPath('data.refunded_to_gift_cards', '60.00')
+            ->assertJsonPath('data.refundable_total', '30.00')->assertJsonPath('data.refundable_money', '12.00')->assertJsonPath('data.refundable_to_gift_cards', '18.00')
+            ->assertJsonPath('data.payment_status', 'partially_refunded');
+        $this->assertSame('60.00', $this->balance($card));
+
+        // Caps: never more than what is left, money or card.
+        $this->as($this->owner)->postJson($this->refunds($id), ['shipping_amount' => '30.00', 'amount' => '30.01', 'method' => 'cash', 'reason' => 'customer_request'])->assertStatus(422)->assertJsonValidationErrors('amount');
+        $this->as($this->owner)->postJson($this->refunds($id), ['shipping_amount' => '30.01', 'method' => 'cash', 'reason' => 'customer_request'])->assertStatus(422)->assertJsonValidationErrors('shipping_amount');
+
+        // The last refund settles the rounding: card 78.00 and money 52.00 in total, then the order is closed.
+        $this->as($this->owner)->postJson($this->refunds($id), ['shipping_amount' => '30.00', 'method' => 'cash', 'reason' => 'customer_request'])->assertCreated()
+            ->assertJsonPath('data.refunds.1.gift_card_amount', '18.00')->assertJsonPath('data.refunds.1.money_amount', '12.00')
+            ->assertJsonPath('data.refundable_total', '0.00')->assertJsonPath('data.refunded_money', '52.00')->assertJsonPath('data.refunded_to_gift_cards', '78.00')
+            ->assertJsonPath('data.order_status', 'refunded')->assertJsonPath('data.payment_status', 'refunded');
+        $this->assertSame('78.00', $this->balance($card), 'The transition to refunded must not restore the card again.');
+        $this->as($this->owner)->postJson($this->refunds($id), ['shipping_amount' => '1.00', 'method' => 'cash', 'reason' => 'customer_request'])->assertStatus(422);
+        $this->assertSame('78.00', $this->balance($card));
+        $this->assertSame(2, StoreGiftCardTransaction::forStore($this->store)->where('store_order_id', $id)->where('reason', 'refunded')->count());
+        $this->assertSame(0, StoreGiftCardTransaction::forStore($this->store)->where('store_order_id', $id)->where('reason', 'restored')->count());
+    }
+
+    public function test_full_refund_of_a_gift_card_order_restores_the_card_once(): void
+    {
+        [$card, $code] = $this->card('200.00');
+        $id = $this->place($this->tee, [$code])->assertCreated()->assertJsonPath('data.payment_method', 'gift_card')->json('data.id');
+        $this->assertSame('70.00', $this->balance($card));
+        $this->move($id, 'confirmed', 'processing', 'shipped', 'delivered');
+        $item = StoreOrder::forStore($this->store)->findOrFail($id)->items()->firstOrFail();
+
+        $this->as($this->owner)->postJson($this->refunds($id), ['items' => [['store_order_item_id' => $item->id, 'quantity' => 1]], 'shipping_amount' => '30.00', 'method' => 'original_payment', 'reason' => 'customer_request'])
+            ->assertCreated()->assertJsonPath('data.refunds.0.amount', '130.00')->assertJsonPath('data.refunds.0.gift_card_amount', '130.00')->assertJsonPath('data.refunds.0.money_amount', '0.00')
+            ->assertJsonPath('data.money_collected', '0.00')->assertJsonPath('data.order_status', 'refunded');
+        $this->assertSame('200.00', $this->balance($card));
+
+        // Retrying the refund or the cancellation-style restore adds nothing.
+        $this->as($this->owner)->postJson($this->refunds($id), ['shipping_amount' => '1.00', 'method' => 'cash', 'reason' => 'customer_request'])->assertStatus(422);
+        app(GiftCards::class)->restore(StoreOrder::forStore($this->store)->findOrFail($id), $this->owner->id);
+        $this->assertSame('200.00', $this->balance($card));
+    }
+
+    public function test_an_undelivered_cash_on_delivery_return_only_gives_back_the_gift_card_part(): void
+    {
+        [$card, $code] = $this->card('78.00');
+        $id = $this->place($this->tee, [$code])->assertCreated()->json('data.id');
+        $this->move($id, 'confirmed', 'processing', 'shipped', 'returning_from_delivery');
+        $item = StoreOrder::forStore($this->store)->findOrFail($id)->items()->firstOrFail();
+
+        $this->as($this->owner)->getJson($this->refunds($id))->assertOk()->assertJsonPath('data.money_collected', '0.00')
+            ->assertJsonPath('data.refundable_total', '78.00')->assertJsonPath('data.refundable_to_gift_cards', '78.00');
+        $this->as($this->owner)->postJson($this->refunds($id), ['items' => [['store_order_item_id' => $item->id, 'quantity' => 1]], 'shipping_amount' => '30.00', 'method' => 'original_payment', 'reason' => 'customer_request'])
+            ->assertCreated()->assertJsonPath('data.refunds.0.amount', '78.00')->assertJsonPath('data.refunds.0.gift_card_amount', '78.00')
+            ->assertJsonPath('data.refunded_money', '0.00')->assertJsonPath('data.order_status', 'refunded');
+        $this->assertSame('78.00', $this->balance($card));
+    }
+
+    public function test_a_cancelled_order_restores_its_card_once_and_leaves_nothing_to_refund(): void
+    {
+        [$card, $code] = $this->card('50.00');
+        $id = $this->place($this->tee, [$code])->assertCreated()->assertJsonPath('data.amount_due', '80.00')->json('data.id');
+        $this->move($id, 'cancelled');
+        $this->assertSame('50.00', $this->balance($card));
+        $this->as($this->owner)->getJson($this->refunds($id))->assertOk()->assertJsonPath('data.refundable_total', '0.00')
+            ->assertJsonPath('data.refunded_to_gift_cards', '50.00')->assertJsonPath('data.refundable', false);
+        $this->as($this->owner)->postJson($this->refunds($id), ['shipping_amount' => '1.00', 'method' => 'cash', 'reason' => 'customer_request'])->assertStatus(422);
+        app(GiftCards::class)->restore(StoreOrder::forStore($this->store)->findOrFail($id));
+        $this->assertSame('50.00', $this->balance($card));
+        $this->assertSame(1, StoreGiftCardTransaction::forStore($this->store)->where('store_order_id', $id)->where('reason', 'restored')->count());
+    }
+
+    public function test_a_zone_cod_fee_applies_only_when_cash_on_delivery_collects_something(): void
+    {
+        StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'cod', 'enabled' => true, 'credentials' => []]);
+        $this->as($this->owner)->postJson('/api/v1/my-store/shipping/zones', ['name' => ['ar' => 'مصر', 'en' => 'Egypt'], 'countries' => ['EG'], 'regions' => [], 'enabled' => true,
+            'rates' => [['name' => ['ar' => 'عادي', 'en' => 'Standard'], 'type' => 'flat', 'price' => '30.00', 'free_over' => null, 'delivery_time' => ['ar' => '', 'en' => ''], 'cod_fee' => '15.00', 'enabled' => true]]])->assertCreated();
+        $quote = fn (array $cards) => $this->postJson(self::HOST.'/checkout/quote', ['items' => [['product_id' => $this->tee->id, 'quantity' => 1]], 'gift_cards' => $cards, 'payment_method' => 'cod', 'shipping_country' => 'EG']);
+        [, $full] = $this->card('130.00');
+        [, $part] = $this->card('100.00');
+
+        // 100 + 30 delivery is covered: nothing is collected on delivery, so no COD fee.
+        $quote([$full])->assertOk()->assertJsonPath('data.totals.shipping_total', '30.00')->assertJsonPath('data.amount_due', '0.00')->assertJsonPath('data.shipping.cod_fee', '0.00');
+        $this->place($this->tee, [$full], 'cod')->assertCreated()->assertJsonPath('data.payment_method', 'gift_card')->assertJsonPath('data.grand_total', '130.00');
+        // Partly covered: COD collects the rest, fee included.
+        $quote([$part])->assertOk()->assertJsonPath('data.totals.grand_total', '145.00')->assertJsonPath('data.amount_due', '45.00');
+        $this->place($this->tee, [$part], 'cod')->assertCreated()->assertJsonPath('data.payment_method', 'cod')->assertJsonPath('data.grand_total', '145.00')->assertJsonPath('data.amount_due', '45.00');
+    }
+
+    public function test_draft_orders_and_invoices_refuse_gift_cards_explicitly(): void
+    {
+        $this->as($this->owner)->postJson('/api/v1/my-store/draft-orders/999/complete', ['payment_status' => 'paid', 'gift_cards' => ['X']])
+            ->assertStatus(422)->assertJsonPath('errors.gift_cards.0', GiftCards::NOT_FOR_DRAFTS);
+        $this->postJson(self::HOST.'/invoices/abc123/checkout', ['payment_method' => 'cod', 'gift_cards' => ['X']])
+            ->assertStatus(422)->assertJsonPath('errors.gift_cards.0', GiftCards::NOT_FOR_DRAFTS);
+    }
+
     public function test_store_isolation(): void
     {
         [$card] = $this->card('100.00');
