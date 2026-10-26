@@ -1,0 +1,1481 @@
+{
+    "disabled|none|": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "free",
+                "base_rate": "0.00",
+                "free_shipping_applied": false
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "disabled|none|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "free",
+                "base_rate": "0.00",
+                "free_shipping_applied": false
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "disabled|none|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "free",
+                "base_rate": "0.00",
+                "free_shipping_applied": false
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "disabled|excl|": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "free",
+                "base_rate": "0.00",
+                "free_shipping_applied": false
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "disabled|excl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "free",
+                "base_rate": "0.00",
+                "free_shipping_applied": false
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "disabled|excl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "free",
+                "base_rate": "0.00",
+                "free_shipping_applied": false
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "disabled|incl|": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "free",
+                "base_rate": "0.00",
+                "free_shipping_applied": false
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "disabled|incl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "free",
+                "base_rate": "0.00",
+                "free_shipping_applied": false
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "disabled|incl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "free",
+                "base_rate": "0.00",
+                "free_shipping_applied": false
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "flat|none|": {
+        "quote": {
+            "amount": "25.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": false,
+                "region": null,
+                "option": null
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "25.00",
+            "tax_total": "0.00",
+            "grand_total": "195.00"
+        }
+    },
+    "flat|none|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "flat|none|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "flat|excl|": {
+        "quote": {
+            "amount": "25.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": false,
+                "region": null,
+                "option": null
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "25.00",
+            "tax_total": "23.80",
+            "grand_total": "218.80"
+        }
+    },
+    "flat|excl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "flat|excl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "flat|incl|": {
+        "quote": {
+            "amount": "25.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": false,
+                "region": null,
+                "option": null
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "25.00",
+            "tax_total": "22.17",
+            "grand_total": "195.00"
+        }
+    },
+    "flat|incl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "flat|incl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "flat_free_over|none|": {
+        "quote": {
+            "amount": "25.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": false,
+                "region": null,
+                "option": null
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "flat_free_over|none|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "flat_free_over|none|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "flat_free_over|excl|": {
+        "quote": {
+            "amount": "25.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": false,
+                "region": null,
+                "option": null
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "flat_free_over|excl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "flat_free_over|excl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "flat_free_over|incl|": {
+        "quote": {
+            "amount": "25.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": false,
+                "region": null,
+                "option": null
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "flat_free_over|incl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "flat_free_over|incl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": [],
+            "details": {
+                "mode": "flat",
+                "base_rate": "25.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": null,
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "regions|none|": {
+        "quote": {
+            "amount": "60.00",
+            "address": {
+                "city": "Jeddah",
+                "country": "SA"
+            },
+            "details": {
+                "mode": "region",
+                "base_rate": "60.00",
+                "free_shipping_applied": false,
+                "region": {
+                    "id": "22222222-2222-4222-8222-222222222222",
+                    "name": {
+                        "ar": "جدة",
+                        "en": "Jeddah"
+                    },
+                    "country": "SA"
+                },
+                "option": null
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "60.00",
+            "tax_total": "0.00",
+            "grand_total": "230.00"
+        }
+    },
+    "regions|none|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Jeddah",
+                "country": "SA"
+            },
+            "details": {
+                "mode": "region",
+                "base_rate": "60.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "22222222-2222-4222-8222-222222222222",
+                    "name": {
+                        "ar": "جدة",
+                        "en": "Jeddah"
+                    },
+                    "country": "SA"
+                },
+                "option": null,
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "regions|none|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Jeddah",
+                "country": "SA"
+            },
+            "details": {
+                "mode": "region",
+                "base_rate": "60.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "22222222-2222-4222-8222-222222222222",
+                    "name": {
+                        "ar": "جدة",
+                        "en": "Jeddah"
+                    },
+                    "country": "SA"
+                },
+                "option": null,
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "regions|excl|": {
+        "quote": {
+            "amount": "60.00",
+            "address": {
+                "city": "Jeddah",
+                "country": "SA"
+            },
+            "details": {
+                "mode": "region",
+                "base_rate": "60.00",
+                "free_shipping_applied": false,
+                "region": {
+                    "id": "22222222-2222-4222-8222-222222222222",
+                    "name": {
+                        "ar": "جدة",
+                        "en": "Jeddah"
+                    },
+                    "country": "SA"
+                },
+                "option": null
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "60.00",
+            "tax_total": "23.80",
+            "grand_total": "253.80"
+        }
+    },
+    "regions|excl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Jeddah",
+                "country": "SA"
+            },
+            "details": {
+                "mode": "region",
+                "base_rate": "60.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "22222222-2222-4222-8222-222222222222",
+                    "name": {
+                        "ar": "جدة",
+                        "en": "Jeddah"
+                    },
+                    "country": "SA"
+                },
+                "option": null,
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "regions|excl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Jeddah",
+                "country": "SA"
+            },
+            "details": {
+                "mode": "region",
+                "base_rate": "60.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "22222222-2222-4222-8222-222222222222",
+                    "name": {
+                        "ar": "جدة",
+                        "en": "Jeddah"
+                    },
+                    "country": "SA"
+                },
+                "option": null,
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "regions|incl|": {
+        "quote": {
+            "amount": "60.00",
+            "address": {
+                "city": "Jeddah",
+                "country": "SA"
+            },
+            "details": {
+                "mode": "region",
+                "base_rate": "60.00",
+                "free_shipping_applied": false,
+                "region": {
+                    "id": "22222222-2222-4222-8222-222222222222",
+                    "name": {
+                        "ar": "جدة",
+                        "en": "Jeddah"
+                    },
+                    "country": "SA"
+                },
+                "option": null
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "60.00",
+            "tax_total": "22.17",
+            "grand_total": "230.00"
+        }
+    },
+    "regions|incl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Jeddah",
+                "country": "SA"
+            },
+            "details": {
+                "mode": "region",
+                "base_rate": "60.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "22222222-2222-4222-8222-222222222222",
+                    "name": {
+                        "ar": "جدة",
+                        "en": "Jeddah"
+                    },
+                    "country": "SA"
+                },
+                "option": null,
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "regions|incl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Jeddah",
+                "country": "SA"
+            },
+            "details": {
+                "mode": "region",
+                "base_rate": "60.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "22222222-2222-4222-8222-222222222222",
+                    "name": {
+                        "ar": "جدة",
+                        "en": "Jeddah"
+                    },
+                    "country": "SA"
+                },
+                "option": null,
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "regions_options|none|": {
+        "quote": {
+            "amount": "85.00",
+            "address": {
+                "city": "Cairo",
+                "country": "EG",
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": false,
+                "region": {
+                    "id": "11111111-1111-4111-8111-111111111111",
+                    "name": {
+                        "ar": "القاهرة",
+                        "en": "Cairo"
+                    },
+                    "country": "EG"
+                },
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                }
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "85.00",
+            "tax_total": "0.00",
+            "grand_total": "255.00"
+        }
+    },
+    "regions_options|none|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Cairo",
+                "country": "EG",
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "11111111-1111-4111-8111-111111111111",
+                    "name": {
+                        "ar": "القاهرة",
+                        "en": "Cairo"
+                    },
+                    "country": "EG"
+                },
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "regions_options|none|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Cairo",
+                "country": "EG",
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "11111111-1111-4111-8111-111111111111",
+                    "name": {
+                        "ar": "القاهرة",
+                        "en": "Cairo"
+                    },
+                    "country": "EG"
+                },
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "regions_options|excl|": {
+        "quote": {
+            "amount": "85.00",
+            "address": {
+                "city": "Cairo",
+                "country": "EG",
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": false,
+                "region": {
+                    "id": "11111111-1111-4111-8111-111111111111",
+                    "name": {
+                        "ar": "القاهرة",
+                        "en": "Cairo"
+                    },
+                    "country": "EG"
+                },
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                }
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "85.00",
+            "tax_total": "23.80",
+            "grand_total": "278.80"
+        }
+    },
+    "regions_options|excl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Cairo",
+                "country": "EG",
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "11111111-1111-4111-8111-111111111111",
+                    "name": {
+                        "ar": "القاهرة",
+                        "en": "Cairo"
+                    },
+                    "country": "EG"
+                },
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "regions_options|excl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Cairo",
+                "country": "EG",
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "11111111-1111-4111-8111-111111111111",
+                    "name": {
+                        "ar": "القاهرة",
+                        "en": "Cairo"
+                    },
+                    "country": "EG"
+                },
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "regions_options|incl|": {
+        "quote": {
+            "amount": "85.00",
+            "address": {
+                "city": "Cairo",
+                "country": "EG",
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": false,
+                "region": {
+                    "id": "11111111-1111-4111-8111-111111111111",
+                    "name": {
+                        "ar": "القاهرة",
+                        "en": "Cairo"
+                    },
+                    "country": "EG"
+                },
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                }
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "85.00",
+            "tax_total": "22.17",
+            "grand_total": "255.00"
+        }
+    },
+    "regions_options|incl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Cairo",
+                "country": "EG",
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "11111111-1111-4111-8111-111111111111",
+                    "name": {
+                        "ar": "القاهرة",
+                        "en": "Cairo"
+                    },
+                    "country": "EG"
+                },
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "regions_options|incl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "city": "Cairo",
+                "country": "EG",
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": {
+                    "id": "11111111-1111-4111-8111-111111111111",
+                    "name": {
+                        "ar": "القاهرة",
+                        "en": "Cairo"
+                    },
+                    "country": "EG"
+                },
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "options_only|none|": {
+        "quote": {
+            "amount": "85.00",
+            "address": {
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": false,
+                "region": null,
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                }
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "85.00",
+            "tax_total": "0.00",
+            "grand_total": "255.00"
+        }
+    },
+    "options_only|none|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "options_only|none|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "0.00",
+            "grand_total": "170.00"
+        }
+    },
+    "options_only|excl|": {
+        "quote": {
+            "amount": "85.00",
+            "address": {
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": false,
+                "region": null,
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                }
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "85.00",
+            "tax_total": "23.80",
+            "grand_total": "278.80"
+        }
+    },
+    "options_only|excl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "options_only|excl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "23.80",
+            "grand_total": "193.80"
+        }
+    },
+    "options_only|incl|": {
+        "quote": {
+            "amount": "85.00",
+            "address": {
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": false,
+                "region": null,
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                }
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "85.00",
+            "tax_total": "22.17",
+            "grand_total": "255.00"
+        }
+    },
+    "options_only|incl|offer": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "quantity_offer_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    },
+    "options_only|incl|product": {
+        "quote": {
+            "amount": "0.00",
+            "address": {
+                "delivery_option": "Express"
+            },
+            "details": {
+                "mode": "option",
+                "base_rate": "85.00",
+                "free_shipping_applied": true,
+                "region": null,
+                "option": {
+                    "id": "33333333-3333-4333-8333-333333333333",
+                    "name": {
+                        "ar": "سريع",
+                        "en": "Express"
+                    },
+                    "description": {
+                        "ar": "",
+                        "en": "Fast"
+                    }
+                },
+                "product_free_shipping": true
+            }
+        },
+        "totals": {
+            "subtotal": "200.00",
+            "discount_total": "30.00",
+            "shipping_total": "0.00",
+            "tax_total": "22.17",
+            "grand_total": "170.00"
+        }
+    }
+}

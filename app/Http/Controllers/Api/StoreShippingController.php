@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\AuthorizesShippingSettings;
 use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Services\Commerce\ShoppingPreferences;
@@ -15,15 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 class StoreShippingController extends Controller
 {
-    private function store(Request $request): Store
-    {
-        $store = $request->attributes->get('store');
-        abort_unless($store instanceof Store, 404);
-        $user = $request->user();
-        abort_unless($user && ((int) $store->owner_user_id === (int) $user->id || $user->can('store.settings.manage') || $user->can('stores-edit')), 403);
-
-        return $store;
-    }
+    use AuthorizesShippingSettings;
 
     public function index(Request $request, StoreShipping $shipping): JsonResponse
     {
@@ -36,6 +29,7 @@ class StoreShippingController extends Controller
             'shipping_enabled' => (bool) $store->shipping_enabled, 'shipping_flat_rate' => $store->shipping_flat_rate ?? '0.00',
             'shipping_free_over' => $store->shipping_free_over, 'tax_enabled' => (bool) $store->tax_enabled,
             'tax_rate' => $store->tax_rate ?? '0', 'tax_prices_include' => (bool) $store->tax_prices_include,
+            'tax_shipping' => (bool) $store->tax_shipping, 'zones_enabled' => $shipping->zonesEnabled($store),
         ]]);
     }
 
@@ -48,7 +42,7 @@ class StoreShippingController extends Controller
             'shipping_enabled' => ['required', 'boolean'], 'shipping_flat_rate' => $money,
             'shipping_free_over' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'],
             'tax_enabled' => ['required', 'boolean'], 'tax_rate' => ['required', 'numeric', 'min:0', 'max:100', 'decimal:0,3'],
-            'tax_prices_include' => ['required', 'boolean'], 'regions_enabled' => ['required', 'boolean'],
+            'tax_prices_include' => ['required', 'boolean'], 'tax_shipping' => ['sometimes', 'boolean'], 'regions_enabled' => ['required', 'boolean'],
             'auto_select_region' => ['required', 'boolean'], 'regions' => ['present', 'array', 'max:500'], 'options' => ['present', 'array', 'max:50'],
             'regions.*' => ['array:id,name,country,rate,enabled,position'],
             'regions.*.country' => ['required', 'string', 'regex:/^[A-Z]{2}$/'],
@@ -100,6 +94,8 @@ class StoreShippingController extends Controller
                 'shipping_enabled' => $data['shipping_enabled'], 'shipping_flat_rate' => $data['shipping_flat_rate'],
                 'shipping_free_over' => $data['shipping_free_over'] ?? null,
                 'tax_enabled' => $data['tax_enabled'], 'tax_rate' => $data['tax_rate'], 'tax_prices_include' => $data['tax_prices_include'],
+                // Older clients omit the flag; keep the saved value instead of resetting it.
+                'tax_shipping' => array_key_exists('tax_shipping', $data) ? (bool) $data['tax_shipping'] : (bool) $locked->tax_shipping,
                 'shipping_configuration' => array_intersect_key($data, array_flip(['regions_enabled', 'auto_select_region', 'regions', 'options'])),
                 'shopping_preferences' => ['auto_select_variants' => $preferences['auto_select_variants'], 'version' => $preferences['version'] + 1],
             ]);

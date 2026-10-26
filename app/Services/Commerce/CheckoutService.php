@@ -58,6 +58,7 @@ class CheckoutService
             $freeProductIds = [];
             $hasDigital = false;
             $requiresWhatsapp = false;
+            $weightGrams = 0;
 
             foreach ($items as $item) {
                 $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id, true,
@@ -90,6 +91,7 @@ class CheckoutService
                     ]);
                 }
 
+                $weightGrams += StoreShipping::lineWeightGrams($product, $variant, (int) $item->quantity);
                 $lineTotal = bcmul($selection['price'], (string) $item->quantity, 2);
                 $subtotal = bcadd($subtotal, $lineTotal, 2);
                 $lines[] = [
@@ -138,12 +140,18 @@ class CheckoutService
             }
             app(OrderLimits::class)->assertMinimum($store, $subtotal, $discount);
             $productFreeShipping = $requiresShipping && $allPhysicalFree;
-            $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping);
+            // The submitted address is authoritative for zones and tax overrides; the payment
+            // method decides a zone rate's cash-on-delivery fee.
+            $shippingSelection['payment_method'] = $paymentMethod;
+            if (is_string($shippingAddress['country'] ?? null) && $shippingAddress['country'] !== '') {
+                $shippingSelection['shipping_country'] = strtoupper($shippingAddress['country']);
+            }
+            $totals = $this->pricing->forStore($store, $subtotal, $discount, $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping, $weightGrams);
             $adjustments = app(PaymentPriceAdjustment::class);
             $totals = $adjustments->forMethod($store, $paymentMethod, $totals);
             $adjustments->assertQuoted($store, $totals['payment_adjustment'], $contact['payment_adjustment_token'] ?? null);
             if ($requiresShipping) {
-                $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection, $offerFreeShipping, $productFreeShipping);
+                $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection, $offerFreeShipping, $productFreeShipping, $weightGrams);
                 if ($freeProductIds !== []) {
                     $delivery['details']['free_shipping_product_ids'] = array_values(array_unique($freeProductIds));
                 }

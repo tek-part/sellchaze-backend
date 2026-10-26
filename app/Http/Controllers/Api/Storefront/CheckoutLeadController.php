@@ -22,7 +22,7 @@ class CheckoutLeadController extends Controller
             'customer_name' => ['nullable', 'string', 'max:255'], 'customer_phone' => ['nullable', 'string', 'max:50'],
             'customer_email' => ['nullable', 'email', 'max:255'], 'notes' => ['nullable', 'string', 'max:2000'],
             'payment_method' => ['nullable', 'string', 'max:80'],
-            'shipping_region_id' => ['nullable', 'string', 'max:80'], 'shipping_option_id' => ['nullable', 'string', 'max:80'], 'coupon_code' => ['nullable', 'string', 'max:100'],
+            'shipping_region_id' => ['nullable', 'string', 'max:80'], 'shipping_option_id' => ['nullable', 'string', 'max:80'], 'shipping_rate_id' => ['nullable', 'string', 'max:80'], 'coupon_code' => ['nullable', 'string', 'max:100'],
             'shipping_address' => ['nullable', 'array:name,line1,city,country,postal_code,phone_alt,national_address'],
             'shipping_address.name' => ['nullable', 'string', 'max:255'], 'shipping_address.line1' => ['nullable', 'string', 'max:255'],
             'shipping_address.city' => ['nullable', 'string', 'max:120'], 'shipping_address.country' => ['nullable', 'string', 'max:100'],

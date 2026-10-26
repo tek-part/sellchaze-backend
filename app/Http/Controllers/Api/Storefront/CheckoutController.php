@@ -69,11 +69,13 @@ class CheckoutController extends Controller
     public function fields(Request $request, CheckoutFields $fields): JsonResponse
     {
         $data = $request->validate(['payment_method' => ['nullable', 'string', 'max:80'],
-            'product_ids' => ['sometimes', 'array', 'max:100'], 'product_ids.*' => ['required', 'integer', 'min:1']]);
+            'product_ids' => ['sometimes', 'array', 'max:100'], 'product_ids.*' => ['required', 'integer', 'min:1'],
+            'shipping_country' => StoreShipping::SELECTION_RULES['shipping_country'], 'shipping_region_id' => StoreShipping::SELECTION_RULES['shipping_region_id']]);
         $store = $this->currentStore($request);
         $basket = isset($data['product_ids']) ? app(CheckoutBasket::class)->fromIds($store, $data['product_ids'], true) : app(CheckoutBasket::class)->forRequest($store, $request);
-        $shipping = $basket['requires_shipping'] ? app(StoreShipping::class)->publicConfiguration($store)
-            : ['enabled' => false, 'regions_enabled' => false, 'auto_select_region' => false, 'currency' => $store->currency ?: 'USD', 'flat_rate' => '0.00', 'free_over' => null, 'regions' => [], 'options' => []];
+        // The address picks the zone, so the storefront refetches this when country or region changes.
+        $shipping = $basket['requires_shipping'] ? app(StoreShipping::class)->publicConfiguration($store, ['country' => $data['shipping_country'] ?? null, 'region_id' => $data['shipping_region_id'] ?? null])
+            : ['enabled' => false, 'regions_enabled' => false, 'auto_select_region' => false, 'currency' => $store->currency ?: 'USD', 'flat_rate' => '0.00', 'free_over' => null, 'regions' => [], 'options' => [], 'zones_enabled' => false];
 
         return response()->json(['data' => $fields->effective($store, $data['payment_method'] ?? null, $basket['requires_shipping'], $basket['has_digital'], $basket['requires_whatsapp']),
             'shipping' => $shipping, 'requires_shipping' => $basket['requires_shipping'], 'has_digital' => $basket['has_digital'],
@@ -95,9 +97,14 @@ class CheckoutController extends Controller
     {
         $store = $this->currentStore($request);
         $shippingSelection = $request->safe()->only(array_keys(StoreShipping::SELECTION_RULES));
+        // The delivery address country is authoritative for zone matching (CheckoutService does the same).
+        $addressCountry = $request->validated('shipping_address.country');
+        if (is_string($addressCountry) && $addressCountry !== '') {
+            $shippingSelection['shipping_country'] = strtoupper($addressCountry);
+        }
         $requiresShipping = app(CheckoutBasket::class)->forRequest($store, $request)['requires_shipping'];
         if ($requiresShipping) {
-            app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
+            app(StoreShipping::class)->validateSelection($store, $shippingSelection);
         }
         $payment = StorePaymentGateway::query()
             ->where('store_id', $store->id)
@@ -334,7 +341,7 @@ class CheckoutController extends Controller
         $shippingSelection = $request->validate(StoreShipping::SELECTION_RULES);
         $requiresShipping = app(CheckoutBasket::class)->forRequest($store, $request)['requires_shipping'];
         if ($requiresShipping) {
-            app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
+            app(StoreShipping::class)->validateSelection($store, $shippingSelection);
         }
         $customer = $this->auth->resolve($request);
         $cart = $this->carts->resolve($request, $store, $customer);
@@ -355,7 +362,7 @@ class CheckoutController extends Controller
             'data' => new CartResource($cart->fresh('items')),
             'coupon' => ['code' => $coupon->code, 'type' => $coupon->type, 'value' => $coupon->value],
             'discounts' => $discounts['applied'],
-            'totals' => $this->pricing->forStore($store, $subtotal, $discounts['discount'], $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping),
+            'totals' => $this->pricing->forStore($store, $subtotal, $discounts['discount'], $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping, app(StoreShipping::class)->cartWeightGrams($cart)),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -366,7 +373,7 @@ class CheckoutController extends Controller
         $shippingSelection = $request->validate(StoreShipping::SELECTION_RULES);
         $requiresShipping = app(CheckoutBasket::class)->forRequest($store, $request)['requires_shipping'];
         if ($requiresShipping) {
-            app(StoreShipping::class)->quote($store, '0.00', $shippingSelection);
+            app(StoreShipping::class)->validateSelection($store, $shippingSelection);
         }
         $customer = $this->auth->resolve($request);
         $cart = $this->carts->resolve($request, $store, $customer);
@@ -380,7 +387,7 @@ class CheckoutController extends Controller
         return response()->json([
             'data' => new CartResource($cart->fresh('items')),
             'discounts' => $discounts['applied'],
-            'totals' => $this->pricing->forStore($store, $cart->subtotal(), $discounts['discount'], $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping),
+            'totals' => $this->pricing->forStore($store, $cart->subtotal(), $discounts['discount'], $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping, app(StoreShipping::class)->cartWeightGrams($cart)),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 }
