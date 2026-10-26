@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Bundle;
 use App\Models\Product;
-use App\Services\Rbac\UserScope;
 use App\Support\ProductImageUrl;
+use App\Services\Rbac\UserScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

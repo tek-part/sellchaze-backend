@@ -2,19 +2,13 @@
 
 namespace App\View\Components;
 
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Contracts\View\Factory;
-use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 class AuthLayout extends Component
 {
     public ?string $bodyClass = null;
-
     public ?string $pageCss = null;
-
     public ?string $formTitle = null;
-
     public ?string $formSubtitle = null;
 
     public function __construct(
@@ -32,7 +26,7 @@ class AuthLayout extends Component
     /**
      * Get the view / contents that represents the component.
      *
-     * @return Application|Factory|View
+     * @return \Illuminate\Contracts\Foundation\Application|\Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View
      */
     public function render()
     {
@@ -49,7 +43,6 @@ class AuthLayout extends Component
                 'formSubtitle' => $this->formSubtitle,
             ]
             : [];
-
         return view($layoutDir.'._auth', $data);
     }
 }

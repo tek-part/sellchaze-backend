@@ -2,14 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
-
 class HomeController extends Controller
 {
     /**
      * Show the application dashboard (redirect to main dashboard).
      *
-     * @return RedirectResponse
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function index()
     {

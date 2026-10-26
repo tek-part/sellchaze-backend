@@ -41,8 +41,10 @@ class OrderPaymentMethods
         if (StoreShipment::where('store_id', $store->id)->where('store_order_id', $order->id)->exists()) {
             return 'shipment_exists';
         }
+        // A capture recorded on a replaced attempt (needs a refund) is not a payment of the order.
         if (StorePaymentTransaction::where('store_id', $store->id)->where('store_order_id', $order->id)
-            ->where(fn ($query) => $query->whereIn('status', ['paid', 'processing'])->orWhereNotNull('paid_at'))->exists()) {
+            ->where(fn ($query) => $query->whereIn('status', ['paid', 'processing'])->orWhereNotNull('paid_at'))->get()
+            ->contains(fn (StorePaymentTransaction $row) => ! isset($row->metadata['unapplied']))) {
             return 'payment_in_progress';
         }
         // A customer may still be on a provider's payment page: wait until it is abandoned (the same window

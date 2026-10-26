@@ -236,10 +236,14 @@ class OrderPaymentMethodChangeTest extends TestCase
         $this->assertDatabaseHas('store_order_status_changes', ['store_order_id' => $order->id, 'source' => 'unapplied_payment']);
         $this->getJson('/api/v1/my-store/orders/'.$order->id, $this->headers())->assertOk()
             ->assertJsonPath('data.unapplied_payments.0.amount', '132.00')->assertJsonPath('data.unapplied_payments.0.reference', 'pi_late');
-        // The recorded capture blocks further switches; a repeated confirmation changes nothing.
+        $this->assertStringContainsString('refund the capture in the provider dashboard or record it against the order', $order->statusChanges()->where('source', 'unapplied_payment')->value('notes'));
+        // A repeated confirmation changes nothing, and the unapplied capture is not a payment of the order.
         app(PaymentSettlement::class)->transition($old->fresh(), 'paid', 'pi_late');
         $this->assertSame(1, $order->statusChanges()->where('source', 'unapplied_payment')->count());
-        $this->getJson($this->url($order->id, 'methods'), $this->headers())->assertOk()->assertJsonPath('data.blocker', 'payment_in_progress');
+        $this->getJson($this->url($order->id, 'methods'), $this->headers())->assertOk()->assertJsonPath('data.blocker', null);
+        // Bulk payment review still offers recording the cash collection of the order itself.
+        $this->postJson('/api/v1/my-store/orders/bulk-payment-review', ['target' => 'paid', 'ids' => [$order->id]], $this->headers())->assertOk()
+            ->assertJsonPath('data.0.state', 'eligible')->assertJsonPath('data.0.reason', null)->assertJsonPath('data.0.amount', '120.00');
     }
 
     public function test_the_cod_fee_tax_uses_the_order_frozen_tax_basis(): void

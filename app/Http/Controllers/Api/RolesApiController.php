@@ -5,9 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreRoleRequest;
 use App\Http\Requests\UpdateRoleRequest;
-use App\Models\User;
 use App\Services\PermissionGroupBuilder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
@@ -72,7 +70,7 @@ class RolesApiController extends Controller
 
     public function usersForRole(Role $role): JsonResponse
     {
-        /** @var Collection<int, User> $users */
+        /** @var \Illuminate\Database\Eloquent\Collection<int, \App\Models\User> $users */
         $users = $role->users()
             ->orderBy('name')
             ->get(['id', 'name', 'email', 'is_active']);

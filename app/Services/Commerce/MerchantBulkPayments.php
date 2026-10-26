@@ -161,7 +161,8 @@ class MerchantBulkPayments
         if ($row->deposit_total !== null) {
             return ['skipped', 'deposit_order'];
         }
-        if ($row->payment_status === 'paid' || collect($context['transactions'])->contains(fn ($t) => $t->status === 'paid' || $t->paid_at !== null)) {
+        // A capture recorded on a replaced attempt (needs a refund) never settles the order.
+        if ($row->payment_status === 'paid' || collect($context['transactions'])->contains(fn ($t) => ($t->status === 'paid' || $t->paid_at !== null) && ! isset($t->metadata['unapplied']))) {
             return ['skipped', 'settled_payment'];
         }
         if ($transaction === null) {

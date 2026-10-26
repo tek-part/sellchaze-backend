@@ -23,8 +23,8 @@ class WavexCampaignsApiController extends Controller
         $userId = $request->user()->id;
 
         // ── 1. Queue worker health ──
-        $pendingJobs = DB::table('jobs')->where('queue', 'wavex')->count();
-        $failedJobs = DB::table('failed_jobs')->where('queue', 'wavex')->count();
+        $pendingJobs  = DB::table('jobs')->where('queue', 'wavex')->count();
+        $failedJobs   = DB::table('failed_jobs')->where('queue', 'wavex')->count();
 
         // Check if a job was processed recently (worker alive indicator)
         $lastJobReserved = DB::table('jobs')
@@ -34,7 +34,7 @@ class WavexCampaignsApiController extends Controller
 
         // Check last successful send across all campaigns to determine worker liveness
         $lastSentAt = WavexCampaignRecipient::query()
-            ->whereHas('campaign', fn ($q) => $q->where('user_id', $userId))
+            ->whereHas('campaign', fn($q) => $q->where('user_id', $userId))
             ->whereNotNull('sent_at')
             ->max('sent_at');
 
@@ -60,7 +60,7 @@ class WavexCampaignsApiController extends Controller
 
         // ── 2. Aggregate stats from campaign recipients ──
         $stats = WavexCampaignRecipient::query()
-            ->whereHas('campaign', fn ($q) => $q->where('user_id', $userId))
+            ->whereHas('campaign', fn($q) => $q->where('user_id', $userId))
             ->selectRaw("
                 COUNT(CASE WHEN status = 'sent' THEN 1 END) as total_sent,
                 COUNT(CASE WHEN status = 'failed' THEN 1 END) as total_failed,
@@ -84,20 +84,20 @@ class WavexCampaignsApiController extends Controller
 
         return response()->json([
             'data' => [
-                'worker_active' => $workerActive,
-                'pending_jobs' => $pendingJobs,
-                'failed_jobs' => $failedJobs,
-                'last_sent_at' => $lastSentAt,
-                'queue_connection' => config('queue.default'),
-                'active_campaigns' => $activeCampaigns,
-                'running_campaigns' => $runningCampaigns,
+                'worker_active'      => $workerActive,
+                'pending_jobs'       => $pendingJobs,
+                'failed_jobs'        => $failedJobs,
+                'last_sent_at'       => $lastSentAt,
+                'queue_connection'   => config('queue.default'),
+                'active_campaigns'   => $activeCampaigns,
+                'running_campaigns'  => $runningCampaigns,
                 'stats' => [
-                    'sent' => (int) ($stats->total_sent ?? 0),
-                    'failed' => (int) ($stats->total_failed ?? 0),
+                    'sent'    => (int) ($stats->total_sent ?? 0),
+                    'failed'  => (int) ($stats->total_failed ?? 0),
                     'pending' => (int) ($stats->total_pending ?? 0),
-                    'queued' => (int) ($stats->total_queued ?? 0),
+                    'queued'  => (int) ($stats->total_queued ?? 0),
                     'skipped' => (int) ($stats->total_skipped ?? 0),
-                    'total' => (int) ($stats->grand_total ?? 0),
+                    'total'   => (int) ($stats->grand_total ?? 0),
                 ],
             ],
         ]);

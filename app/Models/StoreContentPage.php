@@ -2,14 +2,13 @@
 
 namespace App\Models;
 
-use App\Support\StoreContent\ContentPageSchema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Editable content for one fixed storefront "system" page of a store
  * (about/contact/faq/shipping/returns/blog). The {@see $data} payload matches
- * the key's field schema in {@see ContentPageSchema}.
+ * the key's field schema in {@see \App\Support\StoreContent\ContentPageSchema}.
  */
 class StoreContentPage extends Model
 {

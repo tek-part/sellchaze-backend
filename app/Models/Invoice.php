@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Carbon;
 
 /**
  * A billing invoice for a subscription. Matches the live `invoices` schema.
@@ -22,8 +21,8 @@ use Illuminate\Support\Carbon;
  * @property string $total
  * @property string $currency
  * @property string $status
- * @property Carbon|null $due_at
- * @property Carbon|null $paid_at
+ * @property \Illuminate\Support\Carbon|null $due_at
+ * @property \Illuminate\Support\Carbon|null $paid_at
  * @property string|null $gateway_slug
  * @property string|null $gateway_invoice_id
  * @property string|null $gateway_payment_url

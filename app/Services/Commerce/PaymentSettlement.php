@@ -65,6 +65,6 @@ class PaymentSettlement
         $transaction->update(['status' => 'paid', 'provider_reference' => $reference, 'paid_at' => now(), 'failed_at' => null, 'metadata' => $metadata]);
         $order->statusChanges()->create(['store_id' => $order->store_id, 'from_status' => $order->status, 'to_status' => $order->status, 'actor_id' => null, 'source' => 'unapplied_payment',
             'notes' => 'Payment received through '.$transaction->gateway.' after the payment method changed to '.$order->payment_method.': '.$transaction->currency.' '.$transaction->amount
-                .($reference ? ' — '.$reference : '').'. Not applied to the order; refund it with the provider or change the order back.']);
+                .($reference ? ' — '.$reference : '').'. Not applied to the order: refund the capture in the provider dashboard or record it against the order.']);
     }
 }

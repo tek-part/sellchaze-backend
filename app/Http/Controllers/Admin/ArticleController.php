@@ -58,10 +58,10 @@ class ArticleController extends Controller
 
         $slug = Str::slug($request->title);
         if (Article::where('slug', $slug)->exists()) {
-            $slug = $slug.'-'.uniqid();
+            $slug = $slug . '-' . uniqid();
         }
 
-        $article = new Article;
+        $article = new Article();
         $article->slug = $slug;
         $article->title = $request->title;
         $article->excerpt = $request->excerpt;

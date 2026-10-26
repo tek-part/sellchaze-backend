@@ -6,11 +6,7 @@ use App\Actions\Categories\CreateCategoryAction;
 use App\Http\Requests\CategoryStoreRequest;
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Illuminate\View\View;
 
 class CategoryController extends Controller
 {
@@ -25,9 +21,8 @@ class CategoryController extends Controller
     /**
      * Display a listing of the resource.
      *
-     * @return Response
-     *
-     * @phpstan-return Response|View|RedirectResponse|JsonResponse
+     * @return \Illuminate\Http\Response
+     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
      */
     public function index()
     {
@@ -35,25 +30,23 @@ class CategoryController extends Controller
 
         return view('pages.categories.index', compact('categories'))->with('title', 'Latest categories')->with('breadcrumb', 'Latest categories');
     }
-
+     
     /**
      * Show the form for creating a new resource.
      *
-     * @return Response
-     *
-     * @phpstan-return Response|View|RedirectResponse|JsonResponse
+     * @return \Illuminate\Http\Response
+     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
      */
     public function create()
     {
-        return view('pages.categories.create')->with('title', 'Create new category')->with('breadcrumb', 'New category');
+        return view('pages.categories.create')->with('title' , 'Create new category')->with('breadcrumb' , 'New category');
     }
-
+    
     /**
      * Store a newly created resource in storage.
      *
-     * @return Response
-     *
-     * @phpstan-return Response|View|RedirectResponse|JsonResponse
+     * @return \Illuminate\Http\Response
+     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
      */
     public function store(CategoryStoreRequest $request)
     {
@@ -61,25 +54,23 @@ class CategoryController extends Controller
 
         return redirect()->route('categories.index', [], 303)->with('success', 'Category created successfully.');
     }
-
+ 
     /**
      * Show the form for editing the specified resource.
      *
-     * @return Response
-     *
-     * @phpstan-return Response|View|RedirectResponse|JsonResponse
+     * @return \Illuminate\Http\Response
+     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
      */
     public function edit(Category $category)
     {
-        return view('pages.categories.edit', compact('category'))->with('title', 'Edit category')->with('breadcrumb', 'Edit category');
+        return view('pages.categories.edit',compact('category'))->with('title' , 'Edit category')->with('breadcrumb' , 'Edit category');
     }
-
+    
     /**
      * Update the specified resource in storage.
      *
-     * @return Response
-     *
-     * @phpstan-return Response|View|RedirectResponse|JsonResponse
+     * @return \Illuminate\Http\Response
+     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
      */
     public function update(UpdateCategoryRequest $request, Category $category)
     {
@@ -87,13 +78,12 @@ class CategoryController extends Controller
 
         return redirect()->route('categories.index', [], 303)->with('success', 'Category updated successfully.');
     }
-
+    
     /**
      * Remove the specified resource from storage.
      *
-     * @return Response
-     *
-     * @phpstan-return Response|View|RedirectResponse|JsonResponse
+     * @return \Illuminate\Http\Response
+     * @phpstan-return \Illuminate\Http\Response|\Illuminate\View\View|\Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
      */
     public function destroy(Category $category)
     {
@@ -102,14 +92,13 @@ class CategoryController extends Controller
         return redirect()->route('categories.index', [], 303)->with('success', 'Category deleted successfully');
     }
 
-    public function bulkDestroy(Request $request)
+    public function bulkDestroy(\Illuminate\Http\Request $request)
     {
         $validated = $request->validate([
             'ids' => 'required|array|min:1',
             'ids.*' => 'integer|exists:categories,id',
         ]);
         $count = Category::whereIn('id', $validated['ids'])->delete();
-
         return redirect()->route('categories.index', [], 303)->with('success', __(':count category(ies) deleted.', ['count' => $count]));
     }
 }

@@ -10,14 +10,13 @@ class Theme
      * @var bool
      */
     public static $modeSwitchEnabled = false;
-
     public static $modeDefault = 'light';
 
     public static $direction = 'ltr';
 
     public static $htmlAttributes = [];
-
     public static $htmlClasses = [];
+
 
     /**
      * Keep page level assets
@@ -25,9 +24,7 @@ class Theme
      * @var array
      */
     public static $javascriptFiles = [];
-
     public static $cssFiles = [];
-
     public static $vendorFiles = [];
 
     /**
@@ -35,15 +32,20 @@ class Theme
      *
      * @return void
      */
-    public function getName() {}
+    function getName()
+    {
+    }
 
     /**
      * Add HTML attributes by scope
      *
+     * @param $scope
+     * @param $name
+     * @param $value
      *
      * @return void
      */
-    public function addHtmlAttribute($scope, $name, $value)
+    function addHtmlAttribute($scope, $name, $value)
     {
         self::$htmlAttributes[$scope][$name] = $value;
         // dump(self::$htmlAttributes);
@@ -52,10 +54,12 @@ class Theme
     /**
      * Add multiple HTML attributes by scope
      *
+     * @param $scope
+     * @param $attributes
      *
      * @return void
      */
-    public function addHtmlAttributes($scope, $attributes)
+    function addHtmlAttributes($scope, $attributes)
     {
         foreach ($attributes as $key => $value) {
             self::$htmlAttributes[$scope][$key] = $value;
@@ -65,10 +69,12 @@ class Theme
     /**
      * Add HTML class by scope
      *
+     * @param $scope
+     * @param $value
      *
      * @return void
      */
-    public function addHtmlClass($scope, $value)
+    function addHtmlClass($scope, $value)
     {
         self::$htmlClasses[$scope] = $value;
     }
@@ -76,10 +82,11 @@ class Theme
     /**
      * Print HTML attributes for the HTML template
      *
+     * @param $scope
      *
      * @return string
      */
-    public function printHtmlAttributes($scope)
+    function printHtmlAttributes($scope)
     {
         $attributes = [];
         if (isset(self::$htmlAttributes[$scope])) {
@@ -88,16 +95,18 @@ class Theme
             }
         }
 
-        return implode(' ', $attributes);
+        return join(' ', $attributes);
     }
 
     /**
      * Print HTML classes for the HTML template
      *
+     * @param $scope
+     * @param $full
      *
      * @return string
      */
-    public function printHtmlClasses($scope, $full = true)
+    function printHtmlClasses($scope, $full = true)
     {
         if (empty(self::$htmlClasses)) {
             return '';
@@ -118,10 +127,13 @@ class Theme
     /**
      * Get SVG icon content
      *
-     * @param  $folder
+     * @param $path
+     * @param $classNames
+     * @param $folder
+     *
      * @return string
      */
-    public function getSvgIcon($path, $classNames = 'svg-icon')
+    function getSvgIcon($path, $classNames = 'svg-icon')
     {
         $basePath = config('settings.KT_THEME') === 'rizz' ? 'rizz/media/icons/' : 'assets/media/icons/';
         $fullPath = public_path($basePath.$path);
@@ -135,10 +147,11 @@ class Theme
     /**
      * Set dark mode enabled status
      *
+     * @param $flag
      *
      * @return void
      */
-    public function setModeSwitch($flag)
+    function setModeSwitch($flag)
     {
         self::$modeSwitchEnabled = $flag;
     }
@@ -148,7 +161,7 @@ class Theme
      *
      * @return bool
      */
-    public function isModeSwitchEnabled()
+    function isModeSwitchEnabled()
     {
         return self::$modeSwitchEnabled;
     }
@@ -156,10 +169,11 @@ class Theme
     /**
      * Set the mode to dark or light
      *
+     * @param $mode
      *
      * @return void
      */
-    public function setModeDefault($mode)
+    function setModeDefault($mode)
     {
         self::$modeDefault = $mode;
     }
@@ -169,7 +183,7 @@ class Theme
      *
      * @return string
      */
-    public function getModeDefault()
+    function getModeDefault()
     {
         return self::$modeDefault;
     }
@@ -177,10 +191,11 @@ class Theme
     /**
      * Set style direction
      *
+     * @param $direction
      *
      * @return void
      */
-    public function setDirection($direction)
+    function setDirection($direction)
     {
         self::$direction = $direction;
     }
@@ -190,7 +205,7 @@ class Theme
      *
      * @return string
      */
-    public function getDirection()
+    function getDirection()
     {
         return self::$direction;
     }
@@ -200,7 +215,7 @@ class Theme
      *
      * @return bool
      */
-    public function isRtlDirection()
+    function isRtlDirection()
     {
         return self::$direction === 'rtl';
     }
@@ -208,10 +223,11 @@ class Theme
     /**
      * Extend CSS file name with RTL or dark mode
      *
+     * @param $path
      *
      * @return string
      */
-    public function extendCssFilename($path)
+    function extendCssFilename($path)
     {
         if ($this->isRtlDirection()) {
             $path = str_replace('.css', '.rtl.css');
@@ -225,7 +241,7 @@ class Theme
      *
      * @return string
      */
-    public function includeFavicon()
+    function includeFavicon()
     {
         return sprintf('<link rel="shortcut icon" href="%s" />', asset(config('settings.KT_THEME_ASSETS.favicon')));
     }
@@ -235,7 +251,7 @@ class Theme
      *
      * @return string
      */
-    public function includeFonts()
+    function includeFonts()
     {
         $content = '';
 
@@ -251,7 +267,7 @@ class Theme
      *
      * @return array
      */
-    public function getGlobalAssets($type = 'js')
+    function getGlobalAssets($type = 'js')
     {
         // $this->extendCssFilename()
         return config('settings.KT_THEME_ASSETS.global.'.$type);
@@ -260,10 +276,11 @@ class Theme
     /**
      * Add multiple vendors to the page by name. Refer to settings KT_THEME_VENDORS
      *
+     * @param $vendors
      *
      * @return array
      */
-    public function addVendors($vendors)
+    function addVendors($vendors)
     {
         foreach ($vendors as $value) {
             self::$vendorFiles[] = $value;
@@ -275,10 +292,11 @@ class Theme
     /**
      * Add single vendor to the page by name. Refer to settings KT_THEME_VENDORS
      *
+     * @param $vendor
      *
      * @return void
      */
-    public function addVendor($vendor)
+    function addVendor($vendor)
     {
         self::$vendorFiles[] = $vendor;
     }
@@ -286,10 +304,11 @@ class Theme
     /**
      * Add custom javascript file to the page
      *
+     * @param $file
      *
      * @return void
      */
-    public function addJavascriptFile($file)
+    function addJavascriptFile($file)
     {
         self::$javascriptFiles[] = $file;
     }
@@ -297,10 +316,11 @@ class Theme
     /**
      * Add custom CSS file to the page
      *
+     * @param $file
      *
      * @return void
      */
-    public function addCssFile($file)
+    function addCssFile($file)
     {
         self::$cssFiles[] = $file;
     }
@@ -308,10 +328,11 @@ class Theme
     /**
      * Get vendor files from settings. Refer to settings KT_THEME_VENDORS
      *
+     * @param $type
      *
      * @return array
      */
-    public function getVendors($type)
+    function getVendors($type)
     {
         $files = [];
         foreach (self::$vendorFiles as $vendor) {
@@ -331,7 +352,7 @@ class Theme
      *
      * @return array
      */
-    public function getCustomJs()
+    function getCustomJs()
     {
         return self::$javascriptFiles;
     }
@@ -341,7 +362,7 @@ class Theme
      *
      * @return array
      */
-    public function getCustomCss()
+    function getCustomCss()
     {
         return self::$cssFiles;
     }
@@ -349,10 +370,12 @@ class Theme
     /**
      * Get HTML attribute based on the scope
      *
+     * @param $scope
+     * @param $attribute
      *
      * @return array
      */
-    public function getHtmlAttribute($scope, $attribute)
+    function getHtmlAttribute($scope, $attribute)
     {
         return self::$htmlAttributes[$scope][$attribute] ?? [];
     }

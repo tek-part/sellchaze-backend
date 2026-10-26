@@ -52,18 +52,12 @@ class ThemePreviewToken
 
     public function verifyPage(?string $token, int $storeId): ?int
     {
-        if (! $token || ! str_contains($token, '.')) {
-            return null;
-        }
+        if (! $token || ! str_contains($token, '.')) return null;
         [$encoded, $sig] = explode('.', $token, 2);
         $payload = base64_decode(strtr($encoded, '-_', '+/'), true);
-        if ($payload === false || ! hash_equals(hash_hmac('sha256', $payload, $this->key()), $sig)) {
-            return null;
-        }
+        if ($payload === false || ! hash_equals(hash_hmac('sha256', $payload, $this->key()), $sig)) return null;
         $parts = explode(':', $payload);
-        if (count($parts) !== 4 || $parts[0] !== 'page') {
-            return null;
-        }
+        if (count($parts) !== 4 || $parts[0] !== 'page') return null;
         [, $tokenStoreId, $pageId, $exp] = $parts;
 
         return (int) $tokenStoreId === $storeId && (int) $exp >= time() ? (int) $pageId : null;

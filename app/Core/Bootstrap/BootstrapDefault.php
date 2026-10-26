@@ -18,23 +18,23 @@ class BootstrapDefault
         // 4) Light header layout (default_header_layout.html)
         // $this->initLightHeaderLayout();
 
-        // Init global assets for default layout
+        # Init global assets for default layout
         $this->initAssets();
     }
 
     public function initAssets()
     {
-        // Include global vendors
+        # Include global vendors
         addVendors(['datatables', 'fullcalendar']);
 
-        // Include global javascript files
+        # Include global javascript files
         addJavascriptFile('assets/js/custom/widgets.js');
         addJavascriptFile('assets/js/custom/utilities/modals/upgrade-plan.js');
         addJavascriptFile('assets/js/custom/utilities/modals/create-app.js');
         addJavascriptFile('assets/js/custom/utilities/modals/users-search.js');
         addJavascriptFile('assets/js/custom/utilities/modals/new-target.js');
 
-        // Include Sellchase brand theme overrides
+        # Include Sellchase brand theme overrides
         addCssFile('assets/css/sellchase-theme.css');
         addCssFile('assets/css/crm-pages.css');
         addJavascriptFile('assets/js/custom/crm-listing.js');
@@ -90,4 +90,5 @@ class BootstrapDefault
 
         addHtmlClass('body', 'app-default');
     }
+
 }

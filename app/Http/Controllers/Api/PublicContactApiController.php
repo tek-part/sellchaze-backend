@@ -25,8 +25,8 @@ class PublicContactApiController extends Controller
         // Best-effort: if Ticket model exists, persist. Otherwise log.
         try {
             Ticket::create([
-                'subject' => '[public] '.$validated['subject'],
-                'message' => "From: {$validated['name']} <{$validated['email']}>\n\n".$validated['message'],
+                'subject' => '[public] ' . $validated['subject'],
+                'message' => "From: {$validated['name']} <{$validated['email']}>\n\n" . $validated['message'],
                 'status' => 'open',
                 'user_id' => null,
             ]);

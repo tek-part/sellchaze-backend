@@ -11,7 +11,7 @@ class EnsureProfileComplete
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        if (! $user || ! $user->profile) {
+        if (!$user || !$user->profile) {
             return $next($request);
         }
 
@@ -25,7 +25,7 @@ class EnsureProfileComplete
             }
         }
 
-        if (! $isComplete && ! $request->routeIs('profile.complete') && ! $request->routeIs('profile.complete.store')) {
+        if (!$isComplete && !$request->routeIs('profile.complete') && !$request->routeIs('profile.complete.store')) {
             return redirect()->route('profile.complete');
         }
 

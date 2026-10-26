@@ -269,7 +269,7 @@ class ThreadMessageNormalizer
         ];
         foreach ($paths as $path) {
             $v = data_get($row, $path);
-            if (is_string($v) && strlen($v) > 100 && ! str_starts_with($v, 'http') && ! str_starts_with($v, '<')) {
+            if (is_string($v) && strlen($v) > 100 && !str_starts_with($v, 'http') && !str_starts_with($v, '<')) {
                 // Looks like base64 data
                 if (preg_match('/^[A-Za-z0-9+\/=\s]+$/', substr($v, 0, 200))) {
                     return $v;
