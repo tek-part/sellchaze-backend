@@ -14,8 +14,10 @@ use App\Services\Commerce\ManualBankPayment;
 use App\Services\Commerce\ManualCashPayment;
 use App\Services\Commerce\MerchantOrderQuery;
 use App\Services\Commerce\MerchantOrderReviews;
+use App\Services\Commerce\OrderDeposits;
 use App\Services\Commerce\StoreOrderService;
 use App\Services\PlatformWallet;
+use App\Services\Storefront\StorefrontUrlGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -75,7 +77,9 @@ class MerchantOrderController extends Controller
             app(PlatformWallet::class)->assertOrderVisible($row);
         }
 
-        return response()->json(['store' => ['name' => $store->name], 'data' => MerchantOrderResource::collection($rows)]);
+        // The printed invoice carries the store's logo, website and support phone.
+        return response()->json(['store' => ['name' => $store->name, 'logo_url' => $store->logoUrl(), 'phone' => $store->phone, 'email' => $store->email,
+            'website' => app(StorefrontUrlGenerator::class)->publicUrl($store), 'locale' => $store->default_locale], 'data' => MerchantOrderResource::collection($rows)]);
     }
 
     public function filterProducts(Request $request, Store $store): JsonResponse
@@ -150,7 +154,7 @@ class MerchantOrderController extends Controller
         // Fail-closed: reject illegal jumps with 422 (no invalid state changes).
         if (! $this->orders->canTransition($model, $to)) {
             throw ValidationException::withMessages([
-                'status' => "Cannot change status from {$model->status} to {$to}.",
+                'status' => OrderDeposits::blocksConfirmation($model) ? __('This order is confirmed once its deposit is paid.') : "Cannot change status from {$model->status} to {$to}.",
             ]);
         }
 

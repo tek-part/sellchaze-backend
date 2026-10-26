@@ -15,12 +15,15 @@ class ManualBankPayment
             $transaction = StorePaymentTransaction::query()->where('store_id', $order->store_id)->where('store_order_id', $order->id)
                 ->where('gateway', $order->payment_method)->latest('id')->lockForUpdate()->first();
             $current = StoreOrder::forStore($order->store_id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            // A transfer for a deposit pays the deposit only; once it is paid the transfer amount stays the deposit.
+            $expected = $current->deposit_total !== null ? $current->depositAmount() : $current->amountDue();
             if (in_array($current->status, ['cancelled', ...StoreOrder::RETURN_STATUSES], true) || ! in_array($current->payment_method, ['bank_transfer', 'transfer_receipt'], true) || $transaction === null
-                || bccomp((string) $transaction->amount, $current->amountDue(), 2) !== 0 || strtoupper($transaction->currency) !== strtoupper($current->currency)) {
+                || bccomp((string) $transaction->amount, $expected, 2) !== 0 || strtoupper($transaction->currency) !== strtoupper($current->currency)) {
                 throw ValidationException::withMessages(['payment' => 'This bank payment cannot be confirmed.']);
             }
-            if ($current->payment_status === 'paid' || $transaction->status === 'paid') {
-                if ($current->payment_status !== 'paid' || $transaction->status !== 'paid' || $current->payment_reference !== $reference) {
+            $settled = $current->payment_status === 'paid' || $current->deposit_paid_at !== null;
+            if ($settled || $transaction->status === 'paid') {
+                if (! $settled || $transaction->status !== 'paid' || $current->payment_reference !== $reference) {
                     throw ValidationException::withMessages(['reference' => 'This payment has already been confirmed with a different reference.']);
                 }
 
@@ -38,10 +41,14 @@ class ManualBankPayment
                 DB::table('store_payment_proofs')->where('id', $proof->id)->update(['status' => 'accepted', 'reviewed_by' => $actorId, 'review_note' => null, 'reviewed_at' => now(), 'updated_at' => now()]);
             }
             $transaction->update(['status' => 'paid', 'provider_reference' => $reference, 'paid_at' => now(), 'failed_at' => null]);
-            $current->update(['payment_status' => 'paid', 'payment_reference' => $reference]);
+            if (! app(OrderDeposits::class)->markPaid($current, $reference, $actorId, 'bank_payment')) {
+                $current->update(['payment_status' => 'paid', 'payment_reference' => $reference]);
+            }
             $current->statusChanges()->create(['from_status' => $current->status, 'to_status' => $current->status, 'actor_id' => $actorId,
                 'source' => 'bank_payment', 'notes' => 'Bank transfer confirmed: '.$reference.($note ? "\n".$note : '')]);
-            app(DigitalDelivery::class)->record($current);
+            if ($current->payment_status === 'paid') {
+                app(DigitalDelivery::class)->record($current);
+            }
             DB::afterCommit(fn () => StoreAnalyticsService::forget($current->store_id));
 
             return $current;

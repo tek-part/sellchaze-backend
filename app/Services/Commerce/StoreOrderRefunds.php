@@ -47,7 +47,24 @@ class StoreOrderRefunds
     public static function paymentCollected(StoreOrder $order): bool
     {
         return in_array($order->payment_status, ['paid', 'partially_refunded', 'refunded'], true)
-            || ($order->payment_method === 'cod' && in_array($order->status, self::COD_COLLECTED_STATUSES, true));
+            || ($order->payment_method === 'cod' && in_array($order->status, self::COD_COLLECTED_STATUSES, true))
+            || $order->deposit_paid_at !== null;
+    }
+
+    /**
+     * Money (cents) the merchant holds when it was collected: everything after gift cards, or only the deposit
+     * while the remainder of a deposit order was neither recorded nor delivered (cash on delivery).
+     */
+    private static function moneyCollected(StoreOrder $order, string $grand, string $giftCard): string
+    {
+        $money = bcsub($grand, $giftCard, 0);
+        if ($order->deposit_total !== null && $order->remainder_collected_at === null && ! in_array($order->status, self::COD_COLLECTED_STATUSES, true)) {
+            $deposit = bcmul($order->depositAmount(), '100', 0);
+
+            return bccomp($deposit, $money, 0) < 0 ? $deposit : $money;
+        }
+
+        return $money;
     }
 
     /**
@@ -69,7 +86,7 @@ class StoreOrderRefunds
             'refunded_total' => $this->money($state['refunded']),
             'refundable_total' => $this->money($state['remaining']),
             'gift_card_total' => $this->money($state['gift_card']),
-            'money_collected' => $this->money($state['collected'] ? bcsub($state['grand'], $state['gift_card'], 0) : '0'),
+            'money_collected' => $this->money($state['collected'] ? $state['money_collected'] : '0'),
             'refunded_money' => $this->money($state['money_refunded']),
             'refunded_to_gift_cards' => $this->money($state['card_returned']),
             'refundable_money' => $this->money($state['money_remaining']),
@@ -237,7 +254,7 @@ class StoreOrderRefunds
     }
 
     /**
-     * @return array{collected:bool, valued:bool, open:bool, fully:bool, grand:string, refunded:string, remaining:string, gift_card:string,
+     * @return array{collected:bool, valued:bool, open:bool, fully:bool, grand:string, refunded:string, remaining:string, money_collected:string, gift_card:string,
      *     card_returned:string, card_remaining:string, money_refunded:string, money_remaining:string, shipping_cap:string,
      *     shipping_refunded:string, shipping_remaining:string, lines:Collection<int, RefundLine>, refunds:Collection<int, StoreOrderRefund>}
      */
@@ -318,7 +335,8 @@ class StoreOrderRefunds
         $giftCard = bccomp($giftCard, $grand, 0) > 0 ? $grand : $giftCard;
         $cardReturned = bccomp($giftCard, '0', 0) > 0 ? $this->cents(app(GiftCards::class)->returnedTotal($order)) : '0';
         $cardRemaining = $this->positive(bcsub($giftCard, $cardReturned, 0));
-        $moneyRemaining = $collected ? $this->positive(bcsub(bcsub($grand, $giftCard, 0), $moneyRefunded, 0)) : '0';
+        $moneyCollected = $collected ? self::moneyCollected($order, $grand, $giftCard) : '0';
+        $moneyRemaining = $collected ? $this->positive(bcsub($moneyCollected, $moneyRefunded, 0)) : '0';
         $remaining = bcadd($moneyRemaining, $cardRemaining, 0);
         $valued = $collected || bccomp($cardRemaining, '0', 0) > 0;
         $shippingRemaining = $this->positive(bcsub($shippingCap, $shippingRefunded, 0));
@@ -329,7 +347,7 @@ class StoreOrderRefunds
             && ($order->status !== 'cancelled' || ($valued && bccomp($remaining, '0', 0) > 0))
             && ($unitsLeft > 0 || bccomp($valued ? $shippingRemaining : '0', '0', 0) > 0);
 
-        return ['collected' => $collected, 'valued' => $valued, 'open' => $open, 'fully' => $fully, 'grand' => $grand, 'refunded' => $refunded, 'remaining' => $remaining,
+        return ['collected' => $collected, 'valued' => $valued, 'open' => $open, 'fully' => $fully, 'grand' => $grand, 'refunded' => $refunded, 'remaining' => $remaining, 'money_collected' => $moneyCollected,
             'gift_card' => $giftCard, 'card_returned' => $cardReturned, 'card_remaining' => $cardRemaining, 'money_refunded' => $moneyRefunded, 'money_remaining' => $moneyRemaining,
             'shipping_cap' => $shippingCap, 'shipping_refunded' => $shippingRefunded, 'shipping_remaining' => $valued ? $shippingRemaining : '0',
             'lines' => $lines, 'refunds' => $refunds];

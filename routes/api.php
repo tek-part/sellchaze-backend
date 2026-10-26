@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\MerchantOrderActionsController;
 use App\Http\Controllers\Api\MerchantOrderController;
 use App\Http\Controllers\Api\MerchantOrderEditController;
 use App\Http\Controllers\Api\MerchantOrderFulfillmentController;
+use App\Http\Controllers\Api\MerchantOrderPaymentController;
 use App\Http\Controllers\Api\MerchantOrderPushController;
 use App\Http\Controllers\Api\MerchantOrderRefundController;
 use App\Http\Controllers\Api\MerchantPaymentProofController;
@@ -134,6 +135,7 @@ use App\Http\Controllers\Api\StoreOrderExportController;
 use App\Http\Controllers\Api\StoreOrderLimitsController;
 use App\Http\Controllers\Api\StoreOrderWebhookController;
 use App\Http\Controllers\Api\StorePagesApiController;
+use App\Http\Controllers\Api\StorePaymentDepositController;
 use App\Http\Controllers\Api\StorePaymentsApiController;
 use App\Http\Controllers\Api\StorePhoneBlockController;
 use App\Http\Controllers\Api\StorePhoneVerificationController;
@@ -1100,6 +1102,16 @@ Route::prefix('v1')->group(function () {
 
             Route::get('payments', [StorePaymentsApiController::class, 'index']);
             Route::match(['put', 'post'], 'payments', [StorePaymentsApiController::class, 'update']);
+
+            // ---- G1 Deposits & payment flexibility (TAR-036 #1 deposits, #11 change payment method) ----
+            Route::get('payments/deposit', [StorePaymentDepositController::class, 'index']);
+            Route::put('payments/deposit', [StorePaymentDepositController::class, 'update'])->middleware('throttle:30,1');
+            Route::middleware('permission:store.orders.manage')->group(function () {
+                Route::get('orders/{order}/payment/methods', [MerchantOrderPaymentController::class, 'methods'])->whereNumber('order');
+                Route::post('orders/{order}/payment/method', [MerchantOrderPaymentController::class, 'change'])->whereNumber('order')->middleware('throttle:20,1');
+                Route::post('orders/{order}/payment/collect-remainder', [MerchantOrderPaymentController::class, 'collectRemainder'])->whereNumber('order')->middleware('throttle:20,1');
+            });
+            // ---- end G1 ----
 
             // ---- Publishing (owner + admin): readiness gate, publish/unpublish ----
             Route::get('readiness', [StorePublishingApiController::class, 'readiness']);

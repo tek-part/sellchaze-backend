@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\StoreOrder;
 use App\Services\Commerce\DigitalProducts;
+use App\Services\Commerce\OrderDeposits;
 use App\Services\Commerce\ProductPersonalization;
 use App\Services\Commerce\StoreInventory;
 use App\Services\Commerce\StoreOrderService;
@@ -62,6 +63,8 @@ class MerchantOrderResource extends JsonResource
             'gift_card_total' => $this->gift_card_total ?? '0.00',
             'gift_cards' => $this->gift_card_details ?? [],
             'amount_due' => $this->resource->amountDue(),
+            // Deposit orders: paid online first, `remaining` is due on delivery (null without a deposit).
+            'deposit' => OrderDeposits::present($this->resource),
             'payment_adjustment' => $this->payment_adjustment,
             'payment_adjustment_total' => $this->payment_adjustment['amount'] ?? '0.00',
             'manual_adjustment_total' => $this->manual_adjustment_total ?? '0.00',

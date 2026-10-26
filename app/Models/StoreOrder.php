@@ -27,6 +27,10 @@ use Illuminate\Support\Carbon;
  * @property array{source:string,campaign:string}|null $marketing_attribution
  * @property array{code:string,product_id:int}|null $referral_attribution
  * @property bool|null $checkout_bot_verified
+ * @property string|null $deposit_total
+ * @property array<string,mixed>|null $deposit_details
+ * @property Carbon|null $deposit_paid_at
+ * @property Carbon|null $remainder_collected_at
  * @property Carbon|null $deleted_at
  */
 class StoreOrder extends Model
@@ -42,8 +46,11 @@ class StoreOrder extends Model
     /** Shipping progress over physical lines; digital-only orders are fulfilled once delivered. */
     public const FULFILLMENT_STATUSES = ['unfulfilled', 'partial', 'fulfilled'];
 
-    /** Payment states. Refund states are only ever set by StoreOrderRefunds (recorded money, never a gateway call). */
-    public const PAYMENT_STATUSES = ['pending', 'paid', 'failed', 'partially_refunded', 'refunded'];
+    /**
+     * Payment states. Refund states are only ever set by StoreOrderRefunds (recorded money, never a gateway call).
+     * `deposit_paid`: the deposit was paid online and the remainder is still due on delivery.
+     */
+    public const PAYMENT_STATUSES = ['pending', 'deposit_paid', 'paid', 'failed', 'partially_refunded', 'refunded'];
 
     protected $fillable = [
         'store_id', 'store_customer_id', 'order_number', 'status', 'currency',
@@ -54,6 +61,7 @@ class StoreOrder extends Model
         'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'refunded_total', 'gift_card_total', 'gift_card_details', 'notes',
         'placed_at', 'cancelled_at', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'coupon_code',
         'discount_details', 'fulfillment_status', 'manual_actor_id', 'manual_owner_id', 'manual_request_key', 'manual_request_hash', 'manual_adjustment_total', 'manual_tax_included',
+        'deposit_total', 'deposit_details', 'deposit_paid_at', 'remainder_collected_at',
     ];
 
     protected $hidden = ['customer_phone_normalized', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'manual_request_key', 'manual_request_hash', 'manual_owner_id', 'checkout_bot_verified', 'retained_bot_verified', 'protection_signals'];
@@ -78,14 +86,64 @@ class StoreOrder extends Model
         'checkout_bot_verified' => 'boolean',
         'placed_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'deposit_total' => 'decimal:2',
+        'deposit_details' => 'array',
+        'deposit_paid_at' => 'datetime',
+        'remainder_collected_at' => 'datetime',
     ];
 
-    /** What is left to pay after gift cards: grand_total stays the order total. */
+    /**
+     * What the order's payment method collects now; grand_total stays the order total. Gift cards pay first.
+     * A deposit order charges its deposit until it is paid, then what remains is due on delivery.
+     */
     public function amountDue(): string
     {
-        $due = bcsub((string) $this->grand_total, (string) ($this->gift_card_total ?? '0.00'), 2);
+        $due = $this->moneyDue();
+        if ($this->deposit_total === null) {
+            return $due;
+        }
+        $deposit = $this->depositAmount();
 
-        return bccomp($due, '0', 2) < 0 ? '0.00' : $due;
+        return $this->deposit_paid_at === null ? $deposit : $this->positive(bcsub($due, $deposit, 2));
+    }
+
+    /** The order total less gift cards: all the money the customer pays, whatever the method. */
+    public function moneyDue(): string
+    {
+        return $this->positive(bcsub((string) $this->grand_total, (string) ($this->gift_card_total ?? '0.00'), 2));
+    }
+
+    /** The deposit the payment method collects first (never more than the money due); zero without a deposit. */
+    public function depositAmount(): string
+    {
+        if ($this->deposit_total === null) {
+            return '0.00';
+        }
+        $deposit = $this->positive((string) $this->deposit_total);
+        $due = $this->moneyDue();
+
+        return bccomp($deposit, $due, 2) > 0 ? $due : $deposit;
+    }
+
+    /** What is due on delivery after the deposit, whether or not the deposit was paid yet; zero without a deposit. */
+    public function remainderDue(): string
+    {
+        return $this->deposit_total === null ? '0.00' : $this->positive(bcsub($this->moneyDue(), $this->depositAmount(), 2));
+    }
+
+    /** What a courier collects in cash: everything still unpaid, or the remainder once a deposit was paid. */
+    public function collectOnDelivery(): string
+    {
+        if ($this->payment_status === 'paid' || $this->remainder_collected_at !== null) {
+            return '0.00';
+        }
+
+        return $this->deposit_paid_at !== null ? $this->remainderDue() : $this->moneyDue();
+    }
+
+    private function positive(string $amount): string
+    {
+        return bccomp($amount, '0', 2) < 0 ? '0.00' : bcadd($amount, '0', 2);
     }
 
     /** @return HasMany<StoreOrderItem, $this> */

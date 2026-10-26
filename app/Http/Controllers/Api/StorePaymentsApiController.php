@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Models\StoreMediaAsset;
 use App\Models\StorePaymentGateway;
+use App\Services\Commerce\BankTransferInstructions;
 use App\Services\Commerce\HostedPaymentGateways;
 use App\Services\Commerce\PaymentGatewayCatalog;
 use App\Services\Commerce\PaymentPriceAdjustment;
@@ -44,7 +45,7 @@ class StorePaymentsApiController extends Controller
                 'credentials' => collect($credentials)->only($provider['fields'])->map(fn ($value, $key) => in_array($key, PaymentGatewayCatalog::VISIBLE_FIELDS, true) ? $value : (filled($value) ? self::MASK : ''))->all(),
                 'order' => (int) ($setting?->sort_order ?? data_get($legacySetting, 'order', 0)),
                 'notes' => (string) ($setting?->notes ?? data_get($legacySetting, 'notes', '')),
-                'configured' => PaymentGatewayCatalog::configured($slug, $credentials),
+                'configured' => PaymentGatewayCatalog::configured($slug, $credentials, $setting?->presentation),
                 'return_url' => $slug === 'xpay' ? route('payments.xpay.return', ['store' => $store->id, 'payment_key' => XpayPaymentReturnController::key($store)]) : null,
                 'webhook_url' => in_array($slug, ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'fawaterak'], true)
                     ? url('/api/v1/payment-webhooks/'.$store->id.'/'.$slug.($slug === 'fawaterak' ? '_json' : ''))
@@ -67,7 +68,13 @@ class StorePaymentsApiController extends Controller
             'gateways.*.credentials.*' => ['nullable', 'string', 'max:5000'],
             'gateways.*.order' => ['nullable', 'integer', 'min:0'],
             'gateways.*.notes' => ['nullable', 'string', 'max:2000'],
-            'gateways.*.presentation' => ['sometimes', 'array:name,description,logo_asset_id,price_adjustment'],
+            'gateways.*.presentation' => ['sometimes', 'array:name,description,logo_asset_id,price_adjustment,transfer_targets'],
+            // Transfer methods: up to two targets (bank account, e-wallet / InstaPay), each with an optional http(s) link.
+            'gateways.*.presentation.transfer_targets' => ['sometimes', 'nullable', 'array', 'max:'.BankTransferInstructions::TARGET_LIMIT],
+            'gateways.*.presentation.transfer_targets.*' => ['array:label,number,link'],
+            'gateways.*.presentation.transfer_targets.*.label' => ['required', 'string', 'max:80'],
+            'gateways.*.presentation.transfer_targets.*.number' => ['required', 'string', 'max:120'],
+            'gateways.*.presentation.transfer_targets.*.link' => ['nullable', 'string', 'max:500', 'url:http,https'],
             'gateways.*.presentation.price_adjustment' => ['sometimes', 'array:enabled,type,direction,value'],
             'gateways.*.presentation.name' => ['nullable', 'string', 'max:120'],
             'gateways.*.presentation.description' => ['nullable', 'string', 'max:2000'],
@@ -90,6 +97,12 @@ class StorePaymentsApiController extends Controller
                         throw ValidationException::withMessages(['gateways.'.$position.'.presentation.price_adjustment' => $exception->validator->errors()->first()]);
                     }
                 }
+                if (array_key_exists('transfer_targets', $input['presentation'] ?? [])) {
+                    if (! in_array($input['slug'], BankTransferInstructions::TARGET_METHODS, true) && ! empty($input['presentation']['transfer_targets'])) {
+                        throw ValidationException::withMessages(['gateways.'.$position.'.presentation.transfer_targets' => 'Only transfer payment methods have transfer targets.']);
+                    }
+                    $presentation['transfer_targets'] = BankTransferInstructions::targets($input['presentation']);
+                }
                 if ($input['enabled'] && ! $provider['available']) {
                     throw ValidationException::withMessages(['gateways.'.$position.'.enabled' => 'This provider connection is not available yet.']);
                 }
@@ -111,7 +124,7 @@ class StorePaymentsApiController extends Controller
                 if ($input['enabled'] && in_array($input['slug'], HostedPaymentGateways::PROVIDERS, true)) {
                     app(RegionalHostedPayments::class)->validate((new StorePaymentGateway)->forceFill(['gateway' => $input['slug'], 'test_mode' => $testMode, 'credentials' => $credentials]), $store->currency);
                 }
-                if ($input['enabled'] && ! PaymentGatewayCatalog::configured($input['slug'], $credentials)) {
+                if ($input['enabled'] && ! PaymentGatewayCatalog::configured($input['slug'], $credentials, $presentation)) {
                     throw ValidationException::withMessages(['gateways.'.$position.'.credentials' => 'Complete the required connection fields before enabling this payment method.']);
                 }
                 StorePaymentGateway::query()->updateOrCreate(

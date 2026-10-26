@@ -45,7 +45,7 @@ class MerchantPaymentProofController extends Controller
         $data = $request->validate(['note' => ['required', 'string', 'max:2000']]);
         DB::transaction(function () use ($request, $store, $order, $proof, $data) {
             $locked = StoreOrder::forStore($store)->whereKey($order)->lockForUpdate()->firstOrFail();
-            abort_if($locked->payment_status === 'paid', 422, 'The transfer has already been confirmed.');
+            abort_if(in_array($locked->payment_status, ['paid', 'deposit_paid'], true), 422, 'The transfer has already been confirmed.');
             $changed = DB::table('store_payment_proofs')->where('store_id', $store->id)->where('store_order_id', $order)->where('id', $proof)->where('status', 'pending')
                 ->update(['status' => 'rejected', 'reviewed_by' => $request->user()->id, 'review_note' => $data['note'], 'reviewed_at' => now(), 'updated_at' => now()]);
             abort_unless($changed, 422, 'This receipt is no longer awaiting review.');

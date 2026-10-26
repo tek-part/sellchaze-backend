@@ -32,7 +32,7 @@ class CheckoutService
     ) {}
 
     /**
-     * @param  array{name:string,email:string|null,phone?:string|null,notes?:string|null,expected_total?:string|null}  $contact
+     * @param  array{name:string,email:string|null,phone?:string|null,notes?:string|null,expected_total?:string|null,expected_deposit?:string|null}  $contact
      * @param  array<string,mixed>|null  $shippingAddress
      * @param  array<int, mixed>  $giftCards  codes; when they cover the total the order is paid by gift card
      */
@@ -55,6 +55,7 @@ class CheckoutService
             $subtotal = '0.00';
             $lines = [];
             $stocks = [];
+            $products = [];
             $counts = [];
             $productCounts = [];
             $requiresShipping = false;
@@ -69,6 +70,7 @@ class CheckoutService
                 $selection = $this->selections->resolve($store, (int) $item->store_product_id, $item->variant_id === null ? null : (int) $item->variant_id, true,
                     $item->quantity_offer['id'] ?? null, (int) $item->quantity, $item->quantity_offer['version'] ?? null);
                 $product = $selection['product'];
+                $products[$product->id] = $product;
                 $productCounts[$product->id] = ($productCounts[$product->id] ?? 0) + $item->quantity;
                 app(OrderLimits::class)->assertQuantity($store, $productCounts[$product->id]);
                 $requiresShipping = $requiresShipping || $product->digital_type === 'physical';
@@ -191,9 +193,13 @@ class CheckoutService
             // A payment method's adjustment applies to what that method collects.
             $adjustments = app(PaymentPriceAdjustment::class);
             $totals = $adjustments->forDue($store, $paymentMethod, $totals, $tender['amount_due'] ?? $totals['grand_total']);
-            // A confirmed total that no longer holds (e.g. a guest's used-up discount, which a quote
+            // A deposit is paid online first; the rest of what the customer pays is collected on delivery.
+            $deposit = $paymentStatus === 'paid' ? null : app(OrderDeposits::class)->quote($store, $products, $requiresShipping,
+                bcsub($totals['grand_total'], $tender['total'] ?? '0.00', 2), $currency);
+            $depositChanged = isset($contact['expected_deposit']) && bccomp((string) $contact['expected_deposit'], $deposit['amount'] ?? '0.00', 2) !== 0;
+            // A confirmed total (or deposit) that no longer holds (e.g. a guest's used-up discount, which a quote
             // without their contact still showed) gets a fresh quote instead of an order.
-            if (isset($contact['expected_total']) && bccomp((string) $contact['expected_total'], $totals['grand_total'], 2) !== 0) {
+            if ((isset($contact['expected_total']) && bccomp((string) $contact['expected_total'], $totals['grand_total'], 2) !== 0) || $depositChanged) {
                 throw new CheckoutTotalChanged($items->map(fn ($item) => array_filter([
                     'product_id' => (int) $item->store_product_id,
                     'variant_id' => $item->variant_id === null ? null : (int) $item->variant_id,
@@ -202,6 +208,9 @@ class CheckoutService
                     'quantity_offer_version' => isset($item->quantity_offer['version']) ? (int) $item->quantity_offer['version'] : null,
                     'personalization' => $item->personalization ?: null,
                 ], fn ($value) => $value !== null))->values()->all(), $coupon?->code, $guest);
+            }
+            if ($deposit !== null && ! OrderDeposits::methodCanPay($paymentMethod)) {
+                throw ValidationException::withMessages(['payment_method' => __('This order needs a deposit paid now. Choose an online payment method or a transfer; the rest is paid on delivery.')]);
             }
             $adjustments->assertQuoted($store, $totals['payment_adjustment'], $contact['payment_adjustment_token'] ?? null);
             if ($requiresShipping) {
@@ -243,6 +252,8 @@ class CheckoutService
                 'gift_card_total' => $tender['total'] ?? '0.00',
                 'gift_card_details' => $tender === null ? null : (GiftCards::details($tender) ?: null),
                 'payment_adjustment' => $totals['payment_adjustment'],
+                'deposit_total' => $deposit['amount'] ?? null,
+                'deposit_details' => $deposit['details'] ?? null,
                 'notes' => $contact['notes'] ?? null,
                 'placed_at' => now(),
             ]);

@@ -473,5 +473,9 @@
     "Enter a valid e-mail address.": "أدخل بريدًا إلكترونيًا صالحًا.",
     "Enter a valid phone number, including the country code for a foreign number.": "أدخل رقم هاتف صالحًا مع كود الدولة للأرقام الأجنبية.",
     "Add an e-mail address or phone number before subscribing this customer to marketing.": "أضف بريدًا إلكترونيًا أو رقم هاتف قبل اشتراك هذا العميل في التسويق.",
-    "Your total was updated. Please review it and confirm your order.": "تم تحديث الإجمالي. يرجى مراجعته ثم تأكيد طلبك."
+    "Your total was updated. Please review it and confirm your order.": "تم تحديث الإجمالي. يرجى مراجعته ثم تأكيد طلبك.",
+    "This order needs a deposit paid now. Choose an online payment method or a transfer; the rest is paid on delivery.": "هذا الطلب يتطلب دفع عربون الآن. اختر طريقة دفع إلكترونية أو تحويلًا؛ ويُدفع الباقي عند الاستلام.",
+    "This order is confirmed once its deposit is paid.": "يُؤكَّد هذا الطلب بعد دفع العربون.",
+    "The payment method of this order can no longer change.": "لم يعد من الممكن تغيير طريقة دفع هذا الطلب.",
+    "Choose another available payment method.": "اختر طريقة دفع أخرى متاحة."
 }

@@ -73,8 +73,12 @@ class PaymentGatewayCatalog
         };
     }
 
-    public static function configured(string $slug, array $credentials): bool
+    /** Transfer with receipt also works with transfer targets alone (e.g. only an InstaPay / e-wallet number). */
+    public static function configured(string $slug, array $credentials, ?array $presentation = null): bool
     {
+        if ($slug === 'transfer_receipt' && BankTransferInstructions::targets($presentation) !== []) {
+            return true;
+        }
         foreach (self::required($slug) as $key) {
             if (! is_scalar($credentials[$key] ?? null) || trim((string) $credentials[$key]) === '') {
                 return false;
@@ -95,7 +99,7 @@ class PaymentGatewayCatalog
         }
 
         return (self::all()[$setting->gateway]['available'] ?? false)
-            && self::configured($setting->gateway, $setting->credentials ?? []);
+            && self::configured($setting->gateway, $setting->credentials ?? [], $setting->presentation ?? []);
     }
 
     public static function presentation(StorePaymentGateway $setting): array
@@ -117,6 +121,7 @@ class PaymentGatewayCatalog
         return ['name' => trim((string) ($presentation['name'] ?? '')) ?: $provider['name'],
             'description' => (string) ($presentation['description'] ?? $setting->notes ?? ''),
             'logo_url' => $logo, 'logo_asset_id' => $presentation['logo_asset_id'] ?? null,
-            'price_adjustment' => PaymentPriceAdjustment::configuration($presentation['price_adjustment'] ?? null)];
+            'price_adjustment' => PaymentPriceAdjustment::configuration($presentation['price_adjustment'] ?? null),
+            'transfer_targets' => in_array($setting->gateway, BankTransferInstructions::TARGET_METHODS, true) ? BankTransferInstructions::targets($presentation) : []];
     }
 }

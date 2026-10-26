@@ -157,6 +157,10 @@ class MerchantBulkPayments
         if (! in_array($row->payment_method, ['cod', 'bank_transfer', 'transfer_receipt'], true)) {
             return ['skipped', 'provider_controls'];
         }
+        // A deposit and its remainder are recorded one at a time from the order page.
+        if ($row->deposit_total !== null) {
+            return ['skipped', 'deposit_order'];
+        }
         if ($row->payment_status === 'paid' || collect($context['transactions'])->contains(fn ($t) => $t->status === 'paid' || $t->paid_at !== null)) {
             return ['skipped', 'settled_payment'];
         }

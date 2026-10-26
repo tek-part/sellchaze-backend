@@ -52,6 +52,10 @@ class StoreOrderService
     /** @return list<string> */
     public function nextStatuses(StoreOrder $order): array
     {
+        // "Not confirmed until the deposit is paid": the order can only wait or be cancelled.
+        if (OrderDeposits::blocksConfirmation($order)) {
+            return array_values(array_diff(self::TRANSITIONS[$order->status] ?? [], ['confirmed', 'processing', 'waiting_for_pickup', 'shipped', 'delivered']));
+        }
         if ($order->requiresShipping()) {
             return self::TRANSITIONS[$order->status] ?? [];
         }
@@ -89,6 +93,9 @@ class StoreOrderService
                 throw ValidationException::withMessages(['status' => 'This order can no longer be cancelled.']);
             }
             if (! $this->canTransition($order, $to)) {
+                if (OrderDeposits::blocksConfirmation($order) && in_array($to, self::TRANSITIONS[$order->status] ?? [], true)) {
+                    throw ValidationException::withMessages(['status' => __('This order is confirmed once its deposit is paid.')]);
+                }
                 throw ValidationException::withMessages(['status' => "Cannot transition order from {$order->status} to {$to}."]);
             }
             // Paid digital items are released at payment: a shopper cannot cancel them back.

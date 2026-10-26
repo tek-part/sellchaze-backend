@@ -11,6 +11,7 @@ use App\Http\Requests\Storefront\CheckoutRequest;
 use App\Http\Resources\Storefront\CartResource;
 use App\Http\Resources\Storefront\StoreOrderResource;
 use App\Models\Cart;
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
@@ -33,6 +34,7 @@ use App\Services\Commerce\DiscountEngine;
 use App\Services\Commerce\GiftCards;
 use App\Services\Commerce\HostedPaymentGateways;
 use App\Services\Commerce\HostedPaymentReconciliation;
+use App\Services\Commerce\OrderDeposits;
 use App\Services\Commerce\OrderLimits;
 use App\Services\Commerce\OrderReceipt;
 use App\Services\Commerce\PaymentGatewayCatalog;
@@ -235,6 +237,7 @@ class CheckoutController extends Controller
                         'notes' => ($validated['notes'] ?? null),
                         'payment_adjustment_token' => ($validated['payment_adjustment_token'] ?? null),
                         'expected_total' => isset($validated['expected_total']) ? (string) $validated['expected_total'] : null,
+                        'expected_deposit' => isset($validated['expected_deposit']) ? (string) $validated['expected_deposit'] : null,
                     ],
                     ($validated['shipping_address'] ?? null),
                     $payment->gateway,
@@ -385,20 +388,27 @@ class CheckoutController extends Controller
         $store = $this->currentStore($request);
         $data = $request->validate(['product_ids' => ['sometimes', 'array', 'max:100'], 'product_ids.*' => ['required', 'integer', 'min:1']]);
         $basket = isset($data['product_ids']) ? app(CheckoutBasket::class)->fromIds($store, $data['product_ids'], true) : app(CheckoutBasket::class)->forRequest($store, $request);
+        // A cart that needs a deposit is paid with a method that can collect it now; the rest is cash on delivery.
+        $deposits = app(OrderDeposits::class);
+        $products = isset($data['product_ids']) ? Product::query()->where('store_id', $store->id)->whereIn('id', $data['product_ids'])->get() : collect();
+        $deposit = $deposits->required($store, $products, $basket['requires_shipping']);
         $methods = StorePaymentGateway::query()
             ->where('store_id', $store->id)
             ->where('enabled', true)
             ->when(! $basket['requires_shipping'], fn ($query) => $query->where('gateway', '!=', 'cod'))
             ->orderBy('sort_order')
             ->get()
-            ->filter(fn (StorePaymentGateway $setting) => PaymentGatewayCatalog::offered($setting, $store->currency))
+            ->filter(fn (StorePaymentGateway $setting) => PaymentGatewayCatalog::offered($setting, $store->currency) && (! $deposit || OrderDeposits::methodCanPay($setting->gateway)))
             ->map(fn (StorePaymentGateway $setting) => [
                 'slug' => $setting->gateway,
                 ...PaymentGatewayCatalog::presentation($setting),
                 'test_mode' => $setting->gateway !== 'cod' && $setting->test_mode,
+                'deposit_capable' => OrderDeposits::methodCanPay($setting->gateway),
             ])->values();
+        $config = $deposits->configured($store);
 
-        return response()->json(['data' => $methods]);
+        return response()->json(['data' => $methods, 'deposit' => $deposit
+            ? ['percentage' => $config['percentage'], 'minimum' => $config['minimum'], 'confirm_after_payment' => $config['confirm_after_payment'], 'remainder_method' => 'cod'] : null]);
     }
 
     /** POST /storefront/checkout/coupon/apply — attach a coupon to the cart. */

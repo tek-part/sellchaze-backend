@@ -26,12 +26,21 @@ class PaymentSettlement
             // A delayed failure from another attempt cannot undo a settled order.
             if ($status === 'paid') {
                 $wasPaid = $order->payment_status === 'paid';
+                // A deposit order's method collects the deposit; the rest stays due on delivery.
+                if (app(OrderDeposits::class)->markPaid($order, $reference)) {
+                    if ($order->payment_status === 'paid') {
+                        app(DigitalDelivery::class)->record($order);
+                    }
+                    app(StoreNotificationSettings::class)->orderPaid($order);
+
+                    return;
+                }
                 $order->update(['payment_status' => 'paid', 'payment_reference' => $reference]);
                 if (! $wasPaid) {
                     app(DigitalDelivery::class)->record($order);
                     app(StoreNotificationSettings::class)->orderPaid($order);
                 }
-            } elseif ($order->payment_status !== 'paid') {
+            } elseif (! in_array($order->payment_status, ['paid', 'deposit_paid'], true)) {
                 $order->update(['payment_status' => 'failed']);
             }
         });

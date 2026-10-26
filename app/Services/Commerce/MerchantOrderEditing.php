@@ -27,6 +27,8 @@ class MerchantOrderEditing
             && in_array($order->payment_method, ['cod', 'bank_transfer'], true) && strtoupper($order->currency) === strtoupper($store->currency ?: 'USD')
             // Gift card redemptions are fixed amounts; repricing them needs a refund flow, not an edit.
             && bccomp((string) ($order->gift_card_total ?? '0'), '0', 2) === 0
+            // A deposit is a fixed share being paid; change the payment method first to reprice.
+            && $order->deposit_total === null
             && ! StorePaymentTransaction::where('store_id', $store->id)->where('store_order_id', $order->id)
                 ->where(fn ($query) => $query->whereNotIn('status', ['created', 'pending', 'failed'])->orWhereNotIn('gateway', ['cod', 'bank_transfer']))->exists()
             && ! $order->items()->where(fn ($query) => $query->whereIn('inventory_status', ['committed', 'released'])->orWhere('fulfilled_quantity', '>', 0))->exists();
