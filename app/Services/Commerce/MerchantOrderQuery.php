@@ -19,7 +19,7 @@ class MerchantOrderQuery
     {
         return $request->validate([
             'status' => ['nullable', Rule::in(StoreOrder::STATUSES)],
-            'payment_status' => ['nullable', 'in:pending,paid,failed'],
+            'payment_status' => ['nullable', Rule::in(StoreOrder::PAYMENT_STATUSES)],
             'classification' => ['nullable', Rule::in(['high_risk', 'moderate_risk', 'spam'])],
             'order_id' => ['nullable', 'integer', 'min:1'],
             'order_number' => ['nullable', 'string', 'max:200'],

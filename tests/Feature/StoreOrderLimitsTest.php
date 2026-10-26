@@ -76,7 +76,7 @@ class StoreOrderLimitsTest extends TestCase
     {
         $this->getJson($this->settings, $this->auth)->assertOk()->assertJsonPath('data.max_product_quantity', 0)->assertJsonPath('data.phone_country', 'EG');
         $config = $this->config(['max_product_quantity' => 3, 'max_orders_per_phone_24h' => 2, 'phone_country' => 'SA']);
-        $expected = $config + ['minimum_order_amount' => '0.00', 'version' => 2];
+        $expected = $config + ['minimum_order_amount' => '0.00', 'return_window_days' => 14, 'version' => 2];
         $this->putJson($this->settings, $config, $this->auth)->assertOk()->assertJsonPath('data', $expected);
         $this->getJson($this->settings, $this->auth)->assertOk()->assertJsonPath('data', $expected);
         foreach ([['max_product_quantity' => -1], ['max_orders_per_phone_24h' => 1.5], ['phone_country' => 'XX'], ['max_product_quantity' => 100001]] as $change) {

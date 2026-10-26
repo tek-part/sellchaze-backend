@@ -55,6 +55,7 @@ class MerchantOrderResource extends JsonResource
             'fulfillment' => $this->whenLoaded('items', fn () => $this->resource->fulfillment()),
             'next_statuses' => $this->whenLoaded('items', fn () => app(StoreOrderService::class)->nextStatuses($this->resource)),
             'grand_total' => $this->grand_total,
+            'refunded_total' => $this->refunded_total ?? '0.00',
             'payment_adjustment' => $this->payment_adjustment,
             'payment_adjustment_total' => $this->payment_adjustment['amount'] ?? '0.00',
             'manual_adjustment_total' => $this->manual_adjustment_total ?? '0.00',

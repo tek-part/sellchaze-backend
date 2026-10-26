@@ -11,7 +11,10 @@ use libphonenumber\PhoneNumberUtil;
 
 class OrderLimits
 {
-    /** @return array{max_product_quantity:int,max_orders_per_phone_24h:int,phone_country:string,minimum_order_amount:string,version:int} */
+    /** Days after delivery a customer may request a return; 0 turns storefront return requests off. */
+    public const DEFAULT_RETURN_WINDOW_DAYS = 14;
+
+    /** @return array{max_product_quantity:int,max_orders_per_phone_24h:int,phone_country:string,minimum_order_amount:string,return_window_days:int,version:int} */
     public function configured(Store $store): array
     {
         $config = $store->order_limits ?? [];
@@ -20,6 +23,7 @@ class OrderLimits
             'max_orders_per_phone_24h' => (int) ($config['max_orders_per_phone_24h'] ?? 0),
             'phone_country' => (string) ($config['phone_country'] ?? 'EG'),
             'minimum_order_amount' => bcadd((string) ($config['minimum_order_amount'] ?? '0'), '0', 2),
+            'return_window_days' => max(0, min(365, (int) ($config['return_window_days'] ?? self::DEFAULT_RETURN_WINDOW_DAYS))),
             'version' => max(1, (int) ($config['version'] ?? 1))];
     }
 

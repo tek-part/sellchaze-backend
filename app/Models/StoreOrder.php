@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property string $discount_total
  * @property string $tax_total
  * @property string $grand_total
+ * @property string $refunded_total
  * @property array{version:int,gateway:string,currency:string,rule:array,base_total:string,amount:string}|null $payment_adjustment
  * @property array{source:string,campaign:string}|null $marketing_attribution
  * @property array{code:string,product_id:int}|null $referral_attribution
@@ -35,13 +36,16 @@ class StoreOrder extends Model
     /** Physical return tracking; payment refunds and stock reconciliation are separate operations. */
     public const RETURN_STATUSES = ['returning_from_delivery', 'request_refund', 'refund_in_progress', 'refunded'];
 
+    /** Payment states. Refund states are only ever set by StoreOrderRefunds (recorded money, never a gateway call). */
+    public const PAYMENT_STATUSES = ['pending', 'paid', 'failed', 'partially_refunded', 'refunded'];
+
     protected $fillable = [
         'store_id', 'store_customer_id', 'order_number', 'status', 'currency',
         'customer_name', 'customer_email', 'customer_phone', 'shipping_address',
         'customer_phone_normalized',
         'payment_method', 'payment_status', 'payment_reference',
         'payment_adjustment',
-        'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'notes',
+        'subtotal', 'shipping_total', 'discount_total', 'tax_total', 'grand_total', 'refunded_total', 'notes',
         'placed_at', 'cancelled_at', 'analytics_session_hash', 'marketing_attribution', 'referral_attribution', 'coupon_code',
         'discount_details', 'manual_actor_id', 'manual_owner_id', 'manual_request_key', 'manual_request_hash', 'manual_adjustment_total', 'manual_tax_included',
     ];
@@ -59,6 +63,7 @@ class StoreOrder extends Model
         'discount_total' => 'decimal:2',
         'tax_total' => 'decimal:2',
         'grand_total' => 'decimal:2',
+        'refunded_total' => 'decimal:2',
         'manual_adjustment_total' => 'decimal:2',
         'manual_tax_included' => 'boolean',
         'checkout_bot_verified' => 'boolean',
@@ -132,6 +137,18 @@ class StoreOrder extends Model
 
         // Legacy/manual orders without proof have no recorded result, rather than a failed check.
         return $retained ? true : null;
+    }
+
+    /** @return HasMany<StoreOrderRefund, $this> */
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(StoreOrderRefund::class)->orderBy('id');
+    }
+
+    /** @return HasMany<StoreOrderReturn, $this> */
+    public function returns(): HasMany
+    {
+        return $this->hasMany(StoreOrderReturn::class)->orderBy('id');
     }
 
     /** @return BelongsTo<StoreCustomer, $this> */

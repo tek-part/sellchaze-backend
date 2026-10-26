@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\MerchantOrderActionsController;
 use App\Http\Controllers\Api\MerchantOrderController;
 use App\Http\Controllers\Api\MerchantOrderEditController;
 use App\Http\Controllers\Api\MerchantOrderPushController;
+use App\Http\Controllers\Api\MerchantOrderRefundController;
 use App\Http\Controllers\Api\MerchantPaymentProofController;
 use App\Http\Controllers\Api\MerchantReviewController;
 use App\Http\Controllers\Api\MerchantsApiController;
@@ -387,6 +388,7 @@ Route::prefix('v1')->group(function () {
             Route::get('orders', [StoreOrderController::class, 'index']);
             Route::get('orders/{number}', [StoreOrderController::class, 'show'])->where('number', '[A-Za-z0-9\-]+');
             Route::post('orders/{number}/cancel', [StoreOrderController::class, 'cancel'])->where('number', '[A-Za-z0-9\-]+');
+            Route::post('orders/{number}/returns', [StoreOrderController::class, 'requestReturn'])->where('number', '[A-Za-z0-9\-]+')->middleware('throttle:10,1');
 
             // ---- Phase 6: account password, wishlist, review authoring ----
             Route::put('account/password', [CustomerAuthController::class, 'changePassword']);
@@ -869,6 +871,10 @@ Route::prefix('v1')->group(function () {
                     Route::post('{order}/review', [MerchantOrderActionsController::class, 'review'])->whereNumber('order');
                     Route::post('{order}/block-phone', [MerchantOrderActionsController::class, 'blockPhone'])->whereNumber('order')->middleware('throttle:10,1');
                     Route::post('{order}/resend-webhook', [MerchantOrderActionsController::class, 'resendWebhook'])->whereNumber('order')->middleware('throttle:10,1');
+                    // Refunds are recorded for the merchant's books; no payment gateway is called.
+                    Route::get('{order}/refunds', [MerchantOrderRefundController::class, 'index'])->whereNumber('order');
+                    Route::post('{order}/refunds', [MerchantOrderRefundController::class, 'store'])->whereNumber('order')->middleware('throttle:30,1');
+                    Route::get('{order}/returns', [MerchantOrderRefundController::class, 'orderReturns'])->whereNumber('order');
                 });
                 Route::middleware('permission:store.orders.manage')->prefix('exports')->group(function () {
                     Route::get('/', [StoreOrderExportController::class, 'index']);
@@ -894,6 +900,11 @@ Route::prefix('v1')->group(function () {
                 Route::post('{order}/shipment', [StoreShipmentController::class, 'create'])->whereNumber('order')->middleware('throttle:20,1');
                 Route::post('{order}/shipment/sync', [StoreShipmentController::class, 'sync'])->whereNumber('order')->middleware('throttle:30,1');
                 Route::post('{order}/shipment/label', [StoreShipmentController::class, 'label'])->whereNumber('order')->middleware('throttle:20,1');
+            });
+
+            Route::middleware('permission:store.orders.manage')->prefix('returns')->group(function () {
+                Route::get('/', [MerchantOrderRefundController::class, 'returnsIndex']);
+                Route::patch('{return}', [MerchantOrderRefundController::class, 'updateReturn'])->whereNumber('return')->middleware('throttle:30,1');
             });
 
             // ---- Reviews (Phase 6H) ----
