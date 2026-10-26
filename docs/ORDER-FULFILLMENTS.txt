@@ -37,10 +37,20 @@ ship = quantity - fulfilled - released (zero once a line is committed/released).
  - Cancelling a fulfillment (only while the order is shipped, not delivered,
    and only when no line was refunded) puts stock back and holds it again
    (movement "fulfillment_cancelled", +units/+units).
- - A refund takes units that have not shipped first: their hold is released
-   (movement "refund_released") and they can no longer be fulfilled. Remaining
-   refunded units come from shipped units and are restocked on request, never
-   more than the units that left the shelf minus earlier restocks.
+ - A refund line says which units it is about (items.*.units = shipped |
+   unshipped). Unshipped units have their hold released (movement
+   "refund_released") and can no longer be fulfilled; shipped units (at most
+   the shipped units not refunded yet) are restocked on request, never more
+   than left the shelf minus earlier restocks. Whatever the chosen kind cannot
+   cover comes from the other. Default: shipped for refunds closing a return
+   request, otherwise unshipped first. The refunds summary exposes
+   shipped_refundable_quantity / unshipped_refundable_quantity per line and
+   restockable only when shipped units remain; refund rows record units,
+   returned_quantity, released_quantity and restocked_quantity.
+ - Catalog rows are always locked in product/variant order (fulfil, settle,
+   refund).
+ - Cancelling a parcel whose catalog row stopped tracking stock puts the units
+   back on the shelf without a new hold; the line becomes untracked.
  - Order cancel / returning_from_delivery / refunded release every unit still
    waiting. Mixed orders hand digital lines over when the order first ships.
 
@@ -51,9 +61,16 @@ and every non-cancelled fulfillment is delivered, the order becomes delivered.
 Cancelling the last active fulfillment returns the order to the status it had
 before shipping. The legacy status actions still work: "shipped" (single or
 bulk) fulfils everything still waiting in one fulfillment without tracking,
-linked to the order's Bosta shipment when one exists; "delivered" also fulfils
-anything left and marks open fulfillments delivered. Bosta tracking numbers
-that arrive later are copied onto the linked fulfillment.
+linked to the order's Bosta shipment when one exists. Marking a partially
+fulfilled order "delivered" by hand requires fulfil_remaining=true (the
+dashboard asks for confirmation) and bulk status skips such orders; Bosta's
+delivered state does it automatically. That leftover parcel never sends a
+shipping confirmation, and open fulfillments are marked delivered. Refunding
+the unshipped rest (or cancelling a parcel) re-runs the completion check, so
+an order whose parcels all arrived becomes delivered. Bosta tracking numbers
+that arrive later update the linked fulfillment like a tracking edit (version,
+webhook, customer notification when enabled). Leftover parcels are announced
+after the status change, so webhooks carry the new order status.
 
 Notifications. Shipping confirmations are sent per fulfillment with that
 parcel's carrier, tracking number/URL and items, only when notify_customer is
@@ -73,6 +90,15 @@ Storefront. GET /storefront/orders/{number} adds fulfillment_status and
 fulfillments (non-cancelled; carrier name, tracking number/URL, status, items,
 shipped/delivered times). Internal notes, actors and settings are not exposed.
 
-Migration 2026_10_28_000001 backfills orders already shipped (fulfilled lines,
-fulfillment_status = fulfilled) and released lines of cancelled orders. No
-fulfillment rows are created for history.
+Migrations. 2026_10_28_000001 is schema only and re-runnable (every step checks
+what exists, since MySQL DDL auto-commits). Its down() refuses to run while any
+line is partly shipped or partly released, because the previous code would
+settle those units twice: treat it as forward-only once partial shipments
+exist. 2026_10_28_000003 backfills history through
+App\Support\Commerce\FulfillmentBackfill: it walks store_orders by id in
+chunks of 500 (archived orders included) and updates lines by store_order_id,
+writing only counters that are still zero and skipping orders that already
+have fulfillment rows, so it is safe to retry. Shipped-or-later orders get
+fulfilled physical lines and fulfillment_status = fulfilled; cancelled orders
+and released lines get released counters. No fulfillment rows are created for
+history.

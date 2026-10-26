@@ -101,11 +101,10 @@ class StoreOrderService
             $shipping = $order->requiresShipping();
             $digitalCompletion = $to === 'delivered' && ! $shipping;
             $fulfillments = app(StoreFulfillments::class);
+            $leftover = null;
             if ($shipping && ! $viaFulfillment && in_array($to, ['shipped', 'delivered'], true)) {
-                $fulfillments->fulfilRemaining($order, $actorId, $source, $notifyCustomer);
-                if ($to === 'delivered') {
-                    $fulfillments->markAllDelivered($order);
-                }
+                // A parcel fulfilled while marking the order delivered never sends a late shipping confirmation.
+                $leftover = $fulfillments->fulfilRemaining($order, $actorId, $source, $notifyCustomer && $to === 'shipped');
             }
             if ($to === 'shipped' && $shipping) {
                 // Physical lines shipped through fulfillments; digital lines of a mixed order are handed over now.
@@ -133,6 +132,13 @@ class StoreOrderService
                 }
             }
             $fulfillments->recompute($order);
+            // Announced after the status change so webhook payloads carry the new order status.
+            if ($leftover !== null) {
+                $fulfillments->announce($order, $leftover, 'created');
+            }
+            if ($to === 'delivered' && $shipping && ! $viaFulfillment) {
+                $fulfillments->markAllDelivered($order);
+            }
 
             $change = $order->statusChanges()->create([
                 'from_status' => $from,

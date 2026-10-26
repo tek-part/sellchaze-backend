@@ -27,7 +27,8 @@ use Illuminate\Validation\ValidationException;
  * returned. Cancellation before fulfilment restores cards in StoreOrderService; both read the card
  * ledger, so the same amount can never go back twice.
  *
- * @phpstan-type RefundLine array{item: StoreOrderItem, allocated: string, refunded_quantity: int, refundable_quantity: int, refunded_amount: string, remaining_amount: string}
+ * @phpstan-type RefundLine array{item: StoreOrderItem, allocated: string, refunded_quantity: int, refundable_quantity: int, refunded_amount: string, remaining_amount: string,
+ *     shipped_refundable: int, unshipped_refundable: int, restocked_quantity: int}
  */
 class StoreOrderRefunds
 {
@@ -36,6 +37,9 @@ class StoreOrderRefunds
 
     /** Cash on delivery is in the merchant's hands once the courier delivered the order. */
     private const COD_COLLECTED_STATUSES = ['delivered', 'request_refund', 'refund_in_progress'];
+
+    /** Which units of a line a refund takes first: shipped ones (returned by the customer) or not-yet-shipped ones. */
+    public const UNITS = ['shipped', 'unshipped'];
 
     public function __construct(private readonly StoreOrderService $orders) {}
 
@@ -86,9 +90,12 @@ class StoreOrderRefunds
                 'allocated_amount' => $this->money($line['allocated']),
                 'refunded_amount' => $this->money($line['refunded_amount']),
                 'refundable_amount' => $this->money($line['remaining_amount']),
-                'restockable' => StoreInventory::shippedUnits($line['item']) > 0 && in_array($line['item']->inventory_status, ['reserved', 'committed'], true) && $line['item']->digital_delivery === null,
+                // Only shipped units can go back on the shelf; refunding unshipped units releases their hold instead.
+                'restockable' => $line['shipped_refundable'] > 0 && in_array($line['item']->inventory_status, ['reserved', 'committed'], true) && $line['item']->digital_delivery === null,
                 'fulfilled_quantity' => StoreInventory::shippedUnits($line['item']),
                 'unfulfilled_quantity' => StoreInventory::unfulfilled($line['item']),
+                'shipped_refundable_quantity' => $line['shipped_refundable'],
+                'unshipped_refundable_quantity' => $line['unshipped_refundable'],
                 'digital' => $line['item']->digital_delivery !== null,
             ])->values()->all(),
             'refunds' => $state['refunds']->map(fn (StoreOrderRefund $refund) => $this->present($refund, $state['lines']))->values()->all(),
@@ -99,7 +106,7 @@ class StoreOrderRefunds
      * Record a refund. Runs in one transaction with the order row locked, so two submissions can
      * never refund the same units or the same money twice.
      *
-     * @param  array{items?: array<int, array{store_order_item_id:int|string, quantity:int|string}>, shipping_amount?: string|int|float|null,
+     * @param  array{items?: array<int, array{store_order_item_id:int|string, quantity:int|string, units?: string}>, shipping_amount?: string|int|float|null,
      *     amount?: string|int|float|null, reason?: string|null, note?: string|null, method: string, restock?: bool, expected_refunded_total?: string|int|float|null}  $data
      */
     public function create(StoreOrder $order, array $data, ?int $actorId = null, ?string $source = 'refund'): StoreOrderRefund
@@ -121,9 +128,13 @@ class StoreOrderRefunds
             }
 
             $requested = [];
+            $units = [];
+            // A refund for a return is about units the customer sent back; otherwise unshipped units go first.
+            $defaultUnits = $source === 'return_refund' ? 'shipped' : 'unshipped';
             foreach ($data['items'] ?? [] as $row) {
                 $id = (int) $row['store_order_item_id'];
                 $requested[$id] = ($requested[$id] ?? 0) + (int) $row['quantity'];
+                $units[$id] = in_array($row['units'] ?? null, self::UNITS, true) ? $row['units'] : ($units[$id] ?? $defaultUnits);
             }
             $lines = $state['lines']->keyBy(fn (array $line) => $line['item']->id);
             $records = [];
@@ -138,7 +149,7 @@ class StoreOrderRefunds
                 }
                 $cents = $state['valued'] ? $this->lineAmount($line, $quantity) : '0';
                 $itemsCents = bcadd($itemsCents, $cents, 0);
-                $records[] = ['line' => $line, 'quantity' => $quantity, 'cents' => $cents];
+                $records[] = ['line' => $line, 'quantity' => $quantity, 'cents' => $cents, 'units' => $units[$id]];
             }
             $shipping = $this->cents($data['shipping_amount'] ?? '0');
             $shippingLimit = $state['valued'] ? $state['shipping_remaining'] : '0';
@@ -158,20 +169,21 @@ class StoreOrderRefunds
             $restock = (bool) ($data['restock'] ?? false);
             $restocked = 0;
             $items = [];
-            $alreadyRestocked = [];
-            foreach ($state['refunds'] as $previous) {
-                foreach ($previous->items ?? [] as $row) {
-                    $alreadyRestocked[(int) $row['store_order_item_id']] = ($alreadyRestocked[(int) $row['store_order_item_id']] ?? 0) + (int) ($row['restocked_quantity'] ?? 0);
-                }
+            // Catalog rows are locked in product/variant order, like fulfilment and settlement.
+            $ordered = collect($records)->sortBy(fn (array $record) => [(int) $record['line']['item']->store_product_id, (int) $record['line']['item']->variant_id, $record['line']['item']->id]);
+            $effects = [];
+            foreach ($ordered as $record) {
+                $line = $record['line'];
+                /** @var StoreOrderItem $item */
+                $item = $line['item'];
+                $effects[$item->id] = app(StoreInventory::class)->refundUnits($item, $record['quantity'], $record['units'], $restock,
+                    $line['shipped_refundable'], StoreInventory::shippedUnits($item) - $line['restocked_quantity'], $actorId, 'Refund on order '.$order->order_number);
             }
             foreach ($records as $record) {
-                /** @var StoreOrderItem $item */
-                $item = $record['line']['item'];
-                // Units that never shipped are released first; shipped units are restocked only up to what left the shelf.
-                $restockable = StoreInventory::shippedUnits($item) - ($alreadyRestocked[$item->id] ?? 0);
-                $units = app(StoreInventory::class)->refundUnits($item, $record['quantity'], $restock, $restockable, $actorId, 'Refund on order '.$order->order_number);
-                $restocked += $units;
-                $items[] = ['store_order_item_id' => $item->id, 'quantity' => $record['quantity'], 'amount' => $this->money($record['cents']), 'restocked_quantity' => $units];
+                $effect = $effects[$record['line']['item']->id];
+                $restocked += $effect['restocked'];
+                $items[] = ['store_order_item_id' => $record['line']['item']->id, 'quantity' => $record['quantity'], 'amount' => $this->money($record['cents']),
+                    'units' => $record['units'], 'returned_quantity' => $effect['returned'], 'released_quantity' => $effect['released'], 'restocked_quantity' => $effect['restocked']];
             }
 
             [$card, $money] = $this->split($state, $amount);
@@ -212,7 +224,12 @@ class StoreOrderRefunds
                     app(StoreNotificationSettings::class)->schedule($order, 'order_refunded');
                 }
             }
-            app(StoreFulfillments::class)->recompute($order);
+            $fulfillments = app(StoreFulfillments::class);
+            $fulfillments->recompute($order);
+            // Refunding the units that never shipped can complete an order whose parcels all arrived.
+            if ($order->status === 'shipped') {
+                $fulfillments->deliverOrderWhenComplete($order, $actorId);
+            }
             DB::afterCommit(fn () => StoreAnalyticsService::forget($order->store_id));
 
             return $refund;
@@ -261,6 +278,8 @@ class StoreOrderRefunds
 
         $refundedQuantities = [];
         $refundedAmounts = [];
+        $returnedQuantities = [];
+        $restockedQuantities = [];
         $refunded = '0';
         $moneyRefunded = '0';
         $shippingRefunded = '0';
@@ -272,17 +291,25 @@ class StoreOrderRefunds
                 $id = (int) $row['store_order_item_id'];
                 $refundedQuantities[$id] = ($refundedQuantities[$id] ?? 0) + (int) $row['quantity'];
                 $refundedAmounts[$id] = bcadd($refundedAmounts[$id] ?? '0', $this->cents($row['amount'] ?? '0'), 0);
+                // Refunds recorded before fulfillments existed came out of shipped units.
+                $returnedQuantities[$id] = ($returnedQuantities[$id] ?? 0) + (int) ($row['returned_quantity'] ?? (array_key_exists('released_quantity', $row) ? 0 : $row['quantity']));
+                $restockedQuantities[$id] = ($restockedQuantities[$id] ?? 0) + (int) ($row['restocked_quantity'] ?? 0);
             }
         }
 
-        $lines = $items->map(function (StoreOrderItem $item) use ($allocations, $refundedQuantities, $refundedAmounts) {
+        $lines = $items->map(function (StoreOrderItem $item) use ($allocations, $refundedQuantities, $refundedAmounts, $returnedQuantities, $restockedQuantities) {
             $refundedQuantity = $refundedQuantities[$item->id] ?? 0;
             $refundedAmount = $refundedAmounts[$item->id] ?? '0';
             $remaining = bcsub($allocations[$item->id], $refundedAmount, 0);
+            $refundable = max(0, $item->quantity - $refundedQuantity);
 
             return ['item' => $item, 'allocated' => $allocations[$item->id], 'refunded_quantity' => $refundedQuantity,
-                'refundable_quantity' => max(0, $item->quantity - $refundedQuantity), 'refunded_amount' => $refundedAmount,
-                'remaining_amount' => $this->positive($remaining)];
+                'refundable_quantity' => $refundable, 'refunded_amount' => $refundedAmount,
+                'remaining_amount' => $this->positive($remaining),
+                // Shipped units not refunded yet, and units still waiting to ship (their hold is released when refunded).
+                'shipped_refundable' => min($refundable, max(0, StoreInventory::shippedUnits($item) - ($returnedQuantities[$item->id] ?? 0))),
+                'unshipped_refundable' => min($refundable, StoreInventory::unfulfilled($item)),
+                'restocked_quantity' => $restockedQuantities[$item->id] ?? 0];
         })->values();
 
         $collected = self::paymentCollected($order);
@@ -363,7 +390,8 @@ class StoreOrderRefunds
             'note' => $refund->note, 'method' => $refund->method, 'restocked' => $refund->restocked,
             'items' => collect($refund->items ?? [])->map(fn (array $row) => ['store_order_item_id' => (int) $row['store_order_item_id'],
                 'name' => $names[(int) $row['store_order_item_id']] ?? null, 'quantity' => (int) $row['quantity'], 'amount' => $row['amount'] ?? '0.00',
-                'restocked_quantity' => (int) ($row['restocked_quantity'] ?? 0)])->values()->all(),
+                'restocked_quantity' => (int) ($row['restocked_quantity'] ?? 0), 'units' => $row['units'] ?? 'shipped',
+                'returned_quantity' => (int) ($row['returned_quantity'] ?? $row['quantity']), 'released_quantity' => (int) ($row['released_quantity'] ?? 0)])->values()->all(),
             'actor' => $refund->relationLoaded('actor') ? $refund->actor?->name : null, 'created_at' => $refund->created_at];
     }
 

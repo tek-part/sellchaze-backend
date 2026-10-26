@@ -6,6 +6,7 @@ use App\Mail\StoreNotificationMail;
 use App\Models\OutboxMessage;
 use App\Models\Product;
 use App\Models\Store;
+use App\Models\StoreCarrierConnection;
 use App\Models\StoreCustomer;
 use App\Models\StoreDomain;
 use App\Models\StoreInventoryMovement;
@@ -14,11 +15,13 @@ use App\Models\StoreOrderFulfillment;
 use App\Models\StoreOrderItem;
 use App\Models\StoreOrderWebhook;
 use App\Models\StoreOrderWebhookDelivery;
+use App\Models\StoreShipment;
 use App\Models\User;
 use App\Services\Commerce\StoreInventory;
 use App\Services\Commerce\StoreOrderService;
 use App\Services\JwtTokenService;
 use App\Services\Notifications\StoreNotificationSettings;
+use App\Services\Shipping\StoreShipmentEvents;
 use App\Support\Tenancy\CurrentStore;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
@@ -247,9 +250,19 @@ class StoreFulfillmentsTest extends TestCase
         $this->assertSame('fulfilled', $b->fresh()->fulfillment_status);
         $this->assertSame('partial', $a->fresh()->fulfillment_status, 'An order that already shipped keeps its own fulfillments.');
 
-        // Marking a partially shipped order delivered ships the rest.
-        $this->patchJson('/api/v1/stores/'.$this->store->id.'/orders/'.$a->id.'/status', ['status' => 'delivered'])->assertOk()
+        // Marking a partially shipped order delivered ships the rest only with an explicit confirmation, and never in bulk.
+        $this->postJson('/api/v1/stores/'.$this->store->id.'/orders/bulk-status', ['status' => 'delivered', 'eligible_only' => true,
+            'orders' => [['id' => $a->id, 'status' => 'shipped']]])->assertOk()->assertJsonPath('skipped', 1)->assertJsonPath('updated', 0);
+        $this->postJson('/api/v1/stores/'.$this->store->id.'/orders/bulk-status', ['status' => 'delivered',
+            'orders' => [['id' => $a->id, 'status' => 'shipped']]])->assertUnprocessable();
+        $this->patchJson('/api/v1/stores/'.$this->store->id.'/orders/'.$a->id.'/status', ['status' => 'delivered'])->assertUnprocessable()
+            ->assertJsonValidationErrors('fulfil_remaining');
+        $this->assertSame('shipped', $a->fresh()->status);
+        $emails = $this->shippingEmails($a)->count();
+        $this->patchJson('/api/v1/stores/'.$this->store->id.'/orders/'.$a->id.'/status', ['status' => 'delivered', 'fulfil_remaining' => true])->assertOk()
             ->assertJsonPath('data.fulfillment_status', 'fulfilled');
+        $this->assertSame($emails, $this->shippingEmails($a)->count(), 'No shipping confirmation at delivery time.');
+        $this->assertFalse(StoreOrderFulfillment::query()->where('store_order_id', $a->id)->orderByDesc('id')->firstOrFail()->notify_customer);
         $this->assertSame([8, 0], $this->stock($aProduct));
         $this->assertSame(['delivered', 'delivered'], StoreOrderFulfillment::query()->where('store_order_id', $a->id)->orderBy('id')->pluck('status')->all());
     }
@@ -390,5 +403,93 @@ class StoreFulfillmentsTest extends TestCase
         $this->assertSame(1, StoreOrderFulfillment::query()->withoutGlobalScopes()->count());
         $this->assertSame('in_transit', StoreOrderFulfillment::query()->withoutGlobalScopes()->findOrFail($id)->status);
         $this->assertSame(1, StoreOrderItem::query()->withoutGlobalScopes()->findOrFail($shirt->id)->fulfilled_quantity);
+    }
+
+    public function test_carrier_delivery_of_a_partial_order_ships_the_rest_silently(): void
+    {
+        [$order, $shirt] = $this->order();
+        $this->fulfil($order, [[$shirt, 1]], ['tracking_number' => 'AR1'])->assertCreated();
+        $this->assertCount(1, $this->shippingEmails($order));
+        app(StoreOrderService::class)->transition($order->refresh(), 'delivered', null, 'Bosta: Delivered', 'carrier');
+        $this->assertSame('fulfilled', $order->fresh()->fulfillment_status);
+        $this->assertCount(1, $this->shippingEmails($order), 'The leftover parcel is not announced at delivery time.');
+        $this->assertSame(['delivered', 'delivered'], StoreOrderFulfillment::query()->where('store_order_id', $order->id)->orderBy('id')->pluck('status')->all());
+    }
+
+    public function test_refund_can_take_shipped_units_and_the_summary_shows_each_bucket(): void
+    {
+        [$order, $shirt, , $shirtProduct] = $this->order();
+        $this->fulfil($order, [[$shirt, 1]])->assertCreated();
+        $refunds = '/api/v1/stores/'.$this->store->id.'/orders/'.$order->id.'/refunds';
+        $this->getJson($refunds)->assertOk()->assertJsonPath('data.items.0.shipped_refundable_quantity', 1)
+            ->assertJsonPath('data.items.0.unshipped_refundable_quantity', 1)->assertJsonPath('data.items.0.restockable', true)
+            ->assertJsonPath('data.items.1.shipped_refundable_quantity', 0)->assertJsonPath('data.items.1.restockable', false);
+
+        // The customer returned the shipped shirt: it goes back on the shelf, the other one still ships.
+        $this->postJson($refunds, ['items' => [['store_order_item_id' => $shirt->id, 'quantity' => 1, 'units' => 'shipped']], 'reason' => 'returned', 'method' => 'cash', 'restock' => true])
+            ->assertCreated()->assertJsonPath('data.refunds.0.items.0.returned_quantity', 1)->assertJsonPath('data.refunds.0.items.0.released_quantity', 0)
+            ->assertJsonPath('data.refunds.0.items.0.restocked_quantity', 1)->assertJsonPath('data.refunds.0.items.0.units', 'shipped')
+            ->assertJsonPath('data.items.0.shipped_refundable_quantity', 0)->assertJsonPath('data.items.0.unshipped_refundable_quantity', 1);
+        $this->assertSame([10, 1], $this->stock($shirtProduct));
+        $this->getJson($this->url($order))->assertOk()->assertJsonPath('data.items.0.unfulfilled_quantity', 1);
+        $this->postJson($refunds, ['items' => [['store_order_item_id' => $shirt->id, 'quantity' => 1, 'units' => 'sideways']], 'reason' => 'other', 'method' => 'cash'])
+            ->assertUnprocessable()->assertJsonValidationErrors('items.0.units');
+
+        // Without a choice the remaining unit is the unshipped one: its hold is released.
+        $this->postJson($refunds, ['items' => [['store_order_item_id' => $shirt->id, 'quantity' => 1]], 'reason' => 'other', 'method' => 'cash', 'restock' => true])
+            ->assertCreated()->assertJsonPath('data.refunds.1.items.0.released_quantity', 1)->assertJsonPath('data.refunds.1.items.0.restocked_quantity', 0);
+        $this->assertSame([10, 0], $this->stock($shirtProduct));
+    }
+
+    public function test_refunding_the_unshipped_rest_delivers_an_order_whose_parcels_arrived(): void
+    {
+        [$order, $shirt, $cap] = $this->order();
+        $id = $this->fulfil($order, [[$shirt, 2]])->assertCreated()->json('data.fulfillments.0.id');
+        $this->patchJson($this->fulfillmentUrl($id), ['status' => 'delivered'])->assertOk()->assertJsonPath('data.order_status', 'shipped');
+        $this->postJson('/api/v1/stores/'.$this->store->id.'/orders/'.$order->id.'/refunds', ['items' => [['store_order_item_id' => $cap->id, 'quantity' => 1]], 'reason' => 'other', 'method' => 'cash'])
+            ->assertCreated()->assertJsonPath('data.order_status', 'delivered');
+        $this->assertSame('fulfilled', $order->fresh()->fulfillment_status);
+        $this->assertDatabaseHas('store_order_status_changes', ['store_order_id' => $order->id, 'from_status' => 'shipped', 'to_status' => 'delivered', 'source' => 'fulfillment']);
+        $this->assertSame(1, OutboxMessage::query()->where('aggregate_id', (string) $order->id)->where('payload->event', 'order_delivered')->where('event_type', 'StoreNotificationEmail')->count());
+    }
+
+    public function test_cancelling_a_parcel_puts_stock_back_even_when_tracking_was_turned_off(): void
+    {
+        [$order, $shirt, , $shirtProduct] = $this->order();
+        $id = $this->fulfil($order, [[$shirt, 2]])->assertCreated()->json('data.fulfillments.0.id');
+        $this->assertSame([8, 0], $this->stock($shirtProduct));
+        $shirtProduct->forceFill(['track_inventory' => false])->save();
+        $this->postJson($this->fulfillmentUrl($id, '/cancel'))->assertOk()->assertJsonPath('data.items.0.unfulfilled_quantity', 2);
+        $this->assertSame([10, 0], $this->stock($shirtProduct), 'Units return to the shelf without a new hold on an untracked row.');
+        $this->assertNull($shirt->fresh()->inventory_status);
+        $movement = StoreInventoryMovement::query()->where('store_order_item_id', $shirt->id)->where('reason', 'fulfillment_cancelled')->sole();
+        $this->assertSame([2, 0], [(int) $movement->stock_delta, (int) $movement->reserved_delta]);
+        // Untracked now: fulfilling again only moves the counters.
+        $this->fulfil($order, [[$shirt, 2]])->assertCreated();
+        $this->assertSame([10, 0], $this->stock($shirtProduct));
+    }
+
+    public function test_late_bosta_tracking_updates_the_linked_parcel_like_an_edit(): void
+    {
+        StoreOrderWebhook::create(['store_id' => $this->store->id, 'user_id' => $this->owner->id, 'url' => 'https://hooks.example.test/fulfil',
+            'event_type' => 'order-fulfillment', 'secret' => 'fixture-secret', 'enabled' => true, 'version' => 1, 'request_key' => (string) Str::uuid()]);
+        [$order] = $this->order();
+        $connection = StoreCarrierConnection::create(['store_id' => $this->store->id, 'carrier' => 'bosta', 'api_key' => 'synthetic-secret', 'enabled' => true, 'pickup_location_id' => 'pickup-1', 'verified_at' => now()]);
+        $shipment = StoreShipment::create(['store_id' => $this->store->id, 'store_order_id' => $order->id, 'store_carrier_connection_id' => $connection->id,
+            'carrier' => 'bosta', 'status' => 'submitting', 'business_reference' => 'sc-'.Str::uuid(), 'request_snapshot' => ['synthetic' => true], 'carrier_revision' => 0]);
+        $this->patchJson('/api/v1/stores/'.$this->store->id.'/orders/'.$order->id.'/status', ['status' => 'shipped'])->assertOk();
+        $fulfillment = StoreOrderFulfillment::query()->where('store_order_id', $order->id)->sole();
+        $this->assertSame([$shipment->id, 'bosta', null], [$fulfillment->store_shipment_id, $fulfillment->carrier, $fulfillment->tracking_number]);
+        $payload = StoreOrderWebhookDelivery::query()->where('event_key', "fulfillment:{$fulfillment->id}:v1")->sole()->payload;
+        $this->assertSame('shipped', $payload['order_status'], 'The leftover parcel is announced with the new order status.');
+        $this->assertCount(1, $this->shippingEmails($order));
+
+        app(StoreShipmentEvents::class)->apply($shipment, 'bosta-external-1', '445566', 30, now()->getTimestampMs(), 'webhook');
+        $fulfillment->refresh();
+        $this->assertSame(['445566', 2], [$fulfillment->tracking_number, $fulfillment->version]);
+        $this->assertSame('updated', StoreOrderWebhookDelivery::query()->where('event_key', "fulfillment:{$fulfillment->id}:v2")->sole()->payload['action']);
+        $emails = $this->shippingEmails($order);
+        $this->assertCount(2, $emails);
+        $this->assertSame('445566', $emails[1]->payload['tracking_number']);
     }
 }

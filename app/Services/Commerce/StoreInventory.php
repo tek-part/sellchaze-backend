@@ -171,7 +171,8 @@ class StoreInventory
 
     /**
      * Undo a fulfillment's units on a line: stock goes back on the shelf and is held for the order again.
-     * Lines whose catalog row stopped tracking stock simply become untracked.
+     * When the catalog row stopped tracking stock the units still go back on the shelf, but nothing is
+     * held (an untracked row keeps no reservations) and the line becomes untracked.
      */
     public function uncommitPartial(StoreOrderItem $item, int $quantity, ?int $actorId = null, ?string $note = null): void
     {
@@ -187,8 +188,14 @@ class StoreInventory
                 $this->record($stock, 'fulfillment_cancelled', $quantity, $quantity, $item->id, $actorId, $note);
                 $this->flushAfterCommit($item->store_id);
                 $item->inventory_status = 'reserved';
+            } elseif ($stock !== null) {
+                $stock->stock_quantity += $quantity;
+                $stock->save();
+                $this->record($stock, 'fulfillment_cancelled', $quantity, 0, $item->id, $actorId, $note);
+                $this->flushAfterCommit($item->store_id);
+                $item->inventory_status = null;
             } else {
-                $item->inventory_status = $stock === null ? 'reserved' : null;
+                $item->inventory_status = 'reserved';
             }
         }
         $item->fulfilled_quantity = (int) $item->fulfilled_quantity - $quantity;
@@ -196,13 +203,27 @@ class StoreInventory
     }
 
     /**
-     * Refunded units come out of the units that have not shipped yet (their hold is released, they will
-     * never ship), then out of shipped units, which go back on the shelf on request but never more than
-     * `$restockable`. Returns the units restocked. The caller holds the order lock.
+     * Inventory side of refunding `$quantity` units of a line. `$units` picks which units the refund is
+     * about first: `unshipped` releases the hold on units still waiting to ship (they will never ship),
+     * `shipped` takes units that left the shelf (at most `$returnable`, the shipped units not refunded
+     * yet), which go back on the shelf when `$restock` asks for it, never more than `$restockable`.
+     * Whatever the first choice cannot cover comes from the other; units an order end already released
+     * have no inventory effect. The caller holds the order lock.
+     *
+     * @param  'shipped'|'unshipped'  $units
+     * @return array{released:int, returned:int, restocked:int}
      */
-    public function refundUnits(StoreOrderItem $item, int $quantity, bool $restock, int $restockable, ?int $actorId = null, ?string $note = null): int
+    public function refundUnits(StoreOrderItem $item, int $quantity, string $units, bool $restock, int $returnable, int $restockable, ?int $actorId = null, ?string $note = null): array
     {
-        $release = min($quantity, self::unfulfilled($item));
+        $waiting = self::unfulfilled($item);
+        $returnable = max(0, $returnable);
+        if ($units === 'shipped') {
+            $returned = min($quantity, $returnable);
+            $release = min($quantity - $returned, $waiting);
+        } else {
+            $release = min($quantity, $waiting);
+            $returned = min($quantity - $release, $returnable);
+        }
         if ($release > 0) {
             if ($item->inventory_status === 'reserved' && ($stock = $this->lockedStock($item)) !== null) {
                 if ($stock->reserved_quantity < $release) {
@@ -219,9 +240,9 @@ class StoreInventory
             }
             $item->save();
         }
-        $returned = $quantity - $release;
+        $restocked = $restock && $returned > 0 ? $this->restock($item, min($returned, max(0, $restockable)), $actorId, $note) : 0;
 
-        return $restock && $returned > 0 ? $this->restock($item, min($returned, max(0, $restockable)), $actorId, $note) : 0;
+        return ['released' => $release, 'returned' => $returned, 'restocked' => $restocked];
     }
 
     /** Lock product then variant (the order every settlement path uses); null when the catalog row is gone. */
@@ -243,7 +264,9 @@ class StoreInventory
      */
     public function restock(StoreOrderItem $item, int $quantity, ?int $actorId = null, ?string $note = null): int
     {
-        if ($quantity < 1 || $item->inventory_status !== 'committed' || $item->digital_delivery !== null || $item->store_product_id === null) {
+        // A partly shipped line is still `reserved` for its unshipped units; its shipped units can come back.
+        if ($quantity < 1 || ! in_array($item->inventory_status, ['committed', 'reserved'], true) || self::shippedUnits($item) < 1
+            || $item->digital_delivery !== null || $item->store_product_id === null) {
             return 0;
         }
         $product = Product::query()->where('store_id', $item->store_id)->whereKey($item->store_product_id)->lockForUpdate()->first();

@@ -116,7 +116,7 @@ class StoreFulfillments
     /**
      * The legacy "mark shipped"/"mark delivered" path: fulfil every unit still waiting in one
      * fulfillment (linked to the order's Bosta shipment when there is one). The order is locked by
-     * StoreOrderService::transition().
+     * StoreOrderService::transition(), which announces the parcel after changing the status.
      */
     public function fulfilRemaining(StoreOrder $order, ?int $actorId, ?string $source, bool $notify): ?StoreOrderFulfillment
     {
@@ -137,8 +137,8 @@ class StoreFulfillments
             $this->inventory->commitPartial($line, StoreInventory::unfulfilled($line), $actorId, $note);
         }
         $this->recompute($order);
-        $this->announce($order, $fulfillment, 'created');
 
+        // The caller announces it once the order status changed (StoreOrderService::transition()).
         return $fulfillment;
     }
 
@@ -239,6 +239,7 @@ class StoreFulfillments
                 $this->unship($order, $actorId);
             }
             app(StoreOrderWebhooks::class)->fulfillmentChanged($order, $current, 'cancelled');
+            $this->deliverOrderWhenComplete($order, $actorId);
 
             return $current;
         });
@@ -325,7 +326,12 @@ class StoreFulfillments
         }
     }
 
-    private function deliverOrderWhenComplete(StoreOrder $order, ?int $actorId): void
+    /**
+     * Deliver a shipped order once nothing is left to ship and every active parcel arrived, whichever
+     * action completed it (a delivered parcel, a refund of the unshipped rest, a cancelled parcel).
+     * The caller holds the order lock.
+     */
+    public function deliverOrderWhenComplete(StoreOrder $order, ?int $actorId): void
     {
         $order->refresh();
         if ($order->status !== 'shipped' || $order->fulfillment_status !== 'fulfilled') {
@@ -351,7 +357,8 @@ class StoreFulfillments
         DB::afterCommit(fn () => StoreAnalyticsService::forget($order->store_id));
     }
 
-    private function announce(StoreOrder $order, StoreOrderFulfillment $fulfillment, string $action): void
+    /** Customer shipping confirmation (when the parcel asks for it) and the order-fulfillment webhook. */
+    public function announce(StoreOrder $order, StoreOrderFulfillment $fulfillment, string $action): void
     {
         if ($fulfillment->notify_customer) {
             app(StoreNotificationSettings::class)->schedule($order, 'shipping_confirmation', null, false, $fulfillment);

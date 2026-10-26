@@ -106,7 +106,7 @@ class MerchantOrderController extends Controller
                 app(PlatformWallet::class)->assertOrderVisible($row);
                 if ($risk || $row->status !== $data['status']) {
                     abort_unless($row->status === $expected[$row->id]['status'], 409, 'Order changed. Reload before changing its status.');
-                    if (! $risk && ! ($data['eligible_only'] ?? false) && ! $this->orders->canTransition($row, $data['status'])) {
+                    if (! $risk && ! ($data['eligible_only'] ?? false) && (! $this->orders->canTransition($row, $data['status']) || $this->needsLeftoverConfirmation($row, $data['status']))) {
                         throw ValidationException::withMessages(['status' => 'One or more selected orders cannot make this transition.']);
                     }
                 }
@@ -120,7 +120,8 @@ class MerchantOrderController extends Controller
                     $updated ? $changed++ : $unchanged++;
                 } elseif ($row->status === $data['status']) {
                     $unchanged++;
-                } elseif (! $this->orders->canTransition($row, $data['status'])) {
+                } elseif (! $this->orders->canTransition($row, $data['status']) || $this->needsLeftoverConfirmation($row, $data['status'])) {
+                    // Partially shipped orders are delivered one by one, with an explicit confirmation.
                     $skipped++;
                 } else {
                     $this->orders->transition($row, $data['status'], (int) $request->user()->id);
@@ -134,6 +135,12 @@ class MerchantOrderController extends Controller
         return response()->json($result);
     }
 
+    /** Delivering a partially shipped order would silently ship its remaining items. */
+    private function needsLeftoverConfirmation(StoreOrder $order, string $to): bool
+    {
+        return $to === 'delivered' && $order->fulfillment_status === 'partial';
+    }
+
     /** PATCH /stores/{store}/orders/{order}/status */
     public function updateStatus(UpdateOrderStatusRequest $request, Store $store, int $order): JsonResponse
     {
@@ -144,6 +151,12 @@ class MerchantOrderController extends Controller
         if (! $this->orders->canTransition($model, $to)) {
             throw ValidationException::withMessages([
                 'status' => "Cannot change status from {$model->status} to {$to}.",
+            ]);
+        }
+
+        if ($this->needsLeftoverConfirmation($model, $to) && ! $request->boolean('fulfil_remaining')) {
+            throw ValidationException::withMessages([
+                'fulfil_remaining' => 'Some items on this order have not shipped. Fulfil them first, or confirm that marking the order delivered ships the remaining items without tracking.',
             ]);
         }
 

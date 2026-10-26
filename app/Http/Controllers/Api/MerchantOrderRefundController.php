@@ -38,6 +38,8 @@ class MerchantOrderRefundController extends Controller
             'items' => ['sometimes', 'array', 'max:200'],
             'items.*.store_order_item_id' => ['required', 'integer', 'min:1'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100000'],
+            // Which units the refund is about first; defaults to unshipped units (released, never shipped).
+            'items.*.units' => ['sometimes', Rule::in(StoreOrderRefunds::UNITS)],
             'shipping_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'],
             'amount' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'],
             'expected_refunded_total' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99', 'decimal:0,2'],
