@@ -82,6 +82,7 @@ use App\Http\Controllers\Api\StoreDesignAssetsController;
 use App\Http\Controllers\Api\StoreDigitalDeliveryController;
 use App\Http\Controllers\Api\StoreDomainsApiController;
 use App\Http\Controllers\Api\StoreDownsellController;
+use App\Http\Controllers\Api\StoreDraftOrderController;
 use App\Http\Controllers\Api\Storefront\AbTestController;
 use App\Http\Controllers\Api\Storefront\BotVerificationController;
 use App\Http\Controllers\Api\Storefront\CartController;
@@ -102,6 +103,7 @@ use App\Http\Controllers\Api\Storefront\StorefrontController;
 use App\Http\Controllers\Api\Storefront\StorefrontCouponController;
 use App\Http\Controllers\Api\Storefront\StorefrontEngagementController;
 use App\Http\Controllers\Api\Storefront\StorefrontEventsController;
+use App\Http\Controllers\Api\Storefront\StorefrontInvoiceController;
 use App\Http\Controllers\Api\Storefront\StorefrontLayoutController;
 use App\Http\Controllers\Api\Storefront\StorefrontProductController;
 use App\Http\Controllers\Api\Storefront\StorefrontThankYouController;
@@ -358,6 +360,9 @@ Route::prefix('v1')->group(function () {
         Route::post('checkout/bot/verify', BotVerificationController::class)->middleware('throttle:10,1');
         Route::post('checkout/quote', [CheckoutController::class, 'quote']);
         Route::post('checkout/payment/retry', [CheckoutController::class, 'retryPayment']);
+        // Draft-order invoices: the random token is the capability; foreign/expired tokens 404.
+        Route::get('invoices/{token}', [StorefrontInvoiceController::class, 'show'])->where('token', '[A-Za-z0-9]{1,128}')->middleware('throttle:60,1');
+        Route::post('invoices/{token}/checkout', [StorefrontInvoiceController::class, 'checkout'])->where('token', '[A-Za-z0-9]{1,128}')->middleware('throttle:10,1');
         Route::post('checkout/receipt/upload', PaymentProofController::class)->middleware('throttle:6,1');
         Route::post('checkout/receipt', [CheckoutController::class, 'receipt'])->middleware('throttle:30,1');
 
@@ -822,6 +827,22 @@ Route::prefix('v1')->group(function () {
                 Route::put('profile', [StoreCustomersApiController::class, 'updateProfile'])->middleware('throttle:60,1');
                 Route::get('tags', [StoreCustomersApiController::class, 'tags'])->middleware('throttle:tenant-read');
                 Route::get('{customer}', [StoreCustomersApiController::class, 'show'])->whereNumber('customer');
+            });
+
+            // ---- Draft orders: merchant quotes with a shareable invoice link ----
+            Route::middleware('permission:store.orders.manage')->prefix('draft-orders')->group(function () {
+                Route::get('/', [StoreDraftOrderController::class, 'index']);
+                Route::post('/', [StoreDraftOrderController::class, 'store'])->middleware('throttle:60,1');
+                Route::get('options', [StoreDraftOrderController::class, 'options']);
+                Route::post('calculate', [StoreDraftOrderController::class, 'calculate'])->middleware('throttle:120,1');
+                Route::get('{draft}', [StoreDraftOrderController::class, 'show'])->whereNumber('draft');
+                Route::match(['put', 'patch'], '{draft}', [StoreDraftOrderController::class, 'update'])->whereNumber('draft')->middleware('throttle:60,1');
+                Route::delete('{draft}', [StoreDraftOrderController::class, 'destroy'])->whereNumber('draft');
+                Route::post('{draft}/calculate', [StoreDraftOrderController::class, 'calculate'])->whereNumber('draft')->middleware('throttle:120,1');
+                Route::post('{draft}/invoice', [StoreDraftOrderController::class, 'invoice'])->whereNumber('draft')->middleware('throttle:20,1');
+                Route::post('{draft}/complete', [StoreDraftOrderController::class, 'complete'])->whereNumber('draft')->middleware('throttle:20,1');
+                Route::post('{draft}/duplicate', [StoreDraftOrderController::class, 'duplicate'])->whereNumber('draft')->middleware('throttle:30,1');
+                Route::post('{draft}/cancel', [StoreDraftOrderController::class, 'cancel'])->whereNumber('draft');
             });
 
             // ---- Orders (Phase 6E) ----
