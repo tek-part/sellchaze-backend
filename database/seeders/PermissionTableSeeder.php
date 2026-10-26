@@ -84,6 +84,7 @@ class PermissionTableSeeder extends Seeder
             'store.categories.manage', // storefront catalog categories
             'store.orders.manage',     // storefront orders
             'store.coupons.manage',    // discounts / coupons
+            'store.gift_cards.manage', // issue, adjust and disable gift cards
             'store.reviews.manage',    // product review moderation
             'store.analytics.view',    // storefront analytics
             'store.themes.manage',     // appearance / themes

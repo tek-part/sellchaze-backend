@@ -189,6 +189,14 @@ return [
         ],
     ],
 
+    /**
+     * Gift cards redeemed by an order whose online payment never completed are released by
+     * `gift-cards:release-abandoned` once the order is this old (minutes).
+     */
+    'gift_cards' => [
+        'abandoned_payment_minutes' => max(30, (int) env('SELLCHASE_GIFT_CARD_ABANDONED_PAYMENT_MINUTES', 120)),
+    ],
+
     /** Disk used for theme marketplace assets (S3-ready). */
     'theme_assets_disk' => env('SELLCHASE_THEME_ASSETS_DISK', 'public'),
 

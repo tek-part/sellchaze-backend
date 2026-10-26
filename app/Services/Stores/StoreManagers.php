@@ -22,6 +22,7 @@ class StoreManagers
         'store.products.manage' => ['ar' => 'إدارة المنتجات', 'en' => 'Manage products'],
         'store.categories.manage' => ['ar' => 'إدارة الأقسام', 'en' => 'Manage categories'],
         'store.coupons.manage' => ['ar' => 'إدارة الكوبونات', 'en' => 'Manage coupons'],
+        'store.gift_cards.manage' => ['ar' => 'إدارة بطاقات الهدايا', 'en' => 'Manage gift cards'],
         'store.reviews.manage' => ['ar' => 'إدارة التقييمات', 'en' => 'Manage reviews'],
         'store.analytics.view' => ['ar' => 'عرض الإحصائيات', 'en' => 'View analytics'],
         'store.themes.manage' => ['ar' => 'إدارة الثيمات وقوائمها', 'en' => 'Manage themes and navigation'],

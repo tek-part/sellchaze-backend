@@ -86,6 +86,11 @@ class StoreOrderService
             if (! $this->canTransition($order, $to)) {
                 throw ValidationException::withMessages(['status' => "Cannot transition order from {$order->status} to {$to}."]);
             }
+            // Paid digital items are released at payment: a shopper cannot cancel them back.
+            $released = $to === 'cancelled' && $order->payment_status === 'paid' && DigitalProducts::hasDigitalItems($order);
+            if ($source === 'customer' && $released) {
+                throw ValidationException::withMessages(['status' => 'Paid digital orders cannot be cancelled. Contact the store for help.']);
+            }
 
             $from = $order->status;
             $digitalCompletion = $to === 'delivered' && ! $order->requiresShipping();
@@ -98,10 +103,16 @@ class StoreOrderService
                 app(DigitalProducts::class)->cancel($order);
             }
             $order->save();
-            // Cancellation puts what is left of the gift card payment back on the cards (once). Refunds
-            // are owned by StoreOrderRefunds, which returns each refund's gift card share itself.
-            if ($to === 'cancelled') {
+            // Cancellation puts what is left of the gift card payment back on the cards (once), unless
+            // digital codes were already released: then the merchant decides through a recorded refund.
+            // Refunds are owned by StoreOrderRefunds, which returns each refund's gift card share itself.
+            if ($to === 'cancelled' && ! $released) {
                 app(GiftCards::class)->restore($order, $actorId);
+                // Paid entirely by gift card and fully restored: nothing is left paid.
+                if ($order->payment_status === 'paid' && bccomp((string) $order->gift_card_total, '0', 2) > 0 && bccomp($order->amountDue(), '0', 2) === 0
+                    && bccomp(app(GiftCards::class)->returnedTotal($order), (string) $order->gift_card_total, 2) >= 0) {
+                    $order->forceFill(['payment_status' => 'refunded'])->save();
+                }
             }
 
             $change = $order->statusChanges()->create([

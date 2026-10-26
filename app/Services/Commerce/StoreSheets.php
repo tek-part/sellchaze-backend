@@ -9,7 +9,11 @@ use Illuminate\Support\Facades\DB;
 
 class StoreSheets
 {
-    public const HEADERS = ['Order number', 'Placed at', 'Customer', 'Phone', 'Email', 'Address', 'Products', 'Quantity', 'Subtotal', 'Shipping', 'Discount', 'Tax', 'Total', 'Currency', 'Payment method', 'Status', 'Reference'];
+    /** Sheets connected before gift cards keep this 17-column layout (A:Q); rows written there stop at Reference. */
+    public const LEGACY_HEADERS = ['Order number', 'Placed at', 'Customer', 'Phone', 'Email', 'Address', 'Products', 'Quantity', 'Subtotal', 'Shipping', 'Discount', 'Tax', 'Total', 'Currency', 'Payment method', 'Status', 'Reference'];
+
+    /** New sheets add what gift cards paid and the amount still due (A:S). */
+    public const HEADERS = [...self::LEGACY_HEADERS, 'Gift cards', 'Amount due'];
 
     public function record(StoreOrder $order): void
     {
@@ -27,7 +31,8 @@ class StoreSheets
                 $values = [(string) $order->order_number, $order->placed_at?->toIso8601String() ?? '', (string) $order->customer_name,
                     (string) $order->customer_phone, (string) $order->customer_email, $address,
                     $order->items->map(fn ($item) => $item->name.' × '.$item->quantity)->implode('; '), (string) $order->items->sum('quantity'),
-                    $order->subtotal, $order->shipping_total, $order->discount_total, $order->tax_total, $order->grand_total, (string) $order->currency, (string) $order->payment_method, (string) $order->status, $reference];
+                    $order->subtotal, $order->shipping_total, $order->discount_total, $order->tax_total, $order->grand_total, (string) $order->currency, (string) $order->payment_method, (string) $order->status, $reference,
+                    (string) ($order->gift_card_total ?? '0.00'), $order->amountDue()];
                 StoreSheetDelivery::create(['store_id' => $order->store_id, 'connection_id' => $connection->id, 'store_order_id' => $order->id,
                     'row_number' => $connection->next_row, 'payload' => ['values' => $values, 'reference' => $reference], 'status' => 'pending']);
                 $connection->increment('next_row');

@@ -43,7 +43,7 @@ class GiftCards
         }
     }
 
-    /** Failed lookups allowed per IP and minute across check, quote and checkout. */
+    /** Failed lookups allowed per store and IP and minute across check, quote and checkout. */
     public const MISS_LIMIT = 10;
 
     /** 32 symbols without 0/O/1/I: 16 characters carry 80 random bits. */
@@ -110,7 +110,10 @@ class GiftCards
     /** A card by code in this store, or null. Every miss counts against the caller's IP. */
     public function lookup(Store $store, string $code): ?StoreGiftCard
     {
-        $key = 'gift-card-miss:'.(request()->ip() ?? 'local');
+        // Per store and IP: one noisy IP cannot lock checkout in other stores. Cart tokens are not part of
+        // the key because the client chooses them (a new token would reset the counter); the public
+        // check endpoint also keeps its own strict per-IP throttle.
+        $key = 'gift-card-miss:'.$store->id.':'.(request()->ip() ?? 'local');
         if (RateLimiter::tooManyAttempts($key, self::MISS_LIMIT)) {
             throw ValidationException::withMessages(['gift_cards' => 'Too many gift card attempts. Try again in a minute.']);
         }

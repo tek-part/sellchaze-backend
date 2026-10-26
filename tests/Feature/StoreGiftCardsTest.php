@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\OutboxMessage;
 use App\Models\Product;
+use App\Models\ProductDigitalCode;
 use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\StoreGiftCard;
@@ -11,15 +13,23 @@ use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
 use App\Models\User;
+use App\Services\Commerce\DigitalProducts;
 use App\Services\Commerce\GiftCards;
+use App\Services\Commerce\StoreOrderService;
 use App\Services\JwtTokenService;
+use App\Services\Notifications\StoreNotificationSettings;
+use App\Services\Stores\StoreManagers;
+use App\Support\Tenancy\CurrentStore;
 use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 /**
@@ -451,6 +461,167 @@ class StoreGiftCardsTest extends TestCase
             ->assertStatus(422)->assertJsonPath('errors.gift_cards.0', GiftCards::NOT_FOR_DRAFTS);
         $this->postJson(self::HOST.'/invoices/abc123/checkout', ['payment_method' => 'cod', 'gift_cards' => ['X']])
             ->assertStatus(422)->assertJsonPath('errors.gift_cards.0', GiftCards::NOT_FOR_DRAFTS);
+    }
+
+    private function digital(string $price = '40.00'): Product
+    {
+        $product = Product::create(['store_id' => $this->store->id, 'user_id' => $this->owner->id, 'name' => 'License', 'slug' => 'license-'.$price, 'price' => $price,
+            'is_active' => true, 'digital_type' => 'codes', 'track_inventory' => true, 'stock_quantity' => 3]);
+        app(DigitalProducts::class)->appendCodes($product, ['LOCAL-A-'.$price, 'LOCAL-B-'.$price, 'LOCAL-C-'.$price]);
+
+        return $product;
+    }
+
+    public function test_a_paid_digital_order_cannot_be_cancelled_by_the_customer_and_cancelling_never_restores_released_codes(): void
+    {
+        [$card, $code] = $this->card('100.00');
+        $license = $this->digital();
+        $id = $this->place($license, [$code])->assertCreated()->assertJsonPath('data.payment_method', 'gift_card')->assertJsonPath('data.payment_status', 'paid')->json('data.id');
+        $this->assertSame('60.00', $this->balance($card));
+        $order = StoreOrder::forStore($this->store)->findOrFail($id);
+        app(CurrentStore::class)->set($this->store);
+
+        try {
+            app(StoreOrderService::class)->cancelByCustomer($order);
+            $this->fail('A shopper cancelled a paid digital order.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('status', $exception->errors());
+        }
+        $this->assertSame('pending', $order->fresh()->status);
+        $this->assertSame(1, ProductDigitalCode::query()->where('store_id', $this->store->id)->whereNotNull('store_order_item_id')->count());
+        $this->assertSame('60.00', $this->balance($card));
+
+        // The merchant may cancel, but released codes keep their value on the order: no automatic restore.
+        $this->move($id, 'cancelled');
+        $this->assertSame('60.00', $this->balance($card));
+        $this->assertSame(1, ProductDigitalCode::query()->where('store_id', $this->store->id)->whereNotNull('store_order_item_id')->count());
+        $this->as($this->owner)->getJson($this->refunds($id))->assertOk()->assertJsonPath('data.refundable_to_gift_cards', '40.00');
+    }
+
+    public function test_a_shopper_cancelling_a_physical_gift_card_order_restores_once_and_marks_it_refunded(): void
+    {
+        [$card, $code] = $this->card('200.00');
+        $id = $this->place($this->tee, [$code])->assertCreated()->assertJsonPath('data.payment_status', 'paid')->json('data.id');
+        app(CurrentStore::class)->set($this->store);
+        app(StoreOrderService::class)->cancelByCustomer(StoreOrder::forStore($this->store)->findOrFail($id));
+        $this->assertSame('200.00', $this->balance($card));
+        $order = StoreOrder::forStore($this->store)->findOrFail($id);
+        $this->assertSame('refunded', $order->payment_status);
+        app(GiftCards::class)->restore($order);
+        $this->assertSame('200.00', $this->balance($card));
+        $this->as($this->owner)->getJson($this->refunds($id))->assertOk()->assertJsonPath('data.refundable', false)->assertJsonPath('data.refundable_total', '0.00');
+    }
+
+    public function test_abandoned_online_payments_release_their_gift_cards_once_and_offline_orders_are_left_alone(): void
+    {
+        StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'bank_transfer', 'enabled' => true, 'credentials' => []]);
+        $placeOnline = function (string $value, int $hoursAgo, ?string $transaction = null) {
+            [$card, $code] = $this->card($value);
+            $id = $this->place($this->cap, [$code], 'bank_transfer')->assertCreated()->json('data.id');
+            StorePaymentTransaction::query()->withoutGlobalScopes()->where('store_order_id', $id)->delete();
+            StoreOrder::forStore($this->store)->whereKey($id)->update(['payment_method' => 'kashier', 'placed_at' => now()->subHours($hoursAgo)]);
+            if ($transaction !== null) {
+                StorePaymentTransaction::query()->create(['store_id' => $this->store->id, 'store_order_id' => $id, 'gateway' => 'kashier', 'idempotency_key' => (string) Str::uuid(),
+                    'status' => $transaction, 'amount' => '30.00', 'currency' => 'USD']);
+            }
+
+            return [$card, $id];
+        };
+        [$abandoned, $abandonedId] = $placeOnline('20.00', 3);
+        [$recent, $recentId] = $placeOnline('20.00', 0);
+        [$paying, $payingId] = $placeOnline('20.00', 3, 'processing');
+        [$cod, $codCode] = $this->card('20.00');
+        $codId = $this->place($this->cap, [$codCode], 'bank_transfer')->assertCreated()->assertJsonPath('data.payment_method', 'bank_transfer')->json('data.id');
+        StoreOrder::forStore($this->store)->whereKey($codId)->update(['placed_at' => now()->subHours(5)]);
+        app(CurrentStore::class)->set(null);
+
+        $this->assertSame(0, Artisan::call('gift-cards:release-abandoned'));
+        $this->assertSame(0, Artisan::call('gift-cards:release-abandoned'));
+        app(CurrentStore::class)->set($this->store);
+        $this->assertSame('cancelled', StoreOrder::forStore($this->store)->findOrFail($abandonedId)->status);
+        $this->assertSame('20.00', $this->balance($abandoned));
+        $this->assertSame(1, StoreGiftCardTransaction::forStore($this->store)->where('store_order_id', $abandonedId)->where('reason', 'restored')->count());
+        $this->assertDatabaseHas('store_order_status_changes', ['store_order_id' => $abandonedId, 'to_status' => 'cancelled', 'source' => 'system']);
+        foreach ([[$recent, $recentId], [$paying, $payingId], [$cod, $codId]] as [$card, $id]) {
+            $this->assertSame('pending', StoreOrder::forStore($this->store)->findOrFail($id)->status);
+            $this->assertSame('0.00', $this->balance($card));
+        }
+    }
+
+    public function test_notifications_show_the_amount_due_and_what_gift_cards_paid(): void
+    {
+        [, $code] = $this->card('50.00');
+        $order = StoreOrder::forStore($this->store)->findOrFail($this->place($this->tee, [$code])->assertCreated()->json('data.id'));
+        $settings = app(StoreNotificationSettings::class);
+        $variables = $settings->variables($this->store, $order);
+        $this->assertSame('130.00 USD', $variables['order_total']);
+        $this->assertSame('50.00 USD', $variables['gift_card_total']);
+        $this->assertSame('80.00 USD', $variables['amount_due']);
+        $this->assertContains('amount_due', StoreNotificationSettings::VARIABLES);
+        $this->assertContains('gift_card_total', StoreNotificationSettings::VARIABLES);
+        $body = StoreNotificationSettings::render($settings->defaults($this->store)['events']['order_confirmation']['whatsapp_body'], $variables);
+        $this->assertStringContainsString('Paid with gift cards: 50.00 USD', $body);
+        $this->assertStringContainsString('Amount to pay: 80.00 USD', $body);
+        $staff = StoreNotificationSettings::render($settings->defaults($this->store)['events']['staff_new_order']['email_body'], $variables);
+        $this->assertStringContainsString('To collect: 80.00 USD', $staff);
+
+        // Paid by gift card: nothing to collect, so the line disappears.
+        [, $big] = $this->card('500.00');
+        $paid = StoreOrder::forStore($this->store)->findOrFail($this->place($this->tee, [$big])->assertCreated()->json('data.id'));
+        $body = StoreNotificationSettings::render($settings->defaults($this->store)['events']['order_confirmation']['whatsapp_body'], $settings->variables($this->store, $paid));
+        $this->assertStringNotContainsString('Amount to pay', $body);
+        $this->assertStringContainsString('Paid with gift cards: 130.00 USD', $body);
+    }
+
+    public function test_wrong_codes_lock_only_this_store_for_the_ip(): void
+    {
+        for ($i = 0; $i < GiftCards::MISS_LIMIT; $i++) {
+            $this->quote($this->tee, ['WRONGWRONGWRONG'.$i])->assertStatus(422)->assertJsonPath('errors', ['gift_cards.0' => [GiftCards::INVALID]]);
+        }
+        [, $code] = $this->card('10.00');
+        $this->quote($this->tee, [$code])->assertStatus(422)->assertJsonValidationErrors('gift_cards');
+        $this->assertStringContainsString('Too many', (string) $this->quote($this->tee, [$code])->json('errors.gift_cards.0'));
+
+        $beta = Product::create(['store_id' => $this->other->id, 'user_id' => $this->otherOwner->id, 'name' => 'Beta tee', 'slug' => 'beta-tee', 'price' => '100.00', 'is_active' => true]);
+        [, $betaCode] = $this->card('10.00', $this->other);
+        $this->postJson('http://beta.sellchase.com/api/v1/storefront/checkout/quote', ['items' => [['product_id' => $beta->id, 'quantity' => 1]], 'gift_cards' => [$betaCode]])
+            ->assertOk()->assertJsonPath('data.gift_cards.0.applied', '10.00');
+    }
+
+    public function test_gift_card_writes_need_their_own_permission_while_discount_managers_can_look(): void
+    {
+        $manager = function (array $permissions): self {
+            $email = 'manager-'.count($permissions).'-'.str_replace('.', '-', $permissions[0]).'@example.test';
+            $this->as($this->owner)->postJson('/api/v1/my-store/managers', ['name' => 'Manager', 'email' => $email, 'password' => 'PrivateFixture123!', 'permissions' => $permissions])->assertCreated();
+            $this->assertContains($permissions[0], array_keys(StoreManagers::PERMISSIONS));
+
+            return $this->withToken((string) $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => 'PrivateFixture123!'])->assertOk()->json('access_token'));
+        };
+        [$card] = $this->card('10.00');
+        $coupons = $manager(['store.coupons.manage']);
+        $coupons->getJson('/api/v1/my-store/gift-cards')->assertOk()->assertJsonPath('meta.total', 1);
+        $coupons->getJson("/api/v1/my-store/gift-cards/{$card->id}")->assertOk();
+        $coupons->postJson('/api/v1/my-store/gift-cards', ['initial_value' => 10])->assertForbidden();
+        $coupons->postJson("/api/v1/my-store/gift-cards/{$card->id}/adjust", ['amount' => '5', 'reason' => 'x'])->assertForbidden();
+        $coupons->putJson("/api/v1/my-store/gift-cards/{$card->id}", ['status' => 'disabled'])->assertForbidden();
+        $giftCards = $manager(['store.gift_cards.manage']);
+        $giftCards->postJson('/api/v1/my-store/gift-cards', ['initial_value' => 10])->assertCreated();
+        $giftCards->postJson("/api/v1/my-store/gift-cards/{$card->id}/adjust", ['amount' => '5', 'reason' => 'Goodwill'])->assertOk();
+        $manager(['store.orders.manage'])->getJson('/api/v1/my-store/gift-cards')->assertForbidden();
+    }
+
+    public function test_cards_are_ignored_when_nothing_is_due_and_placement_reports_gift_card_totals(): void
+    {
+        [$card, $code] = $this->card('30.00');
+        $free = $this->digital('0.00');
+        $this->place($free, [$code])->assertCreated()->assertJsonPath('data.grand_total', '0.00')->assertJsonPath('data.gift_card_total', '0.00')
+            ->assertJsonPath('data.payment_status', 'paid');
+        $this->assertSame('30.00', $this->balance($card));
+
+        $id = $this->place($this->tee, [$code])->assertCreated()->json('data.id');
+        $payload = OutboxMessage::query()->where('event_type', 'StorefrontOrderPlaced')->where('aggregate_id', (string) $id)->firstOrFail()->payload;
+        $this->assertSame('30.00', $payload['gift_card_total']);
+        $this->assertSame('100.00', $payload['amount_due']);
     }
 
     public function test_store_isolation(): void

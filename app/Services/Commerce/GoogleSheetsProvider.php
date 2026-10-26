@@ -59,7 +59,7 @@ class GoogleSheetsProvider
                     return ['status' => 'cancelled', 'error_code' => 'connection_changed'];
                 }
                 $created = $http->post($root.':batchUpdate', ['requests' => [
-                    ['addSheet' => ['properties' => ['sheetId' => (int) $connection->sheet_id, 'title' => $connection->sheet_title, 'gridProperties' => ['rowCount' => max(1000, (int) $delivery->row_number), 'columnCount' => 17, 'frozenRowCount' => 1]]]],
+                    ['addSheet' => ['properties' => ['sheetId' => (int) $connection->sheet_id, 'title' => $connection->sheet_title, 'gridProperties' => ['rowCount' => max(1000, (int) $delivery->row_number), 'columnCount' => count(StoreSheets::HEADERS), 'frozenRowCount' => 1]]]],
                     ['createDeveloperMetadata' => ['developerMetadata' => ['metadataKey' => 'sellchaze_connection', 'metadataValue' => $connection->id, 'location' => ['sheetId' => (int) $connection->sheet_id], 'visibility' => 'DOCUMENT']]],
                     ['updateCells' => ['start' => ['sheetId' => (int) $connection->sheet_id, 'rowIndex' => 0, 'columnIndex' => 0], 'rows' => [['values' => array_map(fn ($title) => ['userEnteredValue' => ['stringValue' => $title]], StoreSheets::HEADERS)]], 'fields' => 'userEnteredValue']],
                 ]]);
@@ -82,21 +82,30 @@ class GoogleSheetsProvider
                 }
             }
             $prefix = "'".$connection->sheet_title."'!";
-            $header = $http->get($root.'/values/'.rawurlencode($prefix.'A1:Q1'));
+            $header = $http->get($root.'/values/'.rawurlencode($prefix.'A1:S1'));
             if (! $header->successful()) {
                 return $this->failure($header->status());
             }
-            if ($header->json('values.0') !== StoreSheets::HEADERS) {
+            // Sheets connected before gift cards keep their 17 columns; new sheets have 19.
+            $layout = match ($header->json('values.0')) {
+                StoreSheets::HEADERS => StoreSheets::HEADERS,
+                StoreSheets::LEGACY_HEADERS => StoreSheets::LEGACY_HEADERS,
+                default => null,
+            };
+            if ($layout === null) {
                 return ['status' => 'failed', 'error_code' => 'sheet_header_changed'];
             }
-            $range = $prefix.'A'.$delivery->row_number.':Q'.$delivery->row_number;
+            $width = count($layout);
+            $last = $width === count(StoreSheets::HEADERS) ? 'S' : 'Q';
+            $payload = array_slice(array_pad($delivery->payload['values'], $width, ''), 0, $width);
+            $range = $prefix.'A'.$delivery->row_number.':'.$last.$delivery->row_number;
             $existing = $http->get($root.'/values/'.rawurlencode($range));
             if (! $existing->successful()) {
                 return $this->failure($existing->status());
             }
             $values = $existing->json('values.0', []);
             if ($values !== []) {
-                if ($values === $delivery->payload['values']) {
+                if ($values === $payload) {
                     return ['status' => 'delivered', 'error_code' => null];
                 }
 
@@ -106,11 +115,11 @@ class GoogleSheetsProvider
             if (! $allowed()) {
                 return ['status' => 'cancelled', 'error_code' => 'connection_changed'];
             }
-            $written = $http->put($root.'/values/'.rawurlencode($range).'?valueInputOption=RAW', ['range' => $range, 'majorDimension' => 'ROWS', 'values' => [$delivery->payload['values']]]);
+            $written = $http->put($root.'/values/'.rawurlencode($range).'?valueInputOption=RAW', ['range' => $range, 'majorDimension' => 'ROWS', 'values' => [$payload]]);
             if (! $written->successful()) {
                 return $this->failure($written->status());
             }
-            if ($written->json('updatedRange') !== $range || (int) $written->json('updatedRows') !== 1 || (int) $written->json('updatedColumns') !== 17) {
+            if ($written->json('updatedRange') !== $range || (int) $written->json('updatedRows') !== 1 || (int) $written->json('updatedColumns') !== $width) {
                 return ['status' => 'retry', 'error_code' => 'write_confirmation_uncertain'];
             }
 

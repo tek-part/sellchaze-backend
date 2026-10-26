@@ -287,7 +287,8 @@ class StoreOrderRefunds
         $unitsLeft = $lines->sum('refundable_quantity');
         $fully = $unitsLeft === 0 && $refunds->isNotEmpty() && bccomp($remaining, '0', 0) === 0;
         // A cancelled order only needs a refund when money (or a gift card not yet restored) was taken.
-        $open = in_array($order->status, self::REFUNDABLE_STATUSES, true) && ($valued || $order->status !== 'cancelled')
+        $open = in_array($order->status, self::REFUNDABLE_STATUSES, true)
+            && ($order->status !== 'cancelled' || ($valued && bccomp($remaining, '0', 0) > 0))
             && ($unitsLeft > 0 || bccomp($valued ? $shippingRemaining : '0', '0', 0) > 0);
 
         return ['collected' => $collected, 'valued' => $valued, 'open' => $open, 'fully' => $fully, 'grand' => $grand, 'refunded' => $refunded, 'remaining' => $remaining,

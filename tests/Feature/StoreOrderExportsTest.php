@@ -111,6 +111,8 @@ class StoreOrderExportsTest extends TestCase
         $this->assertStringNotContainsString('HYPERLINK', Storage::disk('local')->get($row->artifact_path));
         $download = $this->authenticate()->get($this->endpoint('/exports/'.$id.'/download'))->assertOk()->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
         $this->assertStringContainsString("'=HYPERLINK", $download->getContent());
+        $header = str_getcsv(strtok(ltrim($download->getContent(), "\xEF\xBB\xBF"), "\n"), ',', '"', '');
+        $this->assertSame(['Payment method adjustment', 'Gift cards', 'Amount due'], array_slice($header, -3));
         $this->assertStringNotContainsString('Foreign customer', $download->getContent());
         $this->assertSame(1, $this->actor->notifications()->where('type', StoreOrderExportReady::class)->count());
         $this->assertSame(0, $this->other->owner->notifications()->count());

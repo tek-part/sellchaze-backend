@@ -78,7 +78,7 @@ class StoreManagersTest extends TestCase
         $this->assertTrue(Hash::check('PrivateFixture123!', $manager->password));
         $this->assertArrayNotHasKey('password', $row);
         $this->assertArrayNotHasKey('remember_token', $row);
-        $response = $this->getJson($this->base)->assertOk()->assertJsonCount(1, 'data')->assertJsonCount(10, 'permissions');
+        $response = $this->getJson($this->base)->assertOk()->assertJsonCount(1, 'data')->assertJsonCount(11, 'permissions');
         $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
         $this->assertStringContainsString('private', $response->headers->get('Cache-Control'));
         $audit = ActivityLog::where('action', 'store.manager.created')->firstOrFail();

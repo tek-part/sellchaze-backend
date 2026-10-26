@@ -159,10 +159,18 @@ class CheckoutService
             $paymentStatus = 'pending';
             if ($cards !== []) {
                 $uncharged = $this->pricing->forStore($store, $subtotal, $discount, ['payment_method' => GiftCards::METHOD] + $shippingSelection, $requiresShipping, $offerFreeShipping, $productFreeShipping, $weightGrams);
-                $tender = $giftCardService->allocate($cards, $uncharged['grand_total']);
-                if (bccomp($tender['total'], '0', 2) > 0 && bccomp($tender['amount_due'], '0', 2) === 0) {
-                    $paymentMethod = GiftCards::METHOD;
-                    $paymentStatus = 'paid';
+                if (bccomp($uncharged['grand_total'], '0', 2) <= 0) {
+                    // Nothing is due: the cards are not used, and no payment method is needed.
+                    $cards = [];
+                    if ($paymentMethod === GiftCards::METHOD) {
+                        $paymentStatus = 'paid';
+                    }
+                } else {
+                    $tender = $giftCardService->allocate($cards, $uncharged['grand_total']);
+                    if (bccomp($tender['amount_due'], '0', 2) === 0) {
+                        $paymentMethod = GiftCards::METHOD;
+                        $paymentStatus = 'paid';
+                    }
                 }
             }
             if ($paymentStatus !== 'paid' && $paymentMethod === GiftCards::METHOD) {

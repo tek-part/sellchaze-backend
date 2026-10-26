@@ -127,12 +127,13 @@ class StoreOrderExports
             $ids = [];
             try {
                 fwrite($stream, "\xEF\xBB\xBF");
-                fputcsv($stream, ['ID', 'Order number', 'Customer', 'Phone', 'Email', 'Address', 'Status', 'Payment status', 'Currency', 'Subtotal', 'Shipping', 'Discount', 'Total', 'Order date', 'Products', 'Tax', 'Manual adjustment', 'Payment method adjustment'], ',', '"', '');
+                fputcsv($stream, ['ID', 'Order number', 'Customer', 'Phone', 'Email', 'Address', 'Status', 'Payment status', 'Currency', 'Subtotal', 'Shipping', 'Discount', 'Total', 'Order date', 'Products', 'Tax', 'Manual adjustment', 'Payment method adjustment', 'Gift cards', 'Amount due'], ',', '"', '');
                 foreach ($query->with('items')->orderBy('store_orders.id')->lazyById(200, 'store_orders.id', 'id') as $order) {
                     $values = [$order->id, $order->order_number, $order->customer_name, $order->customer_phone, $order->customer_email,
                         self::address($order->shipping_address), $order->status, $order->payment_status, $order->currency,
                         $order->subtotal, $order->shipping_total, $order->discount_total, $order->grand_total,
-                        $order->placed_at?->toIso8601String(), $order->items->map(fn ($item) => $item->name.' × '.$item->quantity)->join('; '), $order->tax_total, $order->manual_adjustment_total ?? '0.00', $order->payment_adjustment['amount'] ?? '0.00'];
+                        $order->placed_at?->toIso8601String(), $order->items->map(fn ($item) => $item->name.' × '.$item->quantity)->join('; '), $order->tax_total, $order->manual_adjustment_total ?? '0.00', $order->payment_adjustment['amount'] ?? '0.00',
+                        $order->gift_card_total ?? '0.00', $order->amountDue()];
                     fputcsv($stream, array_map(self::cell(...), $values), ',', '"', '');
                     $ids[] = (int) $order->id;
                     if (count($ids) > self::MAX_ROWS || ftell($stream) > self::MAX_BYTES) {

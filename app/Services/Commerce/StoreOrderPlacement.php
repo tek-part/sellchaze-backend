@@ -17,6 +17,7 @@ class StoreOrderPlacement
         app(OutboxRecorder::class)->record('StorefrontOrderPlaced', 'store_order', $order->id, [
             'store_id' => $order->store_id, 'store_order_id' => $order->id,
             'order_number' => $order->order_number, 'grand_total' => $order->grand_total,
+            'gift_card_total' => (string) ($order->gift_card_total ?? '0.00'), 'amount_due' => $order->amountDue(),
             'currency' => $order->currency, 'payment_method' => $order->payment_method,
         ]);
         app(PlatformWallet::class)->orderFee($order);
