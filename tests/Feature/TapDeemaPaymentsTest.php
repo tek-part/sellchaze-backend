@@ -18,6 +18,7 @@ use Database\Seeders\PermissionTableSeeder;
 use Database\Seeders\RolesTableSeeder;
 use Database\Seeders\StorePermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
@@ -175,6 +176,85 @@ class TapDeemaPaymentsTest extends TestCase
         $this->assertSame('paid', $order->fresh()->payment_status);
         $this->assertSame('chg_synthetic', StorePaymentTransaction::firstOrFail()->provider_reference);
         $this->assertDatabaseCount('store_payment_transactions', 1);
+    }
+
+    public static function failedCreates(): array
+    {
+        return ['Tap server error' => ['tap', false], 'Tap timeout' => ['tap', true],
+            'Deema server error' => ['deema', false], 'Deema timeout' => ['deema', true]];
+    }
+
+    #[DataProvider('failedCreates')]
+    public function test_delayed_verified_capture_settles_a_failed_unbound_attempt_once_without_retry(string $gateway, bool $timeout): void
+    {
+        [$store, $order, $transaction] = $this->failedStart($gateway, $timeout);
+        $this->fakeCharge($this->charge($transaction, $order));
+        $url = '/api/v1/payment-webhooks/'.$store->id.'/'.$gateway;
+        $this->postJson($url, ['id' => 'chg_synthetic'])->assertOk();
+        $this->assertSame('paid', $order->fresh()->payment_status);
+        $this->assertSame('paid', $transaction->fresh()->status);
+        $this->assertSame('chg_synthetic', $transaction->fresh()->provider_reference);
+        $this->postJson($url, ['id' => 'chg_synthetic'])->assertOk()->assertJsonPath('duplicate', true);
+        $this->assertDatabaseCount('store_payment_transactions', 1);
+        $this->assertDatabaseCount('payment_webhook_events', 1);
+        Http::assertSentCount(2);
+        Http::assertSent(fn ($request) => $request->method() === 'GET');
+        Http::assertNotSent(fn ($request) => $request->method() === 'POST');
+    }
+
+    #[DataProvider('invalidCharges')]
+    public function test_failed_unbound_attempt_rejects_a_wrong_contract_without_blocking_the_valid_capture(string $field, mixed $value): void
+    {
+        [$store, $order, $transaction] = $this->failedStart('deema');
+        $valid = $this->charge($transaction, $order);
+        $invalid = $valid;
+        data_set($invalid, $field, $value);
+        $this->fakeCharge($invalid);
+        $url = '/api/v1/payment-webhooks/'.$store->id.'/deema';
+        $this->postJson($url, ['id' => 'chg_synthetic'])->assertStatus(422);
+        $this->assertSame('pending', $order->fresh()->payment_status);
+        $this->assertSame('failed', $transaction->fresh()->status);
+        $this->assertNull($transaction->fresh()->provider_reference);
+        $this->assertDatabaseCount('payment_webhook_events', 0);
+        $this->fakeCharge($valid);
+        $this->postJson($url, ['id' => 'chg_synthetic'])->assertOk();
+        $this->assertSame('paid', $order->fresh()->payment_status);
+    }
+
+    public function test_a_legacy_failed_unbound_attempt_cannot_bind_a_delayed_charge(): void
+    {
+        [$store, $order, $transaction] = $this->failedStart('tap');
+        $transaction->update(['metadata' => []]);
+        $this->fakeCharge($this->charge($transaction, $order));
+        $this->postJson('/api/v1/payment-webhooks/'.$store->id.'/tap', ['id' => 'chg_synthetic'])->assertStatus(422);
+        $this->assertSame('pending', $order->fresh()->payment_status);
+        $this->assertNull($transaction->fresh()->provider_reference);
+        $this->assertDatabaseCount('payment_webhook_events', 0);
+    }
+
+    private function failedStart(string $gateway, bool $timeout = false): array
+    {
+        [$store, $order, $setting] = $this->fixture($gateway);
+        $calls = 0;
+        Http::fake(['api.tap.company/*' => function () use ($timeout, &$calls) {
+            $calls++;
+            if ($timeout) {
+                throw new ConnectionException('Synthetic create timeout.');
+            }
+
+            return Http::response([], 500);
+        }]);
+        try {
+            app(StorePaymentService::class)->start($store, $order, $setting);
+            $this->fail('A failed create response was accepted.');
+        } catch (ValidationException) {
+            $transaction = StorePaymentTransaction::firstOrFail();
+            $this->assertSame('failed', $transaction->status);
+            $this->assertNull($transaction->provider_reference);
+        }
+        $this->assertSame(1, $calls);
+
+        return [$store, $order, $transaction];
     }
 
     public function test_legacy_pending_tap_charge_keeps_its_unversioned_contract_but_money_is_checked(): void

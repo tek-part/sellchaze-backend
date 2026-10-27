@@ -246,7 +246,7 @@ class PaymentWebhookController extends Controller
         $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', $setting->gateway)
             ->whereKey($transactionId)->first();
         abort_unless($transaction !== null && ($transaction->provider_reference === $chargeId
-            || ($transaction->provider_reference === null && $transaction->status === 'processing' && data_get($transaction->metadata, 'tap.version') === 1)), 422, 'Tap charge does not belong to this payment.');
+            || ($transaction->provider_reference === null && in_array($transaction->status, ['processing', 'failed'], true) && data_get($transaction->metadata, 'tap.version') === 1)), 422, 'Tap charge does not belong to this payment.');
         // Reject foreign/mismatched charges before creating a deduplication receipt in this tenant.
         TapPaymentSettings::assertCharge($transaction, $event);
         $event['_event_id'] = $chargeId.':'.data_get($event, 'status');
@@ -415,10 +415,10 @@ class PaymentWebhookController extends Controller
         if ($transaction === null && (string) data_get($event, 'metadata.tap_contract_version') === '1'
             && (string) data_get($event, 'metadata.store_id') === (string) $setting->store_id
             && data_get($event, 'metadata.gateway') === $setting->gateway) {
-            // Tap may send a verified callback before the initiating HTTP response stores its charge ID.
+            // Tap may capture before the charge ID is stored, even if the create response times out or fails.
             $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', $setting->gateway)
                 ->whereKey(data_get($event, 'metadata.transaction_id'))->where('store_order_id', data_get($event, 'metadata.store_order_id'))
-                ->where('status', 'processing')->whereNull('provider_reference')->lockForUpdate()->first();
+                ->whereIn('status', ['processing', 'failed'])->whereNull('provider_reference')->lockForUpdate()->first();
             if ($transaction !== null) {
                 abort_unless(data_get($transaction->metadata, 'tap.version') === 1, 422, 'Tap payment contract mismatch.');
             }
