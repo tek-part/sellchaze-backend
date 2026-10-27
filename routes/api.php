@@ -302,7 +302,7 @@ Route::prefix('v1')->group(function () {
     // rendering itself is Phase 3 — this only proves/exposes host resolution.
     Route::middleware(['resolve.store', 'storefront.locale', 'throttle:storefront-read'])->get('/storefront/resolve', StorefrontContextController::class);
     Route::post('/payment-webhooks/{store}/{gateway}', [PaymentWebhookController::class, 'handle'])
-        ->whereNumber('store')->whereIn('gateway', ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'fawaterak', 'paytabs', 'fawry']);
+        ->whereNumber('store')->whereIn('gateway', ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'deema', 'fawaterak', 'paytabs', 'fawry']);
     Route::post('/platform-wallet/fawaterak_json', [PlatformWalletController::class, 'fawaterak'])->middleware('throttle:120,1');
     Route::get('/service-marketplace/media/{provider}/{file}', [ServiceMarketplaceController::class, 'media'])->whereUuid('provider')->middleware('throttle:storefront-read');
     Route::post('/payment-webhooks/{store}/fawaterak_json', [PaymentWebhookController::class, 'fawaterak'])

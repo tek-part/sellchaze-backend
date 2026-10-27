@@ -59,7 +59,7 @@ class CheckoutFields
     {
         $method = $this->paymentMethod($store, $paymentMethod);
         $online = ! in_array($method, ['cod', 'bank_transfer', 'transfer_receipt'], true);
-        $providerPhone = in_array($method, ['paylink', 'easykash', 'xpay'], true);
+        $providerPhone = in_array($method, ['paylink', 'easykash', 'xpay', 'deema'], true);
 
         $regions = $requiresShipping && app(StoreShipping::class)->regionsEnabled($store);
         // Zones are matched from the address, so the shopper must always give a country.
@@ -135,10 +135,19 @@ class CheckoutFields
                 }
             };
         }
+        if ($this->paymentMethod($store, $paymentMethod) === 'deema') {
+            $rules['customer_phone'][] = function (string $attribute, mixed $value, \Closure $fail): void {
+                try {
+                    TapPaymentSettings::phone(is_string($value) ? $value : null);
+                } catch (ValidationException) {
+                    $fail('Enter a valid international phone number with its country code for Deema.');
+                }
+            };
+        }
         if ($this->paymentMethod($store, $paymentMethod) === 'xpay') {
             $rules['customer_name'][] = 'regex:/^\S+(?:\s+\S+)+$/u';
         }
-        if (in_array($this->paymentMethod($store, $paymentMethod), ['paylink', 'easykash', 'xpay'], true) || app(OrderLimits::class)->configured($store)['max_orders_per_phone_24h'] > 0 || app(PhoneBlocking::class)->hasActive($store) || app(CheckoutPhoneVerification::class)->configuration($store)['enabled']) {
+        if (in_array($this->paymentMethod($store, $paymentMethod), ['paylink', 'easykash', 'xpay', 'deema'], true) || app(OrderLimits::class)->configured($store)['max_orders_per_phone_24h'] > 0 || app(PhoneBlocking::class)->hasActive($store) || app(CheckoutPhoneVerification::class)->configuration($store)['enabled']) {
             $rules['customer_phone'][] = function (string $attribute, mixed $value, \Closure $fail) use ($store): void {
                 $limits = app(OrderLimits::class);
                 if (! is_string($value) || $limits->normalizePhone($value, $limits->configured($store)['phone_country']) === null) {

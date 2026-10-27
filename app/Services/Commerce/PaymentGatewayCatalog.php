@@ -24,6 +24,7 @@ class PaymentGatewayCatalog
             'moyasar' => ['Moyasar', ['secret_key'], 'png'],
             'paylink' => ['Paylink', ['api_key', 'api_secret'], 'png'],
             'tap' => ['Tap Payments', ['public_key', 'secret_key'], 'png'],
+            'deema' => ['Deema via Tap', [], 'svg'],
             'tabby' => ['Tabby', ['public_key', 'secret_key', 'merchant_code'], 'png'],
             'taager' => ['Taager', ['api_key'], 'png'],
             'myfatoorah' => ['MyFatoorah', ['api_key', 'country'], 'png'],
@@ -42,7 +43,7 @@ class PaymentGatewayCatalog
         $rows = [];
         foreach ($definitions as $slug => [$name, $fields, $extension]) {
             $rows[$slug] = ['name' => $name, 'fields' => $fields, 'logo_url' => '/payments/'.$slug.'.'.$extension,
-                'available' => in_array($slug, array_merge(HostedPaymentGateways::PROVIDERS, ['cod', 'bank_transfer', 'transfer_receipt', 'stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'fawry', 'fawaterak', 'tap', 'paytabs', 'hyperpay']), true)];
+                'available' => in_array($slug, array_merge(HostedPaymentGateways::PROVIDERS, ['cod', 'bank_transfer', 'transfer_receipt', 'stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'fawry', 'fawaterak', 'tap', 'deema', 'paytabs', 'hyperpay']), true)];
         }
 
         return $rows;
@@ -75,6 +76,9 @@ class PaymentGatewayCatalog
 
     public static function configured(string $slug, array $credentials): bool
     {
+        if ($slug === 'deema') {
+            return false; // The inherited Tap connection needs the store-bound setting, never an independent credential array.
+        }
         foreach (self::required($slug) as $key) {
             if (! is_scalar($credentials[$key] ?? null) || trim((string) $credentials[$key]) === '') {
                 return false;
@@ -82,6 +86,13 @@ class PaymentGatewayCatalog
         }
 
         return true;
+    }
+
+    public static function configuredSetting(StorePaymentGateway $setting, ?string $currency = null): bool
+    {
+        return in_array($setting->gateway, ['tap', 'deema'], true)
+            ? TapPaymentSettings::configured($setting, $currency)
+            : self::configured($setting->gateway, $setting->credentials ?? []);
     }
 
     public static function offered(StorePaymentGateway $setting, ?string $currency = null): bool
@@ -95,7 +106,7 @@ class PaymentGatewayCatalog
         }
 
         return (self::all()[$setting->gateway]['available'] ?? false)
-            && self::configured($setting->gateway, $setting->credentials ?? []);
+            && self::configuredSetting($setting, $currency);
     }
 
     public static function presentation(StorePaymentGateway $setting): array

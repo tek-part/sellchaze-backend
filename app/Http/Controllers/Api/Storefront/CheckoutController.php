@@ -47,6 +47,7 @@ use App\Services\Commerce\StorefrontEvents;
 use App\Services\Commerce\StorePaymentService;
 use App\Services\Commerce\StoreShipping;
 use App\Services\Commerce\StoreTrackingEvents;
+use App\Services\Commerce\TapPaymentSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -395,7 +396,7 @@ class CheckoutController extends Controller
             ->map(fn (StorePaymentGateway $setting) => [
                 'slug' => $setting->gateway,
                 ...PaymentGatewayCatalog::presentation($setting),
-                'test_mode' => $setting->gateway !== 'cod' && $setting->test_mode,
+                'test_mode' => $setting->gateway === 'deema' ? (bool) TapPaymentSettings::connection($setting)?->test_mode : $setting->gateway !== 'cod' && $setting->test_mode,
             ])->values();
 
         return response()->json(['data' => $methods]);

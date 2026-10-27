@@ -22,6 +22,9 @@ class StorePaymentService
     /** @return array{transaction_id:int,status:string,redirect_url:?string} */
     public function start(Store $store, StoreOrder $order, StorePaymentGateway $setting): array
     {
+        if (in_array($setting->gateway, ['tap', 'deema'], true)) {
+            abort_unless((int) $setting->store_id === (int) $store->id && (int) $order->store_id === (int) $store->id, 422, 'Tap payment store mismatch.');
+        }
         $transaction = DB::transaction(function () use ($store, $order, $setting) {
             $current = StoreOrder::withoutGlobalScopes()->where('store_id', $store->id)->whereKey($order->id)->lockForUpdate()->firstOrFail();
             if (in_array($current->status, ['cancelled', ...StoreOrder::RETURN_STATUSES], true) || $current->payment_method !== $setting->gateway) {
@@ -41,6 +44,7 @@ class StorePaymentService
                 'amount' => $order->amountDue(),
                 'currency' => strtoupper($order->currency),
                 'metadata' => ['presentation' => PaymentGatewayCatalog::presentation($setting)]
+                    + (in_array($setting->gateway, ['tap', 'deema'], true) ? ['tap' => TapPaymentSettings::contract($setting, $current)] : [])
                     + (in_array($setting->gateway, ['bank_transfer', 'transfer_receipt'], true) ? ['bank_transfer' => BankTransferInstructions::snapshot($setting)] : []),
             ]);
         });
@@ -117,7 +121,7 @@ class StorePaymentService
                 'paytabs' => $this->paytabs($store, $order, $setting, $transaction),
                 'hyperpay' => $this->hyperpay($store, $order, $setting, $transaction),
                 'fawry' => $this->fawry($store, $order, $setting, $transaction),
-                'tap' => $this->tap($store, $order, $setting, $transaction),
+                'tap', 'deema' => $this->tap($store, $order, $setting, $transaction),
                 'fawaterak' => $this->fawaterak($store, $order, $setting, $transaction),
                 default => throw ValidationException::withMessages([
                     'payment_method' => "{$setting->gateway} is enabled but its processor connection is not configured yet.",
@@ -551,28 +555,51 @@ class StorePaymentService
         };
     }
 
-    /** @return array{provider_reference:string,redirect_url:string} */
+    /** @return array{provider_reference:string,redirect_url:?string} */
     private function tap(Store $store, StoreOrder $order, StorePaymentGateway $setting, StorePaymentTransaction $transaction): array
     {
-        $secret = trim((string) data_get($setting->credentials, 'secret_key'));
-        $this->requireCredential($secret, 'Tap secret key');
+        abort_unless((int) $setting->store_id === (int) $store->id && (int) $order->store_id === (int) $store->id, 422, 'Tap payment store mismatch.');
+        TapPaymentSettings::assertAmount($setting, (string) $transaction->amount, $transaction->currency);
+        $connection = TapPaymentSettings::validate($setting, $transaction->currency);
+        if (data_get($transaction->metadata, 'tap.version') === 1 && data_get($transaction->metadata, 'tap.test_mode') !== (bool) $connection->test_mode) {
+            throw ValidationException::withMessages(['payment_method' => 'This payment attempt belongs to a different Tap environment. Restore its original connection before retrying.']);
+        }
+        $secret = trim((string) data_get($connection->credentials, 'secret_key'));
         $name = preg_split('/\s+/', trim($order->customer_name), 2) ?: [];
+        $customer = ['first_name' => $name[0] ?? $order->customer_name, 'last_name' => $name[1] ?? '', 'email' => $order->customer_email];
+        if ($setting->gateway === 'deema') {
+            $customer['phone'] = TapPaymentSettings::phone($order->customer_phone);
+        }
         $response = Http::withToken($secret)->acceptJson()->post('https://api.tap.company/v2/charges/', [
-            'amount' => (float) $order->amountDue(),
-            'currency' => strtoupper($order->currency),
+            'amount' => (float) $transaction->amount,
+            'currency' => strtoupper($transaction->currency),
             'customer_initiated' => true,
             'threeDSecure' => true,
             'save_card' => false,
             'description' => 'Order '.$order->order_number,
-            'metadata' => ['transaction_id' => (string) $transaction->id],
-            'reference' => ['transaction' => (string) $transaction->id, 'order' => $order->order_number],
-            'customer' => ['first_name' => $name[0] ?? $order->customer_name, 'last_name' => $name[1] ?? '', 'email' => $order->customer_email],
-            'source' => ['id' => 'src_all'],
-            'post' => ['url' => $this->webhookUrl($store, 'tap')],
+            'metadata' => ['transaction_id' => (string) $transaction->id, 'store_id' => (string) $store->id,
+                'store_order_id' => (string) $order->id, 'gateway' => $setting->gateway, 'tap_contract_version' => '1'],
+            'reference' => ['transaction' => (string) $transaction->id, 'order' => $order->order_number, 'idempotent' => $transaction->idempotency_key],
+            'customer' => $customer,
+            'source' => ['id' => $setting->gateway === 'deema' ? 'src_deema' : 'src_all'],
+            'post' => ['url' => $this->webhookUrl($store, $setting->gateway)],
             'redirect' => ['url' => $this->successUrl($store, $order)],
         ])->throw()->json();
+        $reference = (string) data_get($response, 'id');
+        abort_unless(preg_match('/^chg_[A-Za-z0-9_-]{1,180}$/', $reference), 422, 'Invalid Tap charge reference.');
+        if (strtoupper((string) data_get($response, 'status')) === 'CAPTURED') {
+            $event = $this->retrieveTap($setting, $reference);
+            abort_unless(data_get($event, 'id') === $reference && strtoupper((string) data_get($event, 'status')) === 'CAPTURED', 422, 'Tap has not confirmed the captured charge.');
+            TapPaymentSettings::assertCharge($transaction, $event);
+            app(PaymentSettlement::class)->transition($transaction, 'paid', $reference);
 
-        return ['provider_reference' => (string) data_get($response, 'id'), 'redirect_url' => (string) data_get($response, 'transaction.url')];
+            return ['provider_reference' => $reference, 'redirect_url' => null];
+        }
+        $redirect = (string) data_get($response, 'transaction.url');
+        abort_unless(filter_var($redirect, FILTER_VALIDATE_URL) && parse_url($redirect, PHP_URL_SCHEME) === 'https'
+            && parse_url($redirect, PHP_URL_USER) === null && parse_url($redirect, PHP_URL_PASS) === null, 422, 'Tap did not return a valid secure payment URL.');
+
+        return ['provider_reference' => $reference, 'redirect_url' => $redirect];
     }
 
     /** @return array{provider_reference:string,redirect_url:string} */
@@ -630,8 +657,13 @@ class StorePaymentService
 
     public function retrieveTap(StorePaymentGateway $setting, string $chargeId): array
     {
-        return Http::withToken((string) data_get($setting->credentials, 'secret_key'))->acceptJson()
-            ->get('https://api.tap.company/v2/charges/'.$chargeId)->throw()->json();
+        abort_unless(preg_match('/^chg_[A-Za-z0-9_-]{1,180}$/', $chargeId), 422, 'Invalid Tap charge ID.');
+        $connection = TapPaymentSettings::connection($setting);
+        $secret = trim((string) data_get($connection?->credentials, 'secret_key'));
+        $this->requireCredential($secret, 'Tap secret key');
+
+        return Http::withToken($secret)->acceptJson()
+            ->get('https://api.tap.company/v2/charges/'.rawurlencode($chargeId))->throw()->json();
     }
 
     public function paypalToken(StorePaymentGateway $setting): string
