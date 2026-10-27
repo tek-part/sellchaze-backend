@@ -1099,7 +1099,8 @@ Route::prefix('v1')->group(function () {
             Route::get('shopping-preferences', [StoreShoppingPreferencesController::class, 'index']);
             Route::put('shopping-preferences', [StoreShoppingPreferencesController::class, 'update']);
             Route::put('bot-protection', [StoreBotProtectionController::class, 'update'])->middleware('throttle:10,1');
-            Route::put('phone-verification', [StorePhoneVerificationController::class, 'update'])->middleware('throttle:10,1');
+            // POST supports hosts whose method policy blocks PUT; both keep identical authorization.
+            Route::match(['put', 'post'], 'phone-verification', [StorePhoneVerificationController::class, 'update'])->middleware('throttle:10,1');
             Route::post('blocked-phone-numbers', [StorePhoneBlockController::class, 'storePhone'])->middleware('throttle:30,1');
             Route::put('blocked-phone-numbers/{block}', [StorePhoneBlockController::class, 'update'])->whereNumber('block')->middleware('throttle:30,1');
             Route::get('blocked-phone-numbers/{block}/history', [StorePhoneBlockController::class, 'history'])->whereNumber('block');
