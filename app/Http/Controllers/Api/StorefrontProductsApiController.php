@@ -126,9 +126,23 @@ class StorefrontProductsApiController extends Controller
                     throw ValidationException::withMessages(['products' => 'A selected product has changed. Refresh the list and review your selection before saving again.']);
                 }
             }
+            $changes = $data['changes'];
             foreach ($products as $product) {
-                $product->fill($data['changes'])->save();
-                if (array_key_exists('category_id', $data['changes'])) {
+                $product->fill(array_diff_key($changes, ['add_category_id' => true, 'remove_category_id' => true]));
+                if (isset($changes['remove_category_id'])) {
+                    $removed = (int) $changes['remove_category_id'];
+                    $product->additionalCategories()->detach($removed);
+                    if ((int) $product->category_id === $removed) {
+                        // The next remaining membership becomes primary, so the product stays categorized when possible.
+                        $product->category_id = $product->additionalCategories()->orderBy('categories.id')->value('categories.id');
+                    }
+                }
+                if (isset($changes['add_category_id'])) {
+                    $product->additionalCategories()->syncWithoutDetaching([(int) $changes['add_category_id'] => ['store_id' => $store->id]]);
+                    $product->category_id ??= (int) $changes['add_category_id'];
+                }
+                $product->save();
+                if (array_key_exists('category_id', $changes)) {
                     $product->additionalCategories()->sync($product->category_id ? [$product->category_id => ['store_id' => $store->id]] : []);
                 }
             }

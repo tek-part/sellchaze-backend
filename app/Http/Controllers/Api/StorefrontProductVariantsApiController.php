@@ -7,6 +7,7 @@ use App\Http\Requests\BulkProductVariantsRequest;
 use App\Http\Requests\BulkVariantDeleteRequest;
 use App\Http\Requests\BulkVariantInventoryRequest;
 use App\Http\Requests\GenerateProductVariantsRequest;
+use App\Http\Requests\ReorderProductVariantsRequest;
 use App\Http\Requests\StorefrontProductVariantRequest;
 use App\Http\Resources\StoreCatalogVariantResource;
 use App\Models\Product;
@@ -64,6 +65,15 @@ class StorefrontProductVariantsApiController extends Controller
         $count = $this->service->bulkUpdate($this->product($product), $request->validated('variants'), $request->validated('changes'));
 
         return response()->json(['meta' => ['updated' => $count]], 200);
+    }
+
+    public function reorder(ReorderProductVariantsRequest $request, Store $store, int $product): JsonResponse
+    {
+        $model = $this->product($product);
+        $this->service->reorder($model, $request->validated('variants'));
+        $variants = $model->variants()->get()->each->setRelation('product', $model);
+
+        return response()->json(['data' => StoreCatalogVariantResource::collection($variants)], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
     public function bulkInventory(BulkVariantInventoryRequest $request, Store $store, int $product): JsonResponse

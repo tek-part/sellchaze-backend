@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
-/** Bounded, tenant-scoped catalog transfers. Imports create new identities only. */
+/** Bounded, tenant-scoped catalog transfers. Portable imports create new identities; sheet imports may also update existing ones. */
 class CatalogTransfer
 {
     public function preview(UploadedFile $file, Store $store, User $actor): array
@@ -56,6 +56,50 @@ class CatalogTransfer
 
             return [['created' => count($ids), 'ids' => $ids], $document['source']];
         });
+    }
+
+    /** Dry run of a flat XLSX/CSV sheet: per-row actions, changes and errors. Nothing is written. */
+    public function sheetPreview(UploadedFile $file, string $mode, Store $store, User $actor): array
+    {
+        $plan = $this->sheetPlan($file, $mode, $store, $actor, false);
+
+        return ['mode' => $mode, 'currency' => $store->currency, 'summary' => $plan['summary'], 'rows' => $plan['rows']];
+    }
+
+    /** Applies a sheet in one transaction, only when its dry run has no row errors. */
+    public function sheetImport(UploadedFile $file, string $mode, string $key, Store $store, User $actor): array
+    {
+        $hash = hash('sha256', $mode.':'.hash_file('sha256', $file->getRealPath()));
+
+        return $this->operation($store, $actor, $key, 'sheet-'.$mode, $hash, function () use ($file, $mode, $store, $actor) {
+            $plan = $this->sheetPlan($file, $mode, $store, $actor, true);
+            $failed = array_values(array_filter($plan['rows'], fn ($row) => $row['errors'] !== []));
+            if ($failed !== []) {
+                $messages = [];
+                foreach (array_slice($failed, 0, 50) as $row) {
+                    $messages['rows.'.$row['row']] = array_column($row['errors'], 'message');
+                }
+                throw ValidationException::withMessages($messages);
+            }
+            $ids = [];
+            foreach ($plan['creates'] as $create) {
+                $ids[] = $this->create($create, $store, $actor)->id;
+            }
+            $updated = app(CatalogSheet::class)->applyUpdates($plan['updates'], $actor);
+            DB::afterCommit(function () use ($store) {
+                StorefrontService::forgetHomepage((int) $store->id);
+                app(StorefrontPageCache::class)->flushStore((int) $store->id);
+            });
+
+            return [['created' => count($ids), 'ids' => $ids, 'updated' => $updated, 'summary' => $plan['summary']], null];
+        });
+    }
+
+    private function sheetPlan(UploadedFile $file, string $mode, Store $store, User $actor, bool $lock): array
+    {
+        $sheet = app(CatalogSheet::class);
+
+        return $sheet->plan($sheet->read($file), $mode, $actor, fn (array $plan) => $this->validateDocument(['currency' => null, 'products' => [$plan]], $store, $actor), $lock);
     }
 
     private function validateDocument(array $document, Store $store, User $actor): void
@@ -166,8 +210,9 @@ class CatalogTransfer
     {
         $ids = [];
         foreach ($plan['categories'] as $category) {
-            $ids[] = (Category::query()->where('name', $category['name'])->first()
-                ?? app(StorefrontCategoryService::class)->create($category + ['is_active' => true]))->id;
+            // Sheet imports reference categories by id; portable documents by name.
+            $ids[] = ((isset($category['id']) ? Category::query()->find($category['id']) : null) ?? Category::query()->where('name', $category['name'])->first()
+                ?? app(StorefrontCategoryService::class)->create(Arr::except($category, ['id']) + ['is_active' => true]))->id;
         }
         $data = $plan['data'];
         // Explicit canonical copy must win over stale default-locale translations in edited exports.
