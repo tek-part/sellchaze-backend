@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\CurrencyRate;
 use App\Models\Store;
+use App\Models\StorePaymentGateway;
 use App\Models\User;
 use App\Services\Commerce\MerchantGeneralSettings;
 use App\Services\Commerce\ShoppingPreferences;
@@ -52,6 +53,32 @@ class StoreGeneralSettingsTest extends TestCase
         unset($data['logo_url'], $data['banner_url'], $data['favicon_url'], $data['bot_credentials_configured']);
 
         return array_replace($data, $changes);
+    }
+
+    public function test_currency_conflict_rejects_compound_save_before_other_settings_or_media_change(): void
+    {
+        $this->store->update(['currency' => 'KWD', 'theme_settings' => ['reporting_money_policy' => [
+            'version' => 'fixture-v1', 'reporting_currency' => 'KWD', 'rates' => ['USD' => '0.308150', 'KWD' => '1'],
+            'source_url' => 'https://example.test/rates', 'effective_date' => '2026-10-27',
+        ]]]);
+        $before = $this->store->fresh()->getRawOriginal();
+        $this->post($this->endpoint, $this->payload(['_method' => 'PUT', 'currency' => 'USD', 'site_title' => 'Changed',
+            'disable_bot_protection' => ! $this->payload()['disable_bot_protection'],
+            'logo' => UploadedFile::fake()->image('replacement.png'),
+        ]), ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors(['currency']);
+
+        $this->assertSame($before, $this->store->fresh()->getRawOriginal());
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_enabled_deema_also_blocks_incompatible_general_settings_currency_changes(): void
+    {
+        $this->store->update(['currency' => 'KWD']);
+        StorePaymentGateway::create(['store_id' => $this->store->id, 'gateway' => 'deema', 'enabled' => true, 'test_mode' => true]);
+        $before = $this->store->fresh()->getRawOriginal();
+        $this->putJson($this->endpoint, $this->payload(['currency' => 'USD', 'site_title' => 'Changed']))
+            ->assertUnprocessable()->assertJsonValidationErrors(['currency']);
+        $this->assertSame($before, $this->store->fresh()->getRawOriginal());
     }
 
     public function test_read_is_private_and_does_not_modify_settings_or_return_bot_secrets(): void

@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\Store;
 use App\Models\StoreDomain;
+use App\Models\StorePaymentGateway;
 use App\Models\User;
 use App\Services\Commerce\CheckoutFields;
+use App\Services\Commerce\StoreReportingMoney;
 use App\Services\Rbac\UserScope;
 use App\Services\Storefront\StorefrontService;
 use App\Services\Themes\StoreThemeService;
@@ -121,6 +123,7 @@ class StoreService
 
     public function update(Store $store, array $data, ?UploadedFile $logo = null, ?UploadedFile $banner = null, ?UploadedFile $favicon = null): Store
     {
+        $this->validateCurrencyChange($store, $data['currency'] ?? null);
         $slugChanged = false;
 
         if (array_key_exists('name', $data)) {
@@ -188,6 +191,36 @@ class StoreService
         StorefrontService::forgetHomepage($store->id);
 
         return $store;
+    }
+
+    /** Reject incompatible currency changes before settings or branding are modified. */
+    public function validateCurrencyChange(Store $store, ?string $currency): void
+    {
+        $current = strtoupper($store->currency ?: 'USD');
+        $currency = strtoupper($currency ?: $current);
+        if ($currency === $current) {
+            return;
+        }
+        $locale = request()->getPreferredLanguage(['en', 'ar']);
+
+        $policy = $store->theme_settings['reporting_money_policy'] ?? null;
+        if ($policy !== null) {
+            // Preserve the model's fail-closed invariant for malformed policies.
+            StoreReportingMoney::validatePolicy($policy, $current);
+            throw ValidationException::withMessages([
+                'currency' => [__('The store base currency is linked to historical reporting conversions. You can add a display currency without changing the base currency. Changing the base currency requires updating prices and reporting conversions first.', [], $locale)],
+            ]);
+        }
+
+        if ($currency !== 'KWD') {
+            $deema = StorePaymentGateway::query()->where('store_id', $store->id)->where('gateway', 'deema')->first();
+            $legacy = collect(data_get($store->theme_settings, 'payment_gateways', []))->keyBy('slug')->get('deema');
+            if ($deema?->enabled ?? data_get($legacy, 'enabled', false)) {
+                throw ValidationException::withMessages([
+                    'currency' => [__('Deema requires KWD as the store base currency. Disable Deema before changing the base currency, or add a display currency instead.', [], $locale)],
+                ]);
+            }
+        }
     }
 
     /**
