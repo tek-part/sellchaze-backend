@@ -165,7 +165,7 @@ class StoreCustomerDirectory
         $query = DB::table('store_orders')->where('store_id', $store->id)->whereNull('deleted_at')->where('status', '!=', 'cancelled')->whereIn(DB::raw(self::key()), $rows->pluck('customer_key'));
         $reports = $money->reports($query, 'grand_total', 'currency', [DB::raw(self::key().' as customer_key')]);
 
-        return $rows->map(fn ($row) => self::row((array) $row, $latest) + ['reporting_money' => $reports[$row->customer_key] ?? $money->empty(), 'currency' => $money->currency])->values();
+        return $rows->map(fn ($row) => self::row((array) $row, $latest, $reports[$row->customer_key] ?? $money->empty(), $money->currency))->values();
     }
 
     /**
@@ -173,7 +173,7 @@ class StoreCustomerDirectory
      * @param  Collection<int, StoreOrder>  $latest
      * @return array<string, mixed>
      */
-    private static function row(array $row, Collection $latest): array
+    private static function row(array $row, Collection $latest, array $report, string $currency): array
     {
         $tags = is_string($row['tags'] ?? null) ? json_decode($row['tags'], true) : null;
 
@@ -185,6 +185,8 @@ class StoreCustomerDirectory
             'account_id' => $row['account_id'] ? (int) $row['account_id'] : null,
             'orders_count' => (int) $row['orders_count'],
             'total_spent' => StoreReportingMoney::decimal($row['total_spent']),
+            'reporting_money' => $report,
+            'currency' => $currency,
             'first_order_at' => $row['first_order_at'] ? Carbon::parse($row['first_order_at'])->toIso8601String() : null,
             'last_order_at' => $row['last_order_at'] ? Carbon::parse($row['last_order_at'])->toIso8601String() : null,
             'city' => self::city($latest->get($row['last_order_id'])?->shipping_address),

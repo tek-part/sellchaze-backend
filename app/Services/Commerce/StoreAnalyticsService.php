@@ -79,7 +79,7 @@ class StoreAnalyticsService
         ];
     }
 
-    /** @return array{today_revenue:string, week_revenue:string, month_revenue:string, total_revenue:string} */
+    /** @return array{today_revenue:?string, week_revenue:?string, month_revenue:?string, total_revenue:?string, reporting_money:array} */
     private function revenue(Store $store): array
     {
         $money = new StoreReportingMoney($store);
