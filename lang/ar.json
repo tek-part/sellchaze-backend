@@ -473,5 +473,7 @@
     "Enter a valid e-mail address.": "أدخل بريدًا إلكترونيًا صالحًا.",
     "Enter a valid phone number, including the country code for a foreign number.": "أدخل رقم هاتف صالحًا مع كود الدولة للأرقام الأجنبية.",
     "Add an e-mail address or phone number before subscribing this customer to marketing.": "أضف بريدًا إلكترونيًا أو رقم هاتف قبل اشتراك هذا العميل في التسويق.",
-    "Your total was updated. Please review it and confirm your order.": "تم تحديث الإجمالي. يرجى مراجعته ثم تأكيد طلبك."
+    "Your total was updated. Please review it and confirm your order.": "تم تحديث الإجمالي. يرجى مراجعته ثم تأكيد طلبك.",
+    "The store base currency is linked to historical reporting conversions. You can add a display currency without changing the base currency. Changing the base currency requires updating prices and reporting conversions first.": "عملة المتجر الأساسية مرتبطة بتحويلات التقارير التاريخية. يمكنك إضافة عملة للعرض دون تغيير العملة الأساسية. يتطلب تغيير العملة الأساسية تحديث الأسعار وتحويلات التقارير أولًا.",
+    "Deema requires KWD as the store base currency. Disable Deema before changing the base currency, or add a display currency instead.": "تتطلب ديمة الدينار الكويتي KWD كعملة أساسية للمتجر. عطّل ديمة قبل تغيير العملة الأساسية، أو أضف عملة للعرض بدلًا من ذلك."
 }

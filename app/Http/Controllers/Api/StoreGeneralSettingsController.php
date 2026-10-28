@@ -11,6 +11,7 @@ use App\Services\Commerce\OrderLimits;
 use App\Services\Commerce\ShoppingPreferences;
 use App\Services\Commerce\StoreShipping;
 use App\Services\Stores\StoreFontCatalog;
+use App\Services\StoreService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -98,6 +99,7 @@ class StoreGeneralSettingsController extends Controller
             $updated = DB::transaction(function () use ($store, $data, $request, $seo, $images, &$staged) {
                 $locked = Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
                 abort_unless(hash_equals($this->settings->revision($locked), $data['revision']), 409, 'Store settings changed. Reload before saving.');
+                app(StoreService::class)->validateCurrencyChange($locked, $data['currency'] ?? null);
                 $before = $this->settings->data($locked);
                 $protection = app(CheckoutBotProtection::class);
                 if (! $seo && $before['disable_bot_protection'] !== (bool) $data['disable_bot_protection']) {
