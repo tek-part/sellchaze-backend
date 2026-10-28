@@ -170,6 +170,17 @@ class StoreReportingMoneyTest extends TestCase
         $this->assertSame('-30.82', StoreReportingMoney::convert('-100.00', '0.308150'));
     }
 
+    public function test_directory_search_buckets_match_the_exact_order_records_in_the_filtered_scalar(): void
+    {
+        $order = $this->order('USD', '100.00');
+        $order->forceFill(['customer_name' => 'Needle fixture'])->save();
+        $this->order('KWD', '10.00');
+        $row = app(StoreCustomerDirectory::class)->paginate($this->store, ['search' => 'Needle'], 25)->items()[0];
+        $this->assertSame('30.82', $row['total_spent']);
+        $this->assertSame($row['total_spent'], $row['reporting_money']['base_equivalent']);
+        $this->assertSame(['USD'], array_keys($row['reporting_money']['totals_by_currency']));
+    }
+
     public function test_theme_publication_cannot_drop_the_store_policy_and_policy_edits_bypass_stale_overview_cache(): void
     {
         $this->order('USD', '100.00');

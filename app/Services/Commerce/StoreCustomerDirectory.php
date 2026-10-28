@@ -43,7 +43,7 @@ class StoreCustomerDirectory
     public function paginate(Store $store, array $filters, int $perPage): LengthAwarePaginator
     {
         $page = $this->query($store, $filters)->paginate($perPage);
-        $page->setCollection($this->rows($store, collect($page->items())));
+        $page->setCollection($this->rows($store, collect($page->items()), $filters));
 
         return $page;
     }
@@ -56,8 +56,8 @@ class StoreCustomerDirectory
      */
     public function each(Store $store, array $filters, callable $callback, int $chunk = 500): void
     {
-        $this->query($store, $filters)->chunk($chunk, function (Collection $rows) use ($store, $callback): void {
-            $callback($this->rows($store, $rows));
+        $this->query($store, $filters)->chunk($chunk, function (Collection $rows) use ($store, $callback, $filters): void {
+            $callback($this->rows($store, $rows, $filters));
         });
     }
 
@@ -67,19 +67,12 @@ class StoreCustomerDirectory
         $key = self::key();
         $money = new StoreReportingMoney($store);
         $spent = $money->sum();
-        $orders = StoreOrder::query()->withoutGlobalScopes()->where('store_id', $store->id)->whereNull('deleted_at')->where('status', '!=', 'cancelled')
+        $orders = $this->matchingOrders($store, $filters)
             ->selectRaw("$key as customer_key")
             ->selectRaw('MAX(customer_name) as order_name, MAX(customer_email) as order_email, MAX(customer_phone) as order_phone, MAX(store_customer_id) as account_id')
             ->selectRaw("COUNT(*) as orders_count, $spent as total_spent, MIN(COALESCE(placed_at, created_at)) as first_order_at, MAX(COALESCE(placed_at, created_at)) as last_order_at, MAX(id) as last_order_id")
             ->groupByRaw($key);
 
-        if (filled($filters['search'] ?? null)) {
-            $term = '%'.trim((string) $filters['search']).'%';
-            $orders->where(fn (Builder $q) => $q->where('customer_name', 'like', $term)->orWhere('customer_email', 'like', $term)
-                ->orWhere('customer_phone', 'like', $term)->orWhere('customer_phone_normalized', 'like', $term)
-                // Contact overrides the merchant typed on the customer page are searchable too.
-                ->orWhereRaw("$key IN (SELECT customer_key FROM store_customer_profiles WHERE store_id = ? AND (name LIKE ? OR email LIKE ? OR phone LIKE ?))", [$store->id, $term, $term, $term]));
-        }
         $having = [
             'orders_min' => ['COUNT(*) >= ?', 'int'], 'orders_max' => ['COUNT(*) <= ?', 'int'],
             'spent_min' => ["$spent >= CAST(? AS DECIMAL(14,2))", 'decimal'], 'spent_max' => ["$spent <= CAST(? AS DECIMAL(14,2))", 'decimal'],
@@ -139,6 +132,22 @@ class StoreCustomerDirectory
         return $query->orderBy($sort === 'name' ? 'name' : 'c.'.$sort, $direction)->orderBy('c.customer_key');
     }
 
+    /** Search narrows the same eligible order records for scalar totals and original buckets. */
+    private function matchingOrders(Store $store, array $filters): Builder
+    {
+        $key = self::key();
+        $orders = StoreOrder::query()->withoutGlobalScopes()->where('store_id', $store->id)->whereNull('deleted_at')->where('status', '!=', 'cancelled');
+        if (filled($filters['search'] ?? null)) {
+            $term = '%'.trim((string) $filters['search']).'%';
+            $orders->where(fn (Builder $q) => $q->where('customer_name', 'like', $term)->orWhere('customer_email', 'like', $term)
+                ->orWhere('customer_phone', 'like', $term)->orWhere('customer_phone_normalized', 'like', $term)
+                // Contact overrides the merchant typed on the customer page are searchable too.
+                ->orWhereRaw("$key IN (SELECT customer_key FROM store_customer_profiles WHERE store_id = ? AND (name LIKE ? OR email LIKE ? OR phone LIKE ?))", [$store->id, $term, $term, $term]));
+        }
+
+        return $orders;
+    }
+
     /**
      * A filter given as a comma list ("vip,wholesale") or as an array.
      *
@@ -155,14 +164,14 @@ class StoreCustomerDirectory
      * @param  Collection<int, mixed>  $rows
      * @return Collection<int, array<string, mixed>>
      */
-    private function rows(Store $store, Collection $rows): Collection
+    private function rows(Store $store, Collection $rows, array $filters): Collection
     {
         // City and address of each customer's most recent order (one extra query per page).
         $latest = StoreOrder::query()->withoutGlobalScopes()->where('store_id', $store->id)
             ->whereIn('id', $rows->pluck('last_order_id'))->get(['id', 'shipping_address'])->keyBy('id');
 
         $money = new StoreReportingMoney($store);
-        $query = DB::table('store_orders')->where('store_id', $store->id)->whereNull('deleted_at')->where('status', '!=', 'cancelled')->whereIn(DB::raw(self::key()), $rows->pluck('customer_key'));
+        $query = $this->matchingOrders($store, $filters)->whereIn(DB::raw(self::key()), $rows->pluck('customer_key'))->toBase();
         $reports = $money->reports($query, 'grand_total', 'currency', [DB::raw(self::key().' as customer_key')]);
 
         return $rows->map(fn ($row) => self::row((array) $row, $latest, $reports[$row->customer_key] ?? $money->empty(), $money->currency))->values();
