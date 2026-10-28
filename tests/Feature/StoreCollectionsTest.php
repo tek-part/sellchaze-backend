@@ -92,6 +92,52 @@ class StoreCollectionsTest extends TestCase
         $this->getJson($this->public)->assertJsonPath('store.has_collections', false);
     }
 
+    public function test_home_embeds_visible_manual_collection_products_in_merchant_order(): void
+    {
+        $a = $this->product('Alpha', ['translations' => ['name' => ['ar' => 'ألفا']]]);
+        $b = $this->product('Bravo');
+        $inactive = $this->product('Inactive', ['is_active' => false]);
+        $hidden = $this->product('Hidden', ['catalog_hidden' => true]);
+        $row = $this->create(['title' => 'Picks', 'published' => true,
+            'product_ids' => [$b->id, $inactive->id, $hidden->id, $a->id]]);
+        $this->create(['title' => 'Draft', 'published' => false, 'product_ids' => [$a->id]]);
+        $foreign = $this->product('Foreign', [], $this->other);
+        $this->create(['title' => 'Theirs', 'published' => true, 'product_ids' => [$foreign->id]], $this->otherAuth);
+
+        $this->getJson($this->public.'/home?lang=ar')->assertOk()
+            ->assertJsonCount(1, 'data.collections')
+            ->assertJsonPath('data.collections.0.id', $row['id'])
+            ->assertJsonPath('data.collections.0.products_count', 2)
+            ->assertJsonCount(2, 'data.collections.0.products')
+            ->assertJsonPath('data.collections.0.products.0.id', $b->id)
+            ->assertJsonPath('data.collections.0.products.1.id', $a->id)
+            ->assertJsonPath('data.collections.0.products.1.name', 'ألفا');
+        // The collection index remains metadata-only.
+        $this->getJson($this->public.'/collections')->assertOk()->assertJsonMissingPath('data.0.products');
+    }
+
+    public function test_home_embeds_bounded_automated_collection_matches_and_empty_rails(): void
+    {
+        $expected = [];
+        for ($i = 0; $i < 26; $i++) {
+            $expected[] = $this->product('Match '.$i, ['price' => 100 + $i])->id;
+        }
+        $this->product('No match', ['price' => 1]);
+        $this->product('Hidden match', ['price' => 150, 'catalog_hidden' => true]);
+        $this->product('Inactive match', ['price' => 150, 'is_active' => false]);
+        $this->product('Foreign match', ['price' => 150], $this->other);
+        $this->create(['title' => 'Auto', 'published' => true, 'type' => 'automated',
+            'sort_order' => 'price_asc', 'rules' => [['field' => 'price', 'operator' => 'gt', 'value' => 50]]]);
+        $this->create(['title' => 'Empty', 'published' => true]);
+
+        $response = $this->getJson($this->public.'/home')->assertOk()
+            ->assertJsonCount(2, 'data.collections')
+            ->assertJsonPath('data.collections.0.products_count', 26)
+            ->assertJsonCount(24, 'data.collections.0.products')
+            ->assertJsonPath('data.collections.1.products', []);
+        $this->assertSame(array_slice($expected, 0, 24), $response->json('data.collections.0.products.*.id'));
+    }
+
     public function test_manual_collection_crud_sanitizes_description_and_keeps_product_order(): void
     {
         $a = $this->product('Alpha');

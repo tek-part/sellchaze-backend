@@ -141,7 +141,7 @@ class StorefrontController extends Controller
                 'on_sale' => $row('on_sale'),
                 'trending' => $row('trending'),
                 'categories' => StorefrontCategoryResource::collection($this->storefront->categories()),
-                'collections' => StorefrontCollectionResource::collection($this->storefront->collections(12)),
+                'collections' => StorefrontCollectionResource::collection($this->storefront->collections(12, true)),
                 'brands' => StorefrontBrandResource::collection($this->storefront->brands()),
                 'coupons' => StorefrontCouponResource::collection($this->storefront->coupons()),
                 'content' => $this->contentBundle(['home', 'about', 'faq']),
