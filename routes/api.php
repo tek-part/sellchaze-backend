@@ -302,7 +302,7 @@ Route::prefix('v1')->group(function () {
     // rendering itself is Phase 3 — this only proves/exposes host resolution.
     Route::middleware(['resolve.store', 'storefront.locale', 'throttle:storefront-read'])->get('/storefront/resolve', StorefrontContextController::class);
     Route::post('/payment-webhooks/{store}/{gateway}', [PaymentWebhookController::class, 'handle'])
-        ->whereNumber('store')->whereIn('gateway', ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'fawaterak', 'paytabs', 'fawry']);
+        ->whereNumber('store')->whereIn('gateway', ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'deema', 'fawaterak', 'paytabs', 'fawry']);
     Route::post('/platform-wallet/fawaterak_json', [PlatformWalletController::class, 'fawaterak'])->middleware('throttle:120,1');
     Route::get('/service-marketplace/media/{provider}/{file}', [ServiceMarketplaceController::class, 'media'])->whereUuid('provider')->middleware('throttle:storefront-read');
     Route::post('/payment-webhooks/{store}/fawaterak_json', [PaymentWebhookController::class, 'fawaterak'])
@@ -1099,7 +1099,8 @@ Route::prefix('v1')->group(function () {
             Route::get('shopping-preferences', [StoreShoppingPreferencesController::class, 'index']);
             Route::put('shopping-preferences', [StoreShoppingPreferencesController::class, 'update']);
             Route::put('bot-protection', [StoreBotProtectionController::class, 'update'])->middleware('throttle:10,1');
-            Route::put('phone-verification', [StorePhoneVerificationController::class, 'update'])->middleware('throttle:10,1');
+            // POST supports hosts whose method policy blocks PUT; both keep identical authorization.
+            Route::match(['put', 'post'], 'phone-verification', [StorePhoneVerificationController::class, 'update'])->middleware('throttle:10,1');
             Route::post('blocked-phone-numbers', [StorePhoneBlockController::class, 'storePhone'])->middleware('throttle:30,1');
             Route::put('blocked-phone-numbers/{block}', [StorePhoneBlockController::class, 'update'])->whereNumber('block')->middleware('throttle:30,1');
             Route::get('blocked-phone-numbers/{block}/history', [StorePhoneBlockController::class, 'history'])->whereNumber('block');

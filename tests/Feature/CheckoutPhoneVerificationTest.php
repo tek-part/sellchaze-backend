@@ -146,6 +146,50 @@ class CheckoutPhoneVerificationTest extends TestCase
         Mail::assertNothingSent();
     }
 
+    public function test_host_post_alias_preserves_permission_validation_and_version_checks(): void
+    {
+        $body = ['enabled' => false, 'version' => 1];
+        $this->postJson($this->settings, $body)->assertUnauthorized();
+        $this->postJson($this->settings, ['enabled' => 'invalid', 'version' => 1], $this->auth)->assertUnprocessable();
+        $this->postJson($this->settings, $body, $this->auth)->assertOk()->assertJsonPath('data.version', 2);
+        $this->postJson($this->settings, $body, $this->auth)->assertConflict();
+        $this->putJson($this->settings, $body, $this->auth)->assertConflict();
+        $employee = User::factory()->create(['parent_user_id' => $this->store->owner_user_id, 'is_active' => true, 'pending_approval' => false]);
+        $employee->assignRole('Employee');
+        $employee->givePermissionTo('store.orders.manage');
+        $headers = ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($employee)];
+        $this->postJson($this->settings, ['enabled' => false, 'version' => 2], $headers)->assertForbidden();
+        $employee->givePermissionTo('store.settings.manage');
+        $this->travel(31)->seconds();
+        $this->postJson($this->settings, ['enabled' => false, 'version' => 2], $headers)->assertOk()->assertJsonPath('data.version', 3);
+        $other = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
+        $other->assignRole('Merchant');
+        $foreign = ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($other)];
+        $this->postJson('/api/v1/stores/'.$this->store->id.'/phone-verification', ['enabled' => false, 'version' => 3], $foreign)->assertNotFound();
+        $admin = User::factory()->create(['is_active' => true, 'pending_approval' => false]);
+        $admin->assignRole('Admin');
+        $adminHeaders = ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($admin)];
+        $this->postJson('/api/v1/stores/'.$this->store->id.'/phone-verification', ['enabled' => false, 'version' => 3], $adminHeaders)->assertOk()->assertJsonPath('data.version', 4);
+        Http::assertNothingSent();
+        $this->travelBack();
+    }
+
+    public function test_host_post_alias_requires_settings_grant_for_store_managers(): void
+    {
+        $manager = User::factory()->create(['parent_user_id' => $this->store->owner_user_id, 'is_active' => true, 'pending_approval' => false]);
+        $manager->assignRole('StoreManager');
+        $manager->givePermissionTo('store.view', 'store.orders.manage');
+        $session = (string) Str::uuid();
+        JwtTokenService::fromConfig()->issueRefreshToken($manager, $session);
+        $headers = ['Authorization' => 'Bearer '.JwtTokenService::fromConfig()->issueAccessToken($manager, $session)];
+        $this->postJson($this->settings, ['enabled' => false, 'version' => 1], $headers)->assertForbidden();
+        $manager->givePermissionTo('store.settings.manage');
+        $this->travel(31)->seconds();
+        $this->postJson($this->settings, ['enabled' => false, 'version' => 1], $headers)->assertOk()->assertJsonPath('data.version', 2);
+        Http::assertNothingSent();
+        $this->travelBack();
+    }
+
     public function test_employee_and_foreign_owner_cannot_manage_another_stores_otp_connection(): void
     {
         $employee = User::factory()->create(['parent_user_id' => $this->store->owner_user_id, 'is_active' => true, 'pending_approval' => false]);

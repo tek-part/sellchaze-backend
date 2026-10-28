@@ -47,7 +47,7 @@ class PaymentMethodsSettingsTest extends TestCase
     public function test_all_source_methods_and_native_extras_have_logos_without_creating_settings_rows(): void
     {
         [$store, $headers] = $this->owner();
-        $response = $this->getJson('/api/v1/my-store/payments', $headers)->assertOk()->assertJsonCount(23, 'data');
+        $response = $this->getJson('/api/v1/my-store/payments', $headers)->assertOk()->assertJsonCount(24, 'data');
         $rows = collect($response->json('data'))->keyBy('slug');
         foreach ($rows as $slug => $row) {
             $this->assertStringStartsWith('/payments/'.$slug.'.', $row['logo_url']);

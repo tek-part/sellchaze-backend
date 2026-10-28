@@ -104,8 +104,9 @@ class StoreCustomerProfiles
     public function show(Store $store, string $key, int $page = 1, int $perPage = 10): ?array
     {
         $orders = $this->orders($store, $key);
+        $report = (new StoreReportingMoney($store))->report((clone $orders)->where('status', '!=', 'cancelled')->toBase());
         $stats = (clone $orders)->where('status', '!=', 'cancelled')->toBase()
-            ->selectRaw('COUNT(*) as orders_count, COALESCE(SUM(grand_total), 0) as total_spent, MIN(COALESCE(placed_at, created_at)) as first_order_at, MAX(COALESCE(placed_at, created_at)) as last_order_at')
+            ->selectRaw('COUNT(*) as orders_count, MIN(COALESCE(placed_at, created_at)) as first_order_at, MAX(COALESCE(placed_at, created_at)) as last_order_at')
             ->selectRaw('MAX(customer_name) as name, MAX(customer_email) as email, MAX(customer_phone) as phone, MAX(store_customer_id) as account_id')
             ->first();
         $any = (clone $orders)->toBase()->selectRaw('COUNT(*) as total, MAX(customer_name) as name, MAX(customer_email) as email, MAX(customer_phone) as phone, MAX(store_customer_id) as account_id')->first();
@@ -116,7 +117,7 @@ class StoreCustomerProfiles
 
         $profile = $this->profile($store, $key);
         $count = (int) $stats->orders_count;
-        $spent = round((float) $stats->total_spent, 2);
+        $spent = $report['base_equivalent'];
         $fromOrders = fn (string $field) => $stats->{$field} ?? $any->{$field} ?? null;
         $contact = [
             'name' => $profile->name ?: ($fromOrders('name') ?? $account?->name),
@@ -147,11 +148,12 @@ class StoreCustomerProfiles
             'stats' => [
                 'orders_count' => $count,
                 'total_spent' => $spent,
-                'average_order_value' => $count > 0 ? round($spent / $count, 2) : 0.0,
+                'average_order_value' => StoreReportingMoney::average($spent, $count),
                 'first_order_at' => self::iso($stats->first_order_at),
                 'last_order_at' => self::iso($stats->last_order_at),
                 'cancelled_count' => (int) $any->total - $count,
                 'currency' => $store->currency ?: 'USD',
+                'reporting_money' => $report,
             ],
             'addresses' => array_values($addresses),
             'account' => $account ? ['id' => $account->id, 'name' => $account->name, 'email' => $account->email, 'phone' => $account->phone,

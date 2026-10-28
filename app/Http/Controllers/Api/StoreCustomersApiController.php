@@ -62,13 +62,13 @@ class StoreCustomersApiController extends Controller
                 return;
             }
             fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel shows Arabic names correctly.
-            fputcsv($out, ['Name', 'Phone', 'Email', 'Account', 'Orders', 'Amount spent', 'Average order', 'First order', 'Last order', 'Location', 'Tags', 'Accepts marketing'], ',', '"', '');
+            fputcsv($out, ['Name', 'Phone', 'Email', 'Account', 'Orders', 'Amount spent equivalent', 'Average order equivalent', 'First order', 'Last order', 'Location', 'Tags', 'Accepts marketing', 'Reporting currency', 'Original totals by currency', 'Equivalent complete', 'Policy version'], ',', '"', '');
             $directory->each($store, $filters, function (Collection $rows) use ($out): void {
                 foreach ($rows as $row) {
                     fputcsv($out, array_map(StoreOrderExports::cell(...), [
-                        $row['name'], $row['phone'], $row['email'], $row['account_id'] ? 'registered' : 'guest', $row['orders_count'], number_format($row['total_spent'], 2, '.', ''),
-                        $row['orders_count'] ? number_format($row['total_spent'] / $row['orders_count'], 2, '.', '') : '', $row['first_order_at'], $row['last_order_at'], $row['city'],
-                        implode(', ', $row['tags']), $row['accepts_marketing'] ? 'yes' : 'no',
+                        $row['name'], $row['phone'], $row['email'], $row['account_id'] ? 'registered' : 'guest', $row['orders_count'], $row['total_spent'],
+                        $row['reporting_money']['average_base_equivalent'], $row['first_order_at'], $row['last_order_at'], $row['city'],
+                        implode(', ', $row['tags']), $row['accepts_marketing'] ? 'yes' : 'no', $row['currency'], json_encode($row['reporting_money']['totals_by_currency']), $row['reporting_money']['complete'] ? 'yes' : 'no', $row['reporting_money']['policy']['version'] ?? '',
                     ]), ',', '"', '');
                 }
             });

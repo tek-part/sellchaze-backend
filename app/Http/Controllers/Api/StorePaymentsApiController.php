@@ -10,6 +10,7 @@ use App\Services\Commerce\HostedPaymentGateways;
 use App\Services\Commerce\PaymentGatewayCatalog;
 use App\Services\Commerce\PaymentPriceAdjustment;
 use App\Services\Commerce\RegionalHostedPayments;
+use App\Services\Commerce\TapPaymentSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +31,8 @@ class StorePaymentsApiController extends Controller
             $setting = $saved->get($slug);
             $legacySetting = $legacy->get($slug) ?? $legacy->get(str_replace('_', '-', $slug));
             $credentials = $setting?->credentials ?? data_get($legacySetting, 'credentials', []);
+            $candidate = $setting ?? (new StorePaymentGateway)->forceFill(['store_id' => $store->id, 'gateway' => $slug, 'credentials' => $credentials, 'test_mode' => data_get($legacySetting, 'test_mode', true)]);
+            $connection = $slug === 'deema' ? TapPaymentSettings::connection($candidate) : null;
 
             return [
                 'name' => $provider['name'], 'slug' => $slug, 'icon_class' => 'fas fa-credit-card',
@@ -40,13 +43,15 @@ class StorePaymentsApiController extends Controller
                 'provider_name' => $provider['name'],
                 ...PaymentGatewayCatalog::presentation($setting ?? (new StorePaymentGateway)->forceFill(['store_id' => $store->id, 'gateway' => $slug, 'notes' => data_get($legacySetting, 'notes', '')])),
                 'enabled' => (bool) ($setting?->enabled ?? data_get($legacySetting, 'enabled', false)),
-                'test_mode' => (bool) ($setting?->test_mode ?? data_get($legacySetting, 'test_mode', true)),
+                'test_mode' => (bool) ($connection?->test_mode ?? $setting?->test_mode ?? data_get($legacySetting, 'test_mode', true)),
+                ...($slug === 'deema' ? ['connection_gateway' => 'tap', 'inherits_environment' => true, 'supported_currencies' => ['KWD'],
+                    'amount_limits' => ['currency' => 'KWD', 'minimum' => $connection?->test_mode !== false ? '100.000' : '10.000', 'maximum' => $connection?->test_mode !== false ? '200.000' : null]] : []),
                 'credentials' => collect($credentials)->only($provider['fields'])->map(fn ($value, $key) => in_array($key, PaymentGatewayCatalog::VISIBLE_FIELDS, true) ? $value : (filled($value) ? self::MASK : ''))->all(),
                 'order' => (int) ($setting?->sort_order ?? data_get($legacySetting, 'order', 0)),
                 'notes' => (string) ($setting?->notes ?? data_get($legacySetting, 'notes', '')),
-                'configured' => PaymentGatewayCatalog::configured($slug, $credentials),
+                'configured' => PaymentGatewayCatalog::configuredSetting($candidate, $store->currency),
                 'return_url' => $slug === 'xpay' ? route('payments.xpay.return', ['store' => $store->id, 'payment_key' => XpayPaymentReturnController::key($store)]) : null,
-                'webhook_url' => in_array($slug, ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'fawaterak'], true)
+                'webhook_url' => in_array($slug, ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'deema', 'fawaterak'], true)
                     ? url('/api/v1/payment-webhooks/'.$store->id.'/'.$slug.($slug === 'fawaterak' ? '_json' : ''))
                     : null,
             ];
@@ -111,7 +116,11 @@ class StorePaymentsApiController extends Controller
                 if ($input['enabled'] && in_array($input['slug'], HostedPaymentGateways::PROVIDERS, true)) {
                     app(RegionalHostedPayments::class)->validate((new StorePaymentGateway)->forceFill(['gateway' => $input['slug'], 'test_mode' => $testMode, 'credentials' => $credentials]), $store->currency);
                 }
-                if ($input['enabled'] && ! PaymentGatewayCatalog::configured($input['slug'], $credentials)) {
+                $candidate = (new StorePaymentGateway)->forceFill(['store_id' => $store->id, 'gateway' => $input['slug'], 'test_mode' => $testMode, 'credentials' => $credentials, 'presentation' => $presentation]);
+                if ($input['enabled'] && $input['slug'] === 'tap') {
+                    TapPaymentSettings::validate($candidate);
+                }
+                if ($input['enabled'] && $input['slug'] !== 'deema' && ! PaymentGatewayCatalog::configuredSetting($candidate, $store->currency)) {
                     throw ValidationException::withMessages(['gateways.'.$position.'.credentials' => 'Complete the required connection fields before enabling this payment method.']);
                 }
                 StorePaymentGateway::query()->updateOrCreate(
@@ -120,6 +129,12 @@ class StorePaymentsApiController extends Controller
                         'sort_order' => $input['order'] ?? $position, 'notes' => $input['notes'] ?? null,
                         'presentation' => $presentation ?: null]
                 );
+            }
+            // Validate after the batch so Tap/Deema input order cannot change an atomic save's outcome.
+            $deema = StorePaymentGateway::query()->where('store_id', $store->id)->where('gateway', 'deema')->first();
+            if ($deema?->enabled) {
+                $connection = TapPaymentSettings::validate($deema, $store->currency);
+                $deema->update(['test_mode' => $connection->test_mode, 'credentials' => []]);
             }
         });
 

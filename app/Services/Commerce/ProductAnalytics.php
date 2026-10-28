@@ -131,26 +131,30 @@ class ProductAnalytics
         $events = (clone $traffic)->groupBy('product_id')
             ->selectRaw('product_id, SUM(views) as views, SUM(carts) as carts, SUM(cart_units) as cart_units, SUM(checkouts) as checkouts')
             ->get()->keyBy('product_id');
+        $money = new StoreReportingMoney($store);
+        $revenueSql = $money->sum('i.line_total', 'o.currency');
         $orders = $this->orderLines($store, $from, $to)->whereNotNull('i.store_product_id');
         $this->attribution($orders, $filters);
+        $reports = $money->reports($orders, 'i.line_total', 'o.currency', ['i.store_product_id']);
+        $report = $money->report($orders, 'i.line_total', 'o.currency');
         $sales = $orders->groupBy('i.store_product_id')
-            ->selectRaw('i.store_product_id as product_id, COUNT(DISTINCT o.id) as orders, SUM(i.quantity) as units, SUM(i.line_total) as revenue')
+            ->selectRaw("i.store_product_id as product_id, COUNT(DISTINCT o.id) as orders, SUM(i.quantity) as units, $revenueSql as revenue")
             ->get()->keyBy('product_id');
         $ids = $events->keys()->merge($sales->keys())->map(fn ($id) => (int) $id)->unique()->values();
         $names = DB::table('products')->where('store_id', $store->id)->whereIn('id', $ids)->pluck('name', 'id');
-        $rows = $ids->map(function (int $id) use ($events, $sales, $names) {
+        $rows = $ids->map(function (int $id) use ($events, $sales, $names, $reports, $money) {
             $event = $events->get($id);
             $sale = $sales->get($id);
 
-            return $this->row(['product_id' => $id, 'name' => $names->get($id)], $event, $sale);
+            return $this->row(['product_id' => $id, 'name' => $names->get($id), 'reporting_money' => $reports[$id] ?? $money->empty()], $event, $sale);
         })->sort(fn ($a, $b) => [$b['orders'], $b['views'], $a['product_id']] <=> [$a['orders'], $a['views'], $b['product_id']])->values();
         $totals = $this->row([], (object) ['views' => $rows->sum('views'), 'carts' => $rows->sum('carts'), 'cart_units' => $rows->sum('cart_units'), 'checkouts' => $rows->sum('checkouts')],
-            (object) ['orders' => $this->countOrders($store, $from, $to, $filters), 'units' => $rows->sum('units'), 'revenue' => $rows->reduce(fn ($sum, $row) => bcadd($sum, $row['revenue'], 2), '0.00')]);
+            (object) ['orders' => $this->countOrders($store, $from, $to, $filters), 'units' => $rows->sum('units'), 'revenue' => $report['base_equivalent']]);
         $options = fn (string $column) => DB::table('store_product_daily_metrics')->where('store_id', $store->id)->whereBetween('day', [$from, $to])
             ->whereNotNull($column)->distinct()->orderBy($column)->limit(100)->pluck($column)->all();
 
         return ['period' => ['from' => $from, 'to' => $to, 'timezone' => $this->timezone($store)], 'currency' => $store->currency ?: 'USD',
-            'filters' => $filters, 'totals' => $totals, 'products' => $rows->take(self::MAX_PRODUCTS)->all(), 'truncated' => $rows->count() > self::MAX_PRODUCTS,
+            'reporting_money' => $report, 'filters' => $filters, 'totals' => $totals, 'products' => $rows->take(self::MAX_PRODUCTS)->all(), 'truncated' => $rows->count() > self::MAX_PRODUCTS,
             'options' => ['utm_source' => $options('utm_source'), 'utm_medium' => $options('utm_medium'), 'utm_campaign' => $options('utm_campaign')],
             'tracking_started_on' => DB::table('store_product_daily_metrics')->where('store_id', $store->id)->min('day')];
     }
@@ -269,21 +273,12 @@ class ProductAnalytics
         $orders = (int) ($sale->orders ?? 0);
 
         return $base + ['views' => $views, 'carts' => $carts, 'cart_units' => (int) ($event->cart_units ?? 0), 'checkouts' => (int) ($event->checkouts ?? 0),
-            'orders' => $orders, 'units' => (int) ($sale->units ?? 0), 'revenue' => $this->money($sale->revenue ?? 0),
+            'orders' => $orders, 'units' => (int) ($sale->units ?? 0), 'revenue' => $sale ? StoreReportingMoney::decimal($sale->revenue) : '0.00',
             'cart_rate' => $this->rate($carts, $views), 'checkout_rate' => $this->rate((int) ($event->checkouts ?? 0), $views), 'conversion_rate' => $this->rate($orders, $views)];
     }
 
     private function rate(int $part, int $whole): ?string
     {
         return $whole ? bcdiv(bcmul((string) $part, '100', 4), (string) $whole, 2) : null;
-    }
-
-    private function money(mixed $value): string
-    {
-        if (is_int($value) || (is_string($value) && preg_match('/^-?\d+(?:\.\d+)?$/D', $value))) {
-            return bcadd((string) $value, '0', 2);
-        }
-
-        return number_format((float) $value, 2, '.', '');
     }
 }

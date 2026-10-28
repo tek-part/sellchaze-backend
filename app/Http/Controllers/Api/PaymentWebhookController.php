@@ -10,6 +10,7 @@ use App\Models\StorePaymentTransaction;
 use App\Services\Commerce\PaymentAmounts;
 use App\Services\Commerce\PaymentSettlement;
 use App\Services\Commerce\StorePaymentService;
+use App\Services\Commerce\TapPaymentSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +26,7 @@ class PaymentWebhookController extends Controller
 
     public function handle(Request $request, Store $store, string $gateway): JsonResponse
     {
-        abort_unless(in_array($gateway, ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'fawaterak', 'paytabs', 'fawry'], true), 404);
+        abort_unless(in_array($gateway, ['stripe', 'paypal', 'tabby', 'tamara', 'paymob', 'tap', 'deema', 'fawaterak', 'paytabs', 'fawry'], true), 404);
         $setting = StorePaymentGateway::query()->where('store_id', $store->id)->where('gateway', $gateway)->firstOrFail();
         $event = match ($gateway) {
             'stripe' => $this->verifiedStripeEvent($request, $setting),
@@ -33,7 +34,7 @@ class PaymentWebhookController extends Controller
             'tabby' => $this->verifiedTabbyEvent($request, $setting),
             'tamara' => $this->verifiedTamaraEvent($request, $setting),
             'paymob' => $this->verifiedPaymobEvent($request, $setting),
-            'tap' => $this->verifiedTapEvent($request, $setting),
+            'tap', 'deema' => $this->verifiedTapEvent($request, $setting),
             'fawaterak' => $this->verifiedFawaterakEvent($request, $setting),
             'paytabs' => $this->verifiedPayTabsEvent($request, $setting),
             'fawry' => $this->verifiedFawryEvent($request, $setting),
@@ -62,7 +63,7 @@ class PaymentWebhookController extends Controller
                     break;
                 case 'paymob': $this->processPaymob($event, $setting);
                     break;
-                case 'tap': $this->processTap($event, $setting);
+                case 'tap': case 'deema': $this->processTap($event, $setting);
                     break;
                 case 'fawaterak': $this->processFawaterak($event, $setting);
                     break;
@@ -239,6 +240,15 @@ class PaymentWebhookController extends Controller
         $chargeId = (string) $request->input('id');
         abort_if($chargeId === '', 422, 'Missing Tap charge ID.');
         $event = $this->payments->retrieveTap($setting, $chargeId);
+        abort_unless(data_get($event, 'id') === $chargeId, 422, 'Tap charge ID mismatch.');
+        $transactionId = data_get($event, 'metadata.transaction_id') ?? data_get($event, 'reference.transaction');
+        abort_unless(is_string($transactionId) || is_int($transactionId), 422, 'Tap transaction reference missing.');
+        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', $setting->gateway)
+            ->whereKey($transactionId)->first();
+        abort_unless($transaction !== null && ($transaction->provider_reference === $chargeId
+            || ($transaction->provider_reference === null && in_array($transaction->status, ['processing', 'failed'], true) && data_get($transaction->metadata, 'tap.version') === 1)), 422, 'Tap charge does not belong to this payment.');
+        // Reject foreign/mismatched charges before creating a deduplication receipt in this tenant.
+        TapPaymentSettings::assertCharge($transaction, $event);
         $event['_event_id'] = $chargeId.':'.data_get($event, 'status');
 
         return $event;
@@ -400,9 +410,25 @@ class PaymentWebhookController extends Controller
 
     private function processTap(array $event, StorePaymentGateway $setting): void
     {
-        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', 'tap')->where('provider_reference', data_get($event, 'id'))->first();
+        $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', $setting->gateway)
+            ->where('provider_reference', data_get($event, 'id'))->lockForUpdate()->first();
+        if ($transaction === null && (string) data_get($event, 'metadata.tap_contract_version') === '1'
+            && (string) data_get($event, 'metadata.store_id') === (string) $setting->store_id
+            && data_get($event, 'metadata.gateway') === $setting->gateway) {
+            // Tap may capture before the charge ID is stored, even if the create response times out or fails.
+            $transaction = StorePaymentTransaction::query()->where('store_id', $setting->store_id)->where('gateway', $setting->gateway)
+                ->whereKey(data_get($event, 'metadata.transaction_id'))->where('store_order_id', data_get($event, 'metadata.store_order_id'))
+                ->whereIn('status', ['processing', 'failed'])->whereNull('provider_reference')->lockForUpdate()->first();
+            if ($transaction !== null) {
+                abort_unless(data_get($transaction->metadata, 'tap.version') === 1, 422, 'Tap payment contract mismatch.');
+            }
+        }
         if ($transaction === null) {
             return;
+        }
+        TapPaymentSettings::assertCharge($transaction, $event);
+        if ($transaction->provider_reference === null) {
+            $transaction->update(['provider_reference' => data_get($event, 'id')]);
         }
         $status = strtoupper((string) data_get($event, 'status'));
         if ($status === 'CAPTURED') {
