@@ -45,7 +45,7 @@ class StorePaymentsApiController extends Controller
                 'enabled' => (bool) ($setting?->enabled ?? data_get($legacySetting, 'enabled', false)),
                 'test_mode' => (bool) ($connection?->test_mode ?? $setting?->test_mode ?? data_get($legacySetting, 'test_mode', true)),
                 ...($slug === 'deema' ? ['connection_gateway' => 'tap', 'inherits_environment' => true, 'supported_currencies' => ['KWD'],
-                    'amount_limits' => ['currency' => 'KWD', 'minimum' => $connection?->test_mode !== false ? '100.000' : '10.000', 'maximum' => $connection?->test_mode !== false ? '200.000' : null]] : []),
+                    'amount_limits' => TapPaymentSettings::amountLimits($candidate)] : []),
                 'credentials' => collect($credentials)->only($provider['fields'])->map(fn ($value, $key) => in_array($key, PaymentGatewayCatalog::VISIBLE_FIELDS, true) ? $value : (filled($value) ? self::MASK : ''))->all(),
                 'order' => (int) ($setting?->sort_order ?? data_get($legacySetting, 'order', 0)),
                 'notes' => (string) ($setting?->notes ?? data_get($legacySetting, 'notes', '')),
