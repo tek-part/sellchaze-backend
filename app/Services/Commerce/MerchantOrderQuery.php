@@ -39,6 +39,21 @@ class MerchantOrderQuery
         ]);
     }
 
+    /** Sort monetary amounts by the same reporting equivalent used by all summaries. */
+    public function sort(Builder $query, Store $store, string $sort, string $direction): Builder
+    {
+        $sort = in_array($sort, self::SORTABLE, true) ? $sort : 'created_at';
+        $direction = $direction === 'asc' ? 'asc' : 'desc';
+        if ($sort === 'grand_total') {
+            $equivalent = (new StoreReportingMoney($store))->expression();
+            $query->orderByRaw("$equivalent IS NULL")->orderByRaw("$equivalent $direction");
+        } else {
+            $query->orderBy($sort, $direction);
+        }
+
+        return $query->orderBy('id', $direction);
+    }
+
     /** @param array<string, mixed> $filters
      * @return Builder<StoreOrder>
      */

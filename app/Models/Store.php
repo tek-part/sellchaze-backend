@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Scopes\ProductScope;
+use App\Services\Commerce\StoreReportingMoney;
 use App\Services\Commerce\StoreSocialLinks;
 use App\Services\Storefront\StorefrontPageCache;
 use App\Services\Stores\StoreDomainResolver;
@@ -110,6 +111,20 @@ class Store extends Model
     /** Task 6: any store change (status, name, settings...) invalidates its page cache. */
     protected static function booted(): void
     {
+        static::saving(function (Store $store): void {
+            if ($store->isDirty('theme_settings')) {
+                $settings = $store->theme_settings ?? [];
+                $previous = json_decode((string) $store->getRawOriginal('theme_settings'), true) ?? [];
+                // Theme publication replaces presentation settings; the pinned reporting policy belongs to the store.
+                if (! array_key_exists('reporting_money_policy', $settings) && array_key_exists('reporting_money_policy', $previous)) {
+                    $settings['reporting_money_policy'] = $previous['reporting_money_policy'];
+                    $store->theme_settings = $settings;
+                }
+            }
+            if (($store->isDirty('theme_settings') || $store->isDirty('currency')) && isset($store->theme_settings['reporting_money_policy'])) {
+                StoreReportingMoney::validatePolicy($store->theme_settings['reporting_money_policy'], strtoupper($store->currency ?: 'USD'));
+            }
+        });
         static::saved(function (Store $store): void {
             app(StorefrontPageCache::class)->flushStore($store->id);
             $resolver = app(StoreDomainResolver::class);

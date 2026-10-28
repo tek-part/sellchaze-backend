@@ -65,10 +65,12 @@ class StoreCustomerDirectory
     public function query(Store $store, array $filters): QueryBuilder
     {
         $key = self::key();
+        $money = new StoreReportingMoney($store);
+        $spent = $money->sum();
         $orders = StoreOrder::query()->withoutGlobalScopes()->where('store_id', $store->id)->whereNull('deleted_at')->where('status', '!=', 'cancelled')
             ->selectRaw("$key as customer_key")
             ->selectRaw('MAX(customer_name) as order_name, MAX(customer_email) as order_email, MAX(customer_phone) as order_phone, MAX(store_customer_id) as account_id')
-            ->selectRaw('COUNT(*) as orders_count, SUM(grand_total) as total_spent, MIN(COALESCE(placed_at, created_at)) as first_order_at, MAX(COALESCE(placed_at, created_at)) as last_order_at, MAX(id) as last_order_id')
+            ->selectRaw("COUNT(*) as orders_count, $spent as total_spent, MIN(COALESCE(placed_at, created_at)) as first_order_at, MAX(COALESCE(placed_at, created_at)) as last_order_at, MAX(id) as last_order_id")
             ->groupByRaw($key);
 
         if (filled($filters['search'] ?? null)) {
@@ -80,11 +82,11 @@ class StoreCustomerDirectory
         }
         $having = [
             'orders_min' => ['COUNT(*) >= ?', 'int'], 'orders_max' => ['COUNT(*) <= ?', 'int'],
-            'spent_min' => ['SUM(grand_total) >= CAST(? AS DECIMAL(14,2))', 'float'], 'spent_max' => ['SUM(grand_total) <= CAST(? AS DECIMAL(14,2))', 'float'],
+            'spent_min' => ["$spent >= CAST(? AS DECIMAL(14,2))", 'decimal'], 'spent_max' => ["$spent <= CAST(? AS DECIMAL(14,2))", 'decimal'],
         ];
         foreach ($having as $name => [$sql, $type]) {
             if (isset($filters[$name]) && $filters[$name] !== '') {
-                $orders->havingRaw($sql, [$type === 'int' ? (int) $filters[$name] : (float) $filters[$name]]);
+                $orders->havingRaw($sql, [$type === 'int' ? (int) $filters[$name] : (string) $filters[$name]]);
             }
         }
         if (filled($filters['last_order_from'] ?? null)) {
@@ -130,6 +132,10 @@ class StoreCustomerDirectory
         $sort = in_array($filters['sort_by'] ?? null, self::SORTS, true) ? $filters['sort_by'] : 'last_order_at';
         $direction = ($filters['sort_direction'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
 
+        if ($sort === 'total_spent') {
+            $query->orderByRaw('c.total_spent IS NULL');
+        }
+
         return $query->orderBy($sort === 'name' ? 'name' : 'c.'.$sort, $direction)->orderBy('c.customer_key');
     }
 
@@ -155,7 +161,11 @@ class StoreCustomerDirectory
         $latest = StoreOrder::query()->withoutGlobalScopes()->where('store_id', $store->id)
             ->whereIn('id', $rows->pluck('last_order_id'))->get(['id', 'shipping_address'])->keyBy('id');
 
-        return $rows->map(fn ($row) => self::row((array) $row, $latest))->values();
+        $money = new StoreReportingMoney($store);
+        $query = DB::table('store_orders')->where('store_id', $store->id)->whereNull('deleted_at')->where('status', '!=', 'cancelled')->whereIn(DB::raw(self::key()), $rows->pluck('customer_key'));
+        $reports = $money->reports($query, 'grand_total', 'currency', [DB::raw(self::key().' as customer_key')]);
+
+        return $rows->map(fn ($row) => self::row((array) $row, $latest) + ['reporting_money' => $reports[$row->customer_key] ?? $money->empty(), 'currency' => $money->currency])->values();
     }
 
     /**
@@ -174,7 +184,7 @@ class StoreCustomerDirectory
             'phone' => $row['phone'],
             'account_id' => $row['account_id'] ? (int) $row['account_id'] : null,
             'orders_count' => (int) $row['orders_count'],
-            'total_spent' => round((float) $row['total_spent'], 2),
+            'total_spent' => StoreReportingMoney::decimal($row['total_spent']),
             'first_order_at' => $row['first_order_at'] ? Carbon::parse($row['first_order_at'])->toIso8601String() : null,
             'last_order_at' => $row['last_order_at'] ? Carbon::parse($row['last_order_at'])->toIso8601String() : null,
             'city' => self::city($latest->get($row['last_order_id'])?->shipping_address),
