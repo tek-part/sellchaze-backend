@@ -4,9 +4,13 @@ namespace App\Services\Stores;
 
 use App\Models\Product;
 use App\Models\Scopes\ProductScope;
+use App\Models\Scopes\StoreScope;
 use App\Models\Store;
 use App\Models\StoreDomain;
+use App\Models\StorePage;
 use App\Services\StoreService;
+use App\Services\Themes\ThemePreviewToken;
+use App\Services\Themes\ThemeResolver;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -137,6 +141,29 @@ class StoreDomainResolver
         return new ResolvedStore($store, $payload['matched'], $payload['canonical'], (bool) $payload['alias']);
     }
 
+    /** Uncached owner capability lookup; callers must restrict it to preview read routes. */
+    public function resolveDraftPreview(?string $host, string $token): ?ResolvedStore
+    {
+        $host = $this->normalizeHost($host);
+        if ($host === null || $token === '' || strlen($token) > 512) {
+            return null;
+        }
+        $context = $this->resolveContextStrict($host, 'draft');
+        if ($context === null) {
+            return null;
+        }
+        // Keep the capability on the exact verified host; public alias redirects do not apply.
+        $context = new ResolvedStore($context->store, $host, $host, false);
+        $store = $context->store;
+        if (app(ThemeResolver::class)->resolvePreview($store, $token) !== null) {
+            return $context;
+        }
+        $pageId = app(ThemePreviewToken::class)->verifyPage($token, $store->id);
+
+        return $pageId !== null && StorePage::withoutGlobalScope(StoreScope::class)
+            ->where('store_id', $store->id)->whereKey($pageId)->exists() ? $context : null;
+    }
+
     private function resolveContextUncached(string $host): ?ResolvedStore
     {
         $ctx = $this->resolveContextStrict($host);
@@ -181,7 +208,7 @@ class StoreDomainResolver
         return $store !== null ? new ResolvedStore($store, $host, $host, false) : null;
     }
 
-    private function resolveContextStrict(string $host): ?ResolvedStore
+    private function resolveContextStrict(string $host, string $status = 'active'): ?ResolvedStore
     {
         // 1) Authoritative: an explicit store_domains row (subdomain or custom).
         //    Only VERIFIED rows are servable — an unproven domain resolves to nothing.
@@ -192,7 +219,7 @@ class StoreDomainResolver
                 return null; // never serve a reserved label, even if a row exists
             }
             $store = $domain->store;
-            if ($store === null || $store->status !== 'active') {
+            if ($store === null || $store->status !== $status) {
                 return null;
             }
             $canonical = $this->canonicalHostFor($store) ?? $host;
@@ -205,7 +232,7 @@ class StoreDomainResolver
         if ($label === null || $this->isReservedLabel($label)) {
             return null;
         }
-        $store = Store::query()->where('status', 'active')->where('slug', $label)->first();
+        $store = Store::query()->where('status', $status)->where('slug', $label)->first();
         if ($store === null) {
             return null;
         }
