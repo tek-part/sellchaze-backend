@@ -2,6 +2,7 @@
 
 namespace App\Services\Commerce;
 
+use App\Models\Store;
 use App\Models\StoreOrder;
 use App\Models\StorePaymentGateway;
 use App\Models\StorePaymentTransaction;
@@ -65,6 +66,27 @@ class TapPaymentSettings
             // The checkout field and server start share the same international-number requirement.
         }
         throw ValidationException::withMessages(['customer_phone' => 'Enter a valid international phone number with its country code for Deema.']);
+    }
+
+    /** @return array{currency:string,minimum:string,maximum:?string} */
+    public static function amountLimits(StorePaymentGateway $setting): array
+    {
+        $test = self::connection($setting)?->test_mode !== false;
+
+        return ['currency' => 'KWD', 'minimum' => $test ? '100.000' : '10.000', 'maximum' => $test ? '200.000' : null];
+    }
+
+    /** Quote and placement share the final amount actually collected after all discounts/tender. */
+    public static function assertCheckoutAmount(Store $store, string $gateway, string $amount): void
+    {
+        if ($gateway !== 'deema') {
+            return;
+        }
+        $setting = StorePaymentGateway::where('store_id', $store->id)->where('gateway', 'deema')->where('enabled', true)->first();
+        if (! $setting) {
+            throw ValidationException::withMessages(['payment_method' => 'Deema is not available for this checkout.']);
+        }
+        self::assertAmount($setting, $amount, $store->currency ?: 'USD');
     }
 
     public static function assertAmount(StorePaymentGateway $setting, string $amount, string $currency): void

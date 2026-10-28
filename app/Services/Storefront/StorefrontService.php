@@ -173,7 +173,7 @@ class StorefrontService
     }
 
     /** @return Collection<int, StoreCollection> */
-    public function collections(int $limit = 12): Collection
+    public function collections(int $limit = 12, bool $includeProducts = false): Collection
     {
         $collections = StoreCollection::query()
             ->where('is_active', true)
@@ -181,9 +181,15 @@ class StorefrontService
             ->orderBy('position')->orderBy('id')
             ->limit($limit)->get();
         // Automated collections count their rule matches (one count query each; the list is capped).
-        $collections->each(function (StoreCollection $collection) {
+        $collections->each(function (StoreCollection $collection) use ($includeProducts) {
             if ($collection->usesRules()) {
                 $collection->setAttribute('products_count', app(StoreCollectionProducts::class)->count($collection, true));
+            }
+            if ($includeProducts) {
+                // Home section rails support up to 24 items, in the same order as the collection page.
+                $collection->setRelation('products', app(StoreCollectionProducts::class)->query($collection, true)
+                    ->with(['category:id,name,name_en,name_ar,slug,translations', 'variants'])
+                    ->limit(24)->get());
             }
         });
 

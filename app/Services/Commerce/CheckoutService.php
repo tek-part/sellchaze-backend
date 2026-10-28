@@ -204,6 +204,7 @@ class CheckoutService
                 ], fn ($value) => $value !== null))->values()->all(), $coupon?->code, $guest);
             }
             $adjustments->assertQuoted($store, $totals['payment_adjustment'], $contact['payment_adjustment_token'] ?? null);
+            TapPaymentSettings::assertCheckoutAmount($store, $paymentMethod, bcsub($totals['grand_total'], $tender['total'] ?? '0.00', 2));
             if ($requiresShipping) {
                 $delivery = app(StoreShipping::class)->quote($store, bcsub($subtotal, $totals['discount_total'], 2), $shippingSelection, $offerFreeShipping, $productFreeShipping, $weightGrams);
                 if ($freeProductIds !== []) {

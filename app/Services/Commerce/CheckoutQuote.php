@@ -96,9 +96,15 @@ class CheckoutQuote
         $adjustments = app(PaymentPriceAdjustment::class);
         $totals = $adjustments->forDue($store, $shippingSelection['payment_method'] ?? '', $totals, $tender['amount_due']);
         $totals['gift_card_total'] = $tender['gift_card_total'];
+        $amountDue = bcadd($tender['amount_due'], $totals['payment_adjustment_total'], 2);
+        $method = $shippingSelection['payment_method'] ?? '';
+        if ($tender['gift_cards'] !== [] && bccomp($amountDue, '0', 2) === 0) {
+            $method = GiftCards::METHOD;
+        }
+        TapPaymentSettings::assertCheckoutAmount($store, $method, $amountDue);
 
         return ['items' => $lines, 'currency' => $store->currency ?: 'USD', 'gift_cards' => $tender['gift_cards'],
-            'amount_due' => bcadd($tender['amount_due'], $totals['payment_adjustment_total'], 2), 'discounts' => $discounts['applied'], 'requires_shipping' => $requiresShipping, 'offer_free_shipping' => $offerFreeShipping, 'product_free_shipping' => $productFreeShipping,
+            'amount_due' => $amountDue, 'discounts' => $discounts['applied'], 'requires_shipping' => $requiresShipping, 'offer_free_shipping' => $offerFreeShipping, 'product_free_shipping' => $productFreeShipping,
             'payment_adjustment_token' => $adjustments->token($store, $totals['payment_adjustment']),
             'order_minimum' => app(OrderLimits::class)->minimum($store, $subtotal, $discount),
             'shipping' => $this->shipping($breakdown['shipping']), 'tax' => $this->tax($breakdown['tax']),

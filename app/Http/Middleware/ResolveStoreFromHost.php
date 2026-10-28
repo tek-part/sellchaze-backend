@@ -2,6 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Controllers\Api\Storefront\StorefrontController;
+use App\Http\Controllers\Api\Storefront\StorefrontLayoutController;
+use App\Http\Controllers\Storefront\StorefrontPageController;
 use App\Services\Stores\ResolvedStore;
 use App\Services\Stores\StoreDomainResolver;
 use App\Support\Tenancy\CurrentStore;
@@ -29,18 +32,61 @@ class ResolveStoreFromHost
 
     public function handle(Request $request, Closure $next): Response
     {
+        $this->currentStore->forget();
         $context = $this->resolver->resolveContext($request->getHost());
+        $draftPreview = $context === null ? $this->draftPreview($request) : null;
+        // Denied capability routes stop before commerce validation or side effects.
+        abort_if($context === null && $request->has('__preview') && $draftPreview === null, 404);
+        $context ??= $draftPreview;
 
         $redirect = $this->canonicalRedirect($request, $context);
         if ($redirect !== null) {
-            return redirect()->away($redirect, 301);
+            $response = redirect()->away($redirect, $draftPreview ? 302 : 301);
+
+            return $draftPreview ? $this->privatePreviewResponse($response) : $response;
         }
 
         // Establish the tenant for StoreScope + attach for controllers.
         $this->currentStore->set($context?->store);
         $request->attributes->set('store', $context?->store);
 
-        return $next($request);
+        $response = $next($request);
+
+        return $draftPreview ? $this->privatePreviewResponse($response) : $response;
+    }
+
+    /** A capability never makes a draft store a commerce tenant. */
+    private function draftPreview(Request $request): ?ResolvedStore
+    {
+        $token = $request->query('__preview');
+        if (! in_array($request->method(), ['GET', 'HEAD'], true) || ! is_string($token)) {
+            return null;
+        }
+        $action = $request->route()?->getActionName();
+        $allowed = [
+            StorefrontPageController::class.'@root',
+            StorefrontPageController::class.'@page',
+            StorefrontPageController::class.'@funnel',
+            StorefrontController::class.'@index',
+            StorefrontController::class.'@context',
+            StorefrontLayoutController::class.'@layout',
+            StorefrontLayoutController::class.'@page',
+            StorefrontLayoutController::class.'@funnel',
+        ];
+        if (! in_array($action, $allowed, true)
+            || ($action === StorefrontController::class.'@context' && $request->query('template', 'home') !== 'home')) {
+            return null;
+        }
+
+        return $this->resolver->resolveDraftPreview($request->getHost(), $token);
+    }
+
+    private function privatePreviewResponse(Response $response): Response
+    {
+        $response->headers->set('Cache-Control', 'private, no-store');
+        $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
+
+        return $response;
     }
 
     /**
