@@ -5,6 +5,7 @@ namespace App\Services\Commerce;
 use App\Models\Store;
 use App\Models\StorePaymentGateway;
 use App\Services\Commerce\Apps\CountryRestriction;
+use Illuminate\Validation\ValidationException;
 
 /** One field contract for the merchant editor, public form and checkout validation. */
 class CheckoutFields
